@@ -25,9 +25,9 @@ The functional specifications in `docs/` are written in French and stay the refe
 - Enumeration values are lowercase `snake_case` strings, stored as text: `awaiting_game`, `to_do`. Use string-literal unions, never numeric enums.
 - The French word « état » and its synonym « statut » are rendered "status": property `status`, type suffix `Status` (`PlayerStatus`, `GameStatus`, `HealthStatus`).
 - Time (decision of 2026-11-11): a property holding an absolute instant (epoch milliseconds, `timestamptz`) ends in `At` (`createdAt`); a property holding a calendar date (`YYYY-MM-DD`, `date`) ends in `On` (`lastGamePlayedOn`); a property that the specs define as "a date, or a date and time" ends in `Date` and travels with its precision (`referenceDate`, `publicDate`, `publicationDate`).
-- A foreign key is the camelCase entity name plus `Id`: `eventTypeId`, `alertSheetId`. Every stored player is a followed player, so the key to a `FollowedPlayer` is `playerId`.
+- A foreign key is the camelCase entity name plus `Id`: `eventTypeId`, `alertSheetId`, `playerEventId`. Every stored player is a followed player, so the key to a `FollowedPlayer` is `playerId`.
 - Reserved words are never identifiers on their own: a variable holding one case is `caseItem` (or `trackedCase`, `historicalCase`), one import `importItem`, one export `exportItem`.
-- The domain type `Event` shadows the DOM's global `Event` type in a module that imports it; UI code that needs the DOM type writes `globalThis.Event`. Telegram messages are `NotificationMessage`, never `Notification` (a DOM global too).
+- No domain type takes the name of a browser built-in, because a forgotten import would then type-check against the wrong thing (orchestrator ruling). An event is the code type `PlayerEvent`, held in variables `playerEvent` / `playerEvents`, keyed by `playerEventId`; the English term stays "event", the UI label "Event", the table `events` and the route segment `events`. Names derived from the bare word follow it (`PlayerEventSource`, since `EventSource` is a browser built-in too); compound names that are already unambiguous stay as they are (`EventType`, `EventOrigin`, `EventMark`, `DetectedEventStatus`, `withdrawEvent()`). Telegram messages are `NotificationMessage`, never `Notification`, another built-in.
 - French words never appear in identifiers. Requirement IDs (`JOU-08`, `CA-SEN-03`, `D-12`, `H-SEN-04`, `Q-DSN-01`) keep their French prefixes everywhere, including test names.
 
 **Exchange formats.** JSON keys of the research-result and exploration formats are `snake_case` (section 6). Placeholders in prompts are `{{UPPER_SNAKE_CASE}}`.
@@ -209,11 +209,11 @@ Decisions:
 
 | French | English | Code | UI label | Meaning | IDs |
 | --- | --- | --- | --- | --- | --- |
-| événement | event | `Event`; key `eventId` | Event | Public, dated fact about one followed player, likely to touch his ego, of one event type. | VUE-04, DSN-06 |
+| événement | event | `PlayerEvent`; key `playerEventId`; variables `playerEvent`, `playerEvents` | Event | Public, dated fact about one followed player, likely to touch his ego, of one event type. | VUE-04, DSN-06 |
 | fait | fact | — | — | What an article or a source reports; one fact gives one event. | TAX-06, BKT prompt 2.9 |
 | fait public et daté | public, dated fact | — | — | The only kind of fact an event may rest on. | DSN-01 |
-| événement détecté | detected event | `Event` with origin `detected` | Detected event | Event found by daily detection from collected articles (Lot 2). | DET-24, DET-37 |
-| événement historique | historical event | `Event` with origin `historical` | Historical event | Past event reported by a backtest and saved at import. | IMP-30 |
+| événement détecté | detected event | `PlayerEvent` with origin `detected` | Detected event | Event found by daily detection from collected articles (Lot 2). | DET-24, DET-37 |
+| événement historique | historical event | `PlayerEvent` with origin `historical` | Historical event | Past event reported by a backtest and saved at import. | IMP-30 |
 | origine (de l'événement) | event origin | `EventOrigin` | Origin | detected or historical; fixed by the first recording. | DSN-06, IMP-27 |
 | date de référence | reference date | `referenceDate` (+ `referenceDatePrecision`) | Reference date | Moment the fact became public, with its precision. | TAX-05, DET-30, DSN-06 |
 | précision (de la date de référence, de l'instant retenu) | precision | `DatePrecision` | Precision | exact, approximate or none (section 4). | COL-20, DET-30, DSN-06 |
@@ -221,7 +221,7 @@ Decisions:
 | instant de référence | reference instant | `referenceInstant` | — | Instant the event is deemed public, used to find the measured game; date-only means end of day, Pacific time. | SEN-01, SEN-02 |
 | provenance de l'instant de référence | reference-instant origin | `ReferenceInstantOrigin` | — | known instant, date only, known in advance, or uncertain-precedence shift (section 4). | SEN-01, SEN-02, SEN-44 |
 | devenu public | became public | — | — | The moment that dates an event; never the moment the fact happened, if earlier. | TAX-05 |
-| source (d'un événement) | event source | `EventSource` | Sources | Press article cited for an event: link, outlet, title, publication date; nothing else. | DSN-06, DSN-08 |
+| source (d'un événement) | event source | `PlayerEventSource` | Sources | Press article cited for an event: link, outlet, title, publication date; nothing else. | DSN-06, DSN-08 |
 | lien | link | `url`; JSON `url` | Link | Address of the article, kept exactly as published. | DSN-08, H-DSN-04 |
 | média | outlet | `outlet`; JSON `outlet` | Outlet | Name of the media outlet. | DSN-08 |
 | titre | title | `title`; JSON `title` | Title | Article title as published, in its own language. | DSN-08, H-BKT-05 |
@@ -913,7 +913,7 @@ Decisions:
 | Tableau de validation | Validation table | route `/validation-table` | Validation table | Lot 2. | IHM-16, IHM-35 |
 | Collecte et détection, Sources de presse | Collection and detection, Press sources | route `/collection` | Collection and detection; Press sources | Lot 2: sources, journals, queue. | IHM-36, IHM-71 |
 | Détail d'un profil | profile detail | route `/players/[playerId]/profiles/[eventTypeId]` | — | Profile with its case groups. | IHM-24 |
-| fiche d'un événement | event page | route `/events/[eventId]` | — | Check and correct an event; withdraw it. | IHM-67 |
+| fiche d'un événement | event page | route `/events/[playerEventId]` | — | Check and correct an event; withdraw it. | IHM-67 |
 | écran de retrait | withdrawal screen | — | Withdraw this event | Separate from dismissal and deletion; lists what disappears and the limits. | IHM-68, DSN-28 |
 | écran d'une demande | request screen | route `/backtest-requests/[requestId]` | — | Prompt, copy, paste result, update, reduce, cancel. | IHM-27 |
 | liste « à faire » | to-do list | `TodoList` | To do | Everything waiting for the owner, in sections (section 4). | IHM-20 |
@@ -1049,7 +1049,7 @@ Decisions:
 | entrée (du journal) | journal entry | `JournalEntry` | Entry | With a category, a level and a plain-language message. | TRV-41–TRV-43 |
 | catégorie (d'une entrée) | entry category | `JournalEntryCategory` | Category | Section 4. | TRV-41 |
 | niveau | level | `JournalLevel` | Level | info, warning or incident. | TRV-43 |
-| désignation d'un événement | event reference | `eventRef` | — | Player, type and reference date: the only way an entry names an event; erased on withdrawal. | TRV-41 |
+| désignation d'un événement | event reference | `playerEventRef` | — | Player, type and reference date: the only way an entry names an event; erased on withdrawal. | TRV-41 |
 | détails techniques, réponse brute, réponses brutes des services | technical details, raw response | `technicalDetails` | Technical details | Stored apart, hidden by default, no secret and no event text. | TRV-44, DSN-11 |
 | incident | incident | `Incident` | Incident | A function no longer does its job; opened once per cause, closed when it disappears or by the owner. | TRV-45 |
 | incident ouvert, clos, clore | open, closed, close | `IncidentStatus` | Open; Closed | — | TRV-45 |
@@ -2946,4 +2946,3 @@ Points this glossary could not settle because the specs or decisions leave the c
 7. **The decrease caveat (ALE-16).** « le joueur a tendance à jouer moins bien » is a present-tense claim close to what ALE-18 and SEN-42 forbid (12-oddities). The English uses the present perfect, "has tended to play worse", to keep it about past games; the owner may prefer the ALE-10 wording instead.
 8. **Route segments.** The routes in 3.13 follow the conventions but are proposals for the interface module.
 9. **The owner as actor in labels.** Origins « utilisateur » are labeled "You" (single-user app). If screens are ever shared, "Owner" would replace it everywhere.
-10. **Domain type `Event`.** It shadows the DOM's `Event` in modules that import it (section 2). If the lint configuration forbids shadowing built-in globals, the type needs another name; `PlayerEvent` would be the fallback, keeping keys `eventId`.
