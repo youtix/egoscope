@@ -1,6 +1,6 @@
 # Domain model — news collection (Lot 2)
 
-Press sources, articles, deduplication, collection runs and possible collection gaps: file 03 (COL-01 to COL-50) as ruled by `CL-COL-01` to `CL-COL-22`, with ADR 0017, ADR 0019 and `CL-DSN-10`. Detection's use of articles (parts, results, attachments) is in [detection.md](detection.md); the shared entities this file points to (players, events, incidents, task runs, parameters, withdrawal fingerprints) belong to the core model.
+Press sources, articles, deduplication, collection runs and possible collection gaps: file 03 (COL-01 to COL-50) as ruled by `CL-COL-01` to `CL-COL-23`, with ADR 0017, ADR 0019 and `CL-DSN-10`. Detection's use of articles (parts, results, attachments) is in [detection.md](detection.md); the shared entities this file points to (players, events, incidents, task runs, parameters, withdrawal fingerprints) belong to the core model.
 
 **Conventions.** Tables are snake_case plural, enumerations are `text` with a `CHECK` on the glossary's snake_case values, `id` is an `integer` identity primary key. An instant is `timestamptz` (`EpochMs` in code); a calendar date is `date` (`IsoDate` in code) and its calendar is stated on the column. Columns that reference core tables take the type of the referenced key (assumed `integer`, `event_types.id` a `text` slug). Parameter keys are the glossary's (§9.3).
 
@@ -96,7 +96,7 @@ A stored feed item reduced to the COL-25 minimum, dated cautiously (COL-19 to CO
 | `language` | text | no | — | `CHECK (language IN ('en','fr'))`; the item's declared language, else the source's | `none` | COL-17, CL-COL-11 |
 | `excerpt` | text | yes | null | feed-supplied text without formatting, truncated to `excerptMaxLength`; `CHECK (char_length(excerpt) BETWEEN 1 AND 1000)`; null when the feed gave none or once erased | `excerpt` | COL-25, COL-27, COL-37, DSN-09 |
 | `processing_status` | text | no | `'to_analyze'` | `CHECK (processing_status IN ('to_analyze','awaiting_classification','not_relevant','attached','linked_to_proposal'))` (`ArticleProcessingStatus`) | `none` | COL-35, CL-DET-01 |
-| `not_relevant_reasons` | text[] | no | `'{}'` | every distinct non-relevance reason of the article's parts and facts (detection.md §2.3); `CHECK (not_relevant_reasons <@ ARRAY['no_followed_player','no_fact','below_threshold','old_fact','already_reported_by_backtest','type_rejected_or_withdrawn','proposal_rejected','detached'])`; `CHECK (processing_status <> 'not_relevant' OR cardinality(not_relevant_reasons) > 0)` | `none` | DET-54, CL-DET-01, CL-DET-12 |
+| `not_relevant_reasons` | text[] | no | `'{}'` | every distinct non-relevance reason of the article's parts and facts (detection.md §2.3); `CHECK (not_relevant_reasons <@ ARRAY['no_followed_player','no_fact','below_threshold','below_coverage_threshold','old_fact','already_reported_by_backtest','type_rejected_or_withdrawn','proposal_rejected','detached'])`; `CHECK (processing_status <> 'not_relevant' OR cardinality(not_relevant_reasons) > 0)` | `none` | DET-54, CL-DET-01, CL-DET-12, CL-DET-27 |
 | `retention_clock_started_at` | timestamptz | yes | null | start of the not-relevant retention (CL-COL-08): `first_collected_at` when the prefilter found no followed player, else the instant the article last became not relevant; `CHECK ((processing_status = 'not_relevant') = (retention_clock_started_at IS NOT NULL))` | `none` | COL-36, COL-38, CL-COL-08, CL-COL-14 |
 | `first_press_source_id` | integer | no | — | → `press_sources.id` `ON DELETE RESTRICT`; the source whose read first stored it | `none` | CL-COL-21 |
 | `first_task_run_id` | integer | yes | null | → core `task_runs.id` `ON DELETE SET NULL`; the collection run that stored it | `none` | COL-49, CL-COL-14 |
@@ -342,6 +342,7 @@ None is owned here. Feed items arrive through the `press-feeds` port, whose cont
 - `CL-COL-19`: `proposed_feed_url` and `permanent_redirect_url`.
 - `CL-COL-20`: the on-demand deferral is the scheduler's, not a collection table.
 - `CL-COL-21`: daily counts per source; each article counts for its first source.
+- `CL-COL-23`: the closed list of ad-tracking parameters removed from links, a constant of the shared link module, which `link` and `feed_url_key` rely on.
 - `CL-JOU-06`, `CL-TAX-09`: erasure scopes for player-data deletion and requalification.
 
 Modeling choices of this file:
@@ -386,3 +387,4 @@ erDiagram
 3. **Withdrawal composition** (`CL-DSN-16`): run the Lot 2 erasers inside the withdrawal's transaction in the order notifications, alerts, tracking, detection, collection, all of them before the core erases the event's case, sources and row; apply the same order to an erasure by requalification or split (CL-TAX-09) and to a player-data deletion (CL-JOU-06).
 4. **Purge task**: call this module's purge steps of §1.11 in the daily `data_purge` run and journal their three figures.
 5. **Parameters**: none new for this file; the keys of glossary §9.3 family 03 are used as named, with `silencePeriodDays` overridable per source.
+6. **On-demand collection requests** (`CL-COL-20`): the scheduler records at most one pending on-demand run of `news_collection` per pass, started when the pass ends, and reports it to the screen as deferred.

@@ -1,6 +1,6 @@
 # Domain model — event detection (Lot 2)
 
-The classification queue, what the language model receives and returns, the facts it reports and their outcomes, the links between articles and events, exposure counts and the detection journal: file 04 (DET-01 to DET-58) as ruled by `CL-DET-01` to `CL-DET-26`, with ADR 0015, ADR 0017, `CL-COL-16`, `CL-DSN-06` and the detection-model service sheet. Articles themselves are in [collection.md](collection.md). Events, their sources, marks, corrections and cases, event types, proposals and occurrences belong to the core model: this file references them and lists in §8 what it needs from them.
+The classification queue, what the language model receives and returns, the facts it reports and their outcomes, the links between articles and events, exposure counts and the detection journal: file 04 (DET-01 to DET-58) as ruled by `CL-DET-01` to `CL-DET-28`, with ADR 0015, ADR 0017, `CL-COL-16`, `CL-DSN-06` and the detection-model service sheet. Articles themselves are in [collection.md](collection.md). Events, their sources, marks, corrections and cases, event types, proposals and occurrences belong to the core model: this file references them and lists in §8 what it needs from them.
 
 **Conventions.** As in [collection.md](collection.md): snake_case plural tables, `integer` identity keys, enumerations as `text` with a `CHECK` on the glossary's values, instants as `timestamptz` (`EpochMs`), calendar dates as `date` (`IsoDate`) with their calendar stated. The code type of an event is `PlayerEvent` (table `events`, key `playerEventId`).
 
@@ -75,7 +75,7 @@ One fact a result reports for its player, with its single outcome (`CL-DET-01`, 
 | `suggested_type_name` | text | yes | null | kind `new_type` only; null when replaced | `written` | DET-16, DET-34, CL-DET-18 |
 | `suggested_type_definition` | text | yes | null | kind `new_type` only; null when replaced | `written` | DET-16, DET-34, CL-DET-18 |
 | `outcome` | text | no | — | `CHECK (outcome IN ('attached','linked_to_proposal','not_relevant','superseded'))` (`FactOutcome`); `attached` only for kind `validated_type`, `linked_to_proposal` only for `known_entry` or `new_type` | `none` | CL-DET-01, CL-DET-03 |
-| `not_relevant_reason` | text | yes | null | `CHECK (not_relevant_reason IN ('below_threshold','old_fact','already_reported_by_backtest','type_rejected_or_withdrawn','proposal_rejected','detached'))`; `CHECK ((outcome = 'not_relevant') = (not_relevant_reason IS NOT NULL))` | `none` | DET-20, DET-24, DET-34, DET-36, DET-58, CL-DET-12 |
+| `not_relevant_reason` | text | yes | null | `CHECK (not_relevant_reason IN ('below_threshold','below_coverage_threshold','old_fact','already_reported_by_backtest','type_rejected_or_withdrawn','proposal_rejected','detached'))`; `CHECK ((outcome = 'not_relevant') = (not_relevant_reason IS NOT NULL))` | `none` | DET-20, DET-24, DET-34, DET-36, DET-58, CL-DET-12, CL-DET-27 |
 | `matched_historical_event_id` | integer | yes | null | → core `events.id` `ON DELETE SET NULL`; the historical event that already reports the fact; `CHECK (matched_historical_event_id IS NULL OR not_relevant_reason = 'already_reported_by_backtest')` | `event` | DET-58 |
 
 - **Kind checks:** for kind `known_entry` or `new_type`: `detection_confidence`, `description`, `novelty`, `designated_event_id`, `timing_hint_on`, `injury_return`, `game_stakes` are null; for kinds other than `new_type`: `suggested_type_name` and `suggested_type_definition` are null.
@@ -83,7 +83,8 @@ One fact a result reports for its player, with its single outcome (`CL-DET-01`, 
   - `classification_facts_result_idx` `(classification_result_id)`;
   - `classification_facts_designated_idx` `(designated_event_id) WHERE designated_event_id IS NOT NULL` — the withdrawal step (§1.9);
   - `classification_facts_matched_idx` `(matched_historical_event_id) WHERE matched_historical_event_id IS NOT NULL` — the articles that point to a historical event (DET-58) and the withdrawal step;
-  - `classification_facts_linked_idx` `(event_type_id) WHERE outcome = 'linked_to_proposal'` — the articles of a pending proposal, reclassified on validation or made not relevant on rejection (DET-36), and the excerpt rule of CL-COL-08.
+  - `classification_facts_linked_idx` `(event_type_id) WHERE outcome = 'linked_to_proposal'` — the articles of a pending proposal, reclassified on validation or made not relevant on rejection (DET-36), and the excerpt rule of CL-COL-08;
+  - `classification_facts_coverage_idx` `(event_type_id) WHERE not_relevant_reason = 'below_coverage_threshold'` — the waiting facts a new fact of a coverage-threshold type is grouped with (CL-DET-27).
 - **Deletion:** cascades from its result. A row of `article_attachments` that names the fact blocks its deletion (`ON DELETE RESTRICT`).
 - **TypeScript:** `id: ClassificationFactId`; a union on `kind`: `{ kind: 'validated_type'; eventTypeId; detectionConfidence: number | null; description: string | null; novelty: FactNovelty | null; designatedEventId: PlayerEventId | null; timingHintOn: IsoDate | null; context: ContextIndications | null; justification: string | null }`, `{ kind: 'known_entry'; eventTypeId; justification: string | null }`, `{ kind: 'new_type'; eventTypeId; suggestedTypeName: string | null; suggestedTypeDefinition: string | null; justification: string | null }`, each with `outcome: FactOutcome` and `notRelevantReason: FactNotRelevantReason | null`.
 
@@ -124,11 +125,11 @@ Per player and day, the number of collected articles that cited him; numbers onl
 | --- | --- | --- | --- | --- | --- | --- |
 | `id` | integer identity | no | — | primary key | `none` | DET-57 |
 | `player_id` | integer | no | — | → core `players.id` `ON DELETE CASCADE` | `none` | DET-57, CL-JOU-06 |
-| `counted_on` | date | no | — | the article's first-collection day, **owner's time zone** | `none` | DET-57, CL-DET-14 |
+| `counted_on` | date | no | — | the article's first-collection day, **owner's time zone** | `none` | DET-57, CL-DET-14, CL-JOU-19 |
 | `article_count` | integer | no | 0 | `CHECK (article_count >= 0)` | `none` | DET-57 |
 
 - **Unique and indexes:** `exposure_counts_uq` unique `(player_id, counted_on)` — the window sum of JOU-03 and the upsert at prefilter time.
-- **Deletion:** deleted by the daily purge once `counted_on` is more than 90 days old, the largest allowed `exposureWindowDays` (CL-TRV-16); cascades from a player-data deletion (CL-JOU-06).
+- **Deletion:** deleted by the daily purge once `counted_on` is more than 90 days old, the largest allowed `exposureWindowDays` (CL-JOU-19, CL-TRV-16); cascades from a player-data deletion (CL-JOU-06).
 - **TypeScript:** `countedOn: IsoDate`.
 
 ### 1.7 Detection run — `detection_runs`
@@ -147,6 +148,7 @@ The detection-journal entry of one run of `event_detection` or `classification_q
 | `articles_still_queued` | integer | no | 0 | per article, eligible at the end of the run | `none` | DET-55 |
 | `facts_attached_to_existing_event` | integer | no | 0 | per fact | `none` | DET-55 |
 | `facts_below_threshold` | integer | no | 0 | per fact | `none` | DET-55 |
+| `facts_below_coverage_threshold` | integer | no | 0 | per fact, waiting for a coverage threshold | `none` | DET-55, CL-DET-27 |
 | `facts_old` | integer | no | 0 | per fact | `none` | DET-55 |
 | `facts_already_reported_by_backtest` | integer | no | 0 | per fact | `none` | DET-55 |
 | `proposals_submitted` | integer | no | 0 | per fact | `none` | DET-55 |
@@ -203,7 +205,7 @@ What may remain: exposure counts and run counters (numbers, no event), and the r
 | From | To | Trigger | Guard | Side effects | Spec |
 | --- | --- | --- | --- | --- | --- |
 | — | `pending` (`first_classification`) | the prefilter recognizes an active player in an article to analyze | variants matched as whole words; an ambiguous variant needs a corroborating clue (DET-03, DET-04); no part yet for that player | `recognized_by = 'prefilter'`; exposure count +1 on the article's first-collection day; the source's `prefilter_kept` +1 once per article | DET-02 to DET-06, DET-57, CL-DET-14 |
-| — | `pending` (`automatic_reclassification`) | DET-07 re-prefilter after a player is added or reactivated or a variant added | the article is kept and its retained instant within `maxArticleAgeDays`; no part yet for that player | exposure count +1; a not-relevant article becomes awaiting classification and its clock stops | DET-07, CL-DET-14 |
+| — | `pending` (`automatic_reclassification`) | DET-07 re-prefilter after a player is added or reactivated or a variant added | the article is kept and its retained instant within `maxArticleAgeDays`; no part yet for that player | exposure count +1; the source's `prefilter_kept` +1 if the article was not kept before; a not-relevant article becomes awaiting classification and its clock stops | DET-07, CL-DET-14, CL-COL-21 |
 | `closed` | `pending` (`automatic_reclassification`) | the re-prefilter of a reactivated player | same | no new exposure count | CL-DET-14, CL-DET-23 |
 | `classified` | `pending` (`automatic_reclassification`) | the proposal a fact of the part is linked to is validated | — | that fact's outcome becomes `superseded` | DET-36, CL-DET-13 |
 | `classified`, `closed`, `pending` | `pending` (`owner_request`) | the owner asks for a new classification of the article, or a new attempt for a failed item | the player is active | every active part of the article is queued; `cycle_attempts = 0`; failed mark cleared | DET-22, DET-50, CL-DET-03 |
@@ -216,7 +218,7 @@ What may remain: exposure counts and run counters (numbers, no event), and the r
 
 ### 2.2 Fact outcome (`FactOutcome`)
 
-A model fact of kind `validated_type` is evaluated in this order: threshold; old fact; designated event (detected: attach; historical: already reported); for a new fact, the withdrawal fingerprints (`CL-DET-21`), then the historical match (DET-58), then a new event. An owner fact skips the threshold and the fingerprints (`CL-DET-07`, `CL-DET-21`) and asks the owner to confirm a historical match (DET-58).
+A model fact of kind `validated_type` is evaluated in this order: threshold; old fact; designated event (detected: attach; historical: already reported); for a new fact of a type whose sheet carries a coverage threshold, the wait of `CL-DET-27`; for any other new fact, the withdrawal fingerprints (`CL-DET-21`), then the historical match (DET-58), then a new event. An owner fact skips the threshold, the coverage wait and the fingerprints (`CL-DET-07`, `CL-DET-21`, `CL-DET-27`) and asks the owner to confirm a historical match (DET-58).
 
 | From | To | Trigger | Guard | Side effects | Spec |
 | --- | --- | --- | --- | --- | --- |
@@ -224,6 +226,8 @@ A model fact of kind `validated_type` is evaluated in this order: threshold; old
 | — | `not_relevant` (`old_fact`) | model fact | `novelty = 'old_fact'` | — | DET-20 |
 | — | `attached` | fact designating a detected event, dismissed included | at or above the threshold | attachment row; the event's reference date becomes the earliest of its sources (DET-31); a dismissed event stays dismissed (DET-44); no new routing (DET-41) | DET-28, DET-31, DET-41, DET-44 |
 | — | `not_relevant` (`already_reported_by_backtest`) | fact designating a historical event, or matching one by IMP-25 (same type, public dates within `correspondenceWindowDays`, or a shared cleaned link) | for an owner fact, the owner did not confirm a distinct fact | `matched_historical_event_id` set | DET-58 |
+| — | `not_relevant` (`below_coverage_threshold`) | new model fact of a type whose sheet has a coverage threshold of N outlets within D days | — | waits, grouped with the waiting facts of the same player and type whose articles' retained instants lie within D days; the article follows the ordinary retention | CL-DET-27, CL-TAX-14 |
+| `not_relevant` (`below_coverage_threshold`) | `attached` | the group's articles come from at least N distinct outlets within D days | no live fingerprint match, no historical match, both checked now | the event is created, its reference date being the retained instant of the article that brings the N-th outlet (its reference article); every fact of the group is attached; routing | CL-DET-27 |
 | — | (part deleted) | new fact matching a live withdrawal fingerprint over the window | model fact | nothing stored; the article may be erased (§1.9) | CL-DET-21, CL-COL-16 |
 | — | `attached` | new fact otherwise | — | new detected event: reference date = the article's retained instant; template description and the `description_to_review` mark if the description failed; `possible_historical_duplicate` mark if another type's historical event of the player lies within the window (CL-DET-10); case created awaiting its game, tracked case, routing (DET-37 to DET-40) | DET-21, DET-24, DET-30, DET-37, CL-DET-10 |
 | — | `linked_to_proposal` | `new_type` fact, or `known_entry` naming a pending proposal | — | a new proposal (only then a Telegram fact, TEL-14), or an occurrence of the entry | DET-34, TAX-18 |
@@ -283,7 +287,7 @@ The mark `detected_after_tip_off` is not stored: it is derived (§4).
 | No text that failed the DSN-24 checks is stored: a failed description is replaced by the template on the event, any other text by « texte non conservé ». | DET-21, CL-DET-18 | answer checks |
 | An attachment's fact has outcome `attached`, and a fact has outcome `attached` only through an attachment. | DET-53 | detection service, in the same transaction |
 | An attached article is not deleted while attached. | COL-37 | `ON DELETE RESTRICT` |
-| An event's reference date is the earliest instant among its attached articles' retained instants and its owner-supplied sources, with that source's precision; it moves later only by a detachment. | DET-30, DET-31, DET-48 | detection service at every attach, detach, merge or source addition |
+| An event's reference date is the earliest instant among its attached articles' retained instants and its owner-supplied sources, with that source's precision — or, for an event created at a coverage threshold, the earliest instant at which its attached articles meet that threshold, never before; it moves later only by a detachment. | DET-30, DET-31, DET-48, CL-DET-27 | detection service at every attach, detach, merge or source addition, following the event's `reference_date_rule` (§8) |
 | A threshold change alters no existing event. | DET-26 | outcomes are computed once, at classification |
 | The article's processing status, reasons and clock follow the derivation of §2.3. | CL-DET-01 | detection service, through collection's API, in the same transaction |
 | A model fact that would create an event is checked against the withdrawal fingerprints before the historical match; an owner fact is not. | CL-DET-21 | detection service |
@@ -297,7 +301,7 @@ The mark `detected_after_tip_off` is not stored: it is derived (§4).
 | Queue item and its order | derived from pending parts and next games, at each run (§1.5) | — |
 | Article processing status, reasons, clock | stored on `articles` | §2.3, in every transaction that changes a part, an outcome, an attachment or a link |
 | Reference date and precision of a detected event | stored on the core's `events` | by detection at every attach, detach, merge, owner-supplied source; file 08 then re-evaluates the measured game (DET-31) |
-| Reference article | derived: the attached article with the earliest retained instant (ties: earliest attachment); an owner-supplied source when it is earlier | — |
+| Reference article | derived: the attached article with the earliest retained instant (ties: earliest attachment), an owner-supplied source when it is earlier; for an event created at a coverage threshold, the article that brings the N-th outlet at the earliest instant the threshold is met (CL-DET-27) | — |
 | Detection confidence of an event | derived: the highest `detection_confidence` among its attached facts whose result has origin `model`; none when all are `user` (CL-DET-07) | — |
 | Classification origin shown for an event | derived: `model` if an attached fact comes from a model result, else `user` | — |
 | `detected_after_tip_off` | derived (CL-DET-16): once the measured game is established, set when its scheduled start is at or before the event's creation instant; before that, the same test against the expected game; otherwise not set | — |
@@ -430,6 +434,8 @@ Nothing else is sent: no team, no source of an event, nothing about the owner (D
 - `CL-DET-23`: parts of paused or withdrawn players closed without a call.
 - `CL-DET-24`, `CL-DET-25`: bands and period filters; counter units.
 - `CL-DET-26`: owner-supplied sources dated cautiously (on the core's event sources).
+- `CL-DET-27`: facts of a coverage-threshold type wait with the reason `below_coverage_threshold` until their group reaches N distinct outlets within D days; the event is dated at the article that brings the N-th outlet.
+- `CL-DET-28`: one event per record approach rests on the sheet's exclusion criterion and the owner's merge; nothing is stored for it.
 - Detection-model service sheet: `model_id` on each result; strict-mode schema; static part first.
 
 Modeling choices of this file:
@@ -444,9 +450,8 @@ Modeling choices of this file:
 8. **The detection confidence, the reference article and `detected_after_tip_off` are derived**, so they cannot disagree with the attachments.
 9. **A withdrawal also erases the facts that designate or match the withdrawn event** on articles kept for another role: their description and justification describe the withdrawn fact (DSN-27, "every trace").
 10. **Exposure counts are kept 90 days**, the largest allowed exposure window (CL-TRV-16).
-11. **New enumerations, to add to the glossary:** `PartRecognition`, `ArticlePartStatus`, `QueueEntryKind`, `UserClassificationAction`, `FactKind`, `FactNovelty`, `FactOutcome`, `ClassificationStopCause`. `timingHintOn` applies the glossary's date-suffix rule to its `timingHint`; `detection_runs` rows are the glossary's `DetectionJournalEntry`.
-
-**Not modeled — media-storm coverage threshold.** `CL-TAX-14` puts a coverage threshold (N distinct outlets within D days) on a sheet, and file 02's "Ruled elsewhere" recommends that detection create such an event only when its grouped articles reach it, dated by the article that does. No ruling of file 04 adopts that recommendation, and it would need a new outcome ("waiting for coverage") with its own retention. This model sends the threshold to the model inside the dating rule (`CL-TAX-14`) and creates events by the ordinary rules; the open point goes to the orchestrator.
+11. **`facts_below_coverage_threshold`** is added to the DET-55 counters, so the journal accounts for every fact of the run (`CL-DET-27` creates the outcome).
+12. **New enumerations, to add to the glossary:** `PartRecognition`, `ArticlePartStatus`, `QueueEntryKind`, `UserClassificationAction`, `FactKind`, `FactNovelty`, `FactOutcome`, `ClassificationStopCause`. `timingHintOn` applies the glossary's date-suffix rule to its `timingHint`; `detection_runs` rows are the glossary's `DetectionJournalEntry`.
 
 ## 7. Entity-relationship diagram
 
@@ -470,15 +475,16 @@ erDiagram
 
 ## 8. Requests to the core model
 
-1. **Events of origin `detected`** (`events`): `detected_status` with `CHECK (detected_status IN ('detected','dismissed'))`, null for other origins; `dismissal_reason` (`DismissalReason`), `dismissal_comment` (required for `other`, wording rules of 13), `dismissed_at` — only the instant is stored, its position is derived (CL-DET-15); `created_at` immutable (DET-33, SUI-01); `reference_date` as `timestamptz` with `reference_date_precision` (`DatePrecision`), written by detection (§4); the event's context indications with origin `classification` from the creating fact; no stored detection confidence (derived here, CL-DET-07) — if the core keeps one for display, detection maintains it at every attachment change.
-2. **Event marks** (`EventMark`, `EventMarkStatus`): `dating_to_verify`, `possible_historical_duplicate` and `description_to_review` stored per event with status `set` or `lifted` and their instants, a lifted `dating_to_verify` never set again; `detected_after_tip_off` not stored (derived, CL-DET-16).
-3. **Event sources** (`PlayerEventSource`, table assumed `event_sources`): accept, for a detected event, an owner-supplied dated public source (DET-48) with `url`, `outlet`, publication instant and precision (CL-DET-26) and an optional title; the press sources of a detected event are this file's `article_attachments` plus these rows.
-4. **Event corrections** (DET-52): traced entries, with instant, changed fields, before and after values (never an old description), for dismissal, reinstatement, detachment, merge, player, type, description and context corrections, an added player, a rescue and a reference date moved earlier.
-5. **Event types** (`event_types`): a readable "derived from the calendar" flag (CL-DET-22); detection-born proposals created with origin `detection`, the suggested name and definition (or the « texte non conservé » mention, CL-DET-18), the no-fit reason, the followed player, the transmission instant and the originating article's reference (link, outlet, title, retained publication instant and precision); occurrences (`TypeOccurrence`) with type, player, instant, justification (CL-DET-19) and one article reference, both kept after the article's purge (DSN-09).
-6. **Cases**: for every detected event, in the same transaction, a case of origin `tracked`, status `awaiting_game` with reason `game_not_played_yet`, `created_at` equal to the event's creation instant (DET-37, SUI-01).
-7. **Withdrawal fingerprints**: a check `matchesWithdrawalFingerprint(playerId, eventTypeId, referenceDate)` that computes the day as `CL-DSN-06` rules (the date as written without a time, else the calendar date of the instant in the owner's time zone) and tests every day within `correspondenceWindowDays` of it (CL-DET-21, CL-IMP-34).
-8. **Read APIs**: next game per player (STA-26) for the queue order and the incident's nearest player; expected game (STA-27); historical events of a player matching a fact by IMP-25; the validated sheets, the do-not-repropose list and the calendar list; whether a player is profiled and his coverage (BKT-10, routing BKT-30).
-9. **Parameters**: a new `confidenceBandWidth` (integer points, default 10, family 04 Detection, CL-DET-24); `CL-TRV-16` gives it no bounds, and the module map's "10-point bands" engineering constant gives way to this ruling.
-10. **Incidents**: kind `quota_reached` for the classification function closes at the end of the first run after which no part is eligible (CL-DET-04); its cause and counts are in `classification_incident_details`.
-11. **Quotas**: the declared limits of each language-model provider (primary and fallback) and the refusal reported by `withQuota`, so a refusal before the declared limit is told apart (CL-DET-04).
-12. **Withdrawal composition**: the order of Lot 2 erasers in collection.md §8 request 3.
+1. **Events of origin `detected`** (`events`): `detected_status` with `CHECK (detected_status IN ('detected','dismissed'))`, null for other origins; `dismissal_reason` (`DismissalReason`), `dismissal_comment` (required for `other`, wording rules of 13), `dismissed_at` — only the instant is stored, its position is derived (CL-DET-15); `created_at` immutable (DET-33, SUI-01); the reference date — always an instant for a detected event (CL-COL-02, CL-SEN-02) — with its precision (`DatePrecision`), written by detection (§4); the event's context indications with origin `classification` from the creating fact; no stored detection confidence (derived here, CL-DET-07) — if the core keeps one for display, detection maintains it at every attachment change.
+2. **Reference-date rule**: on a detected event, `reference_date_rule` `CHECK (reference_date_rule IN ('earliest_source','coverage_threshold'))`, set at creation — `coverage_threshold` for an event the model's facts created at a coverage threshold (CL-DET-27), `earliest_source` otherwise, the owner's events included (DET-30) — so that every later recomputation applies the right rule; and, on the type sheet version, its coverage threshold (outlets N, days D) readable (CL-TAX-14).
+3. **Event marks** (`EventMark`, `EventMarkStatus`): `dating_to_verify`, `possible_historical_duplicate` and `description_to_review` stored per event with status `set` or `lifted` and their instants, a lifted `dating_to_verify` never set again; `detected_after_tip_off` not stored (derived, CL-DET-16).
+4. **Event sources** (`PlayerEventSource`, table assumed `event_sources`): accept, for a detected event, an owner-supplied dated public source (DET-48) with `url`, `outlet`, publication instant and precision (CL-DET-26) and an optional title; the press sources of a detected event are this file's `article_attachments` plus these rows.
+5. **Event corrections** (DET-52): traced entries, with instant, changed fields, before and after values (never an old description), for dismissal, reinstatement, detachment, merge, player, type, description and context corrections, an added player, a rescue and a reference date moved earlier.
+6. **Event types** (`event_types`): a readable "derived from the calendar" flag (CL-DET-22); detection-born proposals created with origin `detection`, the suggested name and definition (or the « texte non conservé » mention, CL-DET-18), the no-fit reason, the followed player, the transmission instant and the originating article's reference (link, outlet, title, retained publication instant and precision); occurrences (`TypeOccurrence`) with type, player, instant, justification (CL-DET-19) and one article reference, both kept after the article's purge (DSN-09).
+7. **Cases**: for every detected event, in the same transaction, a case of origin `tracked`, status `awaiting_game` with reason `game_not_played_yet`, `created_at` equal to the event's creation instant (DET-37, SUI-01).
+8. **Withdrawal fingerprints**: a check `matchesWithdrawalFingerprint(playerId, eventTypeId, referenceDate)` that computes the day as `CL-DSN-06` rules (the date as written without a time, else the calendar date of the instant in the owner's time zone) and tests every day within `correspondenceWindowDays` of it (CL-DET-21, CL-IMP-34).
+9. **Read APIs**: next game per player (STA-26) for the queue order and the incident's nearest player; expected game (STA-27); historical events of a player matching a fact by IMP-25; the validated sheets, the do-not-repropose list and the calendar list; whether a player is profiled and his coverage (BKT-10, routing BKT-30).
+10. **Parameters**: a new `confidenceBandWidth` (integer points, default 10, bounds 1 to 50, family 04 Detection, CL-DET-24, CL-TRV-16); the module map's "10-point bands" engineering constant gives way to this ruling.
+11. **Incidents**: kind `quota_reached` for the classification function closes at the end of the first run after which no part is eligible (CL-DET-04); its cause and counts are in `classification_incident_details`.
+12. **Quotas**: the declared limits of each language-model provider (primary and fallback) and the refusal reported by `withQuota`, so a refusal before the declared limit is told apart (CL-DET-04).
+13. **Withdrawal composition**: the order of Lot 2 erasers in collection.md §8 request 3.

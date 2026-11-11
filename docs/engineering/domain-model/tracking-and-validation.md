@@ -98,7 +98,7 @@ Every owner decision of the kinds SUI-17 lists that made a tracked case leave th
 | `decided_at` | timestamptz | no | — | | `none` | SUI-17, H-SUI-07 |
 
 - **Unique and indexes:** `tracked_case_decisions_case_idx` `(tracked_case_id, decided_at)` — the case's decisions and the latest one (`CL-SUI-10`).
-- **Deletion:** with its tracked case; the decisions about a withdrawn event by the withdrawal step.
+- **Deletion:** with its tracked case; the decisions about a withdrawn event by the withdrawal step; repointed to the surviving event when two detected events are merged.
 - **TypeScript:** `{ kind: PostTipOffDecisionKind; effect: PostTipOffDecisionEffect; playerEventId: PlayerEventId | null; decidedAt: EpochMs }`; `isPostTipOff` is computed.
 
 ### 1.6 Validation table (derived) — `ValidationTable`, `ValidationRow`
@@ -246,7 +246,7 @@ The content stored in `tracked_game_results.content` and handed to notifications
 - `CL-SUI-10`: three counts of touched cases by present situation and latest decision.
 - `CL-SUI-11`: rows of withdrawn types and players kept in an archived part.
 - `CL-SUI-12`, `CL-SUI-13`: one reference instant per event; scheduled start as tip-off.
-- `CL-SUI-14`, `CL-TAX-19`: upcoming calendar-derived events become tracked cases, created by the regular derivation runs; their changes and table membership. `CL-SUI-14` also drops an upcoming event whose type stops being validated, which `CL-TAX-20` (after TAX-31) keeps as a pending case of an archived type: this model supports either; the remaining difference is the orchestrator's to settle.
+- `CL-SUI-14`, `CL-TAX-19`: upcoming calendar-derived events become tracked cases, created by the regular derivation runs; their changes and table membership. A withdrawn type deletes nothing (`CL-SUI-14`, `CL-TAX-20`): its upcoming events and their tracked cases stay and are measured, counting only in the type's archived profiles and trend, in the archived part of the table.
 - `CL-SUI-15`: chance-expected counts.
 - `CL-DET-09`, `CL-DET-15`: dismissed cases leave every calculation; only a dismissal at or after tip-off shows in the separate count, measured outside the calculations.
 

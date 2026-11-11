@@ -180,7 +180,7 @@ The outcome of one case of the sheet at closure (ALE-27). Its profile after the 
 
 What may remain: the sheet of the other events, with its other sections, snapshots, outcomes and log entries.
 
-**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps. A player-data deletion (CL-JOU-06) erases every sheet of the player through the withdrawal of each of his events. An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is not an erasure: its sheet-event row goes, an `event_no_longer_applies` entry records its type, game and reason, the sheet is canceled with that reason when no other non-dismissed event remains (`CL-ALE-13`), and its sections and snapshots stay.
+**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps. A player-data deletion (CL-JOU-06) erases every sheet of the player through the withdrawal of each of his events, then deletes any sheet of his left without events, such as one canceled by an attachment correction. A merge of two detected events (DET-47) removes the absorbed event's sheet-event row with an `attachment_corrected` entry, as ALE-31 does. An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is not an erasure: its sheet-event row goes, an `event_no_longer_applies` entry records its type, game and reason, the sheet is canceled with that reason when no other non-dismissed event remains (`CL-ALE-13`), and its sections and snapshots stay.
 
 **Purge.** None: the alert history is kept (ALE-28).
 
@@ -279,7 +279,9 @@ None is owned here. The data an alert or an alert update needs is defined in [no
 - `CL-ALE-10`: every source line shows its title, read from the article.
 - `CL-ALE-11`: one sequence, gaps accepted.
 - `CL-ALE-12`: the outcome's frozen profile and live values with logged changes.
-- `CL-ALE-13`: sheets of upcoming calendar-derived events; the cancellation reason `event_no_longer_applies`. `CL-SUI-14` also drops an upcoming event whose type stops being validated, which `CL-TAX-20` (after TAX-31) keeps: this model supports either; the remaining difference is the orchestrator's to settle.
+- `CL-ALE-13`: sheets of upcoming calendar-derived events, their event block "derived from the calendar" and the cancellation reason `event_no_longer_applies`.
+- `CL-SUI-14`, `CL-TAX-20`: a withdrawn type deletes nothing; an upcoming event of that type keeps its sheet event, its sheet shows the type-withdrawn notice, and the type's later events get no sheet, the production guard requiring a validated type.
+- `CL-ALE-15`: the tip-off an import is compared with is the scheduled start of the event's expected game as known at the import; an import saved at or after it produces no sheet.
 - `CL-ALE-14`: a new event revives a canceled sheet of the same game.
 - ADR 0016: the caveat `confounder_not_separable`.
 
