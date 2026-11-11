@@ -1,0 +1,35 @@
+# Git hooks, installed by `bun install` (the `prepare` script) and shared by every
+# worktree of the clone. They only check what is staged, so they stay fast; the
+# full gate runs with `bun run gate` and in CI. Personal tweaks go in the
+# git-ignored lefthook-local.yml.
+
+# Standard globs: `*` stays within one folder, `**` crosses folders.
+glob_matcher: doublestar
+
+pre-commit:
+  piped: true
+  jobs:
+    - name: format
+      glob: '**/*.{ts,tsx,mts,js,mjs,cjs,json,jsonc,css,md,yml,yaml}'
+      exclude:
+        # The French specifications are frozen.
+        - 'docs/*.md'
+      run: bun x --no-install prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
+    - name: lint
+      group:
+        parallel: true
+        jobs:
+          - name: eslint
+            glob: '**/*.{ts,tsx,mts}'
+            run: bun x --no-install eslint --max-warnings 0 --no-warn-ignored {staged_files}
+          - name: markdownlint
+            glob: '**/*.md'
+            exclude:
+              - 'docs/*.md'
+            run: bun x --no-install markdownlint-cli2 {staged_files}
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: bun x --no-install commitlint --edit {1}

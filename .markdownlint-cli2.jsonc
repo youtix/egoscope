@@ -10,7 +10,6 @@
     // The pull request template starts below the title GitHub already shows.
     "MD041": false,
   },
-  "globs": ["**/*.md"],
   "ignores": ["docs/*.md"],
   "gitignore": true,
 }
