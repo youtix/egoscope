@@ -15,23 +15,20 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** TRV-24, TRV-71, CA-TRV-36, IHM-13, IHM-14, TEL-04; record 0010
 - **Problem:** TRV-71 always gives a game's US date and local time, while IHM-14 recalls the US date only when it differs; the examples of 12 omit the time zone.
-- **Ruling:** 14 owns the rule:
-  - every instant shown to the owner — screens, Telegram, journal, readable exports — is in the owner's time zone (IHM-14, Paris by default), in the formats of record 0010 ("Wednesday 18 November 2026, 01:30 Paris time" in full, "Wed 18 Nov 2026, 01:30" in short), and the zone is named next to the instant or once in the heading of the list or table that holds it;
-  - wherever a game's tip-off is shown, the game's day (CL-TRV-03) is recalled after it when it differs from the date shown in the owner's zone (IHM-14);
-  - where one game is shown in full — the game block of a case, of an event's measured or expected game, of an alert sheet, of a request's deadline and of the player page's next game — the venue's local date and time are always added, with the venue's zone (TRV-71, CA-TRV-36);
+- **Ruling:** 14 owns the rule, which the rulings on 11 and 12 apply (CL-IHM-04, CL-IHM-07, CL-TEL-03):
+  - every instant shown to the owner — screens, Telegram, journal, readable exports — is in the owner's time zone (IHM-14, Paris by default), in the formats of record 0010 ("Wednesday 18 November 2026, 01:30 Paris time" in full, "Wed 18 Nov 2026, 01:30" in short); the zone is named by the full form, or once at the top of a screen that uses the short form, and after every clock time in Telegram; a date without a time shows no zone;
+  - wherever a game is shown, its US date (CL-TRV-03) follows when it differs from the date of its start in the owner's zone, with the part of day of its Eastern start, as in "Wed 18 Nov 2026, 01:30 — Tuesday evening in the US" (IHM-14, CL-IHM-07);
+  - the venue's local time is not shown: TRV-71's "and its local time" is read as that recall, and CA-TRV-36 expects "Wednesday 11 November 2026, 04:30 Paris time — Tuesday evening in the US";
   - machine formats stay ISO 8601 (record 0010).
-- **Why:** the compact recall keeps lists short, as record 0010 and IHM-14 say; the full block keeps TRV-71 and its criterion.
-- **Owner review:** no
+- **Why:** the league's date already places the game; a third time on one phone line adds little, and every file then shows games the same way.
+- **Owner review:** yes — a game's local time at the venue, which TRV-71 and CA-TRV-36 mention, is never displayed.
 
 ### CL-TRV-03 — The day of a game, inside and outside the US
 
 - **Affects:** TRV-70, TRV-71, TRV-72, H-TRV-11, SEN-02, STA-31, STA-32; record 0015
 - **Problem:** "the day of a game is its US date" does not say which US time zone applies, nor what it means for a game played in Mexico or Europe.
-- **Ruling:**
-  - The day of a game is its date in US Eastern time (America/New_York), the date the league's schedule uses. The statistics source gives it directly, and it can always be computed from the tip-off instant. It is the "US date" recalled on screens and the competition day of STA-32.
-  - Where a rule speaks of the local date at the venue (SEN-02, STA-31, the birthday of record 0015), the date is taken in the venue's time zone: the zone of the venue's city when the source names a known venue, otherwise the zone of the home team's arena, otherwise US Eastern time. A static table maps every NBA arena, and every venue of past international or neutral-site games, to its IANA zone. The same zone gives the local time of CL-TRV-02.
-  - For official games at their usual hours both dates are the same, games played in Canada, Mexico, Europe or Asia included, since these start in the US morning, afternoon or evening.
-- **Why:** one computable definition, the league's; the venue zone serves only the rules that name it.
+- **Ruling:** the day of a game, for every rule and every display, is the calendar date of its scheduled start in US Eastern time (America/New_York), the date the league's schedule uses, games played abroad included (CL-IHM-07). The statistics source gives it directly, and it can always be computed from the tip-off instant. It is the "US date" recalled on screens and the competition day of STA-32. Rules that speak of the local date at the venue (SEN-02, STA-31, the birthday of record 0015) use the same date: for official games at their usual hours it is the venue's local date, in North America as abroad, since games in Mexico, Europe or Asia start in the US evening, afternoon or morning. No venue time zone is stored or needed.
+- **Why:** one computable date, the league's, the same one every screen recalls; a venue table would change no game's day in practice.
 - **Owner review:** no
 
 ### CL-TRV-04 — Backup storage: encryption, real deletion, privacy
@@ -54,7 +51,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Problem:** TRV-51 lists the content loosely; the drafts, the fingerprints and the account data need an explicit answer.
 - **Ruling:**
   - A backup holds all the application's data — players, types and sheets, requests, events of every origin, import traces, articles, cases, statistics, profiles and verdict history, alert sheets, tracked cases, Telegram texts and the link to the conversation, settings, the activity journal with its technical details, incidents and task-run history — and the value of the withdrawn-events counter.
-  - It never holds: deployment configuration values; drafts (CL-DSN-17); the entries of the withdrawal ledger (CL-DSN-08); the account's password data (its hash and the fingerprint of the initial password, TRV-63); sessions and login-failure state.
+  - It never holds: deployment configuration values; drafts, server copies included (CL-DSN-17, CL-IHM-10); the entries of the withdrawal ledger (CL-DSN-08); the account's password data (its hash and the fingerprint of the initial password, TRV-63); sessions and login-failure state.
   - A full export (TRV-52) holds the same as a backup, unencrypted, in its documented open format.
   - A restore keeps the target database's account data, if it has any, and closes all sessions; otherwise the account is initialized from the configured initial password (TRV-57) and the owner chooses a new one.
 - **Why:** the exclusions are what 13 forbids or what must not travel between installations; the rest rebuilds the application identically.
@@ -96,7 +93,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
   - Timed tasks — collection and detection, statistics update, purge, backup: each configured time is an occurrence due at that time; the statistics update follows CL-TRV-23.
   - Chained tasks — detection after collection, game tracking after the statistics update: each successful run of the parent is an occurrence, due at the parent's end.
   - Conditional tasks — classification-queue resumption, retries of statistics fetches, sending of notifications: an occurrence is due one interval after the previous run started, and exists only if the condition holds then (queue not empty, fetch pending, message due).
-  - An occurrence is missed when no run of the task started at or after its due time has succeeded by the due time plus the margin (TRV-31, 2 hours by default). The application then writes one journal entry per missed occurrence, opens one "task not run" incident per task (TRV-45) and starts one catch-up run at once, not one per missed occurrence; the owning file's catch-up rules apply (COL-45). The incident closes when a run of the task succeeds.
+  - An occurrence is missed when no run of the task started at or after its due time has succeeded by the due time plus the margin (TRV-31, 2 hours by default). The application then writes one journal entry per missed occurrence, opens one "task not run" incident per task (TRV-45) and starts one catch-up run at once, not one per missed occurrence; the owning file's catch-up rules apply (COL-45). That run is a scheduled run, recorded with the scheduled origin (CL-COL-07), and it stands for the missed occurrences. The incident closes when a run of the task succeeds.
 - **Why:** occurrences give every kind of task a precise due time, which an "interval" does only for timed ones.
 - **Owner review:** no
 
@@ -121,13 +118,13 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Why:** references resolved at display time erase every mention at once and keep the journal otherwise append-only.
 - **Owner review:** no
 
-### CL-TRV-11 — The owner closing an incident
+### CL-TRV-11 — "Closed by the user" means hidden
 
 - **Affects:** TRV-45, IHM-20, TEL-15
-- **Problem:** TRV-45 lets the owner close an incident, while 12 lets him hide one that stays open; whether a closed incident whose cause persists comes back is not said.
-- **Ruling:** the owner can hide an open incident (IHM-20: it stays open, counted as hidden) or close it (TRV-45). Closing ends it at once, with "closed by the owner" in the journal; if the application observes the same cause again later, it opens a new incident. The TRV-06 incident, whose end the application cannot observe, closes when the owner saves a new value for that limit, or when he closes it.
-- **Why:** closing must not silence a cause that persists.
-- **Owner review:** no
+- **Problem:** TRV-45 lets an incident be closed automatically "or by the user", while 12 lets the owner only hide one, which stays open while its cause lasts.
+- **Ruling:** as ruled for the interface (CL-IHM-20): the owner's only action on an incident is to hide it (IHM-20), which is how TRV-45's « ou par l'utilisateur » is read; a hidden incident stays open while its cause lasts, in the journal and on the status screen, counted among the hidden incidents. Every incident closes automatically when its cause disappears. The TRV-06 incident, whose cause is a declared limit the service did not honour, closes when the owner saves a new value for that limit, or at the end of the next full period that passes without such a refusal.
+- **Why:** a closure by hand while the cause lasts would contradict « reste ouvert tant que la cause subsiste »; every incident then has an automatic end.
+- **Owner review:** yes — the owner can hide an incident but never close it.
 
 ### CL-TRV-12 — Quota periods and resets
 
@@ -261,7 +258,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** TRV-35, TRV-36, IHM-51, SEN-37, SUI-25; record 0016
 - **Problem:** the date of the last change of a parameter that affects calculations is shown, but the set of such parameters is only hinted at ("documents 07, 08 and 10").
-- **Ruling:** the date moves when any parameter owned by 07, 08 or 10 changes, and when a type's doubtful-criterion switch changes (CL-TAX-17). It does not move for the detection threshold (not retroactive, TRV-36), for the import parameters of 06 or for the description length of 13. The registry marks the parameters concerned, and the settings screen shows the mark.
+- **Ruling:** the date moves when any parameter owned by 07, 08 or 10 changes, and when a type's doubtful-criterion switch changes (CL-TAX-17). It does not move for the detection threshold (not retroactive, TRV-36), for the import parameters of 06 or for the description length of 13. The register (TRV-38) marks each parameter concerned, the switch included; the settings screen shows the mark, and every change of a marked parameter asks the confirmation of IHM-37 (CL-IHM-12).
 - **Why:** TRV-35 names the three files; record 0016 adds the switch.
 - **Owner review:** no
 
@@ -300,7 +297,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** TRV-67, CA-TRV-34, TEL-31
 - **Problem:** TRV-67 allows "at most the neutral answer" of 11, which 11 never defines and which TEL-31 replaces with no answer.
-- **Ruling:** the neutral answer is no answer: the robot never replies to a conversation other than the linked private one, except within the linking exchange of TEL-29 and TEL-30. Each attempt is written to the journal with its instant and the kind of conversation (private, group, channel), never the text or the sender's identity.
+- **Ruling:** as ruled for Telegram (CL-TEL-06): the neutral answer is no answer at all. The robot sends nothing to any conversation other than the linked one, a refused linking code and a group included; the link confirmation goes to the conversation that the code has just linked. Each attempt is written to the journal with its instant and the kind of conversation (private, group, channel), never the text or the sender's identity.
 - **Why:** "at most" allows none; silence gives a stranger nothing.
 - **Owner review:** no
 
@@ -328,15 +325,14 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## Ruled elsewhere
 
-- **Venue time zones and the waiting rule in 07's terms** — owned by 07 (STA-31, STA-32, STA-36, STA-37): recommendation, use the venue-zone table of CL-TRV-03 for STA-31 and apply the wait and the late-source incident of CL-TRV-23 as written.
+- **The start of a game's day and the waiting rule in 07's terms** — owned by 07 (STA-31, STA-32, STA-36, STA-37): recommendation, read STA-31's "beginning of its day, local time at the venue" as the start of the game's Eastern day (CL-TRV-03), and apply the wait and the late-source incident of CL-TRV-23 as written.
 - **Mechanics of a statistics-source replacement and of two combined sources** — owned by 07 (STA-03; record 0012): recommendation, follow CL-TRV-14 and the service sheet's crosswalk procedure, one source per season.
-- **End message of an incident the owner closed** — owned by 11 (TEL-15): recommendation, send none, since the owner closed it himself.
-- **Placement of the date recall and of the full game block** — owned by 12 (IHM-14): recommendation, compact recall in lists and messages, full block in the game views CL-TRV-02 names, the part-of-day word ("evening") taken from the venue's local time.
+- **Already settled consistently by the rulings on Lot 2:** zone naming and the US-date recall (CL-IHM-04, CL-IHM-07, CL-TEL-03), hiding incidents (CL-IHM-20), the register mark of calculation parameters (CL-IHM-12), server-held drafts kept out of backups (CL-IHM-10), no reply to strangers (CL-TEL-06), and the scheduled origin of a catch-up run (CL-COL-07).
 
 ## Passed to the glossary
 
 - Task names (TRV-26), incident names — "task not run", "backup failed", "statistics source unavailable" with its cause "not refreshed since …" — and the journal levels.
 - The English form of the TRV-42 example.
-- Date and time patterns, zone labels ("Paris time"), the phrasing of the US-date recall and of the venue's local time.
-- Run results "succeeded", "failed", "interrupted", "source late"; "on demand"; "closed by the owner"; "an event was withdrawn"; "an item that no longer exists"; "a deleted player".
+- Date and time patterns, zone labels ("Paris time"), the phrasing of the US-date recall.
+- Run results "succeeded", "failed", "interrupted", "source late"; "on demand"; "an event was withdrawn"; "an item that no longer exists"; "a deleted player".
 - The status-screen lines of CL-TRV-23 and the restore summary's warnings (CL-TRV-06).

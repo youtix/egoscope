@@ -174,7 +174,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** Q-TAX-01, annex « Anniversaire du joueur » and « Match contre l'ancienne équipe », TAX-05; record 0015
 - **Problem:** record 0015 makes the application create these events itself; the exact games must be fixed.
 - **Ruling:** for each validated calendar-derived type and each active or paused player with a confirmed mapping (CL-JOU-05), over the official games (STA-04) of covered seasons:
-  - **birthday:** every official game of the player's team whose local date at the venue (CL-TRV-03) has his recorded day and month of birth (29 February: CL-JOU-17); a player without a recorded birthday has none (CL-JOU-16);
+  - **birthday:** every official game of the player's team whose day (CL-TRV-03, which also stands for the local date at the venue) has his recorded day and month of birth (29 February: CL-JOU-17); a player without a recorded birthday has none (CL-JOU-16);
   - **former team:** for each stint of the player with a former team (CL-JOU-18), the first official game between his team and that team after his last game played for it, while he belongs to another team; one event per stint, later meetings never count.
 
   "His team" at a game is the team he belonged to at that date, as 07 establishes for the missed-games count; whether he played is not part of the condition, and if he did not play, the case is non-measurable (record 0015). Each qualifying game gives one event of the type, and that game is its measured game.
@@ -183,14 +183,16 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ### CL-TAX-19 — When the derivation runs, upcoming events, and changes
 
-- **Affects:** Q-TAX-01, TAX-20, TAX-24, TAX-32, STA-26, STA-28; record 0015; register open point "When an upcoming calendar-derived event is created"
+- **Affects:** Q-TAX-01, TAX-20, TAX-24, TAX-32, STA-26, STA-28, SUI-03; record 0015; register open point "When an upcoming calendar-derived event is created"; CL-SUI-14
 - **Problem:** nothing says when the application derives these events, nor what happens when the schedule, the player's team or his birthday changes.
-- **Ruling:** the derivation is a Lot 1 function.
-  - It runs at the validation and the reactivation of a calendar-derived type, for every eligible player; after each daily statistics update and after each season of a player's history is stored, for the players concerned; after a change of a player's day and month of birth, of his mapping, or of his state to active or paused; after each schedule change of the current season (STA-28); after a substantive change of the type's sheet.
-  - Each run recomputes the qualifying games of the players concerned (CL-TAX-18): it creates the missing events and drops, with their case, the events whose game no longer qualifies. A drop is not a withdrawal (no fingerprint, no counter); each creation and drop is written to the journal.
-  - For a game not yet started, the event is created only once that game is the player's next game (STA-26), usually one to three days ahead. Before kick-off, an upcoming event is dropped as soon as its game no longer qualifies: postponed or cancelled, moved to another date for a birthday, or no longer a game of the player's team. After the scheduled start, an event is dropped only when a correction of its inputs (birthday, box scores) removes the qualification.
-  - A withdrawn player's events are neither created nor dropped (CL-JOU-05); a withdrawn type's events are kept and none is created (CL-TAX-20).
-- **Why:** creating upcoming events at the next-game stage keeps alerts timely and spares churn from schedule changes (recommended handling of record 0015); a full recompute keeps the events exactly what the data supports.
+- **Ruling:** the derivation is a Lot 1 function, with the timing of CL-SUI-14.
+  - **Regular runs**, at the end of every statistics update and, in Lot 2, of every collection-and-detection pass, for each active or paused player with a confirmed mapping and each validated calendar-derived type: every qualifying game (CL-TAX-18) that started since the player's previous run, and his next game (STA-26) if it qualifies, gets an event when it has none, once the fingerprints are checked (CL-DSN-06). Each player keeps the instant of his previous run, so a player withdrawn then reactivated gets the games of the gap at the next run.
+  - Every regular run re-checks the upcoming events: before kick-off, one whose game no longer qualifies — date or opponent changed, game cancelled, player no longer with that team, birthday or team history corrected — is deleted with its case (CL-SUI-14). A game that still qualifies after a change of time stays the event's game.
+  - When a season of a player's history is stored for the first time, its qualifying games get events, with the same fingerprint check.
+  - **Full derivations** cover every game already started in covered seasons: they create the missing events, fingerprints checked, and delete the events whose game no longer qualifies. They run at the validation, the reactivation and the substantive change of a calendar-derived type, for every eligible player; and for one player, at a change of his day and month of birth (birthday type), of his statistics mapping, or at a box-score correction that changes his team history (former-team type). Upcoming events always come from the regular runs (CL-SUI-14).
+  - A deletion by the derivation is not a withdrawal: no fingerprint, no counter. Each creation and deletion is written to the journal.
+  - A withdrawn player's events are neither created nor deleted while he stays withdrawn (CL-JOU-05); a withdrawn type keeps its events and gets no new one (CL-TAX-20).
+- **Why:** creating upcoming events at the next-game stage keeps alerts timely and spares churn from schedule changes (recommended handling of record 0015, as CL-SUI-14 rules); regular runs never revisit a game already derived, so they cannot bring back an event the owner withdrew (CL-DSN-09), while full derivations apply corrections and the first fetch of a season adds its games.
 - **Owner review:** yes — upcoming calendar events appear a day or so before their game and may vanish before kick-off if the game moves.
 
 ### CL-TAX-20 — Calendar-derived types in the type lifecycle
@@ -202,8 +204,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
   - Validation uses the TAX-12 checklist with the item "established by the schedule" (register row TAX-12); no supplementary request is proposed (TAX-20); the derivation runs (CL-TAX-19).
   - A formal change only rewrites the sheet. A substantive change creates a version and re-runs the derivation, which gives every event of the type the new version; nothing is "to requalify", because the derivation rule of record 0015 does not depend on the sheet's wording.
   - These types take part in no merge and no split: the screens do not offer them.
-  - Withdrawal (TAX-31) stops the derivation from creating events of the type; existing events and cases are kept, archived (SEN-19). Reactivation (TAX-32) runs the derivation again, which creates every qualifying event missed meanwhile.
-  - Their events are never withdrawn one by one (CL-DSN-09).
+  - Withdrawal (TAX-31) stops the derivation from creating events of the type. Its existing events and cases, upcoming ones included, are kept: a pending case is still measured and counts only in the type's archived profiles and trend (TAX-31, SEN-19), and it feeds no alert sheet. This differs from CL-SUI-14, which deletes an upcoming calendar-derived event once its type is no longer validated: TAX-31 keeps every event and pending case of a withdrawn type, and 02 owns the effects of a type's withdrawal. Reactivation (TAX-32) runs a full derivation, which creates every qualifying event missed meanwhile.
+  - Their events can be withdrawn like any event but are never dismissed (CL-DSN-09, CL-SUI-14).
 - **Why:** the derivation, not the sheet text, decides which games are events; merging a derived type with a researched one would mix two kinds of evidence.
 - **Owner review:** no
 
@@ -211,8 +213,16 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** TAX-18, DET-14, DET-16, DET-34; register open point "Articles that report a birthday or a reunion"
 - **Problem:** the classifier does not receive calendar-derived types, so an article about a birthday could become a new-type proposal.
-- **Ruling:** in Lot 2 the classification receives, besides the validated types and the do-not-repropose list, a list of types "handled by the calendar": name and definition of each validated calendar-derived type. A fact that matches an entry of that list gives no event, no proposal and no occurrence.
-- **Why:** these facts are already covered by the derivation; recommended handling of record 0015.
+- **Ruling:** as ruled for detection (CL-DET-22): in Lot 2 the classification receives, besides the validated types and the do-not-repropose list, a list of types "handled by the calendar": name and definition of every type whose dating rule says "derived from the calendar", whatever its state; such types are never in the do-not-repropose list. A fact that matches an entry of that list gives no event, no proposal and no occurrence.
+- **Why:** these facts are covered by the derivation once the type is validated, and must not become proposals before; recommended handling of record 0015.
+- **Owner review:** no
+
+### CL-TAX-22 — The sheet version an event keeps
+
+- **Affects:** TAX-23, DET-47, DET-53, IMP-30, IMP-32
+- **Problem:** TAX-23 names the version in force at detection or in the request's prompt, while DET-53 also replaces it at each correction of the event's type.
+- **Ruling:** an event keeps the version in force when it was created — at its detection (04), in the prompt of the request that brought it (05, IMP-30), or at its derivation for a calendar-derived event — replaced by the type's version in force at each later correction of its type (DET-47 for a detected event, IMP-32 for a historical one), at a requalification or a reassignment (CL-TAX-07), at a merge (CL-TAX-08), and, for a calendar-derived event, at the full derivation that follows a substantive change (CL-TAX-20).
+- **Why:** DET-53 and TAX-23 agree (CL-DET-17); naming every case keeps one reading.
 - **Owner review:** no
 
 ## Ruled elsewhere
@@ -220,8 +230,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Dating a media storm in detection** — owned by 04: recommendation, create the event only when the grouped articles reach the sheet's coverage threshold (CL-TAX-14) in distinct outlets within its window, the reference instant being that of the article that reaches it.
 - **One event per record** (« approche-record ») — owned by 04: recommendation, rely on the recent events sent to the classifier (DET-14) and the sheet's exclusion criterion; no record tracking in the application.
 - **"Proposes" versus "creates" a supplementary request** — owned by 05: BKT-05 settles it (proposed, nothing created without agreement); no change needed.
-- **Outcome of an article whose fact is handled by the calendar** — owned by 04: recommendation, the article becomes non-relevant with a reason of its own, "handled by the calendar".
-- **An upcoming calendar-derived event dropped before kick-off** — owned by 09 and 10: recommendation, its alert sheet follows ALE-26 as if the event were dismissed (cancelled if it was its only event), and its tracked case disappears without counting as a post-tip-off decision (SUI-17), since it happens before kick-off.
+- **Already settled consistently by the rulings on Lot 2:** the fate of a fact handled by the calendar (dropped, CL-DET-22), the version kept at a type correction (CL-DET-17), and an upcoming calendar-derived event deleted before kick-off — its sheet cancelled when no other event remains (CL-ALE-13), its tracked case never counted (CL-SUI-14), no message after the owner's own change (CL-TEL-21). One difference remains: CL-SUI-14 also deletes an upcoming event whose type is withdrawn, which CL-TAX-20 does not, after TAX-31.
 
 ## Passed to the glossary
 

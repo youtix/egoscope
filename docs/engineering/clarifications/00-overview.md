@@ -100,8 +100,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** 00 « Objets » (Événement, Cas), glossary « Événement », « Match mesuré », DSN-06; record 0015
 - **Problem:** 00 knows two origins, detected and historical; record 0015 makes the application create birthday and former-team events itself from the schedule.
 - **Ruling:** an event has one of three origins: detected, historical or calendar-derived.
-  - A calendar-derived event is created, updated and dropped only by the calendar derivation (CL-TAX-18, CL-TAX-19), never by an import, a detection or the owner.
-  - It carries the player, the type with its sheet version, a reference date equal to its game's day (known in advance, before kick-off), a reference to that game instead of sources, a description written by the application (CL-DSN-20), context indicators (unknown until the owner sets them, H-09) and management data. It carries no confidence, no precedence and no dating mark; its player, type and date cannot be edited.
+  - A calendar-derived event is created and deleted by the calendar derivation (CL-TAX-18, CL-TAX-19), never by an import or a detection. The owner can withdraw it like any event (CL-DSN-09) and correct its context indicators, but never create it, dismiss it, or edit its player, type or date (CL-SUI-14, CL-IHM-21).
+  - It carries the player, the type with its sheet version, a reference date equal to its game's day (known in advance, before kick-off), a reference to that game instead of sources, a description written by the application (CL-DSN-20), context indicators (unknown until the owner sets them, H-09) and management data. It carries no confidence, no precedence and no dating mark.
   - Its measured game is that game itself; if the player does not play it, the case is non-measurable (record 0015).
 - **Why:** record 0015 adds the origin; 00 owns the object model every other file builds on.
 - **Owner review:** no
@@ -136,7 +136,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Alert sheet for a non-profiled player whose result is imported after tip-off** — owned by 09: ALE-05 settles it (no sheet after tip-off; the event stays a tracked case); no change needed.
 - **Valid case versus the "measured" state** — owned by 08: SEN-07 settles it (a measured case has no retained doubtful criterion, so measured and valid coincide; a case with one is "excluded"); no change needed.
 - **Which season the normalized gap uses** — owned by 07: STA-16 and STA-17 settle it (the measured game's season and phase, only the measured game removed); no change needed.
-- **Details of the Lot 2 flow of calendar-derived events** — owned by 09 (sheet content), 10 (forecast, category, validation rows) and 11 (alert message): recommendation, apply CL-VUE-13 and CL-VUE-14 unchanged, the type always counting as covered.
+- **Details of the Lot 2 flow of calendar-derived events** — owned by 09, 10 and 11: settled consistently with CL-VUE-13 and CL-VUE-14 by CL-ALE-13 (sheet), CL-SUI-14 (tracked case, timing, deletion before kick-off) and CL-TEL-21 (messages); no change needed.
 
 ## Passed to the glossary
 

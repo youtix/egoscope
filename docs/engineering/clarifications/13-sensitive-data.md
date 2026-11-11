@@ -23,8 +23,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** DSN-21, DSN-24, DSN-25, CA-DSN-08, IMP-13
 - **Problem:** the automatic check for quotation marks does not say which characters count, and in English the apostrophe doubles as a single quote ("player's").
-- **Ruling:** a text fails the check when it contains any of `"` (U+0022), `«` (U+00AB), `»` (U+00BB), `‘` (U+2018), `‚` (U+201A), `‛` (U+201B), `“` (U+201C), `”` (U+201D), `„` (U+201E), `‟` (U+201F), `‹` (U+2039), `›` (U+203A), `「` (U+300C), `」` (U+300D), `＂` (U+FF02), or a single-quoted span: an apostrophe (`'` U+0027 or `’` U+2019) at the start of the text or right after a space or one of `( [ { — –` and followed by a letter or a digit, then a later apostrophe right after a letter, a digit or one of `. , ! ?` and followed by the end of the text, a space or one of `. , ; : ! ? ) ] } — –`. Any other apostrophe passes ("player's", "players' union", "l'équipe"). The check applies to every description, whoever writes it (import, classification, the owner's corrections, the application's templates), and to classification justifications (DSN-25); never to titles (DSN-08) nor to sheet texts (CL-TAX-04). The message names the character or span found.
-- **Why:** quotations are the target; possessives and elisions must pass in both press languages.
+- **Ruling:** a text fails the check when it contains any of `"` (U+0022), `«` (U+00AB), `»` (U+00BB), `“` (U+201C), `”` (U+201D), `„` (U+201E) or `‟` (U+201F). Apostrophes never fail it, straight or typographic (`'` U+0027, `’` U+2019), since English and French text needs them ("player's", "l'équipe"). The check applies to every description, whoever writes it (import, classification, the owner's corrections, the application's templates), and to classification justifications (DSN-25); never to titles (DSN-08) nor to sheet texts (CL-TAX-04). The message names the character found. A quotation in single quotes is left to the reading rules that the preview recalls (DSN-24).
+- **Why:** one set for every check that DSN-24 and DSN-25 require, the one the rulings on 04 recommend; a single quote cannot be told from an apostrophe automatically.
 - **Owner review:** no
 
 ### CL-DSN-04 — What the withdrawn-events counter counts
@@ -39,7 +39,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** DSN-29, IHM-68, 12 « Cas limites » (lien vers un objet disparu), DET-51, BKT-14, IHM-27
 - **Problem:** a link to a withdrawn event should "explain what became of it", while nothing may designate the event afterwards.
-- **Ruling:** a link to an event, case, alert sheet, request, import or player that no longer exists opens one generic page, "This item no longer exists", identical (same text, same HTTP status 404) whatever the cause — withdrawal, deletion, replacement, requalification, dropped derivation. No tombstone is kept. Types are never erased: a withdrawn, merged or split type keeps its page, which states its state and, for a merge or split, the type or types it went to. The backtest request a withdrawn detected event triggered keeps its trigger kind ("detection") and no link to the event (BKT-14).
+- **Ruling:** a link to an event, case, alert sheet, request, import or player that no longer exists opens one generic page, "This item no longer exists", with a link to the home screen, identical (same text, same HTTP status 404) whatever the cause — withdrawal, deletion, replacement, requalification, dropped derivation (CL-IHM-19). No tombstone is kept, and the fingerprints are never consulted for this. Types are never erased: a withdrawn, merged or split type keeps its page, which states its state and, for a merge or split, the type or types it went to. The backtest request a withdrawn detected event triggered keeps its trigger kind ("detection") and no link to the event (BKT-14).
 - **Why:** a generic message explains without designating, which satisfies both IHM-68 and DSN-29.
 - **Owner review:** no
 
@@ -48,11 +48,11 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** DSN-27, DSN-29, H-DSN-07, IMP-25, IMP-37, DET-58; record 0017; register open point "Date tolerance when matching a fingerprint"
 - **Problem:** the decision fixes a keyed hash of player, type and date; exact-date matching misses the same fact reported a day apart, and the cases that create or erase a fingerprint are not all listed.
 - **Ruling:**
-  - Each withdrawal of a detected or historical event (DSN-26), and nothing else, creates one fingerprint: HMAC-SHA-256, with the fingerprint secret of the deployment configuration, of the text `<player id>|<type id>|<YYYY-MM-DD>`, stored with its creation instant only. The player id is the application's (CL-JOU-24).
-  - The day is the event's reference date: as recorded for a date without time; for an instant, its calendar date in UTC. The same function gives the day of every event compared with a fingerprint.
-  - An event of player p, type t and day d matches when the hash of `p|t|d'` equals a live fingerprint for some day d' from d − g to d + g, g being the maximum gap between public dates of IMP-25 (2 days by default).
-  - Fingerprints are checked before detection creates an event (a match creates none, record 0017; its article: CL-DSN-10), in every import preview (the flag of record 0017) and at every restore (CL-TRV-06).
-  - No fingerprint is created by a deletion (IMP-33), a replacement (IMP-29), a requalification or split erasure (CL-TAX-09), a dropped calendar-derived event (CL-TAX-19), a preview decline (IMP-37) or a player-data deletion (CL-JOU-24).
+  - Each withdrawal of an event (DSN-26), of any origin, and nothing else, creates one fingerprint: HMAC-SHA-256, with the fingerprint secret of the deployment configuration, of the text `<player id>|<type id>|<YYYY-MM-DD>`, stored with its creation instant only. The player key is the application's player identifier (JOU-08, CL-JOU-24), never a name or a variant.
+  - The day is the event's reference date: the date as written when it has no time; otherwise the calendar date of the reference instant in the owner's time zone (TRV-72). The same function gives the day of every event compared with a fingerprint; a change of the owner's time zone can shift a day by one, which the window absorbs.
+  - An event of player p, type t and day d matches when the hash of `p|t|d'` equals a live fingerprint for some day d' from d − g to d + g, g being the maximum gap between public dates of IMP-25 (2 days by default), the single parameter that the duplicate checks also use (CL-DET-21).
+  - Fingerprints are checked by detection for a model-origin fact that would create a new event, before the search of DET-58, never for the owner's own classifications (CL-DET-21; a match creates nothing, and its article follows CL-DSN-10); by the calendar derivation before it creates an event (CL-SUI-14, CL-TAX-19); in every import preview (the flag of record 0017); and at every restore (CL-TRV-06).
+  - No fingerprint is created by a deletion (IMP-33), a replacement (IMP-29), a requalification or split erasure (CL-TAX-09), a calendar-derived event dropped by the derivation (CL-TAX-19), a preview decline (IMP-37) or a player-data deletion (CL-JOU-24).
   - When the owner records an event that the preview flagged, the fingerprints it matches are erased: he has taken that fact back.
   - A changed fingerprint secret makes existing fingerprints unmatchable; the deployment guide says so.
 - **Why:** day precision with the duplicate window of IMP-25 catches the same fact reported a day or two apart (recommended handling of record 0017); erasing on deliberate recording keeps a restore from undoing the owner's later choice.
@@ -70,25 +70,29 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** DSN-27 to DSN-29, TRV-51, TRV-52, TRV-53; record 0017, record 0018; register open point "Whether backups hold the fingerprints"
 - **Problem:** inside backups, fingerprints would outlive their horizon and a restore would bring back old ones; outside them, a restore loses the protection.
-- **Ruling:** fingerprints, deleted-player entries and article skip entries (CL-DSN-10) form the withdrawal ledger. No backup file and no export contains the ledger's entries; the withdrawn-events counter belongs to the ledger, and its value is also written into each backup and full export. A restore never overwrites the ledger and re-applies it to the restored data (CL-TRV-06).
+- **Ruling:** fingerprints and deleted-player entries (CL-JOU-24) form the withdrawal ledger. No backup file and no export contains the ledger's entries; the withdrawn-events counter belongs to the ledger, and its value is also written into each backup and full export. A restore never overwrites the ledger and re-applies it to the restored data (CL-TRV-06).
 - **Why:** no trace outlives its horizon (recommended handling of record 0017), and every withdrawal still holds after a restore (CL-TRV-06).
 - **Owner review:** yes — a restore into a new database, without access to the old one, cannot re-apply recent withdrawals (CL-TRV-06).
 
-### CL-DSN-09 — Calendar-derived events are not withdrawn
+### CL-DSN-09 — Withdrawing a calendar-derived event
 
-- **Affects:** DSN-26, DSN-29, IHM-68, SEN-17; records 0015 and 0017; register open point "Withdrawing a calendar-derived event"
-- **Problem:** the derivation would recreate a withdrawn calendar-derived event once its fingerprint expires.
-- **Ruling:** withdrawal in the sense of 13 does not apply to calendar-derived events: they hold no press content and no sensitive datum (CL-DSN-20). Their detail page offers no "withdraw" action and says instead that the event comes from the official schedule, that it holds no press content, and that its case can be excluded. The owner removes such a case from the calculations with the ordinary manual exclusion of SEN-17 — its closed list of reasons, permanent across recalculations, visible on the case. Removing a player's day and month of birth stops his birthday derivation and drops his birthday events (CL-JOU-16); withdrawing the type stops the derivation for every player (CL-TAX-20); deleting a player's data erases his events like the others (JOU-24).
-- **Why:** an erasure that comes back after eight weeks would be misleading; exclusion is permanent and stays visible (recommendation of the orchestrator).
-- **Owner review:** yes — birthday and former-team events cannot be withdrawn one by one; only their cases can be excluded.
+- **Affects:** DSN-26, DSN-28, DSN-29, IHM-68, SEN-17; records 0015 and 0017; register open point "Withdrawing a calendar-derived event"
+- **Problem:** the derivation could recreate a withdrawn calendar-derived event once its fingerprint has expired.
+- **Ruling:**
+  - As written in DSN-26, any event can be withdrawn, calendar-derived ones included, with the scope of DSN-27 and a fingerprint (CL-DSN-06). Their sheet offers withdrawing and correcting the context indications, and no dismissal and no deletion, since they are not detected events and their type, player and date are derived (CL-IHM-21, CL-SUI-14). Their case can also be excluded by hand like any case (SEN-17): that exclusion is permanent and stays visible on the case.
+  - The regular derivation never revisits a game it has already derived, and every derivation checks the fingerprints first (CL-TAX-19, CL-SUI-14). A withdrawn calendar-derived event can therefore come back only through a full derivation — validation, reactivation or substantive change of its type; a change of the player's day and month of birth or of his statistics mapping; a box-score correction that changes his team history — run after its fingerprint has expired. No other memory of the withdrawal is kept.
+  - The withdrawal screen of such an event states that limit and that excluding its case is the permanent alternative (CL-DSN-19).
+  - Removing a player's day and month of birth drops all his birthday events (CL-JOU-16); deleting a player's data erases his events like the others (JOU-24); neither is a withdrawal of these events one by one.
+- **Why:** DSN-26 allows any event to be withdrawn; this agrees with the rulings on 10 and 12 (CL-SUI-14, CL-IHM-21) and leaves one narrow, stated way back.
+- **Owner review:** yes — a withdrawn birthday or reunion event can come back after the fingerprint horizon if the owner later triggers a full derivation; excluding its case is the permanent way to keep it out of the calculations.
 
 ### CL-DSN-10 — A collected article that matches a withdrawal
 
 - **Affects:** DSN-34, H-DSN-10, COL-24, COL-28, COL-34, COL-37; record 0017; register open point "A collected article that matches a fingerprint"
 - **Problem:** DSN-34 forbids a deduplication trace, so an erased article still in a feed is collected and classified again at every run.
-- **Ruling:** when an article is erased because of a withdrawal (DSN-34), or because the fact the classification found in it matches a live fingerprint (it is then erased at once like DSN-34, unless another event keeps it), the application keeps an article skip entry: HMAC-SHA-256, with the fingerprint secret, of the article's cleaned link (COL-28), expiring at the article's retained publication instant plus the maximum article age (COL-24), after which collection ignores the article anyway; no entry is kept if that moment has passed. Collection hashes each item's cleaned link the same way and drops a matching item before storing or classifying anything; the run log counts it among ordinary duplicates. An entry holds no player, type, date or event reference, is never displayed, logged, exported or backed up, and is erased by the daily purge at its expiry.
-- **Why:** an unreadable hash, unlinked to the event and living three days by default, avoids repeated classification while keeping no trace of the withdrawn event itself.
-- **Owner review:** yes — a short-lived, unreadable trace of the erased article's link, which DSN-34 did not foresee.
+- **Ruling:** as ruled for collection (CL-COL-16): an article erased because of a withdrawal (DSN-34), or because the fact found in it matches a live fingerprint (then erased at once, unless another role keeps it), leaves no deduplication trace and no other record. While a feed still offers it within the maximum article age (COL-24, 3 days by default), it is collected and classified again at each run — at most about six times with the two default runs a day — and each time the fingerprint keeps it from becoming an event. The repeated work is bounded, not avoided, and its quota cost is accepted.
+- **Why:** avoiding it would need a second trace of the withdrawn event's article, while the fingerprint must stay the only exception to DSN-29; the cost is a handful of classifications per withdrawal (recommended handling of record 0017).
+- **Owner review:** no
 
 ### CL-DSN-11 — Raw service responses in the journal
 
@@ -110,7 +114,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** DSN-27, DSN-28, TEL-38
 - **Problem:** the deletion of messages about a withdrawn event will often fail.
-- **Ruling:** as written: the application tries to delete each stored message that mentions the event, and the confirmation screen lists that limit (DSN-28). Telegram's bot interface currently lets a bot delete a message only within 48 hours of sending it (to re-check on the day, TRV-10), so older messages usually stay. The result of the withdrawal shows once the send date and time of each message that could not be deleted, so the owner can delete it himself; nothing about them is kept afterwards.
+- **Ruling:** as ruled for Telegram (CL-TEL-09): each sent message keeps Telegram's message identifier, erased with its text; before confirmation the withdrawal screen states how many sent messages mention the event (CL-DSN-19); the application then asks Telegram once to delete each of them, and the screen shown right after the withdrawal lists, once, the send date and time of every message Telegram refused, so the owner can delete it himself; nothing about them is kept afterwards. Telegram's bot interface currently lets a bot delete a message only within 48 hours of sending it (to re-check on the day, TRV-10), so older messages usually stay.
 - **Why:** pointing the messages out (TEL-38) must not become a lasting trace.
 - **Owner review:** no
 
@@ -159,11 +163,12 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** DSN-28, CA-DSN-11, IHM-68; record 0017
 - **Problem:** the fingerprint and the restore rules change the limits the confirmation must state.
 - **Ruling:** before confirming, the screen recalls that a withdrawal answers a sensitivity reason and never depends on the game that followed, then lists these limits:
-  - in Lot 2, Telegram messages the application can no longer delete stay in the conversation, where the owner can delete them;
+  - in Lot 2, the number of messages already sent that mention the event, as a number only, and the fact that Telegram may refuse to delete the older ones, which then stay in the conversation for the owner to delete (CL-TEL-09);
   - backups keep the event until they rotate out, at most the fingerprint horizon (CL-DSN-07); a restore made within it withdraws the event again, except a restore into a new database without the old one (CL-TRV-06);
   - exports already downloaded keep it; deleting them is the owner's task;
   - a device left offline shows it until its next refresh;
-  - during the horizon, detection does not recreate it and a later import flags it; afterwards, re-collection (Lot 2) or a later backtest can bring it back, to be declined or withdrawn again.
+  - during the horizon, detection does not recreate it and a later import flags it; afterwards, re-collection (Lot 2) or a later backtest can bring it back, to be declined or withdrawn again;
+  - for a calendar-derived event, that a later full derivation can bring it back once the horizon has passed, and that excluding its case (SEN-17) is the permanent alternative (CL-DSN-09).
 
   CA-DSN-11 checks this list.
 - **Why:** the owner must know exactly how far a withdrawal reaches.
@@ -187,17 +192,13 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## Ruled elsewhere
 
-- **Showing a fingerprint match in the import preview** — owned by 06 (IMP-37): recommendation, show the flag beside the event with the choice "do not record (sensitive data)", preselect nothing (record 0017), and have the save confirmation say how many flagged events will be recorded.
-- **Telegram message identifiers** — owned by 11 (TEL-38): recommendation, keep each sent message's Telegram identifier to allow deletion, and erase it with the text.
-- **Checking skip entries at collection** — owned by 03: recommendation, check them as CL-DSN-10 says, before any storage, counting matches as ordinary duplicates.
-- **The fingerprint check in detection** — owned by 04 (DET-58): recommendation, check with the window of CL-DSN-06 before creating an event; a matched fact creates nothing, and its article follows CL-DSN-10.
-- **The generic page for vanished items** — owned by 12: recommendation, one page and one message for every cause, as CL-DSN-05 says.
+- **Showing a fingerprint match in the import preview** — owned by 06 (IMP-37): recommendation, show the flag beside the event with the choice "do not record (sensitive data)", preselect nothing (record 0017), have the save confirmation say how many flagged events will be recorded, and erase the matched fingerprints of an event recorded anyway (CL-DSN-06).
+- **Already settled consistently by the rulings on Lot 2:** Telegram message identifiers and the deletion list (CL-TEL-09), the article that matches a fingerprint (CL-COL-16), the fingerprint check in detection (CL-DET-21), the calendar derivation's fingerprint check (CL-SUI-14), the sheet of a calendar-derived event (CL-IHM-21) and the generic page for vanished items (CL-IHM-19).
 
 ## Passed to the glossary
 
 - The English form of the DSN-19 example and the description templates of calendar-derived events.
 - The labels "sensitive event" (DSN-35) and "sensitive data" (the decline reason of IMP-37).
 - The counter's label and its explanatory sentence (CL-DSN-04).
-- The limit sentences of the withdrawal screen (CL-DSN-19) and the page "This item no longer exists".
-- The explanation shown on a calendar-derived event instead of the withdraw action (CL-DSN-09).
+- The limit sentences of the withdrawal screen (CL-DSN-19), including the one for a calendar-derived event, and the page "This item no longer exists".
 - The message of the quotation-mark check.

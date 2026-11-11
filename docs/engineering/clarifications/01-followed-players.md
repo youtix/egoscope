@@ -144,7 +144,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Problem:** JOU-11 would add "le seul jour anniversaire" if Q-TAX-01 went to the calendar, without saying whether the year is excluded or where the value comes from.
 - **Ruling:** the identity gains one optional field, the day and month of birth, never the year (record 0015).
   - It is filled from the statistics source when a mapping is confirmed and the source gives a date of birth, only if the field is empty: the adapter keeps the day and month and drops the year before anything is stored, shown or logged. The application never overwrites it afterwards, except as CL-JOU-11 says.
-  - The owner can enter, correct or remove it. Before saving, the screen shows how many birthday events and cases the change adds and drops; the derivation then runs again (CL-TAX-19). Events of games that no longer qualify are deleted with their cases; this is not a withdrawal: no fingerprint, no counter.
+  - The owner can enter, correct or remove it. Before saving, the screen shows how many birthday events and cases the change adds and drops; a full derivation of his birthday events then runs (CL-TAX-19). Events of games that no longer qualify are deleted with their cases; this is not a withdrawal: no fingerprint, no counter, and no Telegram message (CL-TEL-21).
   - The player page shows it as day and month ("14 March"); when it is missing, the page and the birthday profile say "birthday not recorded: no birthday events".
 - **Why:** the owner agreed to this one exception to JOU-11; removing the value must not leave events whose dates reveal it.
 - **Owner review:** yes — removing or correcting the birthday deletes the birthday cases it no longer supports, without counting them as withdrawals.
@@ -153,9 +153,9 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** JOU-08, CL-TAX-18; register open point "Birthday on 29 February"
 - **Problem:** a 29 February birthday has no date in three years out of four.
-- **Ruling:** a player born on 29 February has birthday events only for games played on 29 February, local date at the venue; in other years he has none.
-- **Why:** the simplest rule that never invents a birthday; recommended handling of record 0015.
-- **Owner review:** yes — such a player has a birthday case at most once every four years.
+- **Ruling:** for a player born on 29 February, the birthday falls on 29 February in a leap year and on 28 February in any other year; a game on that date (its day, CL-TRV-03) is his birthday game. In a leap year, 28 February is not his birthday.
+- **Why:** 28 February is the usual anniversary of 29 February in common years (adding one year to 29 February gives 28 February in date libraries), and it keeps the type's count yearly for such players instead of once every four years, as record 0015's recommended handling would.
+- **Owner review:** yes — this departs from the recommended handling of record 0015, which counts only games played on 29 February.
 
 ### CL-JOU-18 — Former teams come from box scores of covered seasons
 
