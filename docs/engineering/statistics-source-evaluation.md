@@ -28,7 +28,7 @@ The needs, checked against the specs and completed (needs found in the specs bey
 | Whether the player played; no absence cause | STA-13, JOU-21, DSN-15 |
 | The player's team in that game, opponent, home or away | STA-05, STA-08, JOU-13 |
 | Tip-off as an absolute instant (or enough to derive it), and a "time to be determined" marker (added) | STA-05, STA-29, STA-31, TRV-15 |
-| The game's date at the venue, for events known in advance (birthday) | SEN-02 |
+| The game's day: the calendar date of its scheduled start in US Eastern time (`America/New_York`), for every rule and every display, birthday games included (ruling CL-TRV-03) | SEN-02, STA-31, STA-32, TRV-72 |
 | Number of overtimes, for the minutes ceiling (added) | STA-09 |
 | Season and phase: regular season, play-in, playoffs; games that never count flagged: preseason, All-Star, NBA Cup final (added) | STA-04, STA-05, STA-48 |
 | Status: scheduled, in progress, final, postponed, canceled; final score (added) | STA-05 |
@@ -51,7 +51,7 @@ Rules applied, as set by the owner: only sources whose terms permit automated ac
 
 **How the "no scraped endpoints" rule was read.** It governs what Egoscope itself calls. A data release is a published file with a documented download address and an explicit license; Egoscope downloading it is not scraping, and the owner listed "data releases with explicit licenses" among the candidates. Every free NBA data release found is compiled by its publisher from nba.com or ESPN (section 4), so this provenance is unavoidable for free box scores; it is recorded as the main risk of the choice (service sheet, Risks), not as a disqualifier. Egoscope never contacts nba.com, stats.nba.com or ESPN.
 
-Tests: no account, no key; generic `User-Agent`; downloads kept outside the repository; downloaded files treated as untrusted data and read only by small scripts that print aggregates; no player name is reproduced here (players appear as counts or as "player A"). Test identifiers (T1 to T20) are defined in section 6.
+Tests: no account, no key; generic `User-Agent`; downloads kept outside the repository; downloaded files treated as untrusted data and read only by small scripts that print aggregates; no player name is reproduced here (players appear as counts or as "player A"). Test identifiers (T1 to T21) are defined in section 6.
 
 ## 4. Candidates and terms
 
@@ -99,7 +99,7 @@ Quotes are kept to the operative words; the full text is at the URL.
 All on 2026-11-11 (UTC times). Base address of the release files: `https://github.com/sportsdataverse/sportsdataverse-data/releases/download/{tag}/{file}`.
 
 - **T1, release inventory.** Unauthenticated GitHub REST API listing of release tags and assets. `espn_nba_player_boxscores`: 106 assets, seasons named 1994 to 2027 (1993-94 to 2026-27) in CSV, Parquet and RDS, plus `timestamp.json`. Sizes over the 34 seasons: player box 2.2 to 17.9 MB per season in CSV (507 MB in all; 380 MB for the 24 seasons from 2003-04), 0.11 to 0.73 MB in Parquet (20.0 MB in all; 15.5 MB from 2003-04); schedules 0.77 to 9.2 MB in CSV (57.3 MB in all), 4.2 MB in all in Parquet; player files 0.03 to 0.21 MB in CSV (4.9 MB in all). `espn_nba_schedules`: 112 assets. `espn_nba_player_core`: 106 assets, 1994 to 2027. `nba_crosswalk`: 241 assets, player, game and team crosswalks between ESPN and NBA ids, 2002 to 2027. `nba_stats_player_boxscores`: 97 assets, 1997 to 2027. The repository holding the releases is MIT for code and shows a CC BY 4.0 badge; the two producer repositories license their data, code and documentation under CC BY 4.0.
-- **T2, current-season files.** `player_box_2027.csv` (2,187,437 bytes): 57 columns, 4,299 lines, 160 games, US dates 2026-10-20 to 2026-11-10. `nba_schedule_2027.csv` (2,958,242 bytes): 1,206 games, 160 final and 1,046 scheduled up to 2027-04-11; 6 games with `time_valid` false (NBA Cup knockout placeholders whose teams are also "TBD"). `player_core_2027.csv` (161,867 bytes): 482 players, a date of birth for all 482, a current team id.
+- **T2, current-season files.** `player_box_2027.csv` (2,187,437 bytes): 57 columns, 4,299 lines, 160 games, US dates 2026-10-20 to 2026-11-10. `nba_schedule_2027.csv` (2,958,242 bytes): 1,206 games, 160 final and 1,046 scheduled up to 2027-04-11; 6 games with `time_valid` false (NBA Cup knockout placeholders whose teams are also "TBD"), whose `date` is 05:00 UTC, midnight US Eastern. `player_core_2027.csv` (161,867 bytes): 482 players, a date of birth for all 482, a current team id.
 - **T3, per-day completeness.** For every US date from 2026-10-31 to 2026-11-10, every game the schedule marks final had player lines in the release refreshed at 12:33 UTC on 2026-11-11, including the 6 games of 2026-11-10 whose last tip-off was 2026-11-11 04:00 UTC.
 - **T4, depth scan.** Each of the 34 player-box seasons streamed and aggregated (section 8). In every season: 0 played lines missing a Game Score input, 0 lines whose points differ from two times field goals made plus three-pointers made plus free throws made, 0 lines with made above attempted, 0 negative values, 0 fractional minutes. Lines with counting stats but no minutes: 34 (1994-95), 2 (1996-97), 137 (2020-21), 83 (2024-25), 46 (2025-26), 1 (2026-27). The 1999-2000 file also holds 450 games dated February to May 1999, all 1998-99 games.
 - **T5, 2025-26 detail.** `player_box_2026.csv` (17,729,581 bytes): 34,883 lines; `season_type` 2 (regular), 3 (playoffs), 5 (play-in): 1,235, 85 and 6 games. `nba_schedule_2026.csv` (9,153,001 bytes): 1,330 rows, 1,326 final and 4 postponed. Type 2 also holds 4 All-Star games (teams outside the 30 franchises) and the NBA Cup final (the two finalists show 83 regular-season games); the schedule labels them `ALLSTAR` and `CC`. Tip-off offsets are -0500 or -0400 only.
@@ -118,6 +118,7 @@ All on 2026-11-11 (UTC times). Base address of the release files: `https://githu
 - **T18, API-Sports.** `GET https://v2.nba.api-sports.io/seasons` without a key: HTTP 403, error "Missing application key". The product, documentation and pricing pages answered HTTP 403 with a bot-verification page, and the product page stayed on that verification in a browser too (not bypassed). Evidence above therefore comes from archived copies, and the API's fields, freshness and schedule could not be checked.
 - **T19, playoff labels.** All 33 schedule files from 1993-94 to 2025-26 scanned. The round is in `type_abbreviation` (RD16 first round, QTR conference semifinals, SEMI conference finals, FINAL finals) for every playoff game from 2003-04 on, and for none before (playoff games there are labeled `STD`). A game number appears in `notes_headline` for every playoff game from 2008-09 on (except 3 of 92 rows in 2019-20), for 76 of 86 in 2007-08, and never before. Every play-in game is labeled with its type (7th vs 8th place, 9th vs 10th, 8th seed game). In 2001-02 two series ended after 3 games, which only a best-of-five allows; none did in 2002-03. Postponed games keep their id with status "Postponed"; the make-up is a new id labeled "Makeup from" the original date.
 - **T20, career span.** Highest `experience_years` in the 2026-27 player file: 24 (one player), earliest draft year 2003; so the oldest career to cover starts in 2003-04.
+- **T21, game day.** All 34 schedule files streamed (43,562 rows, 1993-94 to 2026-27, the 1998-99 games repeated in the 1999-2000 file included): in every row the `America/New_York` calendar date of `date` equals `game_date` and the date part of `game_date_time`, whose offsets are only -0500 and -0400. The checks of this evaluation that group games by day (T3, T11) use `game_date`, so under the Eastern rule of CL-TRV-03 no game changes day: count 0. The candidates were the 31 games whose venue city lies outside the US and Canada, all from 2012-13 on: 16 in Europe (London 8, Paris 6, Berlin 1, Manchester 1), tipping off between 15:30 and 20:00 UTC, and 15 in Mexico City, between 22:00 and 03:00 UTC; each falls on the same calendar day in US Eastern time as at the venue. Before 2004-05 many rows name no venue (703 of 1,185 in 1993-94, none missing from 2004-05 on except 13 rows), so earlier games abroad cannot be located in the files; the Eastern rule does not need them to be.
 
 ## 7. Needs coverage of the recommended source
 
@@ -129,7 +130,7 @@ All on 2026-11-11 (UTC times). Base address of the release files: `https://githu
 | Team in that game, opponent, home or away | Provided | `team_id`, `opponent_team_id`, `home_away`; neutral sites flagged in the schedule. |
 | Tip-off instant | Provided | Schedule `date` in UTC and `game_date_time` with its offset (T11). |
 | Time to be determined | Provided | `time_valid` false (T2). |
-| Date at the venue | Derivable | From the instant and the venue's time zone; the schedule gives venue city and state, the adapter keeps a table of venue time zones. `game_date` gives the league's Eastern date. |
+| Game day (Eastern date, CL-TRV-03) | Provided | A game's day is the calendar date, in `America/New_York`, of the schedule's `date` field (the UTC tip-off instant); the source's own `game_date` field carries that same date in all 43,562 schedule rows (T21). |
 | Overtimes | Derivable | `status_period` minus 4 for a final game (T11). |
 | Season | Provided, with a correction | Season named by its ending year; the adapter assigns the season from the game date and season start dates, and deduplicates by game id (T14). |
 | Phase | Provided | `season_type` 2, 5, 3 (T5). |
@@ -226,21 +227,21 @@ First daily refresh of the ESPN-derived files (T10), with the time of the 12:00 
 
 - The previous night's games are complete in the first refresh (T3): about 8.5 hours after the last tip-off on 2026-11-11.
 - **A task at 12:00 Paris time never saw the previous night in the 23 days measured**; it would ingest each night a day late. The producer's workflow is scheduled at 07:00 UTC ([daily_nba.yml](https://github.com/sportsdataverse/hoopR-nba-data/blob/main/.github/workflows/daily_nba.yml)); the files appeared four and a half to six and a half hours later on 22 of the 23 days, nine and a half hours later on the other.
-- Recommendation for the daily statistics task (a parameter, H-TRV-07): start at 15:00 Paris time, which was after the first refresh on 22 of the 23 days, and, as TRV-25 allows, wait when the source is late: probe `timestamp.json` with a conditional request every hour and run as soon as it shows a refresh after the last game of the competition day, until a cut-off (for example 20:00 Paris time), then run with what is published. With hourly retries the run would have started after the day's first refresh on all 23 days.
+- Adopted by ruling CL-TRV-23 on this measure: the daily statistics update starts at 15:00 in the owner's time zone (Paris by default), which was after the first refresh on 22 of the 23 days; from then it probes the source's refresh instant every 60 minutes and fetches as soon as the source has refreshed after the last scheduled tip-off of the past competition day plus the STA-32 delay; at the 20:00 cut-off it fetches what is published and ends "source late", and after 2 consecutive late competition days the "statistics source unavailable" incident opens. With the hourly probe the run would have started after the day's first refresh on all 23 days.
 - The producer workflow runs from 18 October to 12 July (cron entries in the same file): in the off-season the files are not refreshed. When the next season's schedule appears in the files was not observable on 2026-11-11.
 
 ## 10. Rules the adapter must apply
 
 1. Read files by their documented direct address; follow the redirect; never use the REST API at run time (60 requests an hour per address unauthenticated, [GitHub docs](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api), and serverless hosts share addresses).
 2. Send conditional requests with the stored `ETag`; a 304 means nothing changed.
-3. Assign each game's season from its date and the season start dates, not from the file; deduplicate by game id (T14).
+3. Assign each game's season from its date and the season start dates, not from the file; deduplicate by game id (T14). A game's day is the Eastern date of `date` (CL-TRV-03, T21); no venue time zone is used.
 4. Exclude the All-Star games and the NBA Cup final by label and team ids; keep NBA Cup group and knockout games, which count (T5).
 5. Treat `time_valid` false as "time to be determined" and teams "TBD" as placeholders (T2).
 6. Parse booleans without regard to case (T6); drop the did-not-play `reason` (T6).
 7. Mark minutes as whole minutes; never fill a missing value with zero; a line with stats and no minutes is incomplete (STA-10, T4).
 8. Return `ejected` as unknown, not false, while the field is never set (T6).
 9. Link a make-up game to its postponed original by teams and the "Makeup from" label (T19).
-10. Take team history from box-score lines, not from past-season player files (T16); return only the month and day of a birth date.
+10. Take team history from box-score lines, not from past-season player files (T16); return only the month and day of a birth date, read from the date part of `date_of_birth` as written (its time is always 07:00 or 08:00 UTC, midnight on the US Pacific coast, so no zone conversion applies).
 11. Validate every file against the expected columns before use; a missing or renamed column stops ingestion of that file and raises a schema incident.
 
 ## 11. What stays uncovered and what the app shows
@@ -253,322 +254,150 @@ First daily refresh of the ESPN-derived files (T10), with the time of the 12:00 
 | Missing games (section 8) | Those sheets are unavailable | "feuille indisponible" (STA-35); the reference turns "partielle" only above 20 % (STA-24) |
 | Off-season refreshes | No new data from mid-July to mid-October | Next game: "aucun match prévu" with "intersaison" or "calendrier non publié" (STA-26) |
 
-## 12. Proposed port: `src/lib/stats-source/`
+## 12. Adapter mapping to the `stats-source` port
 
-The port hides the provider. The domain (sheets, indices, references, next game, queue) depends only on these types; adapters translate a provider's files or API into them. Layout, flat and kebab-case:
+The port's interface (operations, call context, `Result` with call metadata, errors, and what the fake simulates) is set by the [module map, section 5, `stats-source`](module-map.md#stats-source-lot-1). This section gives what the adapter for the chosen source must map: for each port field, the source field and the conversion.
 
-```text
-src/lib/stats-source/
-  index.ts                  public exports: types, port, createStatsSource()
-  types.ts                  provider-neutral vocabulary
-  port.ts                   the StatsSource interface and call context
-  errors.ts                 StatsSourceError
-  fake.ts                   in-memory fake with fault injection, for tests
-  contract.ts               shared contract suite every adapter must pass
-  sportsdataverse.ts        adapter for the releases compiled from ESPN
-  sportsdataverse-rows.ts   row parsing, validation and mapping (rules of section 10)
-  venue-time-zones.ts       venue to IANA time zone table
-tests/fixtures/stats-source/  small CSV fixtures with invented players
-```
+Conventions:
 
-### Types
+- Instants cross the port as epoch milliseconds. The schedule's `date` values (`2026-11-11T00:30Z`) are UTC and convert directly; HTTP `Last-Modified` headers (`Wed, 11 Nov 2026 12:33:36 GMT`) are parsed as GMT.
+- Calendar dates cross the port as `YYYY-MM-DD` strings; a game's day is its US Eastern date (CL-TRV-03, T21).
+- File names carry the season's ending year `{Y}`: `2027` is the 2026-27 season.
+- Identifiers stay strings: `game_id`, `athlete_id`, `team_id`.
+- Counts such as `5` or `5.0` become integers; an empty value or `NA` becomes null, never 0 (STA-10). Booleans are read without regard to case (T6).
+- Every file is checked against its expected header before any row is mapped (section 10, rule 11).
 
-```ts
-// types.ts
-declare const brand: unique symbol;
-type Brand<T, B extends string> = T & { readonly [brand]: B };
+### Files read by each operation
 
-export type ProviderId = Brand<string, "ProviderId">;
-export type PlayerRef = Brand<string, "PlayerRef">; // the provider's player id
-export type TeamRef = Brand<string, "TeamRef">; // the provider's franchise id
-export type GameRef = Brand<string, "GameRef">; // the provider's game id
-export type Instant = Brand<string, "Instant">; // ISO 8601 in UTC, "2026-11-11T04:00:00Z"
-export type CalendarDate = Brand<string, "CalendarDate">; // "YYYY-MM-DD"
-export type Cursor = Brand<string, "Cursor">; // opaque, stored between invocations
-export type SourceVersion = Brand<string, "SourceVersion">; // ETag or Last-Modified of what was read
-
-/** A season named by the year it starts: 2026 is 2026-27 (STA-48). */
-export type SeasonStart = Brand<number, "SeasonStart">;
-
-export type Phase = "regular_season" | "play_in" | "playoffs";
-export type GameStatus = "scheduled" | "in_progress" | "final" | "postponed" | "canceled";
-/** Listed by the source but never counted (STA-04). */
-export type Exclusion = "all_star" | "cup_final" | "preseason" | "exhibition" | "placeholder";
-
-export interface ProviderInfo {
-  readonly id: ProviderId;
-  readonly name: string;
-  readonly license: string;
-  readonly attribution: string; // text the app displays (CC BY 4.0)
-  readonly minutesPrecision: "seconds" | "whole_minutes";
-  readonly firstSeason: SeasonStart;
-}
-
-export interface Tipoff {
-  readonly instant: Instant; // a placeholder when timeKnown is false
-  readonly timeKnown: boolean; // STA-31
-  readonly leagueDate: CalendarDate; // the league's Eastern date (H-TRV-11)
-  readonly venueDate: CalendarDate | null; // date at the venue (SEN-02), null if the zone is unknown
-}
-
-export interface Venue {
-  readonly city: string | null;
-  readonly region: string | null;
-  readonly timeZone: string | null; // IANA zone
-  readonly neutralSite: boolean;
-}
-
-export type Round =
-  | "first_round"
-  | "conference_semifinals"
-  | "conference_finals"
-  | "finals"
-  | "play_in_7_vs_8"
-  | "play_in_9_vs_10"
-  | "play_in_8th_seed";
-
-export interface SeriesLabel {
-  readonly round: Round;
-  readonly gameNumber: number | null; // null when the source omits it
-}
-
-export interface Game {
-  readonly game: GameRef;
-  readonly season: SeasonStart;
-  readonly phase: Phase | null; // null when excluded
-  readonly exclusion: Exclusion | null;
-  readonly tipoff: Tipoff;
-  readonly venue: Venue;
-  readonly home: TeamRef | null; // null while the team is to be determined
-  readonly away: TeamRef | null;
-  readonly status: GameStatus;
-  readonly score: { readonly home: number; readonly away: number } | null;
-  readonly overtimes: number | null; // STA-09 ceiling: 48 + 5 per overtime
-  readonly series: SeriesLabel | null;
-  readonly makeUpOf: GameRef | null; // the postponed game this one replaces
-}
-
-export interface Minutes {
-  readonly decimal: number; // 34.5 for 34:30
-  readonly precision: "seconds" | "whole_minutes"; // whole minutes: "minutes arrondies" (STA-12)
-}
-
-/** null means "not provided" and is never replaced by zero (STA-10). */
-export interface BoxCounts {
-  readonly points: number | null;
-  readonly fieldGoalsMade: number | null;
-  readonly fieldGoalsAttempted: number | null;
-  readonly threePointersMade: number | null;
-  readonly freeThrowsMade: number | null;
-  readonly freeThrowsAttempted: number | null;
-  readonly offensiveRebounds: number | null;
-  readonly defensiveRebounds: number | null;
-  readonly assists: number | null;
-  readonly steals: number | null;
-  readonly blocks: number | null;
-  readonly turnovers: number | null;
-  readonly personalFouls: number | null;
-}
-
-export interface PlayerLine {
-  readonly game: GameRef;
-  readonly player: PlayerRef;
-  readonly team: TeamRef;
-  readonly opponent: TeamRef;
-  readonly atHome: boolean;
-  readonly participation: "played" | "did_not_play"; // never a reason (JOU-21, DSN-15)
-  readonly minutes: Minutes | null;
-  readonly counts: BoxCounts;
-  readonly ejected: boolean | null; // null: the source does not say (SEN-16)
-}
-
-export interface PlayerCandidate {
-  readonly player: PlayerRef;
-  readonly displayName: string;
-  readonly currentTeam: TeamRef | null;
-  readonly firstSeason: SeasonStart | null;
-  readonly lastSeason: SeasonStart | null;
-  readonly teams: readonly TeamRef[]; // most recent first
-}
-
-export interface PlayerProfile {
-  readonly player: PlayerRef;
-  readonly displayName: string;
-  readonly currentTeam: TeamRef | null; // STA-25
-  readonly birthday: { readonly month: number; readonly day: number } | null; // never the year
-}
-
-export interface SeasonCoverage {
-  readonly season: SeasonStart;
-  readonly regularSeason: boolean;
-  readonly playoffs: boolean;
-  readonly gamesWithoutLines: number; // listed by the source without player lines
-}
-
-export interface Publication {
-  readonly refreshedAt: Instant | null;
-  readonly latestCompleteLeagueDate: CalendarDate | null; // last date whose finals all have lines
-}
-```
-
-### Operations
-
-```ts
-// port.ts
-import type { StatsSourceError } from "./errors";
-import type {
-  Cursor,
-  Game,
-  Instant,
-  PlayerCandidate,
-  PlayerLine,
-  PlayerProfile,
-  PlayerRef,
-  ProviderId,
-  ProviderInfo,
-  Publication,
-  SeasonCoverage,
-  SeasonStart,
-  SourceVersion,
-} from "./types";
-
-export interface CallContext {
-  readonly signal: AbortSignal; // aborted shortly before the host's duration limit
-  readonly deadline: Instant; // no new request is started after it
-  readonly knownVersion?: SourceVersion; // conditional fetch of an unchanged file
-}
-
-export interface CallMeta {
-  readonly requests: number; // counted against the app's limits (TRV-03, STA-39)
-  readonly bytes: number;
-  readonly startedAt: Instant;
-  readonly finishedAt: Instant;
-}
-
-export interface Page<T> {
-  readonly items: readonly T[];
-  readonly next: Cursor | null; // null: this unit of work is complete
-  readonly version: SourceVersion;
-  readonly notModified: boolean; // true: nothing changed since knownVersion
-  readonly rejectedRows: number; // rows that failed validation, logged and not ingested
-}
-
-export type Outcome<T> =
-  | { readonly ok: true; readonly value: T; readonly meta: CallMeta }
-  | { readonly ok: false; readonly error: StatsSourceError; readonly meta: CallMeta };
-
-export interface StatsSource {
-  readonly info: ProviderInfo;
-  /** TRV-47: reachability and configuration, at most one request. */
-  checkHealth(ctx: CallContext): Promise<Outcome<{ readonly reachable: true }>>;
-  /** STA-32: has the last competition day been published? Cheap and conditional. */
-  getPublication(ctx: CallContext): Promise<Outcome<Publication>>;
-  /** STA-45: seasons the source holds. */
-  listCoverage(ctx: CallContext): Promise<Outcome<readonly SeasonCoverage[]>>;
-  /** STA-03, JOU-10: every candidate for a name, homonyms included. */
-  searchPlayers(query: string, ctx: CallContext): Promise<Outcome<readonly PlayerCandidate[]>>;
-  getPlayerProfile(player: PlayerRef, ctx: CallContext): Promise<Outcome<PlayerProfile>>;
-  /** All games of a season, past and upcoming, excluded ones flagged (STA-04, STA-05). */
-  getSeasonGames(
-    season: SeasonStart,
-    cursor: Cursor | null,
-    ctx: CallContext,
-  ): Promise<Outcome<Page<Game>>>;
-  /** The given players' lines for a season, did-not-play lines included (STA-08, STA-13). */
-  getSeasonLines(
-    season: SeasonStart,
-    players: readonly PlayerRef[],
-    cursor: Cursor | null,
-    ctx: CallContext,
-  ): Promise<Outcome<Page<PlayerLine>>>;
-  /** Optional: translate another provider's player ids, for a replacement (STA-03). */
-  mapPlayers?(
-    from: ProviderId,
-    players: readonly PlayerRef[],
-    ctx: CallContext,
-  ): Promise<Outcome<ReadonlyMap<PlayerRef, PlayerRef>>>;
-}
-```
-
-```ts
-// index.ts (factory) and fake.ts, contract.ts (test support), as declarations
-import type { StatsSourceError } from "./errors";
-import type { StatsSource } from "./port";
-import type { Game, PlayerLine, PlayerProfile, Publication, SeasonCoverage } from "./types";
-
-export interface StatsSourceConfig {
-  readonly provider: "sportsdataverse-espn";
-  readonly baseUrl?: string; // STATS_SOURCE_BASE_URL, defaults to the public release address
-  readonly fetch?: typeof globalThis.fetch; // injected in tests
-  readonly now?: () => Date; // injected in tests
-}
-export declare function createStatsSource(config: StatsSourceConfig): StatsSource;
-
-export interface FakeWorld {
-  readonly coverage: readonly SeasonCoverage[];
-  readonly games: readonly Game[];
-  readonly lines: readonly PlayerLine[];
-  readonly players: readonly PlayerProfile[];
-  readonly publication: Publication;
-}
-export type Fault =
-  | { readonly kind: "fail"; readonly error: StatsSourceError; readonly times: number }
-  | { readonly kind: "rate_limit_after"; readonly calls: number }
-  | { readonly kind: "slow"; readonly milliseconds: number };
-export declare function createFakeStatsSource(
-  world: FakeWorld,
-  faults?: readonly Fault[],
-): StatsSource & { readonly calls: readonly string[] };
-
-/** Registers the shared behavioral tests for one adapter. */
-export declare function describeStatsSourceContract(
-  name: string,
-  make: () => Promise<StatsSource>,
-): void;
-```
-
-### Errors
-
-```ts
-// errors.ts
-export type StatsSourceError =
-  | { readonly kind: "unavailable"; readonly status: number | null; readonly detail: string }
-  | { readonly kind: "rate_limited"; readonly retryAfterSeconds: number | null; readonly detail: string }
-  | { readonly kind: "not_published"; readonly what: string } // season or file absent at the source
-  | { readonly kind: "not_found"; readonly what: string } // a player or game id the source no longer knows
-  | { readonly kind: "schema_changed"; readonly detail: string } // expected columns or formats changed
-  | { readonly kind: "unauthorized"; readonly detail: string } // keyed providers only
-  | { readonly kind: "aborted" }; // the invocation's signal fired
-```
-
-| Error | Typical cause | What the domain does |
+| Port operation | Files read | Requests |
 | --- | --- | --- |
-| `unavailable` | Network failure, timeout, HTTP 5xx | Retry after 1 hour then every 4 hours; incident after 12 hours; cases stay "statistiques en attente" (STA-36, STA-37) |
-| `rate_limited` | HTTP 429, or 403 with rate-limit headers | Limit considered reached for the period, incident inviting a check of the terms (TRV-06), queue kept by priority (STA-39, STA-40) |
-| `not_published` | Current season file missing, or a season absent | Current season: incident; past season: coverage says not covered (STA-45) once confirmed on the next run |
-| `not_found` | Id changed at the source | The player's link is flagged and confirmation asked again (STA-03) |
-| `schema_changed` | Columns renamed or removed | Nothing from that file is ingested; incident; previous data kept |
-| `unauthorized` | Bad or missing key (keyed providers) | Installation check fails with its cause (TRV-47, CA-TRV-15) |
-| `aborted` | Invocation about to time out | Unit left as it was; the next invocation resumes from the stored cursor |
+| `checkHealth` | `espn_nba_player_boxscores/timestamp.json` | 1 conditional |
+| `getPublication` | `timestamp.json`; for the last complete league date, the current season's `nba_schedule_{Y}.csv` and `player_box_{Y}.csv` | 1 conditional, plus 2 conditional when the refresh is new |
+| `listCoverage` | `player_box_{Y}.csv` for each year from 1994 (presence), `nba_schedule_{Y}.csv` (games without lines) | Up to 2 per season |
+| `searchPlayers` | `player_core_{Y}.csv` of the seasons searched; teams from `player_box_{Y}.csv` | Up to 2 per season |
+| `getPlayerProfile` | `player_core_{Y}.csv` of the latest season that lists the player | 1 |
+| `getSeasonGames` | `nba_schedule_{Y}.csv` | 1 conditional |
+| `getSeasonLines` | `player_box_{Y}.csv` | 1 conditional |
+| `mapPlayers` | `nba_crosswalk/nba_player_crosswalk_{Y}.csv` | 1 per season |
 
-### Chunking and resume
+### `getPublication`
 
-- The domain queues **units of work** in the database: `season_games(season)`, `season_lines(season, players)`, `player_index`, `publication_probe`, each with its STA-40 priority, attempts, next attempt, lease expiry, stored cursor and stored source version.
-- An invocation leases due units in priority order and calls the port with a deadline set well inside the host's limit (for example 240 of Vercel Hobby's 300 seconds, [Vercel limits](https://vercel.com/docs/functions/limitations)). It upserts results by key (provider and game id; provider, game id and player id), then stores the next cursor or marks the unit done, in one transaction. Running a unit twice changes nothing (TRV-29); an interrupted unit resumes from its last stored cursor when its lease expires (TRV-30).
-- With the chosen provider one season file is one call (T12), so `next` is always null and a 24-season career backfill is 24 line units plus the season units already shared by every followed player (STA-42). A paged API maps its page number into the cursor instead.
-- The daily run is: `publication_probe` (defer when the last competition day is not yet published), then the current season's `season_games` and `season_lines` for all followed players; re-reading the current season covers the 7-day correction window (STA-33). Consolidated seasons are never fetched again (STA-42).
-- Every call returns `requests` and `bytes`, which the quota counter records per period (TRV-03, TRV-05).
+| Port field | Source field | Conversion |
+| --- | --- | --- |
+| Last refresh | `Last-Modified` header of `timestamp.json` | GMT date to epoch milliseconds; the body, for example `{"last_updated":"2026-11-11 07:33:33 EST"}`, is a fallback read in `America/New_York` |
+| Last league date whose games all have lines | Schedule `game_date`, `status_type_completed`, `player_box`, and the game ids present in the player-box file | The latest `game_date` whose final, counted games all have player lines (T3) |
+| Source version | `ETag` of `timestamp.json` | As is |
 
-### A second provider and tests
+### `listCoverage`
 
-- A second adapter (for example the NBA Stats-derived releases) implements the same interface in its own file. Identity moves with `mapPlayers`, backed by the published crosswalk, or by a new confirmation when no mapping exists (STA-03). Each stored row keeps its provider id, so mixed history stays traceable.
-- An API adapter such as API-Sports fits the same shape: `getSeasonGames` is one call per season, `getSeasonLines` one call per player and season with the cursor holding the next player, `getPublication` returns nulls and the job falls back to the clock, and `rate_limited` carries the daily quota.
-- `fake.ts` builds an in-memory world of invented players, teams and games, records every call, and injects faults on demand (unavailable, rate limited after a number of calls, schema changed, slow responses past the deadline).
-- `contract.ts` holds the properties every adapter must pass, run against the fake in unit tests and against recorded fixtures of the real adapter: pages from any cursor concatenate to the same items; missing values come back as null, never zero; excluded games are flagged; did-not-play lines carry no reason; instants are UTC; an unchanged file answers `notModified`; no call outlives its deadline by more than one request.
+| Port field | Source field | Conversion |
+| --- | --- | --- |
+| Seasons held | Presence of `player_box_{Y}.csv` (HTTP 200 or 404) | `{Y}` to the season ending in `{Y}`; the first is 1993-94 (T1, T4) |
+| Regular season and playoffs held | Schedule rows with `season_type` 2 and 3 and `player_box` true | One boolean per phase |
+| Games listed without lines | Counted, final schedule rows with `player_box` false | Integer (T15) |
 
-## 13. Follow-ups for implementation
+### `searchPlayers` and `getPlayerProfile`
+
+| Port field | Source field | Conversion |
+| --- | --- | --- |
+| Player id | `athlete_id` (player and player-box files) | String |
+| Display name | `display_name` (player file), `athlete_display_name` (player-box file) | As is; search compares case- and accent-folded `full_name`, `display_name` and `short_name` |
+| Current team | `current_team_id` in the current season's player file | String; empty becomes null (no team, STA-26) |
+| First and last season | The seasons whose player file lists the player | `{Y}` to its season |
+| Teams | Distinct `team_id` of the player's lines in the player-box files, most recent first | Never from past-season player files (T16) |
+| Day and month of birth | `date_of_birth`, written `YYYY-MM-DDT07:00Z` or `YYYY-MM-DDT08:00Z` | Month and day from the date part as written (midnight on the US Pacific coast); the year is dropped |
+
+### `getSeasonGames` (`nba_schedule_{Y}.csv`)
+
+| Port field | Source field | Conversion |
+| --- | --- | --- |
+| Game id | `game_id` (equal to `id` in every row, T21) | String |
+| Season | `{Y}` of the file | Corrected from the game's day against the season start dates; repeated game ids are kept once (T14) |
+| Phase | `season_type` | 2 regular season, 5 play-in, 3 playoffs |
+| Exclusion | `type_abbreviation`, `home_id`, `away_id`, `home_abbreviation`, `away_abbreviation` | `ALLSTAR` or a team id outside 1 to 30: All-Star; `CC`: NBA Cup final; abbreviation `TBD`: placeholder. Preseason games never appear in the files |
+| Tip-off instant | `date`, for example `2026-11-11T00:30Z` | UTC to epoch milliseconds; cross-checked with `game_date_time` (`2026-11-10T19:30:00.000000-0500`) |
+| Time known | `time_valid` | Boolean; false means "time to be determined", and `date` then holds midnight US Eastern as a placeholder (T2) |
+| League date, the game's day | `game_date` | `YYYY-MM-DD` as is; it equals the `America/New_York` date of `date` in every row (T21), and a row where it does not is a schema error |
+| Venue | `venue_full_name`, `venue_address_city`, `venue_address_state`, `neutral_site` | Strings, empty becomes null; boolean |
+| Home and away teams | `home_id`, `away_id` | Strings; null for placeholders |
+| Status | `status_type_name` | `STATUS_SCHEDULED` scheduled, `STATUS_FINAL` final, `STATUS_POSTPONED` postponed, the only values observed (T2, T5); a canceled or in-progress game was never seen, so any other value is a schema error until it is mapped |
+| Score | `home_score`, `away_score` | Integers for a final game, else null |
+| Overtimes | `status_period`, `format_regulation_periods` | Final period minus 4 for a final game with 4 regulation periods (CL-STA-03, T11), else null |
+| Series round | `type_abbreviation`, `notes_headline` | `RD16` first round, `QTR` conference semifinals, `SEMI` conference finals, `FINAL` finals, from 2003-04; play-in type from the label; null before 2003-04 (T19) |
+| Series game number | `notes_headline` | The number after "Game", from 2008-09; else null (T19) |
+| Make-up link | `notes_headline` "Makeup from" a date, on the make-up row | The postponed game of the same two teams on that date (T19) |
+| Source version | `ETag` of the file | As is |
+
+### `getSeasonLines` (`player_box_{Y}.csv`)
+
+| Port field | Source field | Conversion |
+| --- | --- | --- |
+| Game, player, team, opponent | `game_id`, `athlete_id`, `team_id`, `opponent_team_id` | Strings |
+| At home | `home_away` | `home` is true |
+| Did not play | `did_not_play` | Boolean; the `reason` column is never read (JOU-21, DSN-15) |
+| Minutes | `minutes`, for example `26.0` | Number with the precision "whole minutes"; empty or `NA` becomes null |
+| The thirteen counts | `points`, `field_goals_made`, `field_goals_attempted`, `three_point_field_goals_made`, `free_throws_made`, `free_throws_attempted`, `offensive_rebounds`, `defensive_rebounds`, `assists`, `steals`, `blocks`, `turnovers`, `fouls` | Integers; empty or `NA` becomes null |
+| Ejection | `ejected` | Always unknown (null): never set in the files (T6) |
+| Players requested | `athlete_id` | Only the requested players' rows are returned |
+| Source version | `ETag` of the file | As is |
+
+### `mapPlayers`
+
+| Port field | Source field | Conversion |
+| --- | --- | --- |
+| Other source's player id | `espn_athlete_id` to `nba_player_id` in `nba_player_crosswalk_{Y}.csv` | Rows whose `match_method` is not `unmatched`; files exist for the seasons ending 2002 to 2027 (T1) |
+
+### Answers, errors and call metadata
+
+| Source answer | Port result |
+| --- | --- |
+| HTTP 304 to a conditional request | Not an error: the page is `notModified` |
+| Network error, timeout, HTTP 5xx, unreadable file | `unavailable` |
+| HTTP 429, or 403 with rate-limit headers | `rate_limited`, with the `Retry-After` delay when given |
+| HTTP 404 for a season file | `not_published`: a past season is not covered; for the current season, the incident of CL-STA-15 |
+| A player id absent from every file read | `not_found` |
+| A header that differs from the expected columns, or a `game_date` that disagrees with `date` | `schema_changed` |
+| The abort signal | `aborted` |
+
+`unauthorized` never occurs: the source has no key. Call metadata counts each HTTP request, the redirect included, and the bytes received. One file is one page: the cursor is never needed, since a season fetches and parses in under 2.5 seconds (T12).
+
+## 13. Recorded fixtures
+
+Recorded source files used as test fixtures (in `data/fixtures/stats-source/`, module map section 2.3) are anonymized before they are committed, because the repository is public and carries no real player name ([decision record 0006](../adr/0006-public-specs-without-license-or-real-players.md)). The rules, which the adapter task can script:
+
+- Player names become invented names; team-staff names would too, but none of the files below carries any.
+- Player identifiers are remapped consistently: one table maps each real `athlete_id` to an invented id and is applied to every file and every derived column, so joins between files still work. Other providers' ids in the crosswalk get one table per provider.
+- Real team names, team ids, game ids, dates, venues and box-score numbers may stay.
+- Free text that names people or gives the cause of an absence is blanked, and so are personal columns the adapter does not read.
+- Columns are blanked, never removed, so headers stay identical to the source's and the schema checks still run on the fixtures.
+- A last step scans every fixture for the real names collected from the original player and crosswalk files, and for headshot addresses, and fails on any match.
+
+| File | Column | What it carries | Action |
+| --- | --- | --- | --- |
+| `player_box_{Y}.csv` | `athlete_id` | Player id | Remap |
+| `player_box_{Y}.csv` | `athlete_display_name` | Full name | Invented full name |
+| `player_box_{Y}.csv` | `athlete_short_name` | Initial and last name | Built from the invented name |
+| `player_box_{Y}.csv` | `athlete_headshot_href` | Photo address ending with the player id | Blank |
+| `player_box_{Y}.csv` | `reason` | Did-not-play cause, sometimes naming a person | Blank |
+| `nba_schedule_{Y}.csv` | `highlights` | Video headlines and descriptions that name players (1,324 of the 1,330 rows of 2025-26 contain a player's last name) | `[]` |
+| `player_core_{Y}.csv` | `athlete_id` | Player id | The same remap |
+| `player_core_{Y}.csv` | `uid` | `s:40~l:46~a:` followed by the player id | Rebuilt with the invented id |
+| `player_core_{Y}.csv` | `guid` | 36-character identifier of the player | New random value per invented id |
+| `player_core_{Y}.csv` | `slug` | Name in kebab-case | Built from the invented name |
+| `player_core_{Y}.csv` | `first_name`, `last_name`, `full_name`, `display_name`, `short_name` | Names | Invented, the same as in the player-box files |
+| `player_core_{Y}.csv` | `headshot_href` | Photo address ending with the player id | Blank |
+| `player_core_{Y}.csv` | `date_of_birth`, `age` | Birth date and age | Invented date in the same form (`YYYY-MM-DDT07:00Z`), chosen by the scenario; age recomputed |
+| `player_core_{Y}.csv` | `birth_city`, `birth_state`, `birth_country`, `college_id`, `height`, `display_height`, `weight`, `display_weight` | Personal data the adapter does not read | Blank |
+| `nba_player_crosswalk_{Y}.csv` | `espn_athlete_id` | Player id | The same remap |
+| `nba_player_crosswalk_{Y}.csv` | `nba_player_id`, `fox_athlete_id`, `yahoo_player_id` | Other providers' player ids | One remap table per provider |
+| `nba_player_crosswalk_{Y}.csv` | `player_name`, `espn_full_name`, `nba_player_name`, `fox_player`, `yahoo_player_name` | Names | The invented full name |
+| `nba_schedule_crosswalk_{Y}.csv`, `nba_team_crosswalk_{Y}.csv`, `timestamp.json` | None | No person data | Unchanged |
+
+All other columns of these files (team, venue and broadcaster names, ids of games and teams, dates, labels, counts, jersey numbers, positions, draft and status fields) stay as recorded.
+
+## 14. Follow-ups for implementation
 
 - Write the series-length table per season and the play-in elimination rules, and test them against the labeled seasons (T19).
-- Build and test the venue time-zone table from the venues present in the schedules (international games seen: Berlin, London, Manchester, Mexico City, Paris).
+- Script the fixture anonymization of section 13, with its final check, before the first recorded fixture is committed.
 - Consider Parquet for the player-box files, about 25 times smaller than their CSV (20.0 MB against 507 MB for the 34 seasons, T1), with a pure-JavaScript reader; only CSV was tested (T12). Stream the CSV to keep memory low.
 - Re-check this evaluation before each deployment and at any source incident (TRV-10).
