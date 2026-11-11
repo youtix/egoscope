@@ -275,18 +275,18 @@ conservé »).
 
 ## 4. Stored or derived
 
-| item                                                            | stored or derived | recalculated when                                                                     | spec IDs                               |
-| --------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------- | -------------------------------------- |
-| Prompt text                                                     | stored            | at creation, each update and reduction                                                | BKT-20                                 |
-| Origin of a request                                             | derived           | trigger and kind                                                                      | 05 « Données manipulées »              |
-| Overall period                                                  | derived           | earliest start to latest end of the requested types                                   | 05 « Données manipulées »              |
-| Deadline, urgency, rank                                         | derived           | on read, never stored                                                                 | BKT-16 to BKT-18, CL-BKT-23, CL-BKT-24 |
-| "In progress", stale copy, outdated sheet version               | derived           | `last_copied_at` against status, `prompt_produced_at` and the types' current versions | BKT-15, BKT-20, IHM-40                 |
-| Profiled, uncovered types, first uncovered day, covers the type | derived           | from `imports` and `backtest_coverage_periods` (CL-BKT-05)                            | BKT-10, H-VUE-02                       |
-| Import tally                                                    | derived           | from outcome rows, sources added by the import, and the stored deletion counts        | IMP-22, IMP-31, IMP-37                 |
-| Sources the spot check opened                                   | derived           | sources added by the import with a verdict                                            | IMP-23                                 |
-| Remaining refusals per request and their sum per player         | derived           | refused outcomes of each request's last import                                        | IMP-24, CL-IMP-24, CL-SEN-22           |
-| Supplement offered after an import                              | derived           | planned types with an uncovered day, computed on acceptance                           | BKT-06, CL-BKT-07                      |
+| item                                                                                                     | stored or derived | recalculated when                                                                                                                                                                                                                                        | spec IDs                                       |
+| -------------------------------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Prompt text                                                                                              | stored            | at creation, each update and reduction                                                                                                                                                                                                                   | BKT-20                                         |
+| Origin of a request                                                                                      | derived           | trigger and kind                                                                                                                                                                                                                                         | 05 « Données manipulées »                      |
+| Overall period                                                                                           | derived           | earliest start to latest end of the requested types                                                                                                                                                                                                      | 05 « Données manipulées »                      |
+| Deadline, urgency, rank                                                                                  | derived           | on read, never stored                                                                                                                                                                                                                                    | BKT-16 to BKT-18, CL-BKT-23, CL-BKT-24         |
+| "In progress", stale copy, outdated sheet version                                                        | derived           | `last_copied_at` against status, `prompt_produced_at` and the types' current versions                                                                                                                                                                    | BKT-15, BKT-20, IHM-40                         |
+| Profiled, uncovered types, first uncovered day, covers the type                                          | derived           | from `imports` and `backtest_coverage_periods` (CL-BKT-05)                                                                                                                                                                                               | BKT-10, H-VUE-02                               |
+| Import tally                                                                                             | derived           | from outcome rows, sources added by the import, and the stored deletion counts                                                                                                                                                                           | IMP-22, IMP-31, IMP-37                         |
+| Sources the spot check opened                                                                            | derived           | sources added by the import with a verdict                                                                                                                                                                                                               | IMP-23                                         |
+| Remaining refusals per request and their sum per player                                                  | derived           | refused outcomes of each request's last import                                                                                                                                                                                                           | IMP-24, CL-IMP-24, CL-SEN-22                   |
+| Supplement proposed after a type's validation, reactivation or broadening, or after an incomplete import | derived           | on read; nothing is created before the owner accepts, when an import's supplement takes the planned types with an uncovered day; for a player with a request to do the proposal is its update; the detection-born supplement of Lot 2 is created at once | BKT-04 to BKT-06, BKT-15, CL-BKT-07, CL-BKT-25 |
 
 ## 5. Exchange formats
 
@@ -364,7 +364,11 @@ type, an event or a birthday (CL-DSN-21).
 - ADR 0010, CL-BKT-02: the English format 1.0, the only contract.
 - ADR 0013, CL-IMP-06, CL-IMP-07: research-AI quirks and citation markers, as warnings.
 - ADR 0015, CL-BKT-03, CL-IMP-29: research types only; `type_derived_from_calendar` ignores.
-- ADR 0017, CL-IMP-28, CL-IMP-34, CL-DSN-06: the fingerprint flags of the preview, never stored, one window parameter for duplicates and fingerprints. CL-IMP-28 takes the UTC date of a timed event as its day, the newer CL-DSN-06 the date in the owner's time zone; the import follows CL-DSN-06, which CL-IMP-28 says it applies. Flagged.
+- ADR 0017, CL-IMP-28, CL-IMP-34, CL-DSN-06: the fingerprint flags of the preview, never stored,
+  one window parameter for duplicates and fingerprints; a timed event's day is its date in the
+  owner's time zone.
+- CL-IMP-05, CL-DSN-03: the quotation-mark check of descriptions and reservations; an apostrophe
+  always passes.
 - ADR 0022: low-confidence events count; uncertain precedence shifts (in the cases area).
 - CL-BKT-05, CL-BKT-06: counting periods, the broadening version, version 0 of a split.
 - CL-BKT-07, CL-BKT-08, CL-BKT-09: planned and requested types, updates, reductions.
@@ -372,6 +376,8 @@ type, an event or a birthday (CL-DSN-21).
 - CL-BKT-11: the reference pattern and its per-year counter.
 - CL-BKT-12: `last_copied_at` from Copy and Share.
 - CL-BKT-20: a canceled request may still be imported; coverage is a union.
+- CL-BKT-25: detection creates its supplement (Lot 2); validation, reactivation, broadening and an
+  incomplete import only propose one, so a proposal is never a row.
 - CL-IMP-02, CL-IMP-04: messages and the correction message, never stored, never quoting a free
   text.
 - CL-IMP-09: calendar dates compared as written.

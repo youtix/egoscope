@@ -298,8 +298,8 @@ from validated or withdrawn do not exist.
 ## 5. Exchange format: the exploration response
 
 Format `egoscope-exploration`, version `1.0`, with the keys of glossary section 6.2 and the shape of
-CL-TAX-04 (the glossary's key `possible_overlaps` wins over CL-TAX-04's `overlaps`: the 02
-clarifications pass the key spellings to the glossary, whose spelling wins, the shape staying). It follows the general rules of the research-result format: one
+CL-TAX-04, which takes those keys (`format_version`, `possible_overlaps`) from the glossary. It
+follows the general rules of the research-result format: one
 UTF-8 JSON object, lowercase enumerated values, an optional field omitted rather than empty, never
 `null`, dates `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM±HH:MM`.
 
@@ -331,10 +331,12 @@ stored (IMP-04, IMP-06, IMP-16). Only the ticked types become proposals of origi
 ## 6. Rulings applied
 
 - ADR 0015, CL-TAX-18 to CL-TAX-21: `schedule_derivation`, the derivation triggers and the
-  calendar-derived lifecycle; a withdrawn calendar-derived type keeps its upcoming events (CL-TAX-20,
-  which differs from CL-SUI-14 as the 02 clarifications note); the "handled by the calendar" list
+  calendar-derived lifecycle; a withdrawn calendar-derived type deletes nothing and keeps every
+  event and case, upcoming ones included (CL-TAX-20, CL-SUI-14); the "handled by the calendar" list
   holds these types in every state.
-- CL-TAX-22: the version an event keeps and when it is replaced.
+- CL-TAX-22: the version an event keeps, replaced at a correction of its type, a requalification or
+  reassignment, a merge whose sheet covers the union, its distribution after a split and the full
+  derivation after a substantive change; an event imported after a merge or split takes CL-IMP-21's.
 - ADR 0016, CL-TAX-17, CL-SEN-13: `switched_off_criterion`, its history entry and recalculation.
 - CL-TAX-02: the slug rule and its check.
 - CL-TAX-04: the exploration response.

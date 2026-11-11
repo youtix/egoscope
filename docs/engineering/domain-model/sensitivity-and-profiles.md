@@ -13,8 +13,11 @@ Conventions are in the [README](README.md).
 
 The calculation for one player, one type and one view (SEN-19 to SEN-27, SEN-21). A profile exists
 for a validated type, or a withdrawn one shown archived, while its tally holds at least one event,
-the events that left the count included and withdrawn ones excepted (SEN-19, CL-SEN-26). Every
-view is computed in full at each recalculation (CL-SEN-19); in Lot 1 every case is historical.
+the events that left the count included and withdrawn ones excepted (SEN-19, CL-SEN-26). While the
+birthday type is validated, a followed player without a recorded birthday also has a birthday
+profile: an empty tally, every count 0, the verdict inconclusive, whose page only says why (record
+0015, CL-SEN-26, CL-JOU-16). Every view is computed in full at each recalculation (CL-SEN-19); in
+Lot 1 every case is historical.
 
 | column                          | type             | null | default  | constraint or reference                                                                                                 | class | spec IDs                          |
 | ------------------------------- | ---------------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------- |
@@ -78,7 +81,9 @@ Indexes: the unique index serves the player page and the profile detail;
 alert sheet's copy (Lot 2) and the evaluated pairs of SEN-41.
 
 Deletion: with the player; by a withdrawal or player deletion that leaves the pair with no event in
-its tally, together with its verdict history (CL-SEN-18).
+its tally, together with its verdict history (CL-SEN-18); by the job that finds a profile no longer
+meeting the existence rule, such as an empty birthday profile once the birthday is recorded without
+bringing an event, or once the birthday type is no longer validated.
 
 ```ts
 type ProfileView = 'all_cases' | 'historical_only' | 'tracked_only';
@@ -201,12 +206,13 @@ player-data deletion removes his id from pending jobs and deletes done jobs nami
 
 ### 2.2 Profile and trend presentation states — `ProfileNotice`, derived
 
-| state               | when                                                                                | spec IDs           |
-| ------------------- | ----------------------------------------------------------------------------------- | ------------------ |
-| below_threshold     | `valid_count < valid_case_threshold`: the SEN-31 presentation with the type's trend | SEN-31             |
-| archived            | the player or the type is withdrawn                                                 | SEN-19             |
-| recalculating       | a pending or running job covers it                                                  | SEN-36, CL-SEN-16  |
-| awaiting_statistics | its cases all wait with `statistics_pending` or `mapping_not_established`           | 12 « Cas limites » |
+| state                 | when                                                                                | spec IDs             |
+| --------------------- | ----------------------------------------------------------------------------------- | -------------------- |
+| below_threshold       | `valid_count < valid_case_threshold`: the SEN-31 presentation with the type's trend | SEN-31               |
+| archived              | the player or the type is withdrawn                                                 | SEN-19               |
+| recalculating         | a pending or running job covers it                                                  | SEN-36, CL-SEN-16    |
+| awaiting_statistics   | its cases all wait with `statistics_pending` or `mapping_not_established`           | 12 « Cas limites »   |
+| birthday_not_recorded | a birthday profile whose player has no recorded birthday: only the reason is shown  | CL-SEN-26, CL-JOU-16 |
 
 ## 3. Invariants
 
@@ -220,23 +226,24 @@ player-data deletion removes his id from pending jobs and deletes done jobs nami
 | Only the default view enters the verdict history and SEN-41                                                               | CL-SEN-19, CL-SEN-20      | recalculation service                                       |
 | A withdrawal leaves no trace in profiles, trends or the history beyond a `recalculation` entry; an emptied pair is erased | SEN-33, SEN-48, CL-SEN-18 | withdrawal step, then a full job                            |
 | Profiles exist only for validated types and archived withdrawn ones                                                       | SEN-19                    | recalculation service                                       |
+| While the birthday type is validated, every followed player without a recorded birthday has a birthday profile            | CL-SEN-26, CL-JOU-16      | recalculation service                                       |
 | A type with a switched-off criterion shows the confounder warning on every profile and its trend while the switch is on   | ADR 0016, CL-SEN-13       | derived from `event_types.switched_off_criterion`           |
 | Jobs with different causes are never merged; one job runs at a time                                                       | CL-SEN-16                 | job service; unique index on the running job                |
 
 ## 4. Stored or derived
 
-| item                                                                                                                                                                                | stored or derived | recalculated when                                                                      | spec IDs                          |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------- | --------------------------------- |
-| Profile and trend values, tally, warnings of SEN-46                                                                                                                                 | stored            | each job covering them (SEN-34: import; statistics update; event or case change; full) | SEN-20 to SEN-29, SEN-34          |
-| Verdict history                                                                                                                                                                     | stored            | at the end of each job, for changes of the default view                                | SEN-37                            |
-| Archived, recalculating, below threshold                                                                                                                                            | derived           | on read                                                                                | SEN-19, SEN-31, SEN-36            |
-| Remaining refusals shown on profiles                                                                                                                                                | derived           | the sum over the player's requests (CL-SEN-22)                                         | SEN-46, CL-SEN-22                 |
-| Confounder warning; "all cases are excluded for unusual stakes"                                                                                                                     | derived           | from the type's switch and the profile's criteria counts (CL-SEN-13)                   | ADR 0016, CL-SEN-13               |
-| Calendar-derived profile warnings: the team-history mention on every former-team profile; "birthday not recorded" and "counted from the first covered season" on a birthday profile | derived           | from the type, the player's birthday and his first NBA game (CL-STA-24)                | CL-STA-24, CL-JOU-16, CL-JOU-18   |
-| Doubtful share, top contributor's share, proportions as counts                                                                                                                      | derived           | from stored counts; shown as "k out of m" below `countsBelowCaseCount`                 | SEN-25, SEN-29, SEN-39, CL-SEN-21 |
-| Evaluated pairs and verdicts chance alone would produce                                                                                                                             | derived           | on read: default-view profiles with n ≥ threshold × 2 × (1 − Φ(t))                     | SEN-41, CL-SEN-20, ADR 0021       |
-| Date of the last change of a parameter that affects calculations                                                                                                                    | derived           | latest of `parameter_changes` (affects calculations) and criterion-switch changes      | SEN-37, TRV-35, CL-TRV-17         |
-| The values a profile was computed with                                                                                                                                              | stored            | `parameter_snapshot_id` at each write                                                  | SEN-36, TRV-35                    |
+| item                                                                                                                                                                                | stored or derived | recalculated when                                                                      | spec IDs                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Profile and trend values, tally, warnings of SEN-46                                                                                                                                 | stored            | each job covering them (SEN-34: import; statistics update; event or case change; full) | SEN-20 to SEN-29, SEN-34                   |
+| Verdict history                                                                                                                                                                     | stored            | at the end of each job, for changes of the default view                                | SEN-37                                     |
+| Archived, recalculating, below threshold                                                                                                                                            | derived           | on read                                                                                | SEN-19, SEN-31, SEN-36                     |
+| Remaining refusals shown on profiles                                                                                                                                                | derived           | the sum over the player's requests (CL-SEN-22)                                         | SEN-46, CL-SEN-22                          |
+| Confounder warning; "all cases are excluded for unusual stakes"                                                                                                                     | derived           | from the type's switch and the profile's criteria counts (CL-SEN-13)                   | ADR 0016, CL-SEN-13                        |
+| Calendar-derived profile warnings: the team-history mention on every former-team profile; "birthday not recorded" and "counted from the first covered season" on a birthday profile | derived           | from the type, the player's birthday and his first NBA game (CL-STA-24)                | CL-STA-24, CL-JOU-16, CL-JOU-18, CL-SEN-03 |
+| Doubtful share, top contributor's share, proportions as counts                                                                                                                      | derived           | from stored counts; shown as "k out of m" below `countsBelowCaseCount`                 | SEN-25, SEN-29, SEN-39, CL-SEN-21          |
+| Evaluated pairs and verdicts chance alone would produce                                                                                                                             | derived           | on read: default-view profiles with n ≥ threshold × 2 × (1 − Φ(t))                     | SEN-41, CL-SEN-20, ADR 0021                |
+| Date of the last change of a parameter that affects calculations                                                                                                                    | derived           | latest of `parameter_changes` (affects calculations) and criterion-switch changes      | SEN-37, TRV-35, CL-TRV-17                  |
+| The values a profile was computed with                                                                                                                                              | stored            | `parameter_snapshot_id` at each write                                                  | SEN-36, TRV-35                             |
 
 ## 5. Exchange formats
 
@@ -251,7 +258,8 @@ Profiles appear in the spreadsheet export of profiles and in the full export
 - CL-SEN-16: recalculation jobs recorded with their change, chunked, one at a time.
 - CL-SEN-17: ten causes, three of them new (`event_corrected_or_removed`, `event_reinstated`,
   `taxonomy_changed`).
-- CL-SEN-18, CL-SEN-26: when a profile exists and when it is erased with its history.
+- CL-SEN-18, CL-SEN-26: when a profile exists, the empty birthday profile included, and when it is
+  erased with its history.
 - CL-SEN-19: every view computed, the default one historized.
 - CL-SEN-22: remaining refusals summed over requests, derived.
 - Own choice: `parameter_snapshots` record every parameter value a profile was computed with, so a

@@ -35,7 +35,9 @@ player p, type t and day d matches when the hash of `p|t|d'` is a live fingerpri
 d − g to d + g, g being `correspondenceWindowDays` (2 by default), the single window of CL-IMP-34;
 the unique index serves these lookups. Fingerprints are checked by detection before a model-origin
 fact creates an event, never for the owner's own classifications; by the calendar derivation before
-it creates an event; in every import preview; and at every restore (CL-DSN-06, CL-TAX-19).
+it creates an event, on the derived game's day only, with no window, so that a withdrawal never
+blocks another qualifying game within g days (record 0015: every such game counts); in every import
+preview; and at every restore (CL-DSN-06, CL-TAX-19, CL-SUI-14).
 
 ### 1.2 `deleted_player_entries` — the deleted-player entry
 
@@ -91,9 +93,11 @@ Order of a withdrawal of event E, every row of the left column being deleted unl
    limits, the number of Telegram messages mentioning E included.
 2. Upsert the fingerprint of E into `withdrawal_fingerprints` with `created_at = now()`.
 3. Lot 2 sub-steps: in the alert sheet holding E, everything about it, or the whole sheet and its
-   alert-history entry if E was its only event; its tracked-case data; the stored Telegram texts
-   and identifiers of the messages mentioning it, after one deletion request each, the refused
-   ones being listed once to the owner and not kept (CL-DSN-13); the classification results of its
+   alert-history entry if E was its only event; its tracked-case data; the stored Telegram texts,
+   chat identifiers and message identifiers of the messages mentioning it, digests included, after
+   one deletion request each, the refused or unreachable ones being listed once to the owner with
+   their send date and time and whether each was a digest, then not kept (CL-DSN-13, CL-TEL-09);
+   the classification results of its
    articles; every article attached to E and to no other event, with no dedup trace and no other
    record (DSN-34, CL-DSN-10).
 4. `import_event_outcomes` and `import_possible_duplicates` rows whose event is E, so that the
@@ -136,8 +140,8 @@ For a withdrawn player, after the counts are shown and two confirmations, in one
    his name.
 
 The screen states the limits: backups keep the data until they rotate out, a restore within the
-horizon deletes him again, downloaded exports keep it, undeletable Telegram messages stay
-(CL-JOU-06).
+horizon deletes him again except a restore into a new database without the old one (CL-TRV-06),
+downloaded exports keep it, undeletable Telegram messages stay (CL-JOU-06, CL-JOU-24).
 
 ### 2.3 Purges
 
@@ -219,15 +223,14 @@ these values ever leaves the database.
 
 ## 8. Rulings applied
 
-- ADR 0017, CL-DSN-06, CL-DSN-07: the fingerprint, its day, its window, its checks, its horizon
-  and its erasure. The lot-1 text of CL-IMP-28 still takes the UTC date of an instant; the model
-  follows CL-DSN-06, which file 13 owns and CL-IMP-28 says it follows. Flagged.
+- ADR 0017, CL-DSN-06, CL-DSN-07, CL-IMP-28: the fingerprint, its day (an instant's date in the
+  owner's time zone), its window, the exact-day check of the derivation, its other checks, its
+  horizon and its erasure.
 - CL-DSN-04: what the counter counts.
 - CL-DSN-05, CL-IHM-19: no tombstone; one generic page.
 - CL-DSN-08: the ledger stays out of backups and exports.
-- CL-DSN-09: calendar-derived events can be withdrawn, with a fingerprint, and their cases
-  excluded; the lot-1 text of CL-SEN-03 still says they are never withdrawn, against CL-DSN-09,
-  CL-TAX-20, CL-IHM-21 and CL-VUE-12. The model follows CL-DSN-09. Flagged.
+- CL-DSN-09, CL-SEN-03: calendar-derived events can be withdrawn like any event, with a
+  fingerprint; excluding the case (SEN-17) is the permanent alternative.
 - CL-DSN-10: no skip entry for an erased article; the repeated classification is accepted.
 - CL-DSN-11, CL-TRV-10: the journal's references and its allowlist.
 - CL-DSN-13: Telegram deletion requests, refusals shown once and not kept.
@@ -235,7 +238,8 @@ these values ever leaves the database.
 - CL-DSN-17: the draft store.
 - CL-DSN-21: the birthday's limits.
 - CL-JOU-06, CL-JOU-24: the scope of a player-data deletion and its entry.
-- CL-SEN-25: a dropped schedule event leaves only a count once its game had started, nothing before.
+- CL-SEN-25, CL-JOU-16, CL-TAX-19: a dropped schedule event leaves only a count once its game had
+  started, nothing before; each drop is also journaled, without the birthday.
 - CL-TAX-09: requalification and split erasures have a withdrawal's scope without fingerprint or
   counter.
 - Own choice: the counter row has no date column, the strictest reading of DSN-29.
