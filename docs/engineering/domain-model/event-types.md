@@ -19,35 +19,35 @@ calculation and the classification (TAX-01, TAX-11). The row holds the type's st
 sheet content; versions and history are separate tables. Types are never deleted, so identifiers
 are never reused (TAX-02).
 
-| column                       | type        | null | default      | constraint or reference                                                                                                                  | class | spec IDs                              |
-| ---------------------------- | ----------- | ---- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------- |
-| `id`                         | text        | no   | —            | primary key; `CHECK (id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(id) <= 50)`; the slug of CL-TAX-02, immutable                       | —     | TAX-02, CL-TAX-02, glossary section 5 |
-| `status`                     | text        | no   | `'proposed'` | `CHECK (status IN ('proposed','validated','rejected','withdrawn'))`                                                                      | —     | TAX-10                                |
-| `origin`                     | text        | no   | —            | `CHECK (origin IN ('scoping','exploration','detection'))`                                                                                | —     | TAX-15                                |
-| `created_at`                 | timestamptz | no   | `now()`      | —                                                                                                                                        | —     | TAX-15                                |
-| `name`                       | text        | no   | —            | `CHECK (btrim(name) <> '')`                                                                                                              | TX    | TAX-01, TAX-22                        |
-| `definition`                 | text        | yes  | —            | required to validate                                                                                                                     | TX    | TAX-01, D-12                          |
-| `inclusion_criteria`         | text        | yes  | —            | required to validate                                                                                                                     | TX    | TAX-01, TAX-04                        |
-| `exclusion_criteria`         | text        | yes  | —            | required to validate                                                                                                                     | TX    | TAX-01, TAX-06                        |
-| `dating_rule`                | text        | yes  | —            | required to validate                                                                                                                     | TX    | TAX-01, TAX-05, H-TAX-01              |
-| `known_in_advance`           | boolean     | no   | `false`      | the "known in advance" mark of the dating rule (SEN-02)                                                                                  | —     | TAX-01, TAX-33, SEN-02                |
-| `schedule_derivation`        | text        | yes  | —            | `CHECK (schedule_derivation IN ('birthday','former_team'))`; set at seeding on the two calendar-derived types only, never changed        | —     | ADR 0015, CL-TAX-18, CL-TAX-20        |
-| `generic_example`            | text        | yes  | —            | required to validate; names no real person                                                                                               | TX    | TAX-01, TAX-03                        |
-| `documentation_difficulty`   | text        | yes  | —            | `CHECK (documentation_difficulty IN ('easy','medium','hard'))`; required to validate                                                     | —     | TAX-01, TAX-08                        |
-| `caution_notes`              | text        | yes  | —            | optional                                                                                                                                 | TX    | TAX-01                                |
-| `is_intimate_subject`        | boolean     | no   | `false`      | the « sujet intime » mark: Telegram never names the type                                                                                 | —     | TAX-01, DSN-35                        |
-| `coverage_threshold_outlets` | smallint    | yes  | —            | `CHECK (coverage_threshold_outlets BETWEEN 2 AND 10)`                                                                                    | —     | CL-TAX-14, TRV-38                     |
-| `coverage_threshold_days`    | smallint    | yes  | —            | `CHECK (coverage_threshold_days BETWEEN 1 AND 7)`                                                                                        | —     | CL-TAX-14                             |
-| `switched_off_criterion`     | text        | yes  | —            | `CHECK (switched_off_criterion IN ('playing_time_too_low','injury_return','unusual_stakes','opponent_strength','co_occurring'))`         | —     | ADR 0016, CL-TAX-17, CL-SEN-13        |
-| `current_version_number`     | smallint    | yes  | —            | `CHECK (current_version_number >= 1)`; null until the first validation                                                                   | —     | TAX-20, TAX-22, CL-TAX-06             |
-| `rejection_reason`           | text        | yes  | —            | `CHECK (rejection_reason IN ('not_clean','not_datable','duplicate_of_existing_type','out_of_scope','other'))`                            | —     | TAX-13, H-TAX-04                      |
-| `rejection_comment`          | text        | yes  | —            | optional; 1 to `maxDescriptionLength` characters; never sent to the exploration prompt (CL-TAX-10)                                       | TX    | TAX-13, CL-TAX-11                     |
-| `withdrawal_reason_kind`     | text        | yes  | —            | `CHECK (withdrawal_reason_kind IN ('entered','merged_into','split_into'))`                                                               | —     | TAX-27, TAX-29, TAX-31                |
-| `withdrawal_reason`          | text        | yes  | —            | the owner's text for `entered`, 1 to `maxDescriptionLength` characters; null for a merge or a split, whose label is built from the links | TX    | TAX-31, CL-TAX-11                     |
-| `merged_into_type_id`        | text        | yes  | —            | `REFERENCES event_types(id) ON DELETE RESTRICT`; the surviving type of the merge that absorbed this one                                  | —     | TAX-27, TAX-28                        |
-| `split_from_type_id`         | text        | yes  | —            | `REFERENCES event_types(id) ON DELETE RESTRICT`; the type this one was split from                                                        | —     | TAX-29, TAX-30                        |
-| `no_fit_reason`              | text        | yes  | —            | detection proposals: why no validated type fits                                                                                          | TX    | TAX-18, DET-34                        |
-| `row_version`                | integer     | no   | `1`          | incremented by every save                                                                                                                | —     | CL-IHM-18                             |
+| column                       | type        | null | default      | constraint or reference                                                                                                                         | class | spec IDs                              |
+| ---------------------------- | ----------- | ---- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------- |
+| `id`                         | text        | no   | —            | primary key; `CHECK (id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(id) <= 50)`; the slug of CL-TAX-02, immutable                              | —     | TAX-02, CL-TAX-02, glossary section 5 |
+| `status`                     | text        | no   | `'proposed'` | `CHECK (status IN ('proposed','validated','rejected','withdrawn'))`                                                                             | —     | TAX-10                                |
+| `origin`                     | text        | no   | —            | `CHECK (origin IN ('scoping','exploration','detection'))`                                                                                       | —     | TAX-15                                |
+| `created_at`                 | timestamptz | no   | `now()`      | —                                                                                                                                               | —     | TAX-15                                |
+| `name`                       | text        | no   | —            | `CHECK (btrim(name) <> '')`                                                                                                                     | TX    | TAX-01, TAX-22                        |
+| `definition`                 | text        | yes  | —            | required to validate                                                                                                                            | TX    | TAX-01, D-12                          |
+| `inclusion_criteria`         | text        | yes  | —            | required to validate                                                                                                                            | TX    | TAX-01, TAX-04                        |
+| `exclusion_criteria`         | text        | yes  | —            | required to validate                                                                                                                            | TX    | TAX-01, TAX-06                        |
+| `dating_rule`                | text        | yes  | —            | required to validate                                                                                                                            | TX    | TAX-01, TAX-05, H-TAX-01              |
+| `known_in_advance`           | boolean     | no   | `false`      | the "known in advance" mark of the dating rule (SEN-02)                                                                                         | —     | TAX-01, TAX-33, SEN-02                |
+| `calendar_derivation`        | text        | yes  | —            | `CHECK (calendar_derivation IN ('birthday','former_team'))`; set at seeding on the two calendar-derived types only, never changed               | —     | ADR 0015, CL-TAX-18, CL-TAX-20        |
+| `generic_example`            | text        | yes  | —            | required to validate; names no real person                                                                                                      | TX    | TAX-01, TAX-03                        |
+| `documentation_difficulty`   | text        | yes  | —            | `CHECK (documentation_difficulty IN ('easy','medium','hard'))`; required to validate                                                            | —     | TAX-01, TAX-08                        |
+| `caution_notes`              | text        | yes  | —            | optional                                                                                                                                        | TX    | TAX-01                                |
+| `is_intimate_subject`        | boolean     | no   | `false`      | the « sujet intime » mark: Telegram never names the type                                                                                        | —     | TAX-01, DSN-35                        |
+| `coverage_threshold_outlets` | smallint    | yes  | —            | `CHECK (coverage_threshold_outlets BETWEEN 2 AND 10)`                                                                                           | —     | CL-TAX-14, TRV-38                     |
+| `coverage_threshold_days`    | smallint    | yes  | —            | `CHECK (coverage_threshold_days BETWEEN 1 AND 7)`                                                                                               | —     | CL-TAX-14                             |
+| `switched_off_criterion`     | text        | yes  | —            | `CHECK (switched_off_criterion IN ('playing_time_too_low','injury_return','unusual_stakes','opponent_strength','co_occurring'))`                | —     | ADR 0016, CL-TAX-17, CL-SEN-13        |
+| `current_version_number`     | smallint    | yes  | —            | `CHECK (current_version_number >= 1)`; null until the first validation                                                                          | —     | TAX-20, TAX-22, CL-TAX-06             |
+| `rejection_reason`           | text        | yes  | —            | `CHECK (rejection_reason IN ('not_clean','not_datable','duplicate_of_existing_type','out_of_scope','other'))`                                   | —     | TAX-13, H-TAX-04                      |
+| `rejection_comment`          | text        | yes  | —            | optional; 1 to `events.maxDescriptionLength` characters; never sent to the exploration prompt (CL-TAX-10)                                       | TX    | TAX-13, CL-TAX-11                     |
+| `withdrawal_reason_kind`     | text        | yes  | —            | `CHECK (withdrawal_reason_kind IN ('entered','merged_into','split_into'))`                                                                      | —     | TAX-27, TAX-29, TAX-31                |
+| `withdrawal_reason`          | text        | yes  | —            | the owner's text for `entered`, 1 to `events.maxDescriptionLength` characters; null for a merge or a split, whose label is built from the links | TX    | TAX-31, CL-TAX-11                     |
+| `merged_into_type_id`        | text        | yes  | —            | `REFERENCES event_types(id) ON DELETE RESTRICT`; the surviving type of the merge that absorbed this one                                         | —     | TAX-27, TAX-28                        |
+| `split_from_type_id`         | text        | yes  | —            | `REFERENCES event_types(id) ON DELETE RESTRICT`; the type this one was split from                                                               | —     | TAX-29, TAX-30                        |
+| `no_fit_reason`              | text        | yes  | —            | detection proposals: why no validated type fits                                                                                                 | TX    | TAX-18, DET-34                        |
+| `row_version`                | integer     | no   | `1`          | incremented by every save                                                                                                                       | —     | CL-IHM-18                             |
 
 Row checks:
 
@@ -59,14 +59,14 @@ Row checks:
   `(withdrawal_reason_kind = 'merged_into') = (merged_into_type_id IS NOT NULL)`;
   `(withdrawal_reason_kind = 'entered') = (withdrawal_reason IS NOT NULL)`.
 - `(coverage_threshold_outlets IS NULL) = (coverage_threshold_days IS NULL)`.
-- `schedule_derivation IS NULL OR (origin = 'scoping' AND known_in_advance)`.
+- `calendar_derivation IS NULL OR (origin = 'scoping' AND known_in_advance)`.
 - `no_fit_reason IS NULL OR origin = 'detection'`.
 
 Indexes: the table holds a few dozen rows; the primary key serves every lookup.
 
 Seed (first start-up, TAX-15): the nine types of glossary section 5 with their English starter
 sheets from `data/`, status proposed, origin scoping. `birthday` and `former-team` carry
-`schedule_derivation` (`birthday`, `former_team`) and `known_in_advance`; their drafts drop the
+`calendar_derivation` (`birthday`, `former_team`) and `known_in_advance`; their drafts drop the
 press-article criterion and `former-team` counts the first meeting only (ADR 0015, CL-TAX-15);
 `racist-abuse` and `bereavement` carry the intimate-subject mark; `media-storm` carries a coverage
 threshold of 3 outlets within 2 days (CL-TAX-14); no seeded sheet switches a criterion off
@@ -77,7 +77,7 @@ Deletion: never.
 ```ts
 type EventTypeId = Brand<string, 'EventTypeId'>; // kebab-case slug
 type EventTypeStatus = 'proposed' | 'validated' | 'rejected' | 'withdrawn';
-type ScheduleDerivation = 'birthday' | 'former_team'; // set only on the two calendar-derived types
+type CalendarDerivation = 'birthday' | 'former_team'; // set only on the two calendar-derived types
 ```
 
 ### 1.2 `event_type_status_changes` — the dated transitions
@@ -188,26 +188,34 @@ proposal's page (TAX-03, CL-TAX-16).
 Lifetime: erased when the proposal is validated or rejected; a reopened type has none until a new
 exploration brings some (CL-TAX-16). Never sent to a prompt or the classifier.
 
-### 1.6 `type_occurrences` and `type_occurrence_articles` — `TypeOccurrence` (Lot 2)
+### 1.6 `type_occurrences` — `TypeOccurrence` (Lot 2)
 
 The facts detection attaches to a pending proposal, a rejected or a withdrawn type: the fact that
 created a detection proposal, and every later fact matching an entry of the do-not-repropose list
 (TAX-18, DET-34). Written by detection (`detection.md`), owned here because they belong to a type.
+Each keeps its article's reference as a copy, because the article itself may be purged while the
+occurrence stays (DSN-09) and no core table may reference a Lot 2 table. The occurrence with
+`is_originating_fact` carries what a detection-born proposal needs beyond its sheet: its followed
+player and the originating article (DET-34); the proposal's `created_at` is the transmission
+instant, and its `name` and `definition` are the suggested ones or the « texte non conservé »
+mention (CL-DET-18).
 
-`type_occurrences`:
+| column                          | type        | null | default  | constraint or reference                                                            | class | spec IDs          |
+| ------------------------------- | ----------- | ---- | -------- | ---------------------------------------------------------------------------------- | ----- | ----------------- |
+| `id`                            | integer     | no   | identity | primary key                                                                        | —     | —                 |
+| `event_type_id`                 | text        | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                    | —     | TAX-18            |
+| `player_id`                     | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                | PI    | TAX-18, CL-JOU-06 |
+| `recorded_at`                   | timestamptz | no   | `now()`  | the occurrence's instant                                                           | —     | TAX-18            |
+| `is_originating_fact`           | boolean     | no   | `false`  | the fact that created a detection proposal                                         | —     | TAX-18, DET-34    |
+| `justification`                 | text        | yes  | —        | the model's justification, under the wording rules of 13 or « texte non conservé » | TX    | DET-34, CL-DET-19 |
+| `article_url`                   | text        | no   | —        | the article's link as published                                                    | PR    | DET-34, DSN-09    |
+| `article_outlet`                | text        | yes  | —        | —                                                                                  | PR    | DET-34, DSN-09    |
+| `article_title`                 | text        | yes  | —        | as published                                                                       | PR    | DET-34, DSN-09    |
+| `article_published_at`          | timestamptz | no   | —        | the article's retained publication instant                                         | —     | DET-34, COL-20    |
+| `article_publication_precision` | text        | no   | —        | `CHECK (article_publication_precision IN ('exact','approximate','none'))`          | —     | COL-20, DET-34    |
 
-| column                | type        | null | default  | constraint or reference                             | class | spec IDs          |
-| --------------------- | ----------- | ---- | -------- | --------------------------------------------------- | ----- | ----------------- |
-| `id`                  | integer     | no   | identity | primary key                                         | —     | —                 |
-| `event_type_id`       | text        | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`     | —     | TAX-18            |
-| `player_id`           | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE` | PI    | TAX-18, CL-JOU-06 |
-| `recorded_at`         | timestamptz | no   | `now()`  | the occurrence's date                               | —     | TAX-18            |
-| `is_originating_fact` | boolean     | no   | `false`  | the fact that created a detection proposal          | —     | TAX-18            |
-
-`type_occurrence_articles`: `occurrence_id integer NOT NULL REFERENCES type_occurrences(id) ON DELETE CASCADE`,
-`article_id integer NOT NULL REFERENCES articles(id) ON DELETE CASCADE`, primary key
-`(occurrence_id, article_id)`. The article's link, outlet, title and publication date stay in
-`articles` (`collection.md`), kept while linked to a proposal (DSN-09).
+Row check: at most one row per type has `is_originating_fact` (partial unique index
+`type_occurrences_originating_key (event_type_id) WHERE is_originating_fact`).
 
 Indexes: `type_occurrences_type_idx (event_type_id)` serves the occurrence count on the sheet.
 
@@ -288,7 +296,7 @@ from validated or withdrawn do not exist.
 | Version content and effect counts                                                     | stored            | counts incremented by requalification, split, proposals                       | TAX-26                       |
 | "Split into {types}"                                                                  | derived           | types whose `split_from_type_id` is this one                                  | TAX-29                       |
 | Do-not-repropose list (name, definition, rejection reason for the exploration prompt) | derived           | on read: proposed, rejected and withdrawn types, never a calendar-derived one | TAX-11, CL-TAX-10, CL-TAX-21 |
-| "Handled by the calendar" list for the classifier (Lot 2)                             | derived           | every type with `schedule_derivation`, whatever its status                    | CL-TAX-21                    |
+| "Handled by the calendar" list for the classifier (Lot 2)                             | derived           | every type with `calendar_derivation`, whatever its status                    | CL-TAX-21                    |
 | Occurrence count                                                                      | derived           | from `type_occurrences`                                                       | TAX-18                       |
 | Possible duplicates between types                                                     | derived           | on read, by the name rule of CL-TAX-05                                        | TAX-17, TAX-18, CL-TAX-05    |
 | Broadening version of a type (latest `is_broadening`)                                 | derived           | on read                                                                       | CL-BKT-05                    |
@@ -313,7 +321,7 @@ UTF-8 JSON object, lowercase enumerated values, an optional field omitted rather
 | `proposed_types[].inclusion_criteria`       | string           | no       | becomes `inclusion_criteria`                                                                                                                                                                          |
 | `proposed_types[].exclusion_criteria`       | string           | no       | becomes `exclusion_criteria`                                                                                                                                                                          |
 | `proposed_types[].dating_rule`              | string           | no       | becomes `dating_rule`                                                                                                                                                                                 |
-| `proposed_types[].known_in_advance`         | boolean          | no       | sets `known_in_advance` only, never `schedule_derivation` (CL-TAX-20)                                                                                                                                 |
+| `proposed_types[].known_in_advance`         | boolean          | no       | sets `known_in_advance` only, never `calendar_derivation` (CL-TAX-20)                                                                                                                                 |
 | `proposed_types[].generic_example`          | string           | no       | becomes `generic_example`                                                                                                                                                                             |
 | `proposed_types[].documentation_difficulty` | string           | no       | `easy`, `medium`, `hard`                                                                                                                                                                              |
 | `proposed_types[].possible_overlaps`        | array of strings | no       | one sentence per possible overlap; shown in the preview, not stored                                                                                                                                   |
@@ -330,7 +338,7 @@ stored (IMP-04, IMP-06, IMP-16). Only the ticked types become proposals of origi
 
 ## 6. Rulings applied
 
-- ADR 0015, CL-TAX-18 to CL-TAX-21: `schedule_derivation`, the derivation triggers and the
+- ADR 0015, CL-TAX-18 to CL-TAX-21: `calendar_derivation`, the derivation triggers and the
   calendar-derived lifecycle; a withdrawn calendar-derived type deletes nothing and keeps every
   event and case, upcoming ones included (CL-TAX-20, CL-SUI-14); the "handled by the calendar" list
   holds these types in every state.
@@ -357,6 +365,11 @@ stored (IMP-04, IMP-06, IMP-16). Only the ticked types become proposals of origi
   rather than deleted, so its identifier stays taken (TAX-02).
 - Own choice: the AI's `possible_overlaps` are shown in the preview and not stored (store less);
   close types are recomputed by CL-TAX-05 on the proposal's page.
+- Lot 2 request (detection.md section 8, item 6): an occurrence copies its article's link, outlet,
+  title, retained instant and precision and keeps the justification (CL-DET-19), so that it outlives
+  the article's purge (DSN-09) without a core-to-Lot-2 foreign key; `calendar_derivation` is the
+  readable "derived from the calendar" flag (CL-DET-22); a sheet version's coverage threshold is
+  read from its `content`.
 
 ## 7. Diagram
 
@@ -367,8 +380,6 @@ erDiagram
   event_types ||--o{ type_sheet_changes : history
   event_types ||--o{ type_illustration_sources : "proposal only"
   event_types ||--o{ type_occurrences : "Lot 2"
-  type_occurrences ||--o{ type_occurrence_articles : cites
-  articles ||--o{ type_occurrence_articles : "Lot 2"
   followed_players ||--o{ type_occurrences : concerns
   event_types ||--o| event_types : "merged into / split from"
   type_sheet_versions ||--o{ events : "qualifies"

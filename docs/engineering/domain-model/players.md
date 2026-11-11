@@ -26,7 +26,7 @@ The app starts with no row (JOU-06, ADR 0020); seeds and fixtures never hold a r
 | `birthday_origin`              | text        | yes  | —                   | `CHECK (birthday_origin IN ('stats_source','owner'))`                                                                                         | BD    | CL-JOU-16, CL-JOU-11                |
 | `added_at`                     | timestamptz | no   | `now()`             | —                                                                                                                                             | PI    | 01 « Données manipulées »           |
 | `pause_suggestion_declined_at` | timestamptz | yes  | —                   | set when the owner declines the pause suggestion; void once a later game is played (section 2.3)                                              | PI    | JOU-22, IHM-20                      |
-| `last_schedule_derivation_at`  | timestamptz | yes  | —                   | technical: the instant of his previous regular derivation run, so the next run derives the games started since, a reactivation's gap included | —     | CL-TAX-19                           |
+| `last_calendar_derivation_at`  | timestamptz | yes  | —                   | technical: the instant of his previous regular derivation run, so the next run derives the games started since, a reactivation's gap included | —     | CL-TAX-19                           |
 | `row_version`                  | integer     | no   | `1`                 | incremented by every save; a save that sends an older value is refused                                                                        | —     | CL-IHM-18                           |
 
 Row checks: `(birthday_month IS NULL) = (birthday_day IS NULL)` and
@@ -176,19 +176,23 @@ type StatsSourceKey = 'sportsdataverse_espn'; // the port's ProviderId values, s
 ### 1.6 `mapping_candidates` — `MappingCandidate`
 
 The source identities offered for confirmation while a mapping is to establish, with what tells
-namesakes apart: name, teams, seasons played (JOU-10, STA-03, 07 « Données manipulées »).
+namesakes apart: name, teams, seasons played (JOU-10, STA-03, 07 « Données manipulées »). The
+search runs in the stored player directory of [games-and-statistics.md](games-and-statistics.md)
+(`player_directory_entries`), never through the source, so adding a player never waits for it
+(module map, choice 31); it runs at the addition and again after every statistics update while
+the mapping is to establish.
 
-| column              | type        | null | default  | constraint or reference                                           | class | spec IDs       |
-| ------------------- | ----------- | ---- | -------- | ----------------------------------------------------------------- | ----- | -------------- |
-| `id`                | integer     | no   | identity | primary key                                                       | —     | —              |
-| `mapping_id`        | integer     | no   | —        | `REFERENCES stats_source_mappings(id) ON DELETE CASCADE`          | PI    | JOU-10         |
-| `source_player_ref` | text        | no   | —        | the candidate's identifier in the source                          | PI    | STA-03         |
-| `display_name`      | text        | no   | —        | as the source writes it                                           | PI    | JOU-10         |
-| `current_team_id`   | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`                         | PI    | JOU-10         |
-| `first_season`      | text        | yes  | —        | `CHECK (first_season ~ '^[0-9]{4}-[0-9]{2}$')`                    | PI    | JOU-10, STA-03 |
-| `last_season`       | text        | yes  | —        | same check                                                        | PI    | JOU-10, STA-03 |
-| `team_ids`          | integer[]   | no   | `'{}'`   | teams seen in the source's lines, most recent first; display only | PI    | JOU-10, STA-03 |
-| `found_at`          | timestamptz | no   | `now()`  | —                                                                 | —     | JOU-10         |
+| column              | type        | null | default  | constraint or reference                                              | class | spec IDs       |
+| ------------------- | ----------- | ---- | -------- | -------------------------------------------------------------------- | ----- | -------------- |
+| `id`                | integer     | no   | identity | primary key                                                          | —     | —              |
+| `mapping_id`        | integer     | no   | —        | `REFERENCES stats_source_mappings(id) ON DELETE CASCADE`             | PI    | JOU-10         |
+| `source_player_ref` | text        | no   | —        | the candidate's identifier in the source                             | PI    | STA-03         |
+| `display_name`      | text        | no   | —        | as the source writes it                                              | PI    | JOU-10         |
+| `current_team_id`   | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`                            | PI    | JOU-10         |
+| `first_season`      | text        | yes  | —        | `CHECK (first_season ~ '^[0-9]{4}-[0-9]{2}$')`                       | PI    | JOU-10, STA-03 |
+| `last_season`       | text        | yes  | —        | same check                                                           | PI    | JOU-10, STA-03 |
+| `team_ids`          | integer[]   | no   | `'{}'`   | teams of his lines in the directory, most recent first; display only | PI    | JOU-10, STA-03 |
+| `found_at`          | timestamptz | no   | `now()`  | —                                                                    | —     | JOU-10         |
 
 Unique: `mapping_candidates_mapping_ref_key (mapping_id, source_player_ref)`.
 
@@ -201,15 +205,15 @@ mappings (CL-JOU-04).
 
 ### 2.1 Player status (JOU-15)
 
-| from      | to        | trigger                | guard                                                                                         | side effects                                                                                                                                                                       |
-| --------- | --------- | ---------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (none)    | active    | owner adds the player  | active players below `maxActivePlayers` (JOU-04, JOU-05); display name and current team given | creates the mapping row for the source (to establish) and runs the candidate search (JOU-10); creates no backtest request (JOU-07)                                                 |
-| active    | paused    | owner                  | —                                                                                             | status change row; Lot 2 detection, detection-born requests and alert sheets stop (JOU-18); to-do requests stay (JOU-17); statistics, profiles and derivation go on (CL-JOU-05)    |
-| active    | withdrawn | owner                  | —                                                                                             | status change row; the to-do request becomes canceled with `player_withdrawn` (BKT-14); profiles shown archived (SEN-19); derivation stops creating or dropping events (CL-JOU-05) |
-| paused    | active    | owner reactivates      | active players below `maxActivePlayers` (JOU-20)                                              | status change row without reason (CL-JOU-12); no request (JOU-20); Lot 2 re-prefilters recent articles (JOU-09)                                                                    |
-| paused    | withdrawn | owner                  | —                                                                                             | as active → withdrawn                                                                                                                                                              |
-| withdrawn | active    | owner reactivates      | active players below `maxActivePlayers` (JOU-20)                                              | as paused → active; profiles no longer archived; the next regular derivation run covers the games since his previous run (CL-TAX-19)                                               |
-| withdrawn | (deleted) | owner deletes the data | status withdrawn, double confirmation (JOU-24)                                                | the erasure of [sensitive-data.md](sensitive-data.md) section 2.2; the counter grows by his events (CA-JOU-16)                                                                     |
+| from      | to        | trigger                | guard                                                                                          | side effects                                                                                                                                                                       |
+| --------- | --------- | ---------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)    | active    | owner adds the player  | active players below `players.maxActive` (JOU-04, JOU-05); display name and current team given | creates the mapping row for the source (to establish) and runs the candidate search (JOU-10); creates no backtest request (JOU-07)                                                 |
+| active    | paused    | owner                  | —                                                                                              | status change row; Lot 2 detection, detection-born requests and alert sheets stop (JOU-18); to-do requests stay (JOU-17); statistics, profiles and derivation go on (CL-JOU-05)    |
+| active    | withdrawn | owner                  | —                                                                                              | status change row; the to-do request becomes canceled with `player_withdrawn` (BKT-14); profiles shown archived (SEN-19); derivation stops creating or dropping events (CL-JOU-05) |
+| paused    | active    | owner reactivates      | active players below `players.maxActive` (JOU-20)                                              | status change row without reason (CL-JOU-12); no request (JOU-20); Lot 2 re-prefilters recent articles (JOU-09)                                                                    |
+| paused    | withdrawn | owner                  | —                                                                                              | as active → withdrawn                                                                                                                                                              |
+| withdrawn | active    | owner reactivates      | active players below `players.maxActive` (JOU-20)                                              | as paused → active; profiles no longer archived; the next regular derivation run covers the games since his previous run (CL-TAX-19)                                               |
+| withdrawn | (deleted) | owner deletes the data | status withdrawn, double confirmation (JOU-24)                                                 | the erasure of [sensitive-data.md](sensitive-data.md) section 2.2; the counter grows by his events (CA-JOU-16)                                                                     |
 
 The application never changes a status by itself (JOU-22). `withdrawn → paused` does not exist.
 
@@ -225,12 +229,12 @@ The application never changes a status by itself (JOU-22). `withdrawn → paused
 
 ### 2.3 Pause suggestion (JOU-22) — derived, `PauseSuggestionStatus`
 
-| from      | to        | trigger                                            | guard                                                                                                        | side effects                                   |
-| --------- | --------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
-| none      | suggested | statistics update ends                             | active; `consecutive_team_games_missed ≥ prolongedAbsenceThreshold`; not declined since his last game played | to-do item "Suggest pausing {player}" (IHM-20) |
-| suggested | declined  | owner declines                                     | —                                                                                                            | `pause_suggestion_declined_at` set             |
-| suggested | none      | the player plays again, or he is paused            | —                                                                                                            | to-do item gone                                |
-| declined  | none      | a game played after `pause_suggestion_declined_at` | —                                                                                                            | the refusal no longer applies                  |
+| from      | to        | trigger                                            | guard                                                                                                            | side effects                                   |
+| --------- | --------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| none      | suggested | statistics update ends                             | active; `consecutive_team_games_missed ≥ players.prolongedAbsenceGames`; not declined since his last game played | to-do item "Suggest pausing {player}" (IHM-20) |
+| suggested | declined  | owner declines                                     | —                                                                                                                | `pause_suggestion_declined_at` set             |
+| suggested | none      | the player plays again, or he is paused            | —                                                                                                                | to-do item gone                                |
+| declined  | none      | a game played after `pause_suggestion_declined_at` | —                                                                                                                | the refusal no longer applies                  |
 
 ### 2.4 Entered team change (JOU-13, CL-JOU-03)
 
@@ -244,7 +248,7 @@ The application never changes a status by itself (JOU-22). `withdrawn → paused
 
 | rule                                                                                                                                                                       | spec IDs                     | enforced by                                                                      |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
-| An addition or a reactivation never takes the active count above `maxActivePlayers`; lowering the parameter pauses no one                                                  | JOU-04, JOU-05, CL-JOU-10    | player service, in the transaction that adds or reactivates                      |
+| An addition or a reactivation never takes the active count above `players.maxActive`; lowering the parameter pauses no one                                                 | JOU-04, JOU-05, CL-JOU-10    | player service, in the transaction that adds or reactivates                      |
 | A statistics identity is linked to at most one followed player, whatever his status                                                                                        | JOU-10, CL-JOU-04            | unique index `stats_source_mappings_source_ref_key`                              |
 | A player has one mapping per statistics source                                                                                                                             | CL-JOU-21                    | unique index `stats_source_mappings_player_source_key`                           |
 | A variant appears once per player and differs from his display name, after CL-JOU-13 normalization                                                                         | JOU-09, CL-JOU-13            | unique index (variants); player service (display name)                           |
@@ -281,7 +285,7 @@ compared per CL-IMP-22.
 - ADR 0015 and CL-JOU-16, CL-JOU-17: the optional day and month of birth with its origin; 29
   February is a valid value, whose birthday falls on 28 February in common years; a change of the
   birthday runs a full derivation of his birthday events.
-- CL-TAX-19: `last_schedule_derivation_at`, the per-player instant of the previous regular run.
+- CL-TAX-19: `last_calendar_derivation_at`, the per-player instant of the previous regular run.
 - ADR 0020, CL-JOU-22: no seeded player.
 - CL-JOU-02, CL-STA-27: the current team follows only the most recent evidence.
 - CL-JOU-03: the entered change and its confirming game in one `game_id` column.
@@ -293,7 +297,9 @@ compared per CL-IMP-22.
 - CL-JOU-09: UUID primary key, the one exception to integer identity keys in this file.
 - CL-JOU-11: consequences of a mapping change.
 - CL-JOU-12: no reason on a reactivation (row check).
-- CL-JOU-18, CL-STA-24: former teams are derived, never stored.
+- CL-JOU-18, CL-STA-24: former teams and his stints are derived from his own box-score lines of
+  covered seasons (a team he played for, CL-STA-04), never from the player directory, and never
+  stored.
 - CL-JOU-19: the daily exposure counts are written by detection and modeled with it
   (`detection.md`, Lot 2).
 - CL-JOU-20: a nullable current team.

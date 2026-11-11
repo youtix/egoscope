@@ -188,21 +188,65 @@ Unique: `recalculation_jobs_one_running_key ((true)) WHERE status = 'running'` �
 Indexes: `recalculation_jobs_pending_idx (id) WHERE status <> 'done'` serves the runner and the
 "recalculation in progress" notice (SEN-36).
 
-Lifetime: done jobs are deleted by the daily purge once older than `journalRetentionDays`; a
+Lifetime: done jobs are deleted by the daily purge once older than `journal.retentionDays`; a
 player-data deletion removes his id from pending jobs and deletes done jobs naming him
 (CL-JOU-06).
+
+### 1.5 `profile_value_versions` — `ProfileValueVersion`
+
+The append-only history of the historical-only view: for each player–type profile and each type's
+trend in that view, a row per change of its values with the instant it took effect, which Lot 2
+tracking reads to build forecast versions and freeze the last one before tip-off (SUI-08, SUI-09,
+CL-SEN-19, CL-SUI-03). The glossary's `ProfileSnapshot` is the alert sheet's frozen copy, hence
+another name.
+
+| column                   | type             | null | default  | constraint or reference                                                                      | class | spec IDs          |
+| ------------------------ | ---------------- | ---- | -------- | -------------------------------------------------------------------------------------------- | ----- | ----------------- |
+| `id`                     | integer          | no   | identity | primary key                                                                                  | EV    | —                 |
+| `sensitivity_profile_id` | integer          | yes  | —        | `REFERENCES sensitivity_profiles(id) ON DELETE CASCADE`; a profile of view `historical_only` | EV    | SUI-08, CL-SEN-19 |
+| `general_trend_id`       | integer          | yes  | —        | `REFERENCES general_trends(id) ON DELETE CASCADE`; a trend of view `historical_only`         | EV    | SUI-09, CL-SEN-19 |
+| `effective_at`           | timestamptz      | no   | —        | the instant the job wrote these values, the row's `computed_at` (CL-SEN-16)                  | EV    | SUI-08, CL-SUI-03 |
+| `valid_count`            | integer          | no   | —        | —                                                                                            | EV    | SUI-08            |
+| `mean_gap`               | double precision | yes  | —        | null when no valid case                                                                      | EV    | SUI-08            |
+| `verdict_level`          | text             | no   | —        | values of `verdict_level`                                                                    | EV    | SUI-08            |
+| `verdict_direction`      | text             | yes  | —        | values of `verdict_direction`                                                                | EV    | SUI-08            |
+| `profile_confidence`     | text             | no   | —        | values of `profile_confidence`                                                               | EV    | SUI-08            |
+
+Row checks: exactly one of `sensitivity_profile_id` and `general_trend_id` is not null;
+`(verdict_level = 'inconclusive') = (verdict_direction IS NULL)`. The referenced row's view is
+`historical_only` (recalculation service).
+
+Written by the job, in the transaction that writes the profile or trend, when one of the five values
+differs from its latest version or it has none; never updated.
+
+Indexes: `profile_value_versions_profile_idx (sensitivity_profile_id, effective_at)` and
+`profile_value_versions_trend_idx (general_trend_id, effective_at)` — "the values in force at
+instant t" for a pair or a type (SUI-08, SUI-09).
+
+Deletion: with its profile or trend, so a withdrawal or player deletion that erases them erases
+these rows too (CL-SEN-18).
+
+```ts
+interface ProfileValueVersion {
+  effectiveAt: EpochMs;
+  validCount: number;
+  meanGap: number | null;
+  verdict: Verdict;
+  profileConfidence: ProfileConfidence;
+} // of a historical-only profile or trend
+```
 
 ## 2. Lifecycles
 
 ### 2.1 Recalculation job (CL-SEN-16)
 
-| from    | to      | trigger                                                 | guard                                      | side effects                                                                                                                                           |
-| ------- | ------- | ------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| (none)  | pending | a change listed by SEN-34 or SEN-35, in its transaction | —                                          | profiles and trends it covers show "recalculation in progress"                                                                                         |
-| pending | running | right after the commit, or the next trigger wake-up     | it is the oldest pending job; none running | `parameter_snapshot_id` and `started_at` set; the lease taken                                                                                          |
-| running | running | a chunk ends                                            | —                                          | cases written; each profile and trend written whole; `progress_cursor` and the lease moved                                                             |
-| running | done    | the last chunk ends                                     | —                                          | verdict-history entries written for the default view; journal entry `profile_recalculation` (TRV-41); the triggering operation reports itself complete |
-| running | running | the lease expires (crashed invocation)                  | —                                          | the next wake-up resumes from `progress_cursor`                                                                                                        |
+| from    | to      | trigger                                                 | guard                                      | side effects                                                                                                                                                                                                                                                                      |
+| ------- | ------- | ------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)  | pending | a change listed by SEN-34 or SEN-35, in its transaction | —                                          | profiles and trends it covers show "recalculation in progress"                                                                                                                                                                                                                    |
+| pending | running | right after the commit, or the next trigger wake-up     | it is the oldest pending job; none running | `parameter_snapshot_id` and `started_at` set; the lease taken                                                                                                                                                                                                                     |
+| running | running | a chunk ends                                            | —                                          | cases written; each profile and trend written whole; `progress_cursor` and the lease moved                                                                                                                                                                                        |
+| running | done    | the last chunk ends                                     | —                                          | verdict-history entries written for the default view; journal entry `profile_recalculation` (TRV-41); the triggering operation reports itself complete; the player–type pairs whose default-view values changed are handed to the Lot 2 hooks (`alerts.onProfileChanged`, ALE-19) |
+| running | running | the lease expires (crashed invocation)                  | —                                          | the next wake-up resumes from `progress_cursor`                                                                                                                                                                                                                                   |
 
 ### 2.2 Profile and trend presentation states — `ProfileNotice`, derived
 
@@ -236,11 +280,12 @@ player-data deletion removes his id from pending jobs and deletes done jobs nami
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ |
 | Profile and trend values, tally, warnings of SEN-46                                                                                                                                 | stored            | each job covering them (SEN-34: import; statistics update; event or case change; full) | SEN-20 to SEN-29, SEN-34                   |
 | Verdict history                                                                                                                                                                     | stored            | at the end of each job, for changes of the default view                                | SEN-37                                     |
+| Values of the historical-only view over time (Lot 2 forecasts)                                                                                                                      | stored            | at the end of each job, a version per change                                           | SUI-08, SUI-09, CL-SEN-19                  |
 | Archived, recalculating, below threshold                                                                                                                                            | derived           | on read                                                                                | SEN-19, SEN-31, SEN-36                     |
 | Remaining refusals shown on profiles                                                                                                                                                | derived           | the sum over the player's requests (CL-SEN-22)                                         | SEN-46, CL-SEN-22                          |
 | Confounder warning; "all cases are excluded for unusual stakes"                                                                                                                     | derived           | from the type's switch and the profile's criteria counts (CL-SEN-13)                   | ADR 0016, CL-SEN-13                        |
 | Calendar-derived profile warnings: the team-history mention on every former-team profile; "birthday not recorded" and "counted from the first covered season" on a birthday profile | derived           | from the type, the player's birthday and his first NBA game (CL-STA-24)                | CL-STA-24, CL-JOU-16, CL-JOU-18, CL-SEN-03 |
-| Doubtful share, top contributor's share, proportions as counts                                                                                                                      | derived           | from stored counts; shown as "k out of m" below `countsBelowCaseCount`                 | SEN-25, SEN-29, SEN-39, CL-SEN-21          |
+| Doubtful share, top contributor's share, proportions as counts                                                                                                                      | derived           | from stored counts; shown as "k out of m" below `sensitivity.countsBelowCases`         | SEN-25, SEN-29, SEN-39, CL-SEN-21          |
 | Evaluated pairs and verdicts chance alone would produce                                                                                                                             | derived           | on read: default-view profiles with n ≥ threshold × 2 × (1 − Φ(t))                     | SEN-41, CL-SEN-20, ADR 0021                |
 | Date of the last change of a parameter that affects calculations                                                                                                                    | derived           | latest of `parameter_changes` (affects calculations) and criterion-switch changes      | SEN-37, TRV-35, CL-TRV-17                  |
 | The values a profile was computed with                                                                                                                                              | stored            | `parameter_snapshot_id` at each write                                                  | SEN-36, TRV-35                             |
@@ -268,6 +313,10 @@ Profiles appear in the spreadsheet export of profiles and in the full export
 - Own choice: the reason breakdown of the tally is a snapshot (`tally_reasons`, `exit_counts`):
   rewritten whole at each job and read back whole; the counts the invariants use are columns.
 - Own choice: the job scopes are named after SEN-34's items; the list is new to the glossary.
+- Own choice, at Lot 2's request: `profile_value_versions` (`ProfileValueVersion`) is the
+  append-only history of the historical-only view that the module map calls profile snapshots;
+  it keeps only the five values tracking reads (store less), and its name leaves `ProfileSnapshot`
+  to the alert sheet's frozen copy (glossary section 3.10).
 
 ## 7. Diagram
 
@@ -278,6 +327,8 @@ erDiagram
   event_types ||--o{ general_trends : "per view"
   sensitivity_profiles ||--o{ verdict_history_entries : "default view"
   general_trends ||--o{ verdict_history_entries : "default view"
+  sensitivity_profiles ||--o{ profile_value_versions : "historical-only view"
+  general_trends ||--o{ profile_value_versions : "historical-only view"
   parameter_snapshots ||--o{ sensitivity_profiles : "computed with"
   parameter_snapshots ||--o{ general_trends : "computed with"
   parameter_snapshots ||--o{ recalculation_jobs : "ran with"

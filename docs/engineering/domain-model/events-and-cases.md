@@ -9,7 +9,7 @@ detected events and their tracked cases here; the Lot 2 files add their own tabl
 Conventions are in the [README](README.md).
 
 An event has one of three origins (CL-VUE-12): `detected` (Lot 2, from articles), `historical`
-(saved by an import) and `schedule` (created by the calendar derivation, ADR 0015; its screen label
+(saved by an import) and `calendar` (created by the calendar derivation, ADR 0015; its screen label
 is the glossary's). Only detected events have a status (CL-VUE-07). The code type is
 `PlayerEvent`, keyed by `playerEventId`, so that it never shadows the DOM's `Event`; the table is
 `events` and every foreign key to it is `player_event_id` (glossary section 2).
@@ -28,51 +28,51 @@ the DSN-06 list and nothing else; the row checks of each origin say which apply.
 | `event_type_id`            | text        | no   | —           | `REFERENCES event_types(id) ON DELETE RESTRICT`; the type it counts under                                                                                                                                                                                                                                                            | EV    | DSN-06, TAX-23                       |
 | `sheet_event_type_id`      | text        | no   | —           | with `sheet_version_number`, `REFERENCES type_sheet_versions(event_type_id, version_number) ON DELETE RESTRICT`                                                                                                                                                                                                                      | EV    | TAX-23, CL-TAX-08, IMP-30, DET-53    |
 | `sheet_version_number`     | smallint    | no   | —           | the version in force at creation (detection, the request's prompt, the derivation), replaced by the version in force at each correction of its type, requalification, reassignment, merge whose sheet covers the union, distribution after a split and full derivation after a substantive change; may name an absorbed type's sheet | EV    | TAX-23, CL-TAX-08, CL-TAX-22         |
-| `origin`                   | text        | no   | —           | `CHECK (origin IN ('detected','historical','schedule'))`; fixed at creation                                                                                                                                                                                                                                                          | EV    | DSN-06, IMP-27, CL-VUE-12            |
+| `origin`                   | text        | no   | —           | `CHECK (origin IN ('detected','historical','calendar'))`; fixed at creation                                                                                                                                                                                                                                                          | EV    | DSN-06, IMP-27, CL-VUE-12            |
 | `type_link_mark`           | text        | yes  | —           | `CHECK (type_link_mark IN ('to_requalify','to_distribute'))`                                                                                                                                                                                                                                                                         | EV    | TAX-25, TAX-29, DSN-06               |
-| `reference_date_on`        | date        | yes  | —           | historical: the public date's calendar date as written; schedule: the derived game's US date; detected: null                                                                                                                                                                                                                         | EV    | TAX-05, IMP-12, CL-IMP-09, CL-VUE-12 |
-| `reference_at`             | timestamptz | yes  | —           | historical: the instant of a timed public date; detected: always, the reference date of DET-30, or for a type with a coverage threshold the earliest instant the threshold is met (CL-DET-27); schedule: null                                                                                                                        | EV    | DET-30, CL-IMP-09, TRV-68, CL-DET-27 |
+| `reference_date_on`        | date        | yes  | —           | historical: the public date's calendar date as written; calendar-derived: the derived game's US date; detected: null                                                                                                                                                                                                                 | EV    | TAX-05, IMP-12, CL-IMP-09, CL-VUE-12 |
+| `reference_at`             | timestamptz | yes  | —           | historical: the instant of a timed public date; detected: always, the reference date of DET-30, or for a type with a coverage threshold the earliest instant the threshold is met (CL-DET-27); calendar-derived: null                                                                                                                | EV    | DET-30, CL-IMP-09, TRV-68, CL-DET-27 |
 | `reference_offset_minutes` | smallint    | yes  | —           | historical: the offset the date-time was written with                                                                                                                                                                                                                                                                                | EV    | CL-IMP-09, TRV-68                    |
-| `reference_date_precision` | text        | yes  | —           | `CHECK (reference_date_precision IN ('exact','approximate','none'))`; detected: the reference article's (COL-20); historical: `exact` when timed, `approximate` when date only; schedule: null                                                                                                                                       | EV    | DSN-06, COL-20, DET-30               |
-| `description`              | text        | no   | —           | one factual sentence; length and quotation marks checked by the writing service (`maxDescriptionLength`, CL-DSN-03); schedule: the application's template                                                                                                                                                                            | EV TX | DSN-19 to DSN-24, IMP-13, CL-DSN-20  |
+| `reference_date_precision` | text        | yes  | —           | `CHECK (reference_date_precision IN ('exact','approximate','none'))`; detected: the reference article's (COL-20); historical: `exact` when timed, `approximate` when date only; calendar-derived: null                                                                                                                               | EV    | DSN-06, COL-20, DET-30               |
+| `description`              | text        | no   | —           | one factual sentence; length and quotation marks checked by the writing service (`events.maxDescriptionLength`, CL-DSN-03); calendar-derived: the application's template                                                                                                                                                             | EV TX | DSN-19 to DSN-24, IMP-13, CL-DSN-20  |
 | `injury_return`            | text        | no   | `'unknown'` | `CHECK (injury_return IN ('yes','no','unknown'))`                                                                                                                                                                                                                                                                                    | EV    | DSN-07, SEN-13, H-09                 |
 | `injury_return_origin`     | text        | yes  | —           | `CHECK (injury_return_origin IN ('research','classification','user'))`                                                                                                                                                                                                                                                               | EV    | SEN-18, H-09                         |
 | `game_stakes`              | text        | no   | `'unknown'` | `CHECK (game_stakes IN ('high','normal','unknown'))`                                                                                                                                                                                                                                                                                 | EV    | DSN-07, SEN-14, H-09                 |
 | `game_stakes_origin`       | text        | yes  | —           | as `injury_return_origin`                                                                                                                                                                                                                                                                                                            | EV    | SEN-18, H-09                         |
 | `case_id`                  | integer     | yes  | —           | with `player_id` and `event_type_id`, `REFERENCES cases(id, player_id, event_type_id) ON DELETE SET NULL (case_id)`                                                                                                                                                                                                                  | EV    | SEN-05, SEN-32, CL-VUE-03            |
-| `recorded_at`              | timestamptz | no   | `now()`     | creation instant                                                                                                                                                                                                                                                                                                                     | EV    | DSN-06, SUI-01, DET-33               |
+| `created_at`               | timestamptz | no   | `now()`     | creation instant, never changed (DET-33, SUI-01)                                                                                                                                                                                                                                                                                     | EV    | DSN-06, SUI-01, DET-33               |
 | `updated_at`               | timestamptz | no   | `now()`     | modification instant                                                                                                                                                                                                                                                                                                                 | EV    | DSN-06                               |
 | `row_version`              | integer     | no   | `1`         | incremented by every save                                                                                                                                                                                                                                                                                                            | —     | CL-IHM-18                            |
 | `research_confidence`      | text        | yes  | —           | historical only; `CHECK (research_confidence IN ('high','medium','low'))`                                                                                                                                                                                                                                                            | EV    | IMP-15, CL-VUE-08, ADR 0022          |
 | `unverified_note`          | text        | yes  | —           | historical only; within the description length, no quotation mark (CL-IMP-05)                                                                                                                                                                                                                                                        | EV TX | IMP-15, DSN-06, DSN-10               |
 | `precedence`               | text        | yes  | —           | historical only; `CHECK (precedence IN ('established','uncertain','not_established','to_verify'))`                                                                                                                                                                                                                                   | EV    | IMP-18, SEN-44, CL-IMP-17            |
 | `origin_import_id`         | integer     | yes  | —           | historical only; `REFERENCES imports(id) ON DELETE RESTRICT`                                                                                                                                                                                                                                                                         | EV    | IMP-31                               |
-| `status`                   | text        | yes  | —           | detected only; `CHECK (status IN ('detected','dismissed'))`                                                                                                                                                                                                                                                                          | EV    | DET-43, DET-45, CL-VUE-07            |
+| `detected_status`          | text        | yes  | —           | detected only; `CHECK (detected_status IN ('detected','dismissed'))`                                                                                                                                                                                                                                                                 | EV    | DET-43, DET-45, CL-VUE-07            |
 | `dismissal_reason`         | text        | yes  | —           | `CHECK (dismissal_reason IN ('not_an_event','no_validated_type_fits','old_fact','non_public_or_unverifiable','duplicate_of_historical_event','other'))`                                                                                                                                                                              | EV    | DET-43                               |
 | `dismissal_comment`        | text        | yes  | —           | required for `other`                                                                                                                                                                                                                                                                                                                 | EV TX | DET-43, DSN-10                       |
 | `dismissed_at`             | timestamptz | yes  | —           | —                                                                                                                                                                                                                                                                                                                                    | EV    | DET-46                               |
-| `detection_confidence`     | smallint    | yes  | —           | detected only; `CHECK (detection_confidence BETWEEN 0 AND 100)`; the highest among its model-origin results; null when it has none (CL-DET-07)                                                                                                                                                                                       | EV    | DET-16, DET-25, CL-VUE-08            |
-| `reference_article_id`     | integer     | yes  | —           | detected only; `REFERENCES articles(id) ON DELETE RESTRICT` (`collection.md`); the article that gives the reference date — for a coverage-threshold type, the one whose instant first completes the threshold's outlets (CL-DET-27); null when an owner-added source gives the date (DET-48)                                         | EV    | DET-30, DSN-06, CL-DET-27            |
+| `detection_confidence`     | smallint    | yes  | —           | detected only; `CHECK (detection_confidence BETWEEN 0 AND 100)`; the highest among its model-origin results, maintained by detection at every attachment change; null when it has none (CL-DET-07)                                                                                                                                   | EV    | DET-16, DET-25, CL-VUE-08            |
+| `reference_date_rule`      | text        | yes  | —           | detected only; `CHECK (reference_date_rule IN ('earliest_source','coverage_threshold'))`, set at creation: `coverage_threshold` for an event the model's facts created at a coverage threshold, `earliest_source` otherwise, owner-created events included; every later recomputation of `reference_at` follows it                   | EV    | DET-30, DET-31, CL-DET-27            |
 | `classification_origin`    | text        | yes  | —           | detected only; `CHECK (classification_origin IN ('model','user'))`                                                                                                                                                                                                                                                                   | EV    | DET-13, DET-49                       |
-| `derived_game_id`          | integer     | yes  | —           | schedule only; `REFERENCES games(id) ON DELETE RESTRICT`                                                                                                                                                                                                                                                                             | EV    | CL-VUE-12, CL-DSN-20, CL-TAX-18      |
+| `derived_game_id`          | integer     | yes  | —           | calendar-derived only; `REFERENCES games(id) ON DELETE RESTRICT`                                                                                                                                                                                                                                                                     | EV    | CL-VUE-12, CL-DSN-20, CL-TAX-18      |
 
 Row checks:
 
 - Historical: `reference_date_on`, `reference_date_precision`, `research_confidence`, `precedence`
   and `origin_import_id` are not null; `(reference_at IS NULL) = (reference_offset_minutes IS NULL)`;
   `reference_date_precision = CASE WHEN reference_at IS NULL THEN 'approximate' ELSE 'exact' END`;
-  every detected-only and schedule-only column is null.
-- Detected: `status`, `reference_at`, `reference_date_precision` and
-  `classification_origin` are not null; `reference_date_on`, `reference_offset_minutes` and the
-  historical-only and schedule-only columns are null; `(status = 'dismissed') = (dismissal_reason IS NOT NULL AND dismissed_at IS NOT NULL)`;
+  every detected-only and calendar-only column is null.
+- Detected: `detected_status`, `reference_at`, `reference_date_precision`, `reference_date_rule`
+  and `classification_origin` are not null; `reference_date_on`, `reference_offset_minutes` and the
+  historical-only and calendar-only columns are null; `(detected_status = 'dismissed') = (dismissal_reason IS NOT NULL AND dismissed_at IS NOT NULL)`;
   `dismissal_comment IS NOT NULL` when `dismissal_reason = 'other'`.
-- Schedule: `derived_game_id` and `reference_date_on` are not null; `reference_at`,
+- Calendar-derived: `derived_game_id` and `reference_date_on` are not null; `reference_at`,
   `reference_offset_minutes`, `reference_date_precision`, and the historical-only and
   detected-only columns are null; `type_link_mark` is null.
 - Every origin: `injury_return = 'unknown' OR injury_return_origin IS NOT NULL`, and the same for
   `game_stakes`.
 
-Unique: `events_schedule_game_key (player_id, event_type_id, derived_game_id) WHERE origin = 'schedule'`
+Unique: `events_calendar_game_key (player_id, event_type_id, derived_game_id) WHERE origin = 'calendar'`
 — one derived event per player, type and game (CL-TAX-18).
 
 Indexes, with the query each serves:
@@ -87,7 +87,6 @@ Indexes, with the query each serves:
   and of detection (IMP-25, DET-58, CL-IMP-12).
 - `events_origin_import_idx (origin_import_id)` — a replacement's scope and an import trace
   (IMP-29, IMP-31).
-- `events_reference_article_idx (reference_article_id)` — detection (Lot 2).
 
 Deletion: an event row is deleted only by the erasure step of
 [sensitive-data.md](sensitive-data.md) section 2.1, called by a withdrawal (DSN-27), a manual
@@ -102,18 +101,18 @@ every reason but a withdrawal (SEN-33).
 
 ```ts
 type PlayerEventId = Brand<number, 'PlayerEventId'>;
-type EventOrigin = 'detected' | 'historical' | 'schedule';
+type EventOrigin = 'detected' | 'historical' | 'calendar';
 type DateOrInstant =
   { on: IsoDate; at: null } | { on: IsoDate; at: EpochMs; offsetMinutes: number }; // a historical public date
-type PlayerEvent = HistoricalEvent | DetectedEvent | ScheduleEvent; // discriminated by origin; see the row checks
+type PlayerEvent = HistoricalEvent | DetectedEvent | CalendarDerivedEvent; // discriminated by origin; see the row checks
 ```
 
 ### 1.2 `event_sources` — `PlayerEventSource`
 
 A press article cited for an event, reduced to link, outlet, title and publication date (DSN-06,
 DSN-08). Historical events get theirs from imports and corrections; a detected event's articles
-are attached through `event_articles` (`detection.md`), and the sources the owner adds to move its
-date earlier (DET-48) are rows here. Schedule events have none (CL-DSN-20).
+are attached through `article_attachments` (`detection.md`), which also tells which article gives the reference date (the reference article, DET-30), and the sources the owner adds to move its
+date earlier (DET-48) are rows here. Calendar-derived events have none (CL-DSN-20).
 
 | column                       | type        | null | default  | constraint or reference                                                                                                                                                                         | class | spec IDs               |
 | ---------------------------- | ----------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------- |
@@ -191,20 +190,20 @@ against tip-off is derived at each display, never stored (DET-43 to DET-46, DET-
 
 ### 1.6 `event_corrections` — the correction history
 
-What changed and when (IMP-32, DET-47, DET-48, DET-52). Old values are never kept for free texts,
+What changed and when (IMP-32, DET-47, DET-48, DET-52): a field corrected, or for a detected event an article detached, another event merged into it, a player added from its article or its creation by a rescue; its dismissals and reinstatements are in `event_status_changes`. Old values are never kept for free texts,
 nor for any field of a historical event (D-20, IMP-32, CL-DSN-15); for a detected event's
 structured fields DET-52 keeps before and after (CA-DET-27).
 
-| column            | type        | null | default  | constraint or reference                                                                                                                                                       | class | spec IDs               |
-| ----------------- | ----------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------- |
-| `id`              | integer     | no   | identity | primary key                                                                                                                                                                   | EV    | —                      |
-| `player_event_id` | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                                                                                                     | EV    | IMP-32, DET-52         |
-| `corrected_at`    | timestamptz | no   | `now()`  | —                                                                                                                                                                             | EV    | IMP-32, DET-52         |
-| `field`           | text        | no   | —        | `CHECK (field IN ('player','event_type','reference_date','description','sources','injury_return','game_stakes','research_confidence','unverified_note','reference_article'))` | EV    | IMP-32, DET-47, DET-48 |
-| `before_value`    | text        | yes  | —        | detected events only, never for `description`, `unverified_note` or `sources`                                                                                                 | EV PI | DET-52, CA-DET-27      |
-| `after_value`     | text        | yes  | —        | as `before_value`                                                                                                                                                             | EV PI | DET-52                 |
+| column            | type        | null | default  | constraint or reference                                                                                                                                                                                                                                                             | class | spec IDs               |
+| ----------------- | ----------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------- |
+| `id`              | integer     | no   | identity | primary key                                                                                                                                                                                                                                                                         | EV    | —                      |
+| `player_event_id` | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                                                                                                                                                                                                           | EV    | IMP-32, DET-52         |
+| `corrected_at`    | timestamptz | no   | `now()`  | —                                                                                                                                                                                                                                                                                   | EV    | IMP-32, DET-52         |
+| `field`           | text        | no   | —        | `CHECK (field IN ('player','event_type','reference_date','description','sources','injury_return','game_stakes','research_confidence','unverified_note','article_detached','event_merged_in','player_added','rescued'))`; the last four are the detected-event actions DET-52 traces | EV    | IMP-32, DET-47, DET-48 |
+| `before_value`    | text        | yes  | —        | detected events only, never for `description`, `unverified_note` or `sources`                                                                                                                                                                                                       | EV PI | DET-52, CA-DET-27      |
+| `after_value`     | text        | yes  | —        | as `before_value`                                                                                                                                                                                                                                                                   | EV PI | DET-52                 |
 
-Row check: `field NOT IN ('description','unverified_note','sources') OR (before_value IS NULL AND after_value IS NULL)`.
+Row check: `field NOT IN ('description','unverified_note','sources','article_detached','event_merged_in','player_added','rescued') OR (before_value IS NULL AND after_value IS NULL)`.
 The service writes the values only for detected events. Index:
 `event_corrections_event_idx (player_event_id, corrected_at)`.
 
@@ -220,7 +219,7 @@ origin and creation instant is a stored result of the last recalculation (CL-SEN
 | `player_id`                       | uuid             | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                                                                                                                                                                                                                                                                          | EV    | SEN-19                               |
 | `event_type_id`                   | text             | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                                                                                                                                                                                                                                                                              | EV    | SEN-19                               |
 | `origin`                          | text             | no   | —        | `CHECK (origin IN ('historical','tracked'))`; set by the first event recorded, never changed                                                                                                                                                                                                                                                                 | EV    | SEN-21, SUI-07, CL-VUE-03, CL-VUE-13 |
-| `created_at`                      | timestamptz      | no   | `now()`  | creation instant; a tracked case is recorded in time when it precedes its measured game's scheduled start                                                                                                                                                                                                                                                    | EV    | SUI-01, SUI-04, SUI-06               |
+| `created_at`                      | timestamptz      | no   | `now()`  | creation instant, never changed; for a detected event's case, the event's `created_at`, written in its transaction (DET-37, SUI-01); a tracked case is recorded in time when it precedes its measured game's scheduled start                                                                                                                                 | EV    | SUI-01, SUI-04, SUI-06               |
 | `status`                          | text             | no   | —        | `CHECK (status IN ('awaiting_game','measured','excluded','not_measurable'))`                                                                                                                                                                                                                                                                                 | EV    | SEN-07                               |
 | `status_reason`                   | text             | yes  | —        | `CHECK (status_reason IN ('game_not_played_yet','statistics_pending','mapping_not_established','baseline_building','precedence_to_verify','dating_to_verify','no_game_within_window','box_score_incomplete','box_score_suspect','box_score_unavailable','insufficient_baseline','season_not_covered','precedence_not_established','scheduled_game_missed'))` | EV    | SEN-07, SEN-47, CL-SEN-03, CL-SEN-05 |
 | `reference_instant_at`            | timestamptz      | yes  | —        | the earliest reference instant of its events (CL-SEN-02); null for a type known in advance                                                                                                                                                                                                                                                                   | EV    | SEN-01, SEN-05, CL-SEN-02            |
@@ -391,7 +390,7 @@ a withdrawal never leaves a row (SEN-33, DSN-29).
 
 Row checks: `(exit_reason = 'deleted') = (deletion_reason IS NOT NULL AND public_date_on IS NOT NULL AND exited_at IS NOT NULL)`;
 `exited_at IS NULL OR exit_reason = 'deleted'`; `deletion_detail IS NOT NULL` iff
-`deletion_reason = 'other'`; `import_id IS NULL OR exit_reason = 'replaced_at_import'`. A schedule
+`deletion_reason = 'other'`; `import_id IS NULL OR exit_reason = 'replaced_at_import'`. A calendar-derived
 event dropped before its game's scheduled start leaves no row (CL-SEN-25).
 
 Indexes: `tally_exits_player_type_idx (player_id, event_type_id)` — a profile's tally (SEN-20);
@@ -400,6 +399,47 @@ Indexes: `tally_exits_player_type_idx (player_id, event_type_id)` — a profile'
 ```ts
 type TallyExitReason =
   'dismissed' | 'merged' | 'deleted' | 'replaced_at_import' | 'erased' | 'no_longer_derived'; // dismissed is counted from events
+```
+
+### 1.13 `calendar_derivation_requests` — `DerivationRequest`
+
+The pending runs of the calendar derivation (2.3), so that a trigger never waits for the run and an
+interrupted run resumes: the `calendar-derivation` task of the module map takes them one at a time,
+chained after the statistics tasks or at the earliest pending one (CL-TAX-19, ADR 0015).
+
+| column             | type        | null | default  | constraint or reference                                                                                                                                                                    | class | spec IDs             |
+| ------------------ | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | -------------------- |
+| `id`               | integer     | no   | identity | primary key; the run order                                                                                                                                                                 | —     | —                    |
+| `kind`             | text        | no   | —        | `CHECK (kind IN ('regular','full'))`: the games started since the player's previous run and his next game, or every started game                                                           | —     | CL-TAX-19            |
+| `player_id`        | uuid        | yes  | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`; null for every active or paused player with an established mapping                                                                    | PI    | CL-TAX-19, CL-SUI-14 |
+| `event_type_id`    | text        | yes  | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`; a calendar-derived type, null for both                                                                                                    | —     | CL-TAX-18            |
+| `cause`            | text        | no   | —        | `CHECK (cause IN ('statistics_update','collection_pass','history_stored','type_validated','type_reactivated','type_changed','birthday_changed','mapping_changed','team_history_changed'))` | —     | CL-TAX-19, CL-SEN-17 |
+| `requested_at`     | timestamptz | no   | `now()`  | —                                                                                                                                                                                          | —     | CL-TAX-19            |
+| `lease_expires_at` | timestamptz | yes  | —        | technical: the running invocation holds it until then (TRV-30)                                                                                                                             | —     | TRV-30               |
+| `progress_cursor`  | text        | yes  | —        | technical: the next player or game to derive                                                                                                                                               | —     | TRV-30               |
+
+Row check: `(kind = 'regular') = (cause IN ('statistics_update','collection_pass'))` — only those
+two start regular runs.
+
+Unique: `calendar_derivation_requests_scope_key (kind, player_id, event_type_id) NULLS NOT DISTINCT WHERE lease_expires_at IS NULL`
+— a new need for a scope not yet taken joins its request; one that arrives while a run holds it
+adds a row, run after (the derivation is idempotent).
+
+Lifetime: deleted when its run ends, in the run's last transaction; the journal records the run
+and each creation and deletion it made (CL-TAX-19). A player-data deletion cascades to his rows.
+
+```ts
+type DerivationRequestKind = 'regular' | 'full';
+type DerivationCause =
+  | 'statistics_update'
+  | 'collection_pass'
+  | 'history_stored'
+  | 'type_validated'
+  | 'type_reactivated'
+  | 'type_changed'
+  | 'birthday_changed'
+  | 'mapping_changed'
+  | 'team_history_changed';
 ```
 
 ## 2. Lifecycles
@@ -412,7 +452,7 @@ type TallyExitReason =
 | detected  | dismissed | owner dismisses                                                                   | a reason; a comment for `other`                                                                                      | status change row with its instant, its position against tip-off derived (CL-DET-15); event and case leave every calculation, the case keeping its values (SEN-48); recalculation, cause "event dismissed" |
 | dismissed | detected  | owner reinstates                                                                  | —                                                                                                                    | back into the calculations; recalculation, cause "event reinstated" (CL-SEN-17)                                                                                                                            |
 
-Historical and schedule events have no status (CL-VUE-07): they exist until erased.
+Historical and calendar-derived events have no status (CL-VUE-07): they exist until erased.
 
 ### 2.2 Precedence of a historical event (IMP-18, SEN-44, CL-IMP-17)
 
@@ -422,7 +462,7 @@ Historical and schedule events have no status (CL-VUE-07): they exist until eras
 | (none) or to_verify | established, uncertain or not_established | a source precedes the first team game after the reference instant, or the measured game G is known | —     | classified against G before any shift; `uncertain` shifts once (CL-SEN-07) |
 | any                 | any                                       | sources, public date, schedule or participation change (IMP-26, IMP-32)                            | —     | classified again, before any calculation                                   |
 
-### 2.3 Schedule events — the calendar derivation (CL-TAX-18, CL-TAX-19, CL-STA-25)
+### 2.3 Calendar-derived events — the derivation (CL-TAX-18, CL-TAX-19, CL-STA-25)
 
 The derivation (CL-TAX-18, CL-TAX-19) works for each validated calendar-derived type and each
 active or paused player with an established mapping, over the official games of covered seasons.
@@ -434,14 +474,21 @@ the membership of CL-STA-05, and at his next game his current team.
 
 - **Regular runs**, at the end of every statistics update and, in Lot 2, of every
   collection-and-detection pass: every qualifying game started since the player's previous run
-  (`followed_players.last_schedule_derivation_at`), and his next game (STA-26) if it qualifies,
+  (`followed_players.last_calendar_derivation_at`), and his next game (STA-26) if it qualifies,
   gets an event when it has none. A regular run never revisits a game it has derived.
-- **First storage of a season** of his history: its qualifying games get events.
+- **His history stored**: when the seasons requested for him are complete, a full derivation for
+  him (cause `history_stored`).
 - **Full derivations**, over every game already started: at the validation, the reactivation and
   the substantive change of the type, for every eligible player; for one player, at a change of his
   birthday (birthday type), of his mapping, or at a box-score correction that changes his team
   history (former-team type). They create the missing events and delete those whose game no longer
   qualifies.
+
+Each trigger records a `calendar_derivation_requests` row (1.13) in the transaction of the change
+that calls for it, and the `calendar-derivation` task runs it. In Lot 2 an upcoming event is created only for his next game
+not yet started, with a tracked case; a drop before the scheduled start calls the Lot 2 hooks
+(notifications, alerts, tracking) before the event and its case are deleted, in the order of
+[sensitive-data.md](sensitive-data.md) section 2.1 (CL-SUI-14, CL-ALE-13, CL-TEL-21).
 
 | from     | to        | trigger                                            | guard                                                                                                                                | side effects                                                                                                                                                                     |
 | -------- | --------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -464,25 +511,30 @@ a withdrawn one can come back only through a full derivation after its fingerpri
 The state comes from the ordered rules of CL-SEN-05, re-run at every recalculation; the table lists
 the transitions that rules produce.
 
-| from                                      | to                                                                | trigger                                                          | guard                        | side effects                                                                                                                  |
-| ----------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| (none)                                    | any                                                               | an event recorded (import, detection, derivation)                | —                            | case created or event grouped (2.5); history entry                                                                            |
-| awaiting_game (`game_not_played_yet`)     | measured or excluded                                              | the first game he plays is final with a usable line and baseline | —                            | gap computed; criteria applied                                                                                                |
-| awaiting_game (`game_not_played_yet`)     | not_measurable (`no_game_within_window`)                          | no game played within `attachmentWindowDays` (240 hours)         | not a calendar-derived event | —                                                                                                                             |
-| awaiting_game (`statistics_pending`)      | not_measurable (`box_score_unavailable`)                          | the sheet becomes unavailable (STA-35)                           | —                            | never slides to a later game (CL-STA-04)                                                                                      |
-| awaiting_game (`statistics_pending`)      | not_measurable (`box_score_incomplete` or `box_score_suspect`)    | the game is consolidated with that sheet                         | —                            | —                                                                                                                             |
-| awaiting_game (`baseline_building`)       | measured or excluded, or not_measurable (`insufficient_baseline`) | the minimum is reached, or the phase ends without it             | —                            | —                                                                                                                             |
-| awaiting_game (`precedence_to_verify`)    | per the precedence (2.2)                                          | the schedule becomes known                                       | historical event             | `not_established`: not measurable                                                                                             |
-| awaiting_game (`dating_to_verify`)        | re-attached                                                       | the mark lifted or the reference date moved earlier (Lot 2)      | detected event               | measured game may change (CL-SEN-12)                                                                                          |
-| awaiting_game (`mapping_not_established`) | re-attached                                                       | the mapping is established                                       | —                            | may wait without limit (SEN-47)                                                                                               |
-| any (calendar-derived)                    | not_measurable (`scheduled_game_missed`)                          | the derived game is final and he did not play it                 | —                            | no skipping, no window (CL-SEN-03)                                                                                            |
-| measured                                  | excluded                                                          | a criterion now applies, or a manual exclusion                   | —                            | criterion rows; recalculation of profiles                                                                                     |
-| excluded                                  | measured                                                          | manual reinstatement, or no criterion applies any more           | —                            | —                                                                                                                             |
-| not_measurable (`box_score_unavailable`)  | measured, excluded or pending                                     | a manual refetch supplies the sheet                              | —                            | (STA-35)                                                                                                                      |
-| any                                       | re-attached                                                       | a corrected date, an older source, a new derivation              | —                            | measured-game change in the history; decisions on the old game stop applying and flag `manual_decision_to_review` (CL-SEN-12) |
+| from                                      | to                                                                | trigger                                                           | guard                        | side effects                                                                                                                  |
+| ----------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| (none)                                    | any                                                               | an event recorded (import, detection, derivation)                 | —                            | case created or event grouped (2.5); history entry                                                                            |
+| awaiting_game (`game_not_played_yet`)     | measured or excluded                                              | the first game he plays is final with a usable line and baseline  | —                            | gap computed; criteria applied                                                                                                |
+| awaiting_game (`game_not_played_yet`)     | not_measurable (`no_game_within_window`)                          | no game played within `sensitivity.maxAttachmentDays` (240 hours) | not a calendar-derived event | —                                                                                                                             |
+| awaiting_game (`statistics_pending`)      | not_measurable (`box_score_unavailable`)                          | the sheet becomes unavailable (STA-35)                            | —                            | never slides to a later game (CL-STA-04)                                                                                      |
+| awaiting_game (`statistics_pending`)      | not_measurable (`box_score_incomplete` or `box_score_suspect`)    | the game is consolidated with that sheet                          | —                            | —                                                                                                                             |
+| awaiting_game (`baseline_building`)       | measured or excluded, or not_measurable (`insufficient_baseline`) | the minimum is reached, or the phase ends without it              | —                            | —                                                                                                                             |
+| awaiting_game (`precedence_to_verify`)    | per the precedence (2.2)                                          | the schedule becomes known                                        | historical event             | `not_established`: not measurable                                                                                             |
+| awaiting_game (`dating_to_verify`)        | re-attached                                                       | the mark lifted or the reference date moved earlier (Lot 2)       | detected event               | measured game may change (CL-SEN-12)                                                                                          |
+| awaiting_game (`mapping_not_established`) | re-attached                                                       | the mapping is established                                        | —                            | may wait without limit (SEN-47)                                                                                               |
+| any (calendar-derived)                    | not_measurable (`scheduled_game_missed`)                          | the derived game is final and he did not play it                  | —                            | no skipping, no window (CL-SEN-03)                                                                                            |
+| measured                                  | excluded                                                          | a criterion now applies, or a manual exclusion                    | —                            | criterion rows; recalculation of profiles                                                                                     |
+| excluded                                  | measured                                                          | manual reinstatement, or no criterion applies any more            | —                            | —                                                                                                                             |
+| not_measurable (`box_score_unavailable`)  | measured, excluded or pending                                     | a manual refetch supplies the sheet                               | —                            | (STA-35)                                                                                                                      |
+| any                                       | re-attached                                                       | a corrected date, an older source, a new derivation               | —                            | measured-game change in the history; decisions on the old game stop applying and flag `manual_decision_to_review` (CL-SEN-12) |
 
 A season not covered by the source gives `not_measurable` (`season_not_covered`) before any
-attachment (CL-SEN-05 step 2). An outage alone never changes a status (STA-36). In Lot 2, a case
+attachment (CL-SEN-05 step 2). An outage alone never changes a status (STA-36). In Lot 2 the
+recalculation service reports, in its transaction, every tracked case whose measured game is first
+set or changes, that leaves awaiting its game, or whose gap, status, baseline or category changes,
+to the tracking and alert-sheet hooks (SUI-12, SUI-15, SUI-21, ALE-26, CL-ALE-12); the composed
+owner actions (exclusion, reinstatement, dismissal, corrections, the lift of the dating mark) report
+the same way whether the case left the counts, entered them or changed its measured game. In Lot 2, a case
 whose detected event was dismissed at or after its expected game's scheduled start keeps being
 evaluated, outside every profile, trend, control and verdict, so that the validation table counts it
 apart (SUI-17); one dismissed earlier keeps the state and gap it had until a reinstatement
@@ -500,7 +552,9 @@ run, for each player and type:
    earliest-recorded event (CL-VUE-03).
 3. Cases left without events are deleted with their history, criteria, flags and decisions; their
    events now belong to the surviving case, whose `created_at` and origin do not change (SUI-04,
-   CL-VUE-03).
+   CL-VUE-03). In Lot 2 the recalculation service first calls the case-merge hooks, so that the
+   alert-sheet and notification rows that point at an emptied case with `ON DELETE RESTRICT` move
+   to the surviving case; its tracked-case rows cascade (`tracking-and-validation.md`).
 4. Events of other types on the same game keep their own cases, co-occurring (SEN-06).
 
 ## 3. Invariants
@@ -509,8 +563,8 @@ run, for each player and type:
 | ---------------------------------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------- |
 | An event concerns exactly one followed player and one type, and names an existing sheet version                  | VUE-04, TAX-23, CL-TAX-08 | not-null foreign keys                                                                   |
 | An event holds the DSN-06 items of its origin and no other                                                       | DSN-06, CL-DSN-20         | table shape; per-origin row checks                                                      |
-| No event is ever stored with a "withdrawn" state; a withdrawal erases the row                                    | DSN-26, glossary 4.2      | no such value in `status`                                                               |
-| A description is one sentence within `maxDescriptionLength` with no quotation mark                               | DSN-20, DSN-21, CL-DSN-03 | writing services (import, detection, correction, derivation template)                   |
+| No event is ever stored with a "withdrawn" state; a withdrawal erases the row                                    | DSN-26, glossary 4.2      | no such value in `detected_status`                                                      |
+| A description is one sentence within `events.maxDescriptionLength` with no quotation mark                        | DSN-20, DSN-21, CL-DSN-03 | writing services (import, detection, correction, derivation template)                   |
 | A historical event produces no counted case while its precedence is to verify or not established                 | IMP-18, SEN-44, CL-SEN-08 | engine (CL-SEN-05 steps 5 and 7)                                                        |
 | An event belongs to at most one case, of its own player and type                                                 | CL-VUE-03, SEN-05         | `case_id` column with the composite foreign key                                         |
 | One case per player, type and measured game; a case always holds at least one event                              | SEN-05, CL-VUE-03         | partial unique index; recalculation service deletes empty cases in the same transaction |
@@ -518,27 +572,28 @@ run, for each player and type:
 | A measured case is a valid case: it carries no triggered criterion                                               | SEN-07, CL-SEN-27         | recalculation service                                                                   |
 | A manual decision applies only to the game it was made on                                                        | CL-SEN-12                 | engine reads `case_manual_decisions.measured_game_id`                                   |
 | Only cases of non-dismissed, non-erased events of validated or archived types count                              | SEN-19, SEN-48            | engine                                                                                  |
-| One schedule event per player, type and game; its player, type and date are never edited                         | CL-TAX-18, ADR 0015       | partial unique index; event service                                                     |
+| One calendar-derived event per player, type and game; its player, type and date are never edited                 | CL-TAX-18, ADR 0015       | partial unique index; event service                                                     |
 | A detected event's reference date moves earlier by itself, never later except by detaching its reference article | DET-31                    | detection service (Lot 2)                                                               |
 | Every exit from the count but a withdrawal leaves a tally exit                                                   | SEN-33, CL-SEN-25         | the erasure step                                                                        |
 | No rule and no action selects cases by their gap                                                                 | SEN-33, SEN-11            | no reason value refers to performance                                                   |
 
 ## 4. Stored or derived
 
-| item                                                                      | stored or derived | recalculated when                                                                                       | spec IDs                             |
-| ------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Every case column but identity, origin and `created_at`                   | stored            | each recalculation job covering the case (SEN-34)                                                       | SEN-07 to SEN-17, CL-SEN-16          |
-| Triggered criteria, review flags                                          | stored            | same; acknowledgments kept while the flag's game is unchanged                                           | SEN-11, SEN-16                       |
-| Reference instant of a case and its origin                                | stored            | same, from its events (CL-SEN-02)                                                                       | SEN-01, SEN-05                       |
-| Valid case                                                                | derived           | `status = 'measured'`                                                                                   | SEN-07, CL-SEN-27                    |
-| Co-occurring mark and the other types                                     | derived           | cases of the same player and measured game, other types                                                 | SEN-06                               |
-| Uncertain-precedence mention                                              | derived           | `reference_instant_origin = 'uncertain_precedence_shift'`                                               | SEN-44                               |
-| Effective manual decision, "after tip-off"                                | derived           | on read                                                                                                 | SEN-17, SUI-17, CL-SEN-12            |
-| Recording timing of a tracked case (Lot 2)                                | derived           | `created_at` against the measured game's scheduled start                                                | SUI-06                               |
-| « Détecté après le coup d'envoi » and the position of a dismissal (Lot 2) | derived           | the creation or dismissal instant against the measured game's scheduled start, else the expected game's | DET-33, DET-46, CL-DET-15, CL-DET-16 |
-| Grouped-event count of a case                                             | derived           | its events minus one                                                                                    | SEN-20, SEN-32                       |
-| Expected game of a detected event (Lot 2)                                 | derived           | first team game after the reference instant                                                             | SUI-03, ALE-15, CL-BKT-23            |
-| Basis of a schedule event (birthday, last game for the former team)       | derived           | on read, from the player's birthday and box scores                                                      | CL-VUE-15                            |
+| item                                                                        | stored or derived | recalculated when                                                                                       | spec IDs                             |
+| --------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Every case column but identity, origin and `created_at`                     | stored            | each recalculation job covering the case (SEN-34)                                                       | SEN-07 to SEN-17, CL-SEN-16          |
+| Triggered criteria, review flags                                            | stored            | same; acknowledgments kept while the flag's game is unchanged                                           | SEN-11, SEN-16                       |
+| Reference instant of a case and its origin                                  | stored            | same, from its events (CL-SEN-02)                                                                       | SEN-01, SEN-05                       |
+| Valid case                                                                  | derived           | `status = 'measured'`                                                                                   | SEN-07, CL-SEN-27                    |
+| Co-occurring mark and the other types                                       | derived           | cases of the same player and measured game, other types                                                 | SEN-06                               |
+| Uncertain-precedence mention                                                | derived           | `reference_instant_origin = 'uncertain_precedence_shift'`                                               | SEN-44                               |
+| Effective manual decision, "after tip-off"                                  | derived           | on read                                                                                                 | SEN-17, SUI-17, CL-SEN-12            |
+| Recording timing of a tracked case (Lot 2)                                  | derived           | `created_at` against the measured game's scheduled start                                                | SUI-06                               |
+| « Détecté après le coup d'envoi » and the position of a dismissal (Lot 2)   | derived           | the creation or dismissal instant against the measured game's scheduled start, else the expected game's | DET-33, DET-46, CL-DET-15, CL-DET-16 |
+| Grouped-event count of a case                                               | derived           | its events minus one                                                                                    | SEN-20, SEN-32                       |
+| Expected game of a detected event (Lot 2)                                   | derived           | first team game after the reference instant                                                             | SUI-03, ALE-15, CL-BKT-23            |
+| Reference article of a detected event (Lot 2)                               | held by Lot 2     | `article_attachments`, at every attachment change                                                       | DET-30, CL-DET-27                    |
+| Basis of a calendar-derived event (birthday, last game for the former team) | derived           | on read, from the player's birthday and box scores                                                      | CL-VUE-15                            |
 
 ## 5. Exchange formats
 
@@ -548,10 +603,10 @@ None of this area's own: historical events arrive through the research result
 
 ## 6. Rulings applied
 
-- ADR 0015, CL-VUE-12, CL-DSN-20: the third origin `schedule` (glossary section 10), its reduced
+- ADR 0015, CL-VUE-12, CL-DSN-20: the third origin `calendar`, its reduced
   data and its game.
 - CL-VUE-03, CL-SEN-06, SUI-04: the case key and the grouping rule of 2.5.
-- CL-VUE-07: no status on historical and schedule events.
+- CL-VUE-07: no status on historical and calendar-derived events.
 - CL-VUE-13: the origin of a calendar-derived case.
 - CL-SEN-02, CL-SEN-07: the reference instant of each kind of event and the single shift.
 - CL-SEN-03, CL-SEN-05: the ordered state rules and the reason `scheduled_game_missed`
@@ -563,9 +618,9 @@ None of this area's own: historical events arrive through the research result
   journal entry of the drop, nothing for a drop before tip-off; exits keep a profile alive.
 - CL-TAX-18, CL-TAX-19, CL-TAX-20, CL-JOU-17, CL-SUI-14: the derivation's regular runs, full
   derivations, upcoming events, a withdrawn type that deletes nothing, and the 28 February rule;
-  `last_schedule_derivation_at` on the player.
+  `last_calendar_derivation_at` on the player.
 - CL-TAX-22: when an event's sheet version is replaced, distribution after a split included.
-- CL-DSN-09: schedule events can be withdrawn; never dismissed.
+- CL-DSN-09: calendar-derived events can be withdrawn; never dismissed.
 - CL-DET-06, CL-DET-07, CL-DET-10, CL-DET-15, CL-DET-16, CL-DET-26, CL-DET-27 (Lot 2 rulings on
   shared columns): a lifted dating mark is never set again; a detected event with only owner-origin
   results has no detection confidence; the possible-duplicate mark is lifted by "not the same fact";
@@ -581,6 +636,13 @@ None of this area's own: historical events arrive through the research result
   that no earlier free text survives, which is CL-DSN-15's stated aim. Flagged.
 - Glossary section 11 point 5: a historical date-only public date has the precision
   `approximate`, a timed one `exact` (COL-20's definitions applied to the research's dates).
+- Coordinator's naming ruling: the third origin is stored `calendar`, never `schedule`.
+- Lot 2 requests (detection.md section 8): `detected_status`, an immutable `created_at`,
+  `reference_date_rule`, the three stored marks, the owner-added source with its precision, and the
+  detected-event actions in `event_corrections`. The reference article is not a column of `events`:
+  no core table may reference a Lot 2 table, so `article_attachments` tells which attachment gives
+  the reference date.
+- Module map: the derivation runs from durable requests (`DerivationRequest`, 1.13).
 - Own choice: `measured_game_id` also holds the blocking game while a case waits for it, so that a
   second same-type event before the same game joins the pending case (SUI-04) and tracked cases
   keep a stable identity.
@@ -616,4 +678,6 @@ erDiagram
   cases ||--o{ case_manual_decisions : "decided"
   cases ||--o{ case_history_entries : history
   followed_players ||--o{ tally_exits : "left the count"
+  followed_players ||--o{ calendar_derivation_requests : "derivation runs"
+  event_types ||--o{ calendar_derivation_requests : "calendar-derived type"
 ```
