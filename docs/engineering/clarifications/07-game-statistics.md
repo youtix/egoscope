@@ -55,7 +55,7 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 - **Affects:** STA-27, STA-46, SEN-03, SEN-13, « Cas limites » (joueur transféré), JOU-13
 - **Problem:** absences are counted on "his team's" games, but the spec does not say when a player joins or leaves a team, and the source gives no date for a trade or a release.
-- **Ruling:** A team's official game is one of the player's team games when he belongs to that team at its scheduled start. Membership comes from his box-score lines: it starts at his first game played for a team and ends at his first game played for another team, or earlier at a team change or release the app recorded from the source while it was current (STA-25, kept with its date in the team history of JOU-13). Before his first NBA game, and while he belongs to no team, he has no team games. Hence, after a trade or release the app did not record, the old team's games up to his first game for a new team count as missed, and the new team's earlier games do not count. The current team (STA-25) never rewrites past membership.
+- **Ruling:** A team's official game is one of the player's team games when he belongs to that team at its scheduled start. Membership comes from his box-score lines: it starts at his first game played for a team — his arrival — and ends at his first game played for another team, or earlier at a team change or release the app recorded from the source while it was current (STA-25, kept with its date in the team history of JOU-13) — his departure. Before his first NBA game, and while he belongs to no team (CL-JOU-20), he has no team games. Hence, after a trade or release the app did not record, the old team's games up to his first game for a new team count as missed, and the new team's earlier games do not count. The current team (STA-25) never rewrites past membership. This is "the team he belonged to at each game date" of CL-JOU-15 (missed games) and CL-TAX-18 (calendar derivation).
 - **Why:** follows JOU-13, which dates a team change at the first game with the new team, and the « Cas limites » rule that a team's games before the player's arrival or after his departure are not absences; it uses stored data only, so it is reproducible.
 - **Owner review:** no
 
@@ -103,14 +103,14 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 ### CL-STA-10 — When the daily update runs
 
-- **Affects:** STA-32, STA-36, H-STA-12, TRV-25, TRV-30, service sheet ("Daily task timing")
+- **Affects:** STA-32, STA-36, STA-37, H-STA-12, TRV-25, TRV-30, service sheet ("Daily task timing"); CL-TRV-03, CL-TRV-23 (file 14 rulings)
 - **Problem:** STA-32's earliest time moves with each day's last tip-off, the host has no fine scheduler, and the chosen source publishes the previous night about eight to nine hours after its last tip-off.
-- **Ruling:**
-  - The competition day D is the league's US date of the games (TRV-72; the source gives it).
-  - The daily update for D is due at the later of: 3 hours (parameter) after the last scheduled tip-off of D's official games, or 00:00 New York time on D + 1 when D has none; and the start hour of the daily statistics task, a setting of file 14 (TRV-25; the service sheet proposes 15:00 Paris time).
-  - Once due, it first checks whether the source has published D (the latest league date whose final games all have player lines is D or later). If not, it checks again every hour (parameter) until a cut-off hour (parameter; the service sheet proposes 20:00 Paris time), then runs with what is published, missing sheets following STA-35. A late source is not an outage: STA-36 applies only to failed requests.
-  - The external trigger (ADR 0002) runs the scheduler often enough for these hourly steps; the update runs once per D and resumes where it stopped (TRV-30).
-- **Why:** STA-32 sets an earliest time; waiting for the publication avoids ingesting each night a day late.
+- **Ruling:** The timing is CL-TRV-23's, applied as it is; in this file's terms:
+  - The competition day D is the league's US date of the games (CL-TRV-03).
+  - The daily update for D starts at the start hour (15:00 in the owner's time zone by default, CL-TRV-23) and fetches as soon as the source shows a refresh made after D's last scheduled tip-off plus STA-32's delay (3 hours); it checks every probe interval (60 minutes) until the cut-off (20:00), then fetches what is published, missing sheets following STA-35. After a competition day without games it does not wait.
+  - A late source is not a failed request: STA-36's retries do not apply to it. Lateness on consecutive competition days opens the "statistics source unavailable" incident of STA-37, as CL-TRV-23 rules.
+  - The external trigger (ADR 0002) runs the scheduler often enough for these steps; the update runs once per D and resumes where it stopped (TRV-30).
+- **Why:** STA-32 sets an earliest time; waiting for the publication avoids ingesting each night a day late; file 14 owns the task calendar.
 - **Owner review:** no
 
 ### CL-STA-11 — The 30 days before a sheet is "unavailable"
@@ -139,11 +139,11 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 ### CL-STA-14 — Venue local date and times to be determined
 
-- **Affects:** STA-31, SEN-02, BKT-16, BKT-18, ADR 0015 (birthday games), CA-STA-08
+- **Affects:** STA-31, SEN-02, BKT-16, BKT-18, ADR 0015 (birthday games), CA-STA-08; CL-TRV-03 (file 14 ruling)
 - **Problem:** several rules need the game's date at the venue, which the source does not give, and STA-31's deemed start at the beginning of the local day would show as midnight.
 - **Ruling:**
-  - Venue local date: the calendar date of the scheduled start in the venue's time zone, from a fixed table of venue time zones kept with the source adapter (every NBA arena, past and present, and the international venues found in the schedules). For a venue missing from the table, the league's US date from the source is used and the journal records the venue (no player data) so the table can be completed.
-  - Time to be determined (the source's flag that the time is not valid): the game keeps its date, the mark "time TBD" and a deemed start at 00:00 at the venue on that date (H-STA-11), or 00:00 New York time when the venue's zone is unknown. Every comparison — precedence, SEN-03's "strictly after", SEN-04's window, orderings, BKT-18's urgency — uses the deemed start. Screens and messages show the date with "time TBD", never 00:00. When the time is published, it replaces the deemed start and dependent cases are recalculated (STA-28, SEN-34).
+  - Venue local date: the calendar date of the scheduled start in the venue's time zone, as CL-TRV-03 rules: the zone of the venue's city when the source names a venue of the fixed table kept with the source adapter (every NBA arena, past and present, and the international venues found in the schedules), otherwise the zone of the home team's arena, otherwise US Eastern time. A venue missing from the table is recorded in the journal (no player data) so the table can be completed.
+  - Time to be determined (the source's flag that the time is not valid): the game keeps its date, the mark "time TBD" and a deemed start at 00:00 at the venue on that date, in the zone found as above (H-STA-11). Every comparison — precedence, SEN-03's "strictly after", SEN-04's window, orderings, BKT-18's urgency — uses the deemed start. Screens and messages show the date with "time TBD", never 00:00. When the time is published, it replaces the deemed start and dependent cases are recalculated (STA-28, SEN-34).
   - A placeholder game whose teams are still to be determined is no team's game until its teams are set.
 - **Why:** derives what the source does not give; the deemed start is a cautious bound for comparisons, not information to show.
 - **Owner review:** no
@@ -211,10 +211,10 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 ### CL-STA-21 — "Current season" during the off-season
 
-- **Affects:** STA-46, JOU-02, JOU-21, STA-48
+- **Affects:** STA-46, JOU-02, JOU-21, STA-48; CL-JOU-15 (file 01 ruling)
 - **Problem:** STA-46 gives the games played and average minutes of the current season, which the off-season leaves undefined.
-- **Ruling:** The current season is the season that today's date belongs to under STA-48, an off-season date belonging to the next season. In the off-season, STA-46's games played and average minutes are therefore those of the coming season: zero games until its first game. The consecutive games missed since the last game played are counted across seasons.
-- **Why:** one season rule everywhere (STA-48).
+- **Ruling:** As CL-JOU-15 rules for the indicators of the player sheet: STA-46 gives the games played and average minutes of the season in progress (from its first regular-season game to its last playoff game, STA-48) and, between seasons, of the last season played, naming the season it covers. The consecutive games missed since the last game played are counted across seasons, on the team games of CL-STA-05. Every other rule that speaks of the current season (provisional baselines, STA-21) means the season today's date belongs to under STA-48.
+- **Why:** file 01 owns the display of these indicators; an empty coming season would tell the owner nothing in summer.
 - **Owner review:** no
 
 ### CL-STA-22 — When a season is not covered
@@ -227,35 +227,38 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 ### CL-STA-23 — One source per season
 
-- **Affects:** STA-03, STA-16, STA-42, JOU-10, JOU-12, TRV-12, ADR 0012 (open point), register row STA-03
+- **Affects:** STA-03, STA-16, STA-42, JOU-10, JOU-12, TRV-12, ADR 0012 (open point), register row STA-03; CL-JOU-21, CL-TRV-14 (file 01 and 14 rulings)
 - **Problem:** combining two sources clashes with one source identity per player (STA-03) and with baselines computed season by season.
 - **Ruling:**
   - The source chosen on 2026-11-11 is used alone (statistics-source evaluation, section 1): one source, one confirmed identity per player, STA-03 as written.
-  - If a second source is ever combined, or the source replaced (TRV-12): the service sheet assigns each season to exactly one source. All data of a season — schedule, results, series, box scores, team records — comes from that source and the other is never queried for it, so no rule ever chooses between two sources for one game, and no baseline, threshold, team record or opponent percentage mixes sources. A player then has one confirmed identity per source that covers part of his career; until it is confirmed, that source's seasons are not fetched and their cases wait (stats match not confirmed); the confirmation of JOU-10 runs per source, and a published crosswalk may preselect the candidate, which the owner still confirms (STA-03). Teams carry the app's own identifiers, mapped from each source by a fixed table, so team history and opponents run across sources. Moving a season to another source discards its stored data, fetches it again whole from the new source and triggers a full recalculation (SEN-34, item d).
-- **Why:** ADR 0012's recommended handling; it keeps every season's numbers from one consistent source.
-- **Owner review:** yes — on a replacement, every player's new identity still needs the owner's confirmation, even when the publisher's crosswalk proposes it, whereas the service sheet's procedure maps identities through the crosswalk without asking.
+  - One source per season, always: the service sheet assigns each season to exactly one source. All data of a season — schedule, results, series, box scores, team records — comes from that source and the other is never queried for it, so no rule ever chooses between two sources for one game, and no baseline, threshold, team record or opponent percentage mixes sources.
+  - Two combined sources: the player has one mapping per source, each confirmed by the owner (CL-JOU-21); until a source's mapping is confirmed, its seasons are not fetched and their cases wait (stats match not confirmed).
+  - Replacement (TRV-12): as CL-TRV-14 rules — stored seasons keep the data and identifiers of the source they came from; players are mapped by the published crosswalk where it exists, otherwise by a new JOU-10 confirmation; teams and games are matched by date, home team and away team. One difference: the season in progress at the replacement is fetched again whole from the new source, its consolidated games included (an exception to STA-42 and to CL-TRV-14's "never fetches a consolidated game again"), and its games are matched to the stored ones the same way, so that its baseline never mixes two sources. A full recalculation follows (SEN-34, item d).
+- **Why:** ADR 0012's recommended handling, one source per season; a season half from each source would mix, for example, rounded and exact minutes inside one baseline.
+- **Owner review:** yes — at a replacement, the season in progress is fetched again whole from the new source, consolidated games included, so that no season's numbers come from two sources.
 
 ### CL-STA-24 — Former teams from seasons the source does not cover
 
-- **Affects:** STA-08, STA-45, JOU-13, ADR 0015 (open point 4), register rows JOU-11, JOU-13, STA-08
+- **Affects:** STA-08, STA-45, JOU-13, ADR 0015 (open point 4), register rows JOU-11, JOU-13, STA-08; CL-JOU-16, CL-JOU-18, CL-TAX-18 (file 01 and 02 rulings)
 - **Problem:** former teams come only from box scores of covered seasons, so a team the player left before the first covered season is unknown and his first game against it is silently missed, against the exhaustive count of H-01.
 - **Ruling:**
-  - What the app derives: from stored box scores of covered seasons only. Birthday games only in covered seasons. A former team is a team for which the player played (CL-STA-04) at least one official game in a covered season; his departure from it is his last game played for it. Former teams are never entered by hand and never taken from the source's player files, whose team is a later snapshot (evaluation, test T16).
+  - What the app derives, as CL-JOU-18 and CL-TAX-18 rule: only from stored box scores of covered seasons. Birthday games only in covered seasons. A former team is a team for which the player played (CL-STA-04) at least one official game in a covered season; each stint with it ends at his last game played for it in that stint. A first meeting is derived only when every season from that departure to the meeting is covered. Former teams are never entered by hand and never taken from the source's player files, whose team is a later snapshot (evaluation, test T16).
   - Missed by construction: games in uncovered seasons; first games against a team the player played for only in uncovered seasons, even when that game falls in a covered season; first games against a team for which all his games lack box scores.
-  - What the owner sees: when the player's career may start before the first covered season — his first NBA game is earlier than that season, or unknown (STA-47, CL-STA-12) — the profiles of the two calendar-derived types carry a permanent mention: "Derived from {first covered season} on: earlier games are not counted, and teams the player left before then are unknown, so first games against them are missing." The general trend of each of these types shows how many players carry it. It is a profile warning (SEN-46) and never changes a verdict. With the chosen source, from 1993-94, no current player carries it (evaluation, test T20).
+  - What the owner sees, among the profile warnings of SEN-46, which never change a verdict: on every former-team profile, the permanent mention of CL-JOU-18 that its team history starts with the first covered season, which it names; on a birthday profile, "birthday not recorded: no birthday events" when the day and month are missing (CL-JOU-16), and, when the player's career may start before the first covered season (his first NBA game earlier than it, or unknown, CL-STA-12), the mention that birthday games are counted from that season on. With the chosen source, from 1993-94, no current player's career starts earlier (evaluation, test T20).
 - **Why:** H-01 cannot be met for these games; saying where the count stops keeps the profile from looking complete.
 - **Owner review:** yes — the birthday and former-team profiles can miss games the app cannot see, and say so instead of looking complete.
 
 ### CL-STA-25 — Calendar-derived events and the schedule
 
-- **Affects:** STA-26, STA-28, STA-32, STA-42, SUI-03, ADR 0015 (open points 1 and 2)
+- **Affects:** STA-26, STA-28, STA-32, STA-42, SUI-03, ADR 0015 (open points 1 and 2); CL-TAX-18, CL-TAX-19 (file 02 rulings), CL-SUI-14 (file 10 ruling)
 - **Problem:** nothing says when a calendar-derived event is created, nor how it follows schedule and team changes.
-- **Ruling:**
-  - Lot 1: the derivation (ADR 0015) considers only official games with status final. It runs for a player after every stored change of his games or box scores (daily update, career fetch, refetch, correction) and after a calendar-derived type is validated, reactivated or changed in substance. No event is derived for a game not yet played.
-  - Lot 2: an upcoming event is also derived when its game becomes the player's next game (STA-26), and derived again at each recomputation of STA-28; one whose game no longer qualifies before tip-off (trade, game moved off the birthday, game canceled, no longer the first meeting) is dropped. What follows for an upcoming event (tracked case, prognosis, alert sheet, message) is ADR 0015's open point 1, ruled with files 09 to 11.
-  - A derived event that a new derivation no longer produces, in either lot, leaves the count with the reason "no longer derived from the calendar" (CL-SEN-25); an event that qualifies again later is a new event.
-- **Why:** lot 1 has no use for the event of an unplayed game; deriving from stored data keeps the derivation reproducible; lot 2 follows ADR 0015's recommended handling.
-- **Owner review:** yes — in lot 1 a birthday or former-team game appears in its profile only once played, and a derived event can later leave the count when new data no longer support it.
+- **Ruling:** When the derivation runs, which games it turns into events, upcoming events and drops are ruled by CL-TAX-18 and CL-TAX-19 (a Lot 1 function) and, for the Lot 2 flow, by CL-SUI-14; file 07 supplies their inputs:
+  - "his team" at a past game is the membership of CL-STA-05, and at his next game his current team (STA-25, CL-STA-27);
+  - every change of stored games or box scores that CL-TAX-19 lists — the daily update, each season of history stored by the career fetch, a refetch, a correction (STA-33, STA-34), a schedule change of the current season (STA-28) — starts the derivation for the players concerned, so a season stored late or a corrected box score is taken into account;
+  - an upcoming event exists only for the player's next game (STA-26) and follows each recomputation of STA-28; the derived game is its expected and measured game (CL-SUI-14).
+  - What a dropped event leaves in the count: CL-SEN-25.
+- **Why:** one rule for the derivation, the one files 02 and 10 already give; file 07 only says which of its own events start it.
+- **Owner review:** no
 
 ### CL-STA-26 — Two correction histories
 
@@ -267,9 +270,9 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 ### CL-STA-27 — Where the current team comes from
 
-- **Affects:** STA-25, JOU-13, H-JOU-03
+- **Affects:** STA-25, JOU-13, H-JOU-03; CL-JOU-02 (file 01 ruling)
 - **Problem:** STA-25 and JOU-13 both describe the current team; read literally, old box scores fetched later could rewrite it.
-- **Ruling:** As written: file 01 owns the current team (JOU-13); file 07 supplies two observations. They are the team of his most recent game played, by scheduled start, and the current team of the source's current-season player file, which is how the chosen source reports a trade, signing or release. When they differ, the player file wins if it was refreshed after that game. Box scores of older games, fetched later, never change the current team; past-season player files are never used.
+- **Ruling:** As written, and as CL-JOU-02 rules: file 01 owns the current team (JOU-13); file 07 supplies two observations. They are the team of his most recent game played, by scheduled start, and the current team of the source's current-season player file, which is how the chosen source reports a trade, signing or release. When they differ, the player file wins if it was refreshed after that game. Box scores of older games, fetched later, never change the current team; past-season player files are never used.
 - **Why:** STA-25 speaks of the last game played; the source's past files are later snapshots (evaluation, test T16).
 - **Owner review:** no
 
@@ -288,11 +291,12 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 - Baseline states « définitive », « provisoire », « en constitution », « insuffisante »; game classes « non joué », « joué non exploitable », « exploitable ».
 - Reasons « aucun match prévu », « intersaison », « équipe éliminée », « joueur sans équipe », « calendrier non publié »; « statistiques en attente »; « saison non couverte par la source »; « date inconnue ».
 - Incidents « source de statistiques indisponible », « quota atteint »; the progress label « 9 saisons sur 14 »; the correction-log origins « fenêtre de correction », « relance manuelle »; « indicative ».
-- The derivation-limit mention of CL-STA-24, the "rounded minutes" note of CL-STA-06, and "no longer derived from the calendar".
+- The birthday-profile mention of CL-STA-24 (birthday games counted from the first covered season on), the "rounded minutes" note of CL-STA-06, and "no longer derived from the calendar".
 
 ## Ruled elsewhere
 
-- The start hour and cut-off of the daily statistics task (TRV-25, file 14). Recommendation: the service sheet's 15:00 and 20:00 Paris time.
-- The US date of a game played outside North America (TRV-72, file 14). Recommendation: the source's league date, which is the game's date in New York time.
-- The tracked-case flow of upcoming calendar-derived events (ADR 0015, open point 1; files 09 to 11). Recommendation: the record's bracketed handling.
-- A birthday on 29 February (ADR 0015, open point 5; JOU-08, file 01). Recommendation: the record's bracketed handling, only games played on a 29 February count.
+- The start hour, wait and cut-off of the daily statistics task (TRV-25, file 14): ruled by CL-TRV-23, which CL-STA-10 follows.
+- The day of a game and the venue's zone (TRV-72, file 14): ruled by CL-TRV-03, which CL-STA-10 and CL-STA-14 follow.
+- The calendar derivation and the Lot 2 flow of upcoming calendar-derived events (ADR 0015, open points 1 and 2): ruled by CL-TAX-18, CL-TAX-19, CL-VUE-13, CL-SUI-14, CL-ALE-13 and CL-TEL-21, which CL-STA-25 follows.
+- A birthday on 29 February (ADR 0015, open point 5): ruled by CL-JOU-17.
+- Missed games across trades and seasons (STA-46): CL-JOU-15's count, which CL-STA-05 and CL-STA-21 define in this file's terms.

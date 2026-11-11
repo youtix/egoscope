@@ -13,29 +13,30 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ### CL-SEN-02 — The reference instant of each kind of event
 
-- **Affects:** SEN-01, SEN-02, SEN-03, SEN-05, SEN-44, DET-30, COL-21, SUI-03, ALE-15, TRV-73, CA-SEN-01, CA-SEN-02
-- **Problem:** for an event known only by its date, SEN-01 takes the end of that day in Pacific time, while articles collected in lot 2 already carry the cautious instant of COL-21 (end of the day in the outlet's time zone, or in the zone where it ends last), which docs 09 and 10 use for the expected game.
-- **Ruling:** The measured game is searched from this instant:
-  - historical event with a timed public date: that instant (CL-IMP-08);
-  - historical event with a date-only public date D, as written: the end of D in America/Los_Angeles, that is 00:00 Los Angeles time on D + 1 (SEN-01);
-  - detected event (lot 2): its reference date as DET-30 records it, which is always an instant, already made cautious by COL-21 and COL-22, whatever its precision; SEN-01's Pacific rule is not applied again, so its expected game (SUI-03, ALE-15) and its measured game start from the same instant;
+- **Affects:** SEN-01, SEN-02, SEN-03, SEN-05, SEN-44, DET-30, DET-48, COL-21, COL-22, SUI-03, ALE-15, TRV-73, CA-SEN-01, CA-SEN-02; CL-COL-02, CL-DET-26, CL-SUI-12, CL-ALE-02 (file 03, 04, 09 and 10 rulings)
+- **Problem:** for an event known only by its date, SEN-01 takes the end of that day in Pacific time, while articles collected in lot 2 already carry the cautious instant of COL-21, which docs 09 and 10 use for the expected game.
+- **Ruling:** The measured game is searched from this instant, and from no other:
+  - historical event whose public date has a time: that instant (CL-IMP-08);
+  - historical event whose public date is a date D only, as written: the end of D in America/Los_Angeles, that is 00:00 Los Angeles time on D + 1 (SEN-01). This is the only use of SEN-01's rule;
+  - detected event (lot 2): its reference date as DET-30 records it — the earliest retained instant of its articles — used as it is. For an article dated without a time, that instant is 23:59:59.999 of that date in the outlet's declared time zone, or at UTC−12 when none is declared; for a time without a zone, that wall time in the outlet's zone, or at UTC−12; in both cases never later than the article's first collection (COL-22, CL-COL-02). A source the owner adds (DET-48) is dated the same way (CL-DET-26). SEN-01 is never applied on top, so the expected game (SUI-03, ALE-15; CL-SUI-12, CL-ALE-02) and the measured game start from the same instant and are the same game unless the player misses it;
   - historical event with uncertain precedence: the shifted instant of CL-SEN-07;
-  - calendar-derived event: none; its reference is its game's date, before tip-off, and the game itself is measured (CL-SEN-03);
+  - calendar-derived event: no instant is searched from; its reference is its game's date, before tip-off, and that game is both its expected and its measured game, with no sliding (CL-SEN-03, CL-SUI-14);
   - event of a type known in advance that is not calendar-derived: CL-SEN-04.
   - "Strictly after" means a scheduled start (CL-SEN-23) later than the reference instant; every comparison is between instants (TRV-69).
-- **Why:** file 08 owns the measured game. Keeping each owner's cautious instant makes 08, 09 and 10 agree on detected events, and SEN-01 keeps its role for the research AI's undated public dates.
-- **Owner review:** yes — a detected article dated without a time uses COL-21's end of day in the outlet's time zone, which can be earlier than SEN-01's end of day in Pacific time.
+- **Why:** file 08 owns the measured game. Keeping each owner's cautious instant makes files 08, 09 and 10 agree on detected events, as the rulings on files 03, 09 and 10 recommend, and SEN-01 keeps its role for the research AI's undated public dates.
+- **Owner review:** yes — a detected article without a time is dated at the end of its day in the outlet's zone or at UTC−12, or at its first collection if that is earlier, which can be earlier or later than SEN-01's end of day in Pacific time.
 
 ### CL-SEN-03 — Calendar-derived events in the calculation
 
 - **Affects:** SEN-02, SEN-03, SEN-04, SEN-06, SEN-07, SEN-13, SEN-14, SEN-43, SEN-44, SEN-45, SEN-46, Q-SEN-04, register rows SEN-02, SEN-03, SEN-04, SEN-07 and SEN-46
 - **Problem:** ADR 0015 measures birthday and former-team events on their own game and makes the case not measurable when the player misses it; the rest of 08 must follow.
 - **Ruling:**
-  - The measured game is the derived game. If the player's participation in it is unknown, the case waits ("statistics pending") and becomes not measurable, "box score unavailable", once the sheet is unavailable (CL-STA-04). If he did not play it, the case is not measurable with its own reason, "did not play the derived game" (glossary). If he played it, steps 8 to 10 of CL-SEN-05 follow.
+  - The measured game is the derived game, which is also the event's expected game (CL-SUI-14). If the player's participation in it is unknown, the case waits ("statistics pending") and becomes not measurable, "box score unavailable", once the sheet is unavailable (CL-STA-04). If he did not play it, the case is not measurable with its own reason, "did not play the derived game" (glossary). If he played it, steps 8 to 10 of CL-SEN-05 follow.
   - No skipping (SEN-03), no window (SEN-04), no precedence check (IMP-18, SEN-44), no "dating to verify" (SEN-45).
-  - The case's reference is the game's date, with the provenance "known in advance".
+  - The case's reference is the game's date, with the provenance "known in advance". The case is tracked or historical as CL-VUE-13 rules: tracked when the event was created before the game's scheduled start, historical otherwise.
   - Context indications start "unknown" (ADR 0015), so only the calculated conditions of SEN-13 and SEN-14 apply until the owner sets them.
-  - SEN-43 does not count these cases. The coverage warnings of SEN-46 never show for these types; the mention of CL-STA-24 takes their place where it applies.
+  - These events are never withdrawn; the owner excludes their cases instead (SEN-17, CL-DSN-09).
+  - SEN-43 does not count these cases. The coverage warnings of SEN-46 never show for these types; their profile warnings are "birthday not recorded" (CL-JOU-16) and the team-history mention of CL-JOU-18, as CL-STA-24 places them.
   - Co-occurrence (SEN-06) applies: a derived event and an event of another type on the same game each give a co-occurring case.
 - **Why:** ADR 0015 and its register rows, applied to every rule of 08 that the derived game touches.
 - **Owner review:** no
@@ -52,7 +53,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** SEN-03, SEN-04, SEN-07, SEN-08, SEN-11, SEN-44, SEN-45, SEN-47, STA-19, STA-22, STA-35, STA-45, IMP-18, CA-SEN-01 to CA-SEN-05
 - **Problem:** a case has exactly one state and one reason (SEN-07), but several reasons can hold at once, and the spec gives no order.
-- **Ruling:** For each event that is neither dismissed nor withdrawn, the first rule that applies sets its case's state and reason:
+- **Ruling:** For each event that is not withdrawn and was not dismissed before its expected game's scheduled start, the first rule that applies sets its case's state and reason:
   1. Calendar-derived event: CL-SEN-03, then steps 8 to 10.
   2. The season of the reference instant (STA-48) is not covered (CL-STA-22): not measurable, "season not covered by the source".
   3. Lot 2: the detected event is marked "dating to verify": pending, "dating to verify" (SEN-45).
@@ -69,6 +70,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
   9. The baseline of its season and baseline phase, measured game excluded: building gives pending, "baseline being built"; insufficient gives not measurable, "insufficient baseline".
   10. The gap is computed; the doubtful-case criteria (SEN-11 to SEN-16, without a criterion switched off for the type, CL-SEN-13) and the manual decisions (SEN-17) make the case excluded, with every retained criterion and its values, or measured, which is a valid case.
   - Grouping of same-type events (SEN-05) then follows CL-SEN-06. A postponed game with no new date is not a team game until it is rescheduled (CL-STA-17).
+  - Dismissed events (lot 2, CL-DET-15): a case whose event was dismissed at or after its expected game's scheduled start keeps being evaluated by these steps, outside every profile, trend, control and verdict, so that file 10 can count it apart (SUI-17); a case whose event was dismissed earlier keeps the state and gap it had (SEN-48) until a reinstatement evaluates it again.
 - **Why:** one deterministic order gives every agent the same state for the same data, and each wait keeps the outcome SEN-47 requires.
 - **Owner review:** no
 
@@ -254,10 +256,13 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ### CL-SEN-25 — A calendar-derived event that is no longer derived
 
-- **Affects:** SEN-32, SEN-33, SEN-20, CL-STA-25
-- **Problem:** a new derivation can stop producing an event — new box scores, a rescheduled game, a trade before tip-off — and SEN-33's closed list of exits has no reason for it.
-- **Ruling:** Such an event leaves the count with the reason "no longer derived from the calendar". The exit is traced and the tally shows it by reason, like the other exits of SEN-33. It depends only on schedule and team history, never on a gap.
-- **Why:** SEN-32 and SEN-33 require every exit from the count to be traced.
+- **Affects:** SEN-32, SEN-33, SEN-20, CL-STA-25; CL-TAX-19, CL-JOU-16 (file 02 and 01 rulings), CL-SUI-14 (file 10 ruling)
+- **Problem:** a new derivation can stop producing an event — a corrected birthday or box score, a rescheduled game, a trade before tip-off — and SEN-33's closed list of exits has no reason for it.
+- **Ruling:**
+  - An upcoming event dropped before its game's scheduled start is deleted with its case and leaves no trace in the tally (CL-SUI-14, CL-TAX-19): nothing about it could depend on a result.
+  - An event whose game had started is deleted with its case (CL-TAX-19, CL-JOU-16), and its profile's tally counts it among the events that left the count, with the reason "no longer derived from the calendar" (SEN-33). The tally keeps only that number per reason, with no date and no game, so that a removed or corrected birthday leaves nothing that reveals it (CL-JOU-16).
+  - Where this differs from CL-TAX-19 and CL-JOU-16, which record such drops in the journal only: SEN-33 requires every exit from the count to show on the profile, by reason, and an owner's correction of a birthday after seeing results must stay visible there.
+- **Why:** SEN-32 and SEN-33 forbid silent exits once a game has been played; before it, no exit can follow a result.
 - **Owner review:** no
 
 ### CL-SEN-26 — When a profile exists
@@ -287,6 +292,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ## Ruled elsewhere
 
-- The cautious instant of a date-only article (COL-21, file 03), which CL-SEN-02 relies on for detected events. Recommendation: keep COL-21 as written; the "zone where the day ends last" is UTC−12.
-- Withdrawing a calendar-derived event, which the derivation recreates once its fingerprint expires (ADR 0015 open point 6, file 13): needs a decision by the orchestrator, not settled here.
-- The origin of a calendar-derived event created before its game in lot 2 (tracked or historical; ADR 0015 open point 1, files 09 and 10). Recommendation: the record's bracketed handling.
+- The cautious instant of a date-only article (COL-21, file 03): ruled by CL-COL-02, which CL-SEN-02 follows.
+- Withdrawing a calendar-derived event (ADR 0015 open point 6, file 13): ruled by CL-DSN-09 — these events are never withdrawn, their cases can be excluded (SEN-17). The fingerprint check that CL-SUI-14 runs in the derivation can therefore never match; it is harmless.
+- The origin of a calendar-derived case and its Lot 2 flow (ADR 0015 open point 1): ruled by CL-VUE-13, CL-SUI-14, CL-ALE-13 and CL-TEL-21, which CL-SEN-03 follows.
+- A case dismissed after its expected game's tip-off (DET-44, SUI-17): ruled by CL-DET-15, which CL-SEN-05 follows.

@@ -123,7 +123,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** BKT-12, « Données manipulées » (Référence), IMP-07
 - **Problem:** the spec gives only the indicative form « DEM-2026-0007 », with a French prefix.
-- **Ruling:** `<PREFIX>-<YYYY>-<NNNN>`: PREFIX is the English prefix the glossary sets in place of « DEM »; YYYY is the creation year (CL-BKT-10); NNNN is a sequence that restarts at 0001 each year, zero-padded to four digits and longer beyond 9999. It is assigned at creation, never changed and never reused, canceled requests included. The import compares it after trimming spaces and ignoring case.
+- **Ruling:** `<PREFIX>-<YYYY>-<NNNN>`: PREFIX is the English prefix the glossary sets in place of « DEM » (`REQ`, as in `REQ-2026-0007`); YYYY is the creation year (CL-BKT-10); NNNN is a sequence that restarts at 0001 each year, zero-padded to four digits and longer beyond 9999. It is assigned at creation, never changed and never reused, canceled requests included. The import compares it after trimming spaces and ignoring case.
 - **Why:** unique, stable and readable, as BKT-12 asks.
 - **Owner review:** no
 
@@ -243,5 +243,5 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ## Ruled elsewhere
 
-- Format of the exploration return (TAX-17, file 02): it follows the English conventions of format 1.0 (register row TAX-17). Recommendation: apply CL-IMP-08 and CL-IMP-22 to its dates and values too.
-- The US date of a game played outside North America (TRV-72, file 14), used here for season ends and the player marker. Recommendation: the game's date in America/New_York.
+- Format of the exploration return (TAX-17, file 02): ruled by CL-TAX-04, which takes the conventions of format 1.0 and the reading rules of the import.
+- The US date of a game, used here for season ends and the player marker (TRV-72, file 14): ruled by CL-TRV-03, its date in US Eastern time.

@@ -51,15 +51,14 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ### CL-IMP-05 — Quotation marks and apostrophes
 
-- **Affects:** IMP-13, IMP-15, DSN-10, DSN-21, DSN-24, CA-IMP-24
+- **Affects:** IMP-13, IMP-15, DSN-10, DSN-21, DSN-24, CA-IMP-24; CL-DSN-03 (file 13 ruling)
 - **Problem:** IMP-13 rejects a description containing "straight or typographic quotation marks", but English and French text is full of apostrophes, and the typographic apostrophe is the same character as the right single quotation mark.
 - **Ruling:**
-  - Quotation marks are exactly: `"` U+0022, `“` U+201C, `”` U+201D, `„` U+201E, `‟` U+201F, `«` U+00AB, `»` U+00BB, `‹` U+2039, `›` U+203A, `＂` U+FF02.
-  - Never quotation marks: `'` U+0027, `‘` U+2018, `’` U+2019, `‚` U+201A, `‛` U+201B, `ʼ` U+02BC, `` ` `` U+0060, `´` U+00B4.
-  - A description containing a quotation mark is rejected (IMP-13). A reservation or a limitation containing one is ignored with a warning, like a too-long one (IMP-15), because both are stored and DSN-10 applies to them. Precisions and leads are not checked, since they are never stored.
-  - A quotation written between single quotes therefore passes the automatic check; the preview's reminder of the wording rules covers it (DSN-24).
-- **Why:** rejecting every apostrophe would reject most valid English descriptions; double marks and guillemets are how quotations are written.
-- **Owner review:** yes — a quotation written between single quotes is no longer caught automatically; only the preview reminder and the owner's reading catch it.
+  - The check is the one file 13 defines (CL-DSN-03), applied as it is: a text fails when it contains one of the quotation-mark characters CL-DSN-03 lists, or a single-quoted span as CL-DSN-03 defines it; any other apostrophe passes ("player's", "players' union", "l'équipe").
+  - A description that fails is rejected (IMP-13), and the message names the character or span found.
+  - A reservation (`non_verifie`) or a limitation that fails is ignored with a warning, like a too-long one (IMP-15), because both are stored and DSN-10 subjects them to the same wording rules. Precisions and leads are not checked, since they are never stored; titles never are (DSN-08).
+- **Why:** one check for every stored text, whoever writes it; file 13 owns the wording rules.
+- **Owner review:** no
 
 ### CL-IMP-06 — Research-AI output quirks: what the import strips, rejects and flags
 
@@ -151,6 +150,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
   - Both values with a time: the distance is the difference between instants; the two are within the window when it is at most 2 days (48 hours, the IMP-25 parameter).
   - Otherwise the comparison is in calendar days. A date-only value is its date. A timed value — a historical date-time, or a detected event's reference date, which is always an instant (DET-30) — stands for every calendar date it has in some zone from UTC−12 to UTC+14: two or three consecutive dates. The distance is 0 when the sets share a date, else the number of days between their nearest dates; within the window when at most 2.
   - Hence two date-only values match when at most 2 calendar days apart (`CA-IMP-13`: 14 and 15 January), and `CA-IMP-26` holds (a reference date on 1 March and a public date of 2 March).
+  - The 2 days are the single window parameter of CL-IMP-34.
 - **Why:** where a time is missing, every zone is allowed for the timed side, so no match is missed. Spreading a date-only day over 50 hours of absolute time on both sides would stretch the 2-day window to 4 calendar days and, since a duplicate is not added by default (IMP-26), silently drop distinct facts (H-01).
 - **Owner review:** yes — this fixes how wide "2 days apart" is in practice; a wider reading would merge more distinct facts by default.
 
@@ -166,8 +166,8 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** IMP-25, COL-28
 - **Problem:** IMP-25 (lot 1) compares links after the tracking-element cleaning of COL-28, a lot-2 requirement.
-- **Ruling:** The link cleaning of COL-28 is built in lot 1, in one shared module that lot 2's collection reuses; the list of tracking elements is ruled with file 03. Two links are equal when they are identical after that cleaning, with scheme and host in lowercase, a default port removed, the fragment removed and a trailing slash of the path removed. Nothing else is normalized: `http` and `https` differ, a `www.` prefix makes a different host.
-- **Why:** lot 1 needs the comparison; one module avoids two cleaning rules.
+- **Ruling:** The link cleaning of COL-28 is built in lot 1, in one shared module that lot 2's collection reuses; the list of tracking elements belongs to file 03. Two links are equal when they are identical after that cleaning, with scheme and host in lowercase and a default port (80, 443) and the fragment removed; the path and the remaining query are compared exactly, as CL-COL-18 compares feed addresses. Nothing else is normalized: `http` and `https` differ, a `www.` prefix makes a different host, a trailing slash makes a different path.
+- **Why:** lot 1 needs the comparison; one module and one normalization avoid two cleaning rules.
 - **Owner review:** no
 
 ### CL-IMP-15 — What a "home page" is
@@ -287,14 +287,14 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ### CL-IMP-28 — Withdrawal fingerprints in the import preview
 
-- **Affects:** IMP-25, IMP-37, DSN-29, ADR 0017 and its open point 1, register rows IMP-37 and IHM-68, CA-IMP-28
-- **Problem:** an exact-date fingerprint misses a withdrawn fact reported again one day apart, and nothing says whether saving waits for the owner when a fingerprint matches.
+- **Affects:** IMP-25, IMP-37, DSN-29, ADR 0017 and its open point 1, register rows IMP-37 and IHM-68, CA-IMP-28; CL-DSN-04, CL-DSN-06 (file 13 rulings)
+- **Problem:** an exact-date fingerprint misses a withdrawn fact reported again one day apart, and the preview's handling of a match is not described.
 - **Ruling:**
-  - For each accepted event, the import computes the fingerprint of ADR 0017 — the player identifier, the event's type identifier after any merge or split attachment, and a day — for every day from D − 2 to D + 2, where D is the event's calendar date (CL-IMP-09) and 2 is the IMP-25 window parameter.
-  - An event matching a fingerprint is flagged "matches an event you withdrew", with no other detail. Saving waits until the owner has answered for each flagged event: "don't record — sensitive data", which increases the withdrawn-events counter (IMP-37), or "record". Nothing is declined automatically (ADR 0017).
-  - This ruling assumes that the fingerprint's day is a calendar day comparable with CL-IMP-09; the day hashed at withdrawal is ruled with file 13.
-- **Why:** the IMP-25 window is the import's own tolerance for "the same fact"; an explicit answer keeps a withdrawn sensitive fact from coming back unseen.
-- **Owner review:** yes — saving now waits for an explicit answer on every event that matches a withdrawn one.
+  - Every accepted event of the result is checked against the live fingerprints as CL-DSN-06 rules: its player, its type after any merge or split attachment, and its day d — the date as recorded for a date without time, the UTC calendar date for an instant. It matches when a fingerprint equals the hash for one of the days from d − g to d + g, g being the window of CL-IMP-34 (2 days by default).
+  - A matching event shows, beside it, the flag "matches an event you withdrew", with no other detail, and the choice "don't record — sensitive data". Nothing is preselected and nothing is declined automatically (ADR 0017). Declining increases the withdrawn-events counter (IMP-37, CL-DSN-04).
+  - The save confirmation says how many flagged events will be recorded. Recording a flagged event erases the fingerprints it matches (CL-DSN-06).
+- **Why:** follows ADR 0017 and file 13's ruling; the confirmation keeps a withdrawn sensitive fact from coming back unseen without asking a separate answer per event.
+- **Owner review:** yes — the save confirmation counts the recorded events that match a withdrawal, and recording one of them takes that withdrawal back.
 
 ### CL-IMP-29 — Calendar-derived types in an import; no matching with calendar-derived events
 
@@ -339,6 +339,14 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Why:** the journal must hold no pasted text.
 - **Owner review:** no
 
+### CL-IMP-34 — One window for duplicates, possible duplicates and fingerprints
+
+- **Affects:** IMP-25, IMP-26, IMP-37, DET-58, H-IMP-02; CL-DET-10, CL-DET-21 (file 04 rulings), CL-DSN-06 (file 13 ruling), CL-IMP-12, CL-IMP-28
+- **Problem:** IMP-25's window ("2 days at most", configurable) is reused by detection's possible-duplicate mark and by the withdrawal-fingerprint checks, and nothing says whether they share it.
+- **Ruling:** One parameter of file 06 — H-IMP-02's "maximum gap between the public dates of two matching events", 2 days by default — sets them all: matching and possible duplicates at import (IMP-25, measured as CL-IMP-12); detection's search for a matching historical event and its « doublon possible d'un événement historique » mark (DET-58, CL-DET-10); and the fingerprint checks at import (CL-IMP-28) and at detection (CL-DET-21), which test every day within that many days of the event's day (CL-DSN-06). Changing it changes them all at once.
+- **Why:** each asks whether two records can be the same fact; one parameter keeps the answers consistent, as the file-04 rulings recommend.
+- **Owner review:** no
+
 ## Passed to the glossary
 
 - Every message of IMP-20 and the « Cas limites », in the structure of CL-IMP-02: the five French examples, « ce texte n'est pas un résultat de backtest », « cette demande a été annulée le … : importer quand même ? », « N événements refusés manqueront au backtest tant qu'ils n'auront pas été corrigés et réimportés », « Aucun résultat reconnaissable : vérifiez que vous avez copié toute la réponse de l'IA. », « aucun événement nouveau », « vers le 12e événement », and the placeholders for a missing type or date.
@@ -349,7 +357,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ## Ruled elsewhere
 
-- The list of tracking elements removed from links (COL-28, file 03). Recommendation: the `utm_*` parameters and the usual click identifiers (`fbclid`, `gclid`, `mc_cid`, `mc_eid`), listed in one constant.
-- The day hashed in a withdrawal fingerprint (DSN-27, file 13). Recommendation: the public date as written for a historical event, the US date of the reference instant for a detected event; CL-IMP-28's ±2-day window absorbs the difference.
-- The sheet version of events distributed after a split (TAX-29, file 02). Recommendation: the version of the chosen type in force at distribution, as CL-IMP-21 does at import.
-- The quotation-mark set of DSN-21 and DSN-24 (file 13). Recommendation: cite CL-IMP-05's character set, so that classification (DSN-25) and import use the same check.
+- The list of tracking elements removed from links (COL-28, file 03), which CL-COL-18 relies on without listing. Recommendation: the `utm_*` parameters and the usual click identifiers (`fbclid`, `gclid`, `mc_cid`, `mc_eid`), listed in one constant.
+- The day hashed in a withdrawal fingerprint (DSN-27, file 13): ruled by CL-DSN-06, which CL-IMP-28 follows.
+- The quotation-mark check of DSN-21 and DSN-24 (file 13): ruled by CL-DSN-03, which CL-IMP-05 applies.
+- The sheet version of events distributed after a split (TAX-29, file 02). Recommendation: the version of the chosen type in force at distribution, as CL-IMP-21 does at import and CL-TAX-07 does for a reassignment.
