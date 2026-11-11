@@ -51,7 +51,7 @@ Rules applied, as set by the owner: only sources whose terms permit automated ac
 
 **How the "no scraped endpoints" rule was read.** It governs what Egoscope itself calls. A data release is a published file with a documented download address and an explicit license; Egoscope downloading it is not scraping, and the owner listed "data releases with explicit licenses" among the candidates. Every free NBA data release found is compiled by its publisher from nba.com or ESPN (section 4), so this provenance is unavoidable for free box scores; it is recorded as the main risk of the choice (service sheet, Risks), not as a disqualifier. Egoscope never contacts nba.com, stats.nba.com or ESPN.
 
-Tests: no account, no key; generic `User-Agent`; downloads kept outside the repository; downloaded files treated as untrusted data and read only by small scripts that print aggregates; no player name is reproduced here (players appear as counts or as "player A"). Test identifiers (T1 to T21) are defined in section 6.
+Tests: no account, no key; generic `User-Agent`; downloads kept outside the repository; downloaded files treated as untrusted data and read only by small scripts that print aggregates; no player name is reproduced here (players appear as counts or as "player A"). Test identifiers (T1 to T22) are defined in section 6.
 
 ## 4. Candidates and terms
 
@@ -119,6 +119,7 @@ All on 2026-11-11 (UTC times). Base address of the release files: `https://githu
 - **T19, playoff labels.** All 33 schedule files from 1993-94 to 2025-26 scanned. The round is in `type_abbreviation` (RD16 first round, QTR conference semifinals, SEMI conference finals, FINAL finals) for every playoff game from 2003-04 on, and for none before (playoff games there are labeled `STD`). A game number appears in `notes_headline` for every playoff game from 2008-09 on (except 3 of 92 rows in 2019-20), for 76 of 86 in 2007-08, and never before. Every play-in game is labeled with its type (7th vs 8th place, 9th vs 10th, 8th seed game). In 2001-02 two series ended after 3 games, which only a best-of-five allows; none did in 2002-03. Postponed games keep their id with status "Postponed"; the make-up is a new id labeled "Makeup from" the original date.
 - **T20, career span.** Highest `experience_years` in the 2026-27 player file: 24 (one player), earliest draft year 2003; so the oldest career to cover starts in 2003-04.
 - **T21, game day.** All 34 schedule files streamed (43,562 rows, 1993-94 to 2026-27, the 1998-99 games repeated in the 1999-2000 file included): in every row the `America/New_York` calendar date of `date` equals `game_date` and the date part of `game_date_time`, whose offsets are only -0500 and -0400. The checks of this evaluation that group games by day (T3, T11) use `game_date`, so under the Eastern rule of CL-TRV-03 no game changes day: count 0. The candidates were the 31 games whose venue city lies outside the US and Canada, all from 2012-13 on: 16 in Europe (London 8, Paris 6, Berlin 1, Manchester 1), tipping off between 15:30 and 20:00 UTC, and 15 in Mexico City, between 22:00 and 03:00 UTC; each falls on the same calendar day in US Eastern time as at the venue. Before 2004-05 many rows name no venue (703 of 1,185 in 1993-94, none missing from 2004-05 on except 13 rows), so earlier games abroad cannot be located in the files; the Eastern rule does not need them to be.
+- **T22, team identity across relocations.** Schedule files of 1998-99, 2001-02, 2002-03, 2004-05, 2007-08, 2008-09, 2011-12, 2012-13, 2013-14, 2014-15 and 2026-27: the team id follows a franchise that moves or is renamed, while each file keeps the location, name and abbreviation of its season. Id 25 is Seattle (`SEA`) up to 2007-08 and Oklahoma City (`OKC`) from 2008-09; id 29 is Vancouver (`VAN`) in 1998-99 and Memphis (`MEM`) from 2001-02; id 17 is New Jersey (`NJ`) up to 2011-12 and Brooklyn (`BKN`) from 2012-13; id 3 is Charlotte (`CHA`) up to 2001-02 and New Orleans (`NO`) from 2002-03, renamed in 2013-14; id 30 is the Charlotte team that starts in 2004-05, renamed in 2014-15. The files checked hold 29 franchise ids up to 2002-03 and 30 from 2004-05.
 
 ## 7. Needs coverage of the recommended source
 
@@ -141,7 +142,7 @@ All on 2026-11-11 (UTC times). Base address of the release files: `https://githu
 | Series, game number, wins before the game | Partly provided, rest derivable | Round from `type_abbreviation` from 2003-04 on, game number from `notes_headline` from 2008-09 on (T19); before that, and for wins before the game, from the chronological results of the same pairing in the postseason. |
 | Elimination game | Derivable | Wins before the game plus the series length of the round (a static table per season: the 2001-02 file shows best-of-five first-round series, T19) and the play-in labels. |
 | Upcoming schedule | Provided | Full regular season published (T2); placeholders with teams "TBD" are not next games until their teams are set. Playoff schedule publication not observable on 2026-11-11. |
-| Player search, stable ids | Derivable, ids provided | No search endpoint: the adapter searches names in the player files and lists seasons present and teams seen in box-score lines (T16). ESPN `athlete_id`, `team_id`, `game_id`, with a published crosswalk to NBA ids (T1). |
+| Player search, stable ids | Derivable, ids provided | No search endpoint: each season's player directory (names, and each team with its first and last game day) comes from that season's box-score file, and candidate search runs on the directory Egoscope stores (section 12). Team ids are stable across relocations (T22). ESPN `athlete_id`, `team_id`, `game_id`, with a published crosswalk to NBA ids (T1). |
 | Current team | Provided | `current_team_id` in the current season's player file, refreshed with the release (T2, T16). |
 | Birthday (day and month) | Provided | `date_of_birth` in the player file (T2); the adapter returns only month and day. |
 | Team history, first game against a former team | Derivable | `team_id` of each line over the career. |
@@ -256,7 +257,7 @@ First daily refresh of the ESPN-derived files (T10), with the time of the 12:00 
 
 ## 12. Adapter mapping to the `stats-source` port
 
-The port's interface (operations, call context, `Result` with call metadata, errors, and what the fake simulates) is set by the [module map, section 5, `stats-source`](module-map.md#stats-source-lot-1). This section gives what the adapter for the chosen source must map: for each port field, the source field and the conversion.
+The port's interface (operations, call context, outcome with call metadata, errors, what the fake simulates) is set by the [module map, section 5, `stats-source`](module-map.md#stats-source-lot-1). This section gives what the adapter for the chosen source must map: for each port field, the source field and the conversion. No file, column or provider name crosses the port.
 
 Conventions:
 
@@ -265,68 +266,55 @@ Conventions:
 - File names carry the season's ending year `{Y}`: `2027` is the 2026-27 season.
 - Identifiers stay strings: `game_id`, `athlete_id`, `team_id`.
 - Counts such as `5` or `5.0` become integers; an empty value or `NA` becomes null, never 0 (STA-10). Booleans are read without regard to case (T6).
-- Every file is checked against its expected header before any row is mapped (section 10, rule 11).
+- Every file is checked against its expected header before any row is mapped (section 10, rule 11), and every fetch is conditional on the stored `ETag`: a 304 answers `notModified`.
 
 ### Files read by each operation
 
 | Port operation | Files read | Requests |
 | --- | --- | --- |
 | `checkHealth` | `espn_nba_player_boxscores/timestamp.json` | 1 conditional |
-| `getPublication` | `timestamp.json`; for the last complete league date, the current season's `nba_schedule_{Y}.csv` and `player_box_{Y}.csv` | 1 conditional, plus 2 conditional when the refresh is new |
-| `listCoverage` | `player_box_{Y}.csv` for each year from 1994 (presence), `nba_schedule_{Y}.csv` (games without lines) | Up to 2 per season |
-| `searchPlayers` | `player_core_{Y}.csv` of the seasons searched; teams from `player_box_{Y}.csv` | Up to 2 per season |
-| `getPlayerProfile` | `player_core_{Y}.csv` of the latest season that lists the player | 1 |
+| `getPublication` | The same `timestamp.json`, 43 bytes | 1 conditional |
 | `getSeasonGames` | `nba_schedule_{Y}.csv` | 1 conditional |
 | `getSeasonLines` | `player_box_{Y}.csv` | 1 conditional |
-| `mapPlayers` | `nba_crosswalk/nba_player_crosswalk_{Y}.csv` | 1 per season |
+| `getSeasonPlayers` | `player_box_{Y}.csv` | The download of `getSeasonLines` when both are asked in one call context, else 1 conditional |
+| `getPlayerProfiles` | `player_core_{Y}.csv` of the current season; an earlier season's file only for a requested player the current one does not list | 1, plus 1 per earlier season needed |
+| `mapPlayers` | `nba_crosswalk/nba_player_crosswalk_{Y}.csv` | 1 |
 
 ### `getPublication`
 
 | Port field | Source field | Conversion |
 | --- | --- | --- |
-| Last refresh | `Last-Modified` header of `timestamp.json` | GMT date to epoch milliseconds; the body, for example `{"last_updated":"2026-11-11 07:33:33 EST"}`, is a fallback read in `America/New_York` |
-| Last league date whose games all have lines | Schedule `game_date`, `status_type_completed`, `player_box`, and the game ids present in the player-box file | The latest `game_date` whose final, counted games all have player lines (T3) |
-| Source version | `ETag` of `timestamp.json` | As is |
+| Last refresh instant | `Last-Modified` header of `timestamp.json` | GMT date to epoch milliseconds; the body (`{"last_updated":"2026-11-11 07:33:33 EST"}`) is a fallback read in `America/New_York` |
+| Version | `ETag` of `timestamp.json` | As is; a 304 answers `notModified` |
 
-### `listCoverage`
-
-| Port field | Source field | Conversion |
-| --- | --- | --- |
-| Seasons held | Presence of `player_box_{Y}.csv` (HTTP 200 or 404) | `{Y}` to the season ending in `{Y}`; the first is 1993-94 (T1, T4) |
-| Regular season and playoffs held | Schedule rows with `season_type` 2 and 3 and `player_box` true | One boolean per phase |
-| Games listed without lines | Counted, final schedule rows with `player_box` false | Integer (T15) |
-
-### `searchPlayers` and `getPlayerProfile`
-
-| Port field | Source field | Conversion |
-| --- | --- | --- |
-| Player id | `athlete_id` (player and player-box files) | String |
-| Display name | `display_name` (player file), `athlete_display_name` (player-box file) | As is; search compares case- and accent-folded `full_name`, `display_name` and `short_name` |
-| Current team | `current_team_id` in the current season's player file | String; empty becomes null (no team, STA-26) |
-| First and last season | The seasons whose player file lists the player | `{Y}` to its season |
-| Teams | Distinct `team_id` of the player's lines in the player-box files, most recent first | Never from past-season player files (T16) |
-| Day and month of birth | `date_of_birth`, written `YYYY-MM-DDT07:00Z` or `YYYY-MM-DDT08:00Z` | Month and day from the date part as written (midnight on the US Pacific coast); the year is dropped |
-
-### `getSeasonGames` (`nba_schedule_{Y}.csv`)
+### `getSeasonGames` (`nba_schedule_{Y}.csv`): games
 
 | Port field | Source field | Conversion |
 | --- | --- | --- |
 | Game id | `game_id` (equal to `id` in every row, T21) | String |
 | Season | `{Y}` of the file | Corrected from the game's day against the season start dates; repeated game ids are kept once (T14) |
 | Phase | `season_type` | 2 regular season, 5 play-in, 3 playoffs |
-| Exclusion | `type_abbreviation`, `home_id`, `away_id`, `home_abbreviation`, `away_abbreviation` | `ALLSTAR` or a team id outside 1 to 30: All-Star; `CC`: NBA Cup final; abbreviation `TBD`: placeholder. Preseason games never appear in the files |
+| Exclusion | `type_abbreviation`, `home_id`, `away_id`, `home_abbreviation`, `away_abbreviation` | `ALLSTAR` or a team id outside 1 to 30: All-Star; `CC`: NBA Cup final; abbreviation `TBD`: placeholder |
 | Tip-off instant | `date`, for example `2026-11-11T00:30Z` | UTC to epoch milliseconds; cross-checked with `game_date_time` (`2026-11-10T19:30:00.000000-0500`) |
 | Time known | `time_valid` | Boolean; false means "time to be determined", and `date` then holds midnight US Eastern as a placeholder (T2) |
-| League date, the game's day | `game_date` | `YYYY-MM-DD` as is; it equals the `America/New_York` date of `date` in every row (T21), and a row where it does not is a schema error |
-| Venue | `venue_full_name`, `venue_address_city`, `venue_address_state`, `neutral_site` | Strings, empty becomes null; boolean |
-| Home and away teams | `home_id`, `away_id` | Strings; null for placeholders |
-| Status | `status_type_name` | `STATUS_SCHEDULED` scheduled, `STATUS_FINAL` final, `STATUS_POSTPONED` postponed, the only values observed (T2, T5); a canceled or in-progress game was never seen, so any other value is a schema error until it is mapped |
+| The game's day (league date) | `game_date` | `YYYY-MM-DD` as is; it equals the `America/New_York` date of `date` in every row (T21), and a row where it does not is `schema_changed` |
+| Home and away team ids | `home_id`, `away_id` | Strings; null for placeholders |
+| Neutral site | `neutral_site` | Boolean |
+| Status | `status_type_name` | `STATUS_SCHEDULED` scheduled, `STATUS_FINAL` final, `STATUS_POSTPONED` postponed, the only values observed (T2, T5); a canceled or in-progress game was never seen, so any other value is `schema_changed` until it is mapped |
 | Score | `home_score`, `away_score` | Integers for a final game, else null |
 | Overtimes | `status_period`, `format_regulation_periods` | Final period minus 4 for a final game with 4 regulation periods (CL-STA-03, T11), else null |
 | Series round | `type_abbreviation`, `notes_headline` | `RD16` first round, `QTR` conference semifinals, `SEMI` conference finals, `FINAL` finals, from 2003-04; play-in type from the label; null before 2003-04 (T19) |
-| Series game number | `notes_headline` | The number after "Game", from 2008-09; else null (T19) |
+| Series game number | `notes_headline` | The number after "Game", from 2008-09 (and 76 of 86 playoff games of 2007-08); else null (T19) |
 | Make-up link | `notes_headline` "Makeup from" a date, on the make-up row | The postponed game of the same two teams on that date (T19) |
-| Source version | `ETag` of the file | As is |
+
+### `getSeasonGames`: teams and coverage
+
+| Port field | Source field | Conversion |
+| --- | --- | --- |
+| Team id, stable across relocations | `home_id`, `away_id` | String; franchise ids 1 to 30 only, so All-Star teams are left out. The id follows a franchise that moves or is renamed (T22) |
+| Team name, abbreviation and location that season | `home_name`, `home_abbreviation`, `home_location` and the same `away_` columns | As written in that season's file, which keeps the names of the time (T22) |
+| Phases held with lines | `season_type` of final, counted games whose `player_box` flag is true | The set of phases |
+| Final, counted games listed without lines | `game_id` of final, counted games whose `player_box` flag is false | Game ids (T15) |
 
 ### `getSeasonLines` (`player_box_{Y}.csv`)
 
@@ -335,35 +323,60 @@ Conventions:
 | Game, player, team, opponent | `game_id`, `athlete_id`, `team_id`, `opponent_team_id` | Strings |
 | At home | `home_away` | `home` is true |
 | Did not play | `did_not_play` | Boolean; the `reason` column is never read (JOU-21, DSN-15) |
-| Minutes | `minutes`, for example `26.0` | Number with the precision "whole minutes"; empty or `NA` becomes null |
+| Minutes and their precision | `minutes`, for example `26.0` | Number with the precision "whole minutes"; empty or `NA` becomes null |
 | The thirteen counts | `points`, `field_goals_made`, `field_goals_attempted`, `three_point_field_goals_made`, `free_throws_made`, `free_throws_attempted`, `offensive_rebounds`, `defensive_rebounds`, `assists`, `steals`, `blocks`, `turnovers`, `fouls` | Integers; empty or `NA` becomes null |
 | Ejection | `ejected` | Always unknown (null): never set in the files (T6) |
 | Players requested | `athlete_id` | Only the requested players' rows are returned |
-| Source version | `ETag` of the file | As is |
+
+### `getSeasonPlayers` (`player_box_{Y}.csv`): the season's player directory
+
+| Port field | Source field | Conversion |
+| --- | --- | --- |
+| Player id | `athlete_id` | String; one entry per player with at least one line in a game between two franchises (All-Star lines skipped) |
+| Names as the source gives them | `athlete_display_name`, `athlete_short_name` | As written; the full, first and last names exist only in the player file, which the directory does not read |
+| Each team with its first and last game day | `team_id` and `game_date` of each of the player's lines, did-not-play lines included | Per team, the earliest and latest `game_date`; whether he played for that team is in his lines, not in the directory |
+
+### `getPlayerProfiles` (`player_core_{Y}.csv`)
+
+| Port field | Source field | Conversion |
+| --- | --- | --- |
+| Player id | `athlete_id` | String |
+| Display name | `display_name` | As written |
+| Current team | `current_team_id` in the current season's file | String; empty, or a player the current season's file does not list, becomes null (no team, STA-26) |
+| Day and month of birth | `date_of_birth`, written `YYYY-MM-DDT07:00Z` or `YYYY-MM-DDT08:00Z` | Month and day from the date part as written (midnight on the US Pacific coast); the year is dropped |
 
 ### `mapPlayers`
 
 | Port field | Source field | Conversion |
 | --- | --- | --- |
-| Other source's player id | `espn_athlete_id` to `nba_player_id` in `nba_player_crosswalk_{Y}.csv` | Rows whose `match_method` is not `unmatched`; files exist for the seasons ending 2002 to 2027 (T1) |
+| The player's id in the other source | `espn_athlete_id` to `nba_player_id` in `nba_player_crosswalk_{Y}.csv` | Rows whose `match_method` is not `unmatched`; files exist for the seasons ending 2002 to 2027 (T1), so seasons before 2001-02 have no mapping |
 
 ### Answers, errors and call metadata
 
 | Source answer | Port result |
 | --- | --- |
-| HTTP 304 to a conditional request | Not an error: the page is `notModified` |
+| HTTP 304 to a conditional request | Not an error: `notModified` |
 | Network error, timeout, HTTP 5xx, unreadable file | `unavailable` |
 | HTTP 429, or 403 with rate-limit headers | `rate_limited`, with the `Retry-After` delay when given |
 | HTTP 404 for a season file | `not_published`: a past season is not covered; for the current season, the incident of CL-STA-15 |
-| A player id absent from every file read | `not_found` |
-| A header that differs from the expected columns, or a `game_date` that disagrees with `date` | `schema_changed` |
+| A requested player id absent from every file read | `not_found` |
+| A header that differs from the expected columns, a status value not yet mapped, or a `game_date` that disagrees with `date` | `schema_changed` |
 | The abort signal | `aborted` |
 
-`unauthorized` never occurs: the source has no key. Call metadata counts each HTTP request, the redirect included, and the bytes received. One file is one page: the cursor is never needed, since a season fetches and parses in under 2.5 seconds (T12).
+Call metadata counts each HTTP request, the redirect included, and the bytes received. One file is one page: the cursor is never needed, since a season fetches and parses in under 2.5 seconds (T12).
+
+**Never produced by this source**, which the adapter's tests assert: the preseason exclusion (no preseason game is in the files, T4); `unauthorized` (no key); an ejection (always unknown, T6). Null for part of the history: the series round before 2003-04 and the series game number before 2008-09 (T19), which `games` derives from the results; a player mapping for seasons before 2001-02.
+
+### Cost, checked against the module map's figures
+
+- Reading every season's directory once, at installation, means every box-score file: 507.4 MB in CSV for the 34 seasons on 2026-11-11 (T1), which confirms the map's "about 510 MB". The current season's file grows from 2.2 MB to about 18 MB by June (the 2025-26 file is 17.7 MB, T5), so the total approaches 523 MB at the end of the season.
+- The 34 schedule files are 57.3 MB (T1), as the map says, about 63.5 MB at the end of the season (the current file grows from 3.0 MB to about 9.2 MB). The player files, which only `getPlayerProfiles` reads, are 4.9 MB for all 34 seasons, and 0.16 MB for the current one (T1, T2).
+- Installation therefore downloads 68 files and about 565 MB, which is 34 % of the 200 downloads and 28 % of the 2 GB of Egoscope's daily ceilings (CL-STA-15), within one day and with the 10 % reserve of STA-39 untouched. At under 2.5 seconds per file (T12), that is about three minutes of function time, spread over invocations. In Parquet the same files are 24.2 MB (T1).
+- A daily update reads the current season's schedule and box-score files, conditionally: about 5 MB on 2026-11-11 (T2), about 27 MB at the end of a season with the player file (T5, T16).
 
 ## 13. Recorded fixtures
 
-Recorded source files used as test fixtures (in `data/fixtures/stats-source/`, module map section 2.3) are anonymized before they are committed, because the repository is public and carries no real player name ([decision record 0006](../adr/0006-public-specs-without-license-or-real-players.md)). The rules, which the adapter task can script:
+Recorded source files used as test fixtures (in `data/fixtures/stats-source/recorded/`, module map section 5) are anonymized before they are committed, because the repository is public and carries no real player name ([decision record 0006](../adr/0006-public-specs-without-license-or-real-players.md)). The rules, which the adapter task can script:
 
 - Player names become invented names; team-staff names would too, but none of the files below carries any.
 - Player identifiers are remapped consistently: one table maps each real `athlete_id` to an invented id and is applied to every file and every derived column, so joins between files still work. Other providers' ids in the crosswalk get one table per provider.

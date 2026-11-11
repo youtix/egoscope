@@ -1,6 +1,6 @@
 # Service sheet: statistics source
 
-Service sheet required by TRV-09 for the statistics source (D-27, TRV-15). Chosen on 2026-11-11; the comparison with the other candidates, the tests cited below (T1 to T21), the mapping of the source's fields to the `stats-source` port and the rules for recorded fixtures are in the [statistics source evaluation](../engineering/statistics-source-evaluation.md). The port's interface is set by the [module map](../engineering/module-map.md#stats-source-lot-1).
+Service sheet required by TRV-09 for the statistics source (D-27, TRV-15). Chosen on 2026-11-11; the comparison with the other candidates, the tests cited below (T1 to T22), the mapping of the source's fields to the `stats-source` port and the rules for recorded fixtures are in the [statistics source evaluation](../engineering/statistics-source-evaluation.md). The port's interface is set by the [module map](../engineering/module-map.md#stats-source-lot-1).
 
 ## Role
 
