@@ -8,7 +8,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** COL-35, DET-06, DET-16, DET-20, DET-24, DET-34, DET-36, DET-49, DET-54, DET-58
 - **Problem:** an article has one processing state (COL-35), while classification answers per recognized player and per fact; nothing says which state wins when the outcomes differ, nor what becomes of a below-threshold part of an article attached for another player, which DET-49 cannot rescue because the article is not « non pertinent ».
 - **Ruling:**
-  - Results are kept per article and per recognized player (a "part"). A part holds zero or more facts, each with one outcome: attached to an event (detected or dismissed), linked to a pending proposal, or a non-relevance reason (« sous le seuil », « fait ancien », « déjà rapporté par un backtest », « type rejeté ou retiré », « proposition rejetée »). A classified part with no fact has the reason « aucun fait »; a part not yet classified, or unusable, is pending.
+  - Results are kept per article and per recognized player (a "part"). A part holds zero or more facts, each with one outcome: attached to an event (detected or dismissed), linked to a pending proposal, or a non-relevance reason (« sous le seuil », « fait ancien », « déjà rapporté par un backtest », « type rejeté ou retiré », « proposition rejetée », and those of CL-DET-12 and CL-DET-27). A classified part with no fact has the reason « aucun fait »; a part not yet classified, or unusable, is pending.
   - The article's state is derived in this order: « rattaché » if any fact is attached; else « lié à une proposition » if any fact is linked to a pending proposal; else « en attente de classification » if any part is pending; else « non pertinent ». An article in which the prefilter recognizes nobody is « non pertinent » with the reason « aucun joueur suivi ».
   - The queue item holds the pending parts only; an article can be « rattaché » and still queued for another player.
   - A « non pertinent » article shows every distinct reason of its parts and facts, and a filter by reason matches any of them. The state is recomputed after every change of a part: classification, rescue, detachment, proposal decision, re-prefiltering (DET-07).
@@ -195,7 +195,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** DET-21, DSN-10, DSN-20, DSN-24, DSN-25, TEL-14
 - **Problem:** DET-21 says the justification and the suggested definition "obey the same rules" as the description, without saying whether the length limit applies, and says nothing of the suggested name.
-- **Ruling:** the same two automatic checks — at most the description maximum of DSN-20 (default 200 characters), no quotation mark — apply to the description, the justification, the suggested definition and the suggested type name. A failing description is replaced by the template; any other failing text by « texte non conservé ». A proposal whose name was replaced keeps that mention as name until the owner completes it (file 02).
+- **Ruling:** the same two automatic checks — at most the description maximum of DSN-20 (default 200 characters), no quotation mark among the characters of CL-DSN-03 — apply to the description, the justification, the suggested definition and the suggested type name. A failing description is replaced by the template; any other failing text by « texte non conservé ». A proposal whose name was replaced keeps that mention as name until the owner completes it (file 02).
 - **Why:** DSN-10 subjects every free text attached to an event or a type sheet, a proposal included, to file 13's rules, and one limit is simpler than two.
 - **Owner review:** no
 
@@ -223,7 +223,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
   - The check runs when a model-origin fact would create a new event, not when it attaches to an existing one, and before DET-58's search for a historical event.
   - Candidate days: every calendar day from the would-be reference date's day minus IMP-25's window (default 2 days) to that day plus the window, each day computed as file 13 computes it when it creates a fingerprint. The fact matches when the keyed hash of (player, type, one of these days) equals a stored fingerprint.
   - A match creates no event, case, sheet or request; the part is handled by CL-COL-16, and nothing about the match is logged.
-  - The calendar derivation runs the same check (CL-SUI-14).
+  - The calendar derivation runs the check too, on the derived game's day only (CL-DSN-06, CL-SUI-14).
   - Events created by the owner (DET-13, DET-49) are not checked: the owner acts knowingly and can withdraw again, and no screen may tell him about a withdrawn event (IHM-68, ADR 0017).
 - **Why:** day precision over the IMP-25 window is ADR 0017's recommendation, and checking first keeps any readable trace of a withdrawn fact from being created.
 - **Owner review:** yes
@@ -272,16 +272,37 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** a source supplied by the owner must be dated as cautiously as a collected one.
 - **Owner review:** no
 
+### CL-DET-27 — Dating an event at a coverage threshold (media storm)
+
+- **Affects:** DET-27, DET-29, DET-30, DET-31, DET-49, DET-58, annex « Tourmente médiatique » of file 02, TRV-38; CL-TAX-14 (file 02 ruling)
+- **Problem:** the media-storm sheet dates its event at the publication of the article that brings the coverage to its threshold (CL-TAX-14), while DET-30 dates every event at its earliest article, and nothing says what detection does with the type's facts before the threshold is reached.
+- **Ruling:**
+  - This applies to a type whose sheet carries a coverage threshold of N distinct outlets within D days (CL-TAX-14); an article's outlet is the outlet name it keeps (COL-06, COL-25).
+  - A model-origin fact of that type that would create a new event (CL-DET-02) creates none at once: it takes the non-relevance outcome « sous le seuil de couverture » and waits, in one group with the other waiting facts of that player and type whose articles' retained instants lie within D days of its own.
+  - When the articles of a group come from at least N distinct outlets whose retained instants lie within D days, the event is created. Its reference date is the retained instant of the article that brings the N-th outlet, which is its reference article; every fact of the group is attached to it, and the article states are recomputed (CL-DET-01). The fingerprint check (CL-DET-21) and the search for a historical event (DET-58) run at that moment, as for any new event.
+  - Afterwards articles attach as to any event (DET-28). An attached article with an older retained instant moves the reference date to the earliest instant at which the threshold is met, never before it (DET-31); a detachment follows DET-31 as written.
+  - Facts of a group that never reaches the threshold keep « sous le seuil de couverture » once their D days have passed; rescue (DET-49) is offered on them like on any non-relevance outcome. Events the owner creates (DET-13, DET-49) are dated by DET-30.
+- **Why:** the annex dates a storm at « la publication de l'article qui le franchit » and measures the first game after the third article; before the threshold there is no storm to measure, and the waiting facts keep their articles under the ordinary retention (CL-COL-08).
+- **Owner review:** no
+
+### CL-DET-28 — One event per record approach
+
+- **Affects:** DET-14, DET-27, DET-29, DET-43, DET-47, annex « Approche d'un record historique positif » of file 02
+- **Problem:** the record-approach sheet excludes the following games when the record is not broken at the first game presented as decisive, "since a record gives only one event", while detection groups articles only within the grouping window and the application tracks no records.
+- **Ruling:** As written in the annex: « un record ne donne qu'un événement » is an exclusion criterion of the sheet, which the classifier receives in full (DET-14) with the player's recent events (CL-DET-11); the application keeps no list of records. A later article about the same record that the model still reports as a new fact creates a new event, which the owner merges into the first one (DET-47), the correction DET-43 prescribes for the duplicate of another detected event.
+- **Why:** the criterion belongs to the sheet the model applies, and a register of records would be a second taxonomy that the specs do not provide.
+- **Owner review:** no
+
 ## Passed to the glossary
 
-- Non-relevance reasons « aucun joueur suivi », « aucun fait », « sous le seuil », « fait ancien », « déjà rapporté par un backtest », « type rejeté ou retiré », « proposition rejetée », and the new « détaché par l'utilisateur ».
+- Non-relevance reasons « aucun joueur suivi », « aucun fait », « sous le seuil », « fait ancien », « déjà rapporté par un backtest », « type rejeté ou retiré », « proposition rejetée », and the new « détaché par l'utilisateur » and « sous le seuil de couverture » (CL-DET-27).
 - Marks « datation à vérifier », « détecté après le coup d'envoi », « doublon possible d'un événement historique »; mentions « description à revoir », « texte non conservé », « classification en échec »; the "not the same fact" action.
 - Dismissal reasons of DET-43; the three causes of the classification incident (CL-DET-04); the name of the calendar list of CL-DET-22.
 - The new parameter "confidence band width" and the "origin user" row of DET-25.
 
 ## Ruled elsewhere
 
-- File 13, DSN-21 and DSN-24: recommendation — the quotation-mark check rejects « » “ ” „ ‟ and the straight double quote, but not the straight or typographic apostrophe (' ’), which English and French text needs.
-- File 13, fingerprint creation (ADR 0017): recommendation — the fingerprint's day is the reference date's calendar date in the owner's time zone (TRV-72), or the date as written when the reference date has no time; CL-DET-21's window absorbs any one-day shift between zones.
-- File 06, IMP-25: its window parameter is the one used by the possible-duplicate mark (CL-DET-10) and by the fingerprint check (CL-DET-21); recommendation — keep a single parameter.
-- File 02, TAX-23: recommendation — mention the type correction of DET-53 next to the creation case.
+- File 13, DSN-21 and DSN-24: ruled by CL-DSN-03 — the quotation-mark check rejects « » “ ” „ ‟ and the straight double quote only, never the straight or typographic apostrophe (' ’), which English and French text needs.
+- File 13, fingerprint creation (ADR 0017): ruled by CL-DSN-06 — the fingerprint's day is the reference date's calendar date in the owner's time zone (TRV-72), or the date as written when the reference date has no time; CL-DET-21's window absorbs any one-day shift between zones.
+- File 06, IMP-25: ruled by CL-IMP-34 — its window parameter is the one used by the possible-duplicate mark (CL-DET-10) and by the fingerprint check (CL-DET-21), a single parameter.
+- File 02, TAX-23: ruled by CL-TAX-22, which names the type correction of DET-53 next to the creation case (CL-DET-17).

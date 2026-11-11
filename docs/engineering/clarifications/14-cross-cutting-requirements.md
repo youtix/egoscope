@@ -92,7 +92,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Ruling:** due occurrences are checked at each wake-up, at the end of each pass and at each opening of the application.
   - Timed tasks — collection and detection, statistics update, purge, backup: each configured time is an occurrence due at that time; the statistics update follows CL-TRV-23.
   - Chained tasks — detection after collection, game tracking after the statistics update: each successful run of the parent is an occurrence, due at the parent's end.
-  - Conditional tasks — classification-queue resumption, retries of statistics fetches, sending of notifications: an occurrence is due one interval after the previous run started, and exists only if the condition holds then (queue not empty, fetch pending, message due).
+  - Conditional tasks — classification-queue resumption, retries of statistics fetches, sending of notifications: an occurrence is due one interval after the previous run started — for the queue resumption, after the last run that processed the queue, pass or resume (CL-DET-04) — and exists only if the condition holds then (an eligible item in the queue, CL-DET-04; a fetch pending; a message due).
   - An occurrence is missed when no run of the task started at or after its due time has succeeded by the due time plus the margin (TRV-31, 2 hours by default). The application then writes one journal entry per missed occurrence, opens one "task not run" incident per task (TRV-45) and starts one catch-up run at once, not one per missed occurrence; the owning file's catch-up rules apply (COL-45). That run is a scheduled run, recorded with the scheduled origin (CL-COL-07), and it stands for the missed occurrences. The incident closes when a run of the task succeeds.
 - **Why:** occurrences give every kind of task a precise due time, which an "interval" does only for timed ones.
 - **Owner review:** no
@@ -122,7 +122,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** TRV-45, IHM-20, TEL-15
 - **Problem:** TRV-45 lets an incident be closed automatically "or by the user", while 12 lets the owner only hide one, which stays open while its cause lasts.
-- **Ruling:** as ruled for the interface (CL-IHM-20): the owner's only action on an incident is to hide it (IHM-20), which is how TRV-45's « ou par l'utilisateur » is read; a hidden incident stays open while its cause lasts, in the journal and on the status screen, counted among the hidden incidents. Every incident closes automatically when its cause disappears. The TRV-06 incident, whose cause is a declared limit the service did not honour, closes when the owner saves a new value for that limit, or at the end of the next full period that passes without such a refusal.
+- **Ruling:** the owner's only action on an incident is to hide it (IHM-20, as the screens apply it in CL-IHM-20), which is how TRV-45's « ou par l'utilisateur » is read; a hidden incident stays open while its cause lasts, in the journal and on the status screen, counted among the hidden incidents. Every incident closes automatically when its cause disappears. A refusal before the declared limit (TRV-06) is a cause of the quota incident of its service, whose message then carries TRV-06's invitation to check the service's terms and update the limit; that incident closes as the owning file rules for the service — for classification when no item of the queue is eligible (DET-11, CL-DET-04), for the statistics source when its requests resume (STA-39, CL-STA-15) — and, for any other service, when the owner saves a new value for that limit or at the end of the next full period that passes without such a refusal.
 - **Why:** a closure by hand while the cause lasts would contradict « reste ouvert tant que la cause subsiste »; every incident then has an automatic end.
 - **Owner review:** yes — the owner can hide an incident but never close it.
 
@@ -144,11 +144,11 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ### CL-TRV-14 — Replacing the statistics source
 
-- **Affects:** TRV-12, TRV-15, TRV-77, STA-03, STA-42
-- **Problem:** a replacement must lose no data, while stored statistics rest on the old source's identifiers.
-- **Ruling:** a replacement keeps every stored statistic — schedules, results, box-score lines — with the identifiers of the source it came from, and never fetches a consolidated game again (STA-42). Players are mapped to the new source by its published crosswalk where one exists, otherwise by a new JOU-10 confirmation; teams and games are matched between the sources by date, home team and away team for the seasons still open. No case changes because of the replacement alone. The procedure is the one of the statistics service sheet (TRV-77).
-- **Why:** "without loss of data" holds only if stored data never depends on the new source.
-- **Owner review:** no
+- **Affects:** TRV-12, TRV-15, TRV-77, STA-03, STA-33, STA-34, STA-42, STA-44; CL-STA-23 (file 07 ruling)
+- **Problem:** a replacement must lose no data, while stored statistics rest on the old source's identifiers, and the season in progress would otherwise mix two sources.
+- **Ruling:** a replacement keeps every stored statistic — schedules, results, box-score lines — with the identifiers of the source it came from, and never fetches a consolidated game again (STA-42), with one exception: the season in progress at the replacement is fetched again whole from the new source, its consolidated games included, so that no season baseline mixes two sources (CL-STA-23). That refetch is a step of the replacement procedure and a forced refetch in the sense of STA-44: it follows the order of STA-40, consumes quota, and every value that differs from the stored one is replaced and traced as a correction (STA-34), so no old value is lost. Players are mapped to the new source by its published crosswalk where one exists, otherwise by a new JOU-10 confirmation; teams and games are matched between the sources by date, home team and away team for the seasons still open, the season in progress included. Outside the season in progress, no case changes because of the replacement alone; that season's cases follow the corrections of the refetch and the recalculation after it (SEN-34). The procedure is the one of the statistics service sheet (TRV-77).
+- **Why:** "without loss of data" holds only if stored data never depends on the new source, and STA-44 already allows refetching consolidated data with every difference traced; one source per season keeps every baseline homogeneous (record 0012).
+- **Owner review:** yes — at a replacement, the season in progress is fetched again whole from the new source, consolidated games included, and every value that differs is replaced and traced as a correction.
 
 ### CL-TRV-15 — TRV-60 cited twice by IHM-09
 
@@ -185,11 +185,13 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
   | Classification attempts (DET-22) | 2 | 1 to 5 |
   | Detection threshold (DET-24) | 70 | 1 to 100 |
   | Grouping window (DET-29) | 72 hours | 1 to 240 hours |
+  | Confidence band width (DET-25, CL-DET-24) | 10 points | 1 to 50 points |
   | Maximum sources per event (H-BKT-09) | 3 | 1 to 10 |
   | Maximum pasted size (IMP-02) | 2 MB | 0.5 to 4 MB, step 0.5 |
   | Tolerated source lead (IMP-14) | 1 day | 0 to 7 days |
   | Disallowed domains (IMP-14) | list of H-IMP-13 | 0 to 500 domain names, lowercase, without scheme or path |
   | Link check (IMP-17) | on | on, off |
+  | Link-check timeout (IMP-17, CL-IMP-25) | 10 seconds | 1 to 60 seconds |
   | Sources offered for sampling (IMP-23) | 3 | 1 to 20 |
   | Maximum gap between public dates (IMP-25) | 2 days | 0 to 7 days |
   | Playing-time floor (STA-14) | 15 minutes | 0 to 48 minutes |
@@ -228,6 +230,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
   | Daily cap (TEL-22) | 20 messages | 1 to 200 |
   | Link-code validity (TEL-29) | 15 minutes | 5 to 60 minutes |
   | Retry intervals (TEL-35) | 1, 5, 15, 30, 60 minutes | 1 to 10 values, strictly increasing, each 1 to 1,440 minutes |
+  | Catch-up interval (TEL-36, CL-TEL-12) | 60 minutes | 15 to 1,440 minutes |
   | Time zone (IHM-14) | Europe/Paris | any zone of the IANA time-zone database |
   | List page size (IHM-18) | 50 | 10 to 200 |
   | "Deadline near" delay (IHM-20) | 24 hours | 1 to 168 hours |
@@ -325,8 +328,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## Ruled elsewhere
 
-- **The start of a game's day and the waiting rule in 07's terms** — owned by 07 (STA-31, STA-32, STA-36, STA-37): recommendation, read STA-31's "beginning of its day, local time at the venue" as the start of the game's Eastern day (CL-TRV-03), and apply the wait and the late-source incident of CL-TRV-23 as written.
-- **Mechanics of a statistics-source replacement and of two combined sources** — owned by 07 (STA-03; record 0012): recommendation, follow CL-TRV-14 and the service sheet's crosswalk procedure, one source per season.
+- **The start of a game's day and the waiting rule in 07's terms** — owned by 07 (STA-31, STA-32, STA-36, STA-37): ruled by CL-STA-14 (a game whose time is to be determined is deemed to start at 00:00 US Eastern time on its date, the start of its day under CL-TRV-03) and CL-STA-10 (the wait, the cut-off ending "source late" and the late-source incident of CL-TRV-23, applied as written).
+- **Two combined statistics sources** — owned by 07 (STA-03; record 0012): ruled by CL-STA-23 (one source per season, chosen in the service sheet), with CL-JOU-21 (one mapping per source); the replacement itself is CL-TRV-14's.
 - **Already settled consistently by the rulings on Lot 2:** zone naming and the US-date recall (CL-IHM-04, CL-IHM-07, CL-TEL-03), hiding incidents (CL-IHM-20), the register mark of calculation parameters (CL-IHM-12), server-held drafts kept out of backups (CL-IHM-10), no reply to strangers (CL-TEL-06), and the scheduled origin of a catch-up run (CL-COL-07).
 
 ## Passed to the glossary

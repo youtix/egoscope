@@ -31,7 +31,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Problem:** birthday and former-team events now come from the calendar (ADR 0015), while every rule of 05 speaks of "all validated types".
 - **Ruling:** In 05, read "validated type" as "research type": a validated type whose dating rule is not "derived from the calendar". Hence:
   - BKT-02: while no research type is validated, no request can be created, even if a calendar-derived type is validated; the action shows the BKT-02 explanation.
-  - A request, its prompt (type blocks and `{{LISTE_TYPES}}`) and an update (BKT-15) never contain a calendar-derived type.
+  - A request, its prompt (type blocks and `{{TYPE_LIST}}`, the spec's `{{LISTE_TYPES}}`) and an update (BKT-15) never contain a calendar-derived type.
   - Coverage (BKT-10) never holds a calendar-derived type, and "coverage includes the type" is never asked for one: no BKT-30 routing, no BKT-04 supplement, no BKT-05 proposal, no coverage warning on its profiles (register rows BKT-04, BKT-05, BKT-08, BKT-10, BKT-30; CL-SEN-03).
   - What the import does with an event of such a type: CL-IMP-29.
   - Q-BKT-03 is settled (register row Q-BKT-03). The edge case « Type dont la date se connaît d'avance » now concerns only a type known in advance that is not calendar-derived; no seeded type is one.
@@ -52,7 +52,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Problem:** a type's coverage can have holes and periods researched under several sheet versions, while BKT-09 gives each type one period starting at "the first uncovered day".
 - **Ruling:** For player P and research type T:
   1. A covered period counts for T when the sheet version recorded on it is not older than T's latest broadening version — a version created by a change to which TAX-24 applies, a merge or a split included (CL-BKT-06). If T has no broadening version, every covered period counts.
-  2. Career start: P's first NBA game date (STA-47, CL-STA-11); if it is unknown, the earliest start among T's counting periods; if there is none, unknown.
+  2. Career start: P's first NBA game date (STA-47, CL-STA-12); if it is unknown, the earliest start among T's counting periods; if there is none, unknown.
   3. First uncovered day: the earliest day, on or after the career start, that lies in no counting period.
   4. Period of T in a supplement: with no counting period, the whole career (from the career start, or "from his first NBA game" when it is unknown) to the creation date; otherwise from the first uncovered day to the creation date. A first uncovered day later than the creation date means T is complete and is not requested.
   5. Holes are not requested one by one: the single period runs from the first uncovered day to the creation date and re-searches the covered spans after the hole. The import recognizes facts already saved as duplicates (IMP-25, IMP-26) and adds only the new ones.
@@ -227,8 +227,16 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** BKT-16, BKT-18, STA-31, IHM-27
 - **Problem:** STA-31 deems a game without a set time to start at the beginning of its local day, which a deadline would show as midnight.
-- **Ruling:** When the next game's time is to be determined, the deadline shows the date and the glossary's "time TBD" mention, never 00:00, and the time remaining in whole days. Ordering and urgency use the deemed start of STA-31 (CL-STA-13).
+- **Ruling:** When the next game's time is to be determined, the deadline shows the date and the glossary's "time TBD" mention, never 00:00, and the time remaining in whole days. Ordering and urgency use the deemed start of STA-31 (CL-STA-14).
 - **Why:** the deemed start is a cautious bound for comparisons, not information to show.
+- **Owner review:** no
+
+### CL-BKT-25 — Which supplements are created and which are only proposed
+
+- **Affects:** BKT-04, BKT-05, BKT-06, BKT-15, 00 « Variantes » (Joueur déjà profilé), TAX-20, TAX-24, TAX-32
+- **Problem:** file 00 says a supplementary request is « créée ou proposée » without saying which, and file 02 speaks only of proposing one.
+- **Ruling:** As written: BKT-04 (lot 2) creates the detection-born supplement at once, attached to its event, without asking the owner. BKT-05 (a type validated, reactivated or broadened, hence TAX-20, TAX-24 and TAX-32) and BKT-06 (an incomplete import, CL-BKT-07) only propose theirs and create nothing without the owner's agreement; for a player who already has a request to do, BKT-05 proposes its update instead (BKT-15). File 00's « créée ou proposée » covers these two cases.
+- **Why:** BKT-04 says the application « crée » the supplement; BKT-05 « ne crée rien sans accord », H-05 saying such a request « peut » be issued.
 - **Owner review:** no
 
 ## Passed to the glossary

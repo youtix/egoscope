@@ -67,7 +67,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** 00 complementary terms « Confiance de détection », « Confiance de la recherche », « Confiance du profil »; VUE-05
 - **Problem:** three different scales are all called confidence.
-- **Ruling:** as written: three distinct notions, stored in distinct fields and always labelled with their full glossary term, never the bare word "confidence": detection confidence (integer 0 to 100, detected events), research confidence (three levels, historical events) and profile confidence (three levels, profiles and trends). Calendar-derived events carry neither of the first two (record 0015). An event of low research confidence counts like the others (record 0022).
+- **Ruling:** as written: three distinct notions, stored in distinct fields and always labeled with their full glossary term, never the bare word "confidence": detection confidence (integer 0 to 100, detected events), research confidence (three levels, historical events) and profile confidence (three levels, profiles and trends). Calendar-derived events carry neither of the first two (record 0015). An event of low research confidence counts like the others (record 0022).
 - **Why:** 00 already defines three separate terms; the risk is only in labels.
 - **Owner review:** no
 
@@ -101,7 +101,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Problem:** 00 knows two origins, detected and historical; record 0015 makes the application create birthday and former-team events itself from the schedule.
 - **Ruling:** an event has one of three origins: detected, historical or calendar-derived.
   - A calendar-derived event is created and deleted by the calendar derivation (CL-TAX-18, CL-TAX-19), never by an import or a detection. The owner can withdraw it like any event (CL-DSN-09) and correct its context indicators, but never create it, dismiss it, or edit its player, type or date (CL-SUI-14, CL-IHM-21).
-  - It carries the player, the type with its sheet version, a reference date equal to its game's day (known in advance, before kick-off), a reference to that game instead of sources, a description written by the application (CL-DSN-20), context indicators (unknown until the owner sets them, H-09) and management data. It carries no confidence, no precedence and no dating mark.
+  - It carries the player, the type with its sheet version, a reference date equal to its game's day (known in advance, before tip-off), a reference to that game instead of sources, a description written by the application (CL-DSN-20), context indicators (unknown until the owner sets them, H-09) and management data. It carries no confidence, no precedence and no dating mark.
   - Its measured game is that game itself; if the player does not play it, the case is non-measurable (record 0015).
 - **Why:** record 0015 adds the origin; 00 owns the object model every other file builds on.
 - **Owner review:** no
@@ -111,14 +111,14 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** 00 glossary « Cas » (historique ou suivi), « Cas enregistré à temps », SUI-06; register open point "Lot 2 flow of upcoming calendar-derived events"
 - **Problem:** a case is historical when it comes from a backtest and tracked when it comes from a detected event; calendar-derived events come from neither.
 - **Ruling:** a calendar-derived case is tracked when its event was created before the scheduled start of its game, and is then recorded on time (SUI-06); it is historical when its event was created after that start, which is the case for every game already played when the derivation first sees it. In Lot 1 both kinds count in the profile like any case; tracked cases get the Lot 2 treatment of CL-VUE-14.
-- **Why:** a game known in advance and recorded before kick-off is exactly what the validation table needs; this follows the recommended handling of record 0015.
+- **Why:** a game known in advance and recorded before tip-off is exactly what the validation table needs; this follows the recommended handling of record 0015.
 - **Owner review:** yes — upcoming birthday and first-reunion games now enter the validation table as real-condition tests, which no French text foresaw.
 
 ### CL-VUE-14 — Upcoming calendar-derived events go through steps 8 to 10
 
 - **Affects:** VUE-10, CA-VUE-10, 00 « Parcours » steps 8 to 10, ALE-01, SUI-01, TEL-11; register open point "Lot 2 flow of upcoming calendar-derived events"
 - **Problem:** VUE-10 covers detected events of profiled players only; nothing says what follows an upcoming calendar-derived event.
-- **Ruling:** in Lot 2, a calendar-derived event created before kick-off for an active player goes through steps 8 to 10 with no action from the owner: an alert sheet (09), a tracked case whose forecast is frozen at tip-off (10), then the measured case in the profile and in the validation table, with the Telegram messages of 11. No research coverage is required, no backtest request is created and no "type not covered by the backtest" mention appears; the sheet's content follows the player's number of valid cases for that type (ALE-12). For a paused player the event and its tracked case exist but no alert sheet is produced (ALE-01, JOU-18); withdrawn players get no derivation (CL-JOU-05).
+- **Ruling:** in Lot 2, a calendar-derived event created before tip-off for an active player goes through steps 8 to 10 with no action from the owner: an alert sheet (09), a tracked case whose forecast is frozen at tip-off (10), then the measured case in the profile and in the validation table, with the Telegram messages of 11. No research coverage is required, no backtest request is created and no "type not covered by the backtest" mention appears; the sheet's content follows the player's number of valid cases for that type (ALE-12). For a paused player the event and its tracked case exist but no alert sheet is produced (ALE-01, JOU-18); withdrawn players get no derivation (CL-JOU-05).
 - **Why:** an upcoming birthday or reunion is a new event of the player (D-29); its history is fully derived, so no backtest condition makes sense (record 0015, recommended handling).
 - **Owner review:** yes — the owner will receive alert sheets and Telegram alerts for upcoming birthday and first-reunion games.
 
@@ -132,11 +132,11 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## Ruled elsewhere
 
-- **Supplementary request "created or proposed"** (00 « Variantes ») — owned by 05: BKT-04 creates the detection-born supplement, BKT-05 proposes the validation-born one and creates nothing without the owner's agreement; no change needed.
-- **Alert sheet for a non-profiled player whose result is imported after tip-off** — owned by 09: ALE-05 settles it (no sheet after tip-off; the event stays a tracked case); no change needed.
-- **Valid case versus the "measured" state** — owned by 08: SEN-07 settles it (a measured case has no retained doubtful criterion, so measured and valid coincide; a case with one is "excluded"); no change needed.
-- **Which season the normalized gap uses** — owned by 07: STA-16 and STA-17 settle it (the measured game's season and phase, only the measured game removed); no change needed.
-- **Details of the Lot 2 flow of calendar-derived events** — owned by 09, 10 and 11: settled consistently with CL-VUE-13 and CL-VUE-14 by CL-ALE-13 (sheet), CL-SUI-14 (tracked case, timing, deletion before kick-off) and CL-TEL-21 (messages); no change needed.
+- **Supplementary request "created or proposed"** (00 « Variantes ») — owned by 05: ruled by CL-BKT-25 (BKT-04 creates the detection-born supplement; BKT-05 and BKT-06 propose theirs and create nothing without the owner's agreement).
+- **Alert sheet for a non-profiled player whose result is imported after tip-off** — owned by 09: ruled by CL-ALE-15 (ALE-05 as written: no sheet once the expected game has started; the event stays a tracked case).
+- **Valid case versus the "measured" state** — owned by 08: ruled by CL-SEN-27 (a measured case has no retained doubtful criterion, so measured and valid coincide; a case with one is "excluded").
+- **Which season the normalized gap uses** — owned by 07: ruled by CL-STA-02 (the measured game's season and baseline phase, only the measured game removed, STA-16 and STA-17).
+- **Details of the Lot 2 flow of calendar-derived events** — owned by 09, 10 and 11: settled consistently with CL-VUE-13 and CL-VUE-14 by CL-ALE-13 (sheet), CL-SUI-14 (tracked case, timing, deletion before tip-off) and CL-TEL-21 (messages), the derivation itself being CL-TAX-19's.
 
 ## Passed to the glossary
 

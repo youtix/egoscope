@@ -55,7 +55,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** D-32, D-34, Q-06, VUE-04
 - **Problem:** two of the three motivating examples are team situations, while every event concerns exactly one player.
-- **Ruling:** as written: team events stay out (Q-06, VUE-04); the examples are motivation, not types. D-34 already recasts the series example as the player-centred type "negative record to avoid", whose criteria require the player to be named.
+- **Ruling:** as written: team events stay out (Q-06, VUE-04); the examples are motivation, not types. D-34 already recasts the series example as the player-centered type "negative record to avoid", whose criteria require the player to be named.
 - **Why:** examples never override a requirement.
 - **Owner review:** no
 
@@ -93,8 +93,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## Ruled elsewhere
 
-- **Per-minute index at very low or zero minutes** (H-13) — owned by 07: STA-13 (no minutes, not played, no index) and STA-14 (playing-time threshold) settle it, with SEN-12 for the measured game; no change needed.
-- **Opponent level computed from statistics** (H-09) — owned by 07: STA-06 computes each team's record from the results the source must provide (TRV-15); no extra data source; no change needed.
+- **Per-minute index at very low or zero minutes** (H-13) — owned by 07: ruled by CL-STA-04 and CL-STA-06 (no minutes and no statistic, not played; zero minutes with a statistic, played without index) and CL-STA-07 (the playing-time threshold of STA-14), with SEN-12 for the measured game.
+- **Opponent level computed from statistics** (H-09) — owned by 07: ruled by CL-STA-19 (team records computed from the stored results the source must provide, TRV-15, never from its record columns), with CL-SEN-10 for the games SEN-15 counts; no extra data source.
 
 ## Passed to the glossary
 

@@ -15,13 +15,14 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 ### CL-STA-02 — Game phase and baseline phase
 
-- **Affects:** STA-05, STA-16, STA-18, STA-19, STA-20, STA-22, SEN-14, CA-STA-07
+- **Affects:** STA-05, STA-16, STA-17, STA-18, STA-19, STA-20, STA-22, SEN-14, CA-STA-07, 00 relations (normalized gap)
 - **Problem:** a game has three phases while a baseline has two, and "phase finished" is league-wide for one and per player for the other.
 - **Ruling:**
   - Game phase: regular season, play-in, playoffs (STA-05). Baseline phase: regular season or postseason, the postseason grouping the play-in and playoff games of the same season (STA-18 default). With STA-18's parameter set to the regular season, a play-in or playoff game is compared with the same season's regular-season baseline, built from regular-season games only.
   - The regular-season phase is finished when no regular-season game of the season is still scheduled, in progress or postponed, league-wide; its last game, for the correction window (STA-20), is the season's last regular-season game, league-wide.
   - The postseason is finished for a player when his team is eliminated (from the play-in or the playoffs) or the Finals are over; its last game is his team's last postseason game. A team that never enters the postseason has no postseason baseline.
   - SEN-14's play-in test reads the game phase; cases show the baseline phase.
+  - A case's normalized gap uses the baseline of its measured game's season and baseline phase, with that game alone removed (STA-16, STA-17, as written); the measured games of other cases stay in it.
 - **Why:** STA-18 and STA-20 already imply two notions; naming them avoids one ambiguous "phase" field.
 - **Owner review:** no
 
@@ -107,8 +108,8 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 - **Problem:** STA-32's earliest time moves with each day's last tip-off, the host has no fine scheduler, and the chosen source publishes the previous night about eight to nine hours after its last tip-off.
 - **Ruling:** The timing is CL-TRV-23's, applied as it is; in this file's terms:
   - The competition day D is the league's US date of the games (CL-TRV-03).
-  - The daily update for D starts at the start hour (15:00 in the owner's time zone by default, CL-TRV-23) and fetches as soon as the source shows a refresh made after D's last scheduled tip-off plus STA-32's delay (3 hours); it checks every probe interval (60 minutes) until the cut-off (20:00), then fetches what is published, missing sheets following STA-35. After a competition day without games it does not wait.
-  - A late source is not a failed request: STA-36's retries do not apply to it. Lateness on consecutive competition days opens the "statistics source unavailable" incident of STA-37, as CL-TRV-23 rules.
+  - The daily update for D starts at the start hour (15:00 in the owner's time zone by default, CL-TRV-23) and fetches as soon as the source shows a refresh made after D's last scheduled tip-off plus STA-32's delay (3 hours); it checks every probe interval (60 minutes) until the cut-off (20:00), then fetches what is published and ends with the result "source late", missing sheets following STA-35. After a competition day without games it does not wait.
+  - A late source is not a failed request: STA-36's retries do not apply to it. One day that ends "source late" is a warning only; the "statistics source unavailable" incident of STA-37 opens when the source has been late on 2 consecutive competition days (parameter) and closes when a refresh lands, as CL-TRV-23 rules.
   - The external trigger (ADR 0002) runs the scheduler often enough for these steps; the update runs once per D and resumes where it stopped (TRV-30).
 - **Why:** STA-32 sets an earliest time; waiting for the publication avoids ingesting each night a day late; file 14 owns the task calendar.
 - **Owner review:** no
@@ -137,15 +138,15 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 - **Why:** « précédente » reads as "preceding the measured game", the closest normal play.
 - **Owner review:** no
 
-### CL-STA-14 — Venue local date and times to be determined
+### CL-STA-14 — The day of a game and times to be determined
 
-- **Affects:** STA-31, SEN-02, BKT-16, BKT-18, ADR 0015 (birthday games), CA-STA-08; CL-TRV-03 (file 14 ruling)
-- **Problem:** several rules need the game's date at the venue, which the source does not give, and STA-31's deemed start at the beginning of the local day would show as midnight.
+- **Affects:** STA-31, SEN-02, BKT-16, BKT-18, ADR 0015 (birthday games), H-STA-11, CA-STA-08; CL-TRV-03 (file 14 ruling)
+- **Problem:** several rules speak of the game's date at the venue, which the source does not give, and STA-31's deemed start at the beginning of the local day would show as midnight.
 - **Ruling:**
-  - Venue local date: the calendar date of the scheduled start in the venue's time zone, as CL-TRV-03 rules: the zone of the venue's city when the source names a venue of the fixed table kept with the source adapter (every NBA arena, past and present, and the international venues found in the schedules), otherwise the zone of the home team's arena, otherwise US Eastern time. A venue missing from the table is recorded in the journal (no player data) so the table can be completed.
-  - Time to be determined (the source's flag that the time is not valid): the game keeps its date, the mark "time TBD" and a deemed start at 00:00 at the venue on that date, in the zone found as above (H-STA-11). Every comparison — precedence, SEN-03's "strictly after", SEN-04's window, orderings, BKT-18's urgency — uses the deemed start. Screens and messages show the date with "time TBD", never 00:00. When the time is published, it replaces the deemed start and dependent cases are recalculated (STA-28, SEN-34).
+  - The day of a game is its date in US Eastern time (`America/New_York`), as CL-TRV-03 rules for every rule that speaks of the local date at the venue (SEN-02, STA-31, the birthday games of ADR 0015). No venue time zone is stored or looked up, and no venue table exists: the source's own game date is that Eastern date.
+  - Time to be determined (the source's flag that the time is not valid): the game keeps its date, the mark "time TBD" and a deemed start at 00:00 US Eastern time on that date, the beginning of its day (H-STA-11 read through CL-TRV-03). Every comparison — precedence, SEN-03's "strictly after", SEN-04's window, orderings, BKT-18's urgency — uses the deemed start. Screens and messages show the date with "time TBD", never 00:00. When the time is published, it replaces the deemed start and dependent cases are recalculated (STA-28, SEN-34).
   - A placeholder game whose teams are still to be determined is no team's game until its teams are set.
-- **Why:** derives what the source does not give; the deemed start is a cautious bound for comparisons, not information to show.
+- **Why:** the source's game date equals the Eastern date of the tip-off instant in every schedule row checked (43,562 rows, the 31 games played in Europe and Mexico City included), so a venue table would change no game's day; the deemed start is a cautious bound for comparisons, not information to show.
 - **Owner review:** no
 
 ### CL-STA-15 — Outage, quota and normal answers
@@ -233,9 +234,9 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
   - The source chosen on 2026-11-11 is used alone (statistics-source evaluation, section 1): one source, one confirmed identity per player, STA-03 as written.
   - One source per season, always: the service sheet assigns each season to exactly one source. All data of a season — schedule, results, series, box scores, team records — comes from that source and the other is never queried for it, so no rule ever chooses between two sources for one game, and no baseline, threshold, team record or opponent percentage mixes sources.
   - Two combined sources: the player has one mapping per source, each confirmed by the owner (CL-JOU-21); until a source's mapping is confirmed, its seasons are not fetched and their cases wait (stats match not confirmed).
-  - Replacement (TRV-12): as CL-TRV-14 rules — stored seasons keep the data and identifiers of the source they came from; players are mapped by the published crosswalk where it exists, otherwise by a new JOU-10 confirmation; teams and games are matched by date, home team and away team. One difference: the season in progress at the replacement is fetched again whole from the new source, its consolidated games included (an exception to STA-42 and to CL-TRV-14's "never fetches a consolidated game again"), and its games are matched to the stored ones the same way, so that its baseline never mixes two sources. A full recalculation follows (SEN-34, item d).
+  - Replacement (TRV-12): as CL-TRV-14 rules — stored seasons keep the data and identifiers of the source they came from, except the season in progress at the replacement, which is fetched again whole from the new source, its consolidated games included, so that its baseline never mixes two sources (CL-TRV-14's exception to STA-42); a full recalculation follows (SEN-34, item d).
 - **Why:** ADR 0012's recommended handling, one source per season; a season half from each source would mix, for example, rounded and exact minutes inside one baseline.
-- **Owner review:** yes — at a replacement, the season in progress is fetched again whole from the new source, consolidated games included, so that no season's numbers come from two sources.
+- **Owner review:** no
 
 ### CL-STA-24 — Former teams from seasons the source does not cover
 
@@ -296,7 +297,8 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 ## Ruled elsewhere
 
 - The start hour, wait and cut-off of the daily statistics task (TRV-25, file 14): ruled by CL-TRV-23, which CL-STA-10 follows.
-- The day of a game and the venue's zone (TRV-72, file 14): ruled by CL-TRV-03, which CL-STA-10 and CL-STA-14 follow.
+- The day of a game (TRV-72, file 14): ruled by CL-TRV-03 — its date in US Eastern time, with no venue time zone — which CL-STA-10 and CL-STA-14 follow.
+- Replacing the statistics source (TRV-12, TRV-77, file 14): ruled by CL-TRV-14, which CL-STA-23 follows.
 - The calendar derivation and the Lot 2 flow of upcoming calendar-derived events (ADR 0015, open points 1 and 2): ruled by CL-TAX-18, CL-TAX-19, CL-VUE-13, CL-SUI-14, CL-ALE-13 and CL-TEL-21, which CL-STA-25 follows.
 - A birthday on 29 February (ADR 0015, open point 5): ruled by CL-JOU-17.
-- Missed games across trades and seasons (STA-46): CL-JOU-15's count, which CL-STA-05 and CL-STA-21 define in this file's terms.
+- The player-sheet indicators between seasons (JOU-02, JOU-21, file 01): ruled by CL-JOU-15, whose count of missed games CL-STA-05 and CL-STA-21 define in this file's terms.

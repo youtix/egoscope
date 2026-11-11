@@ -50,7 +50,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 ### CL-ALE-06 — A closed sheet whose events are all dismissed
 
 - **Affects:** ALE-22, ALE-26, ALE-27, ALE-28, ALE-29, SUI-17
-- **Problem:** ALE-26 defines « annulée » as all events dismissed or reassigned, with no time limit; whether a closed sheet can become cancelled, and what then happens to its outcome, is not said.
+- **Problem:** ALE-26 defines « annulée » as all events dismissed or reassigned, with no time limit; whether a closed sheet can become canceled, and what then happens to its outcome, is not said.
 - **Ruling:** the state always follows ALE-26: a closed sheet whose last non-dismissed event is dismissed becomes « annulée », and reinstatement brings it back to « close » (ALE-22). Its outcome block stays visible and unchanged, the update log records the dismissal with its date, and no message is sent. How the case then counts follows SUI-17 (CL-DET-09).
 - **Why:** ALE-26's states are definitions; ALE-28 forbids rewriting the outcome, not changing the state.
 - **Owner review:** no
@@ -115,27 +115,35 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:**
   - An upcoming calendar-derived event that becomes a tracked case (CL-SUI-14) gets a sheet when the player is active and the type validated, whether or not the player is profiled, since these profiles rest on statistics, not on research; a paused or withdrawn player gets none (ALE-01).
   - It joins the sheet of the same player whose expected game is the same (ALE-03); its expected game is the derived game.
-  - Its event block shows the type with its link, the description written by the app (ADR 0015), and "derived from the schedule" with the derived game (date, time, opponent) in place of sources, publication instant and lead time; it has no detection confidence and no dating mark; context indications are shown with their origin.
+  - Its event block shows the type with its link, the description written by the app (ADR 0015), and "derived from the calendar" with the derived game (date, time, opponent) in place of sources, publication instant and lead time; it has no detection confidence and no dating mark; context indications are shown with their origin.
   - Caveats: the detection-confidence and dating caveats never apply, nor « type non couvert par le backtest » (ADR 0015); every other caveat applies as for any event, the permanent confounder warning of ADR 0016 included.
-  - If the event is dropped before tip-off (CL-SUI-14), the update log records it and the sheet becomes « annulée », with the reason "event no longer applies", when no other non-dismissed event remains, as ALE-31 does for a corrected attachment.
+  - If the event is dropped before tip-off (CL-TAX-19, CL-SUI-14), the update log records it and the sheet becomes « annulée », with the reason "event no longer applies", when no other non-dismissed event remains, as ALE-31 does for a corrected attachment.
 - **Why:** this is ADR 0015's recommended handling, "an alert sheet, with no backtest condition", read with the exclusions of ALE-01.
 - **Owner review:** yes
 
-### CL-ALE-14 — A new event for the game of a cancelled sheet
+### CL-ALE-14 — A new event for the game of a canceled sheet
 
 - **Affects:** ALE-03, ALE-20, ALE-22, ALE-26, TEL-11, TEL-12, TEL-17
-- **Problem:** ALE-03 gathers the events of one player and one expected game on one sheet, but nothing says what happens when that sheet was cancelled (its events dismissed) and a new event arrives for the same game.
-- **Ruling:** the new event joins the cancelled sheet as a dated section (ALE-20), and by ALE-26 the sheet becomes « ouverte » again. The message is an alert update (TEL-12) if the sheet was already notified, otherwise the alert itself (TEL-11).
+- **Problem:** ALE-03 gathers the events of one player and one expected game on one sheet, but nothing says what happens when that sheet was canceled (its events dismissed) and a new event arrives for the same game.
+- **Ruling:** the new event joins the canceled sheet as a dated section (ALE-20), and by ALE-26 the sheet becomes « ouverte » again. The message is an alert update (TEL-12) if the sheet was already notified, otherwise the alert itself (TEL-11).
 - **Why:** one sheet per player and game (H-ALE-02), and one fact, one message (TEL-17).
+- **Owner review:** no
+
+### CL-ALE-15 — A research result imported after tip-off
+
+- **Affects:** ALE-05, ALE-24, SUI-10, 00 « Variantes » (Joueur sans backtest)
+- **Problem:** ALE-05 produces the sheet of a waiting detected event when a research result is imported before its game starts, but the measured game is known only once played, and file 00 restates the rule.
+- **Ruling:** As written: ALE-05 says « Si le coup d'envoi est déjà passé au moment de l'import, aucune fiche n'est produite ; l'événement reste un cas suivi ». The tip-off compared with the import is the scheduled start of the event's expected game as known at that moment (SUI-03, SUI-18), the measured game being established only once played (CL-ALE-04): an import saved before it produces the sheet; an import saved at or after it produces none, and the tracked case keeps the forecast rules of file 10, a late forecast included (SUI-10, CL-SUI-05).
+- **Why:** ALE-05 settles it; the expected game is the only game known at the import.
 - **Owner review:** no
 
 ## Passed to the glossary
 
 - The fixed sentences of ALE-10, ALE-12, ALE-13, ALE-16, ALE-17 and ALE-24, and the two forms of the direction caveat (CL-ALE-03).
 - Labels « profil modifié depuis l'émission », « profil en cours de calcul », « recalcul en cours », « match attendu inconnu », « aucun cas mesuré pour ce type à ce jour », « type non couvert par le backtest », « rattachement corrigé », « événement écarté », « indicatif », « tardive », « produite avant le coup d'envoi ».
-- The new cancellation reason "event no longer applies" and the "derived from the schedule" line (CL-ALE-13).
+- The new cancellation reason "event no longer applies" and the "derived from the calendar" line (CL-ALE-13).
 
 ## Ruled elsewhere
 
-- File 14, TRV-71 and TRV-72 (the US date of ALE-15, games played outside the US): recommendation — a game's US date is the calendar date of its scheduled start in US Eastern time (`America/New_York`), the date the league itself uses; see CL-IHM-07.
-- File 08, SEN-01: see the recommendation under CL-COL-02 and CL-SUI-12 — the measured game of a detected event uses the reference date DET-30 records, so the expected game of ALE-15 is its measured game unless the player is absent.
+- File 14, TRV-71 and TRV-72 (the US date of ALE-15, games played outside the US): ruled by CL-TRV-03 — a game's US date is the calendar date of its scheduled start in US Eastern time (`America/New_York`), the date the league itself uses — and shown as CL-TRV-02 and CL-IHM-07 say.
+- File 08, SEN-01: ruled by CL-SEN-02 — the measured game of a detected event uses the reference date DET-30 records (CL-COL-02, CL-SUI-12), so the expected game of ALE-15 is its measured game unless the player is absent.

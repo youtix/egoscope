@@ -166,7 +166,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
   - The classification result of the matching part (CL-DET-21) is erased at once, with no deduplication trace and no mention in the collection or detection journal beyond the run's generic counts (received, classified, quota used).
   - If the article has no other role — no other attachment, no pending proposal, no other pending part — it is erased at once like an article of a withdrawn event (COL-37, DSN-34); otherwise it keeps its other roles.
   - An erased article still offered by a feed within the admitted age is collected again as new at a later run and classified again; the app accepts that quota cost.
-  - Once the fingerprint has expired (eight weeks), the edge case applies as written: the event can come back and must be withdrawn again.
+  - Once the fingerprint has expired (at the end of its horizon, eight weeks by default, CL-DSN-07), the edge case applies as written: the event can come back and must be withdrawn again.
 - **Why:** keeping the article or its link would designate the withdrawn event beyond the keyed fingerprint, the only exception DSN-29 now allows; this is the handling ADR 0017 recommends.
 - **Owner review:** yes
 
@@ -225,6 +225,16 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** the owner's decision overrides H-11 for the interface, not for the press.
 - **Owner review:** no
 
+### CL-COL-23 — The ad-tracking elements removed from links
+
+- **Affects:** COL-28, COL-30, COL-34, CA-COL-26, edge case « Lien changeant »; CL-COL-18, CL-IMP-14 (file 03 and 06 rulings)
+- **Problem:** COL-28 removes "the ad-tracking elements that do not change the article designated" without listing them, while deduplication (COL-30), feed-address comparison (CL-COL-18) and the lot-1 link comparison of the import (CL-IMP-14) all rely on that cleaning.
+- **Ruling:**
+  - The cleaning removes from the query of a link every parameter whose name starts with `utm_`, and the parameters `fbclid`, `gclid`, `mc_cid` and `mc_eid`, names compared without regard to case. Nothing else is removed: the other parameters keep their order and values.
+  - The list is one constant of the shared link module that lot 1 builds for the import (CL-IMP-14) and lot 2 reuses for collection, covered by tests; extending it is a change of that constant, never a setting.
+- **Why:** these are the parameters that mark a campaign or a click without changing the page they open; a closed list keeps two links to different articles from ever being taken for one.
+- **Owner review:** no
+
 ## Passed to the glossary
 
 - Health states « jamais lue », « fonctionnelle », « en panne », « muette »; activation states « active », « désactivée », « retirée » (a withdrawn source, not a withdrawn event).
@@ -236,5 +246,5 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 ## Ruled elsewhere
 
-- File 08, SEN-01: recommendation — apply the end-of-day Pacific rule only to events whose public date has no time (imported historical events); a detected event always carries an instant (DET-30, CL-COL-02) that SEN-03 uses as is, so its measured game and its expected game (SUI-03) come from the same instant.
-- File 14, TRV-31: recommendation — the run that TRV-31 starts after a missed collection run is a scheduled run for the collection journal (CL-COL-07) and applies COL-45's catch-up like any other run.
+- File 08, SEN-01: ruled by CL-SEN-02 — the end-of-day Pacific rule applies only to events whose public date has no time (imported historical events); a detected event always carries an instant (DET-30, CL-COL-02) that SEN-03 uses as is, so its measured game and its expected game (SUI-03) come from the same instant.
+- File 14, TRV-31: ruled by CL-TRV-08 — the run that TRV-31 starts after a missed collection run is a scheduled run for the collection journal (CL-COL-07) and applies COL-45's catch-up like any other run.

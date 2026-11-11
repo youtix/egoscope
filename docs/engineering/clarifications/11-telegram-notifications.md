@@ -39,8 +39,8 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** TEL-09, TEL-10, TEL-11, TEL-12, TEL-13, TEL-14, TEL-15, TEL-17
 - **Problem:** TEL-17 says only the changes of TEL-09 and TEL-12 give a new message, yet TEL-10 sends reminders and TEL-15 incident reminders and end messages.
-- **Ruling:** a fact produces exactly the messages its catalogue entry lists: a request, one message at creation, one per deadline change (TEL-09, CL-TEL-18) and one reminder per deadline (TEL-10); an alert, one at production (TEL-11) and one per update TEL-12 lists; a tracked case, one result (CL-SUI-09); a new type proposal, one (TEL-14); an incident, its start, a reminder every 3 days while it lasts and its end (TEL-15, CL-TEL-08). TEL-17's "changes" are changes of a fact's content; scheduled reminders belong to their entries.
-- **Why:** TEL-17 summarizes the catalogue and must be read against it.
+- **Ruling:** a fact produces exactly the messages its catalog entry lists: a request, one message at creation, one per deadline change (TEL-09, CL-TEL-18) and one reminder per deadline (TEL-10); an alert, one at production (TEL-11) and one per update TEL-12 lists; a tracked case, one result (CL-SUI-09); a new type proposal, one (TEL-14); an incident, its start, a reminder every 3 days by default while it lasts and its end (TEL-15, CL-TEL-08). TEL-17's "changes" are changes of a fact's content; scheduled reminders belong to their entries.
+- **Why:** TEL-17 summarizes the catalog and must be read against it.
 - **Owner review:** no
 
 ### CL-TEL-06 — No reply to conversations that are not linked
@@ -188,10 +188,10 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 ### CL-TEL-21 — Calendar-derived events in messages
 
 - **Affects:** TEL-06, TEL-11, TEL-12, TEL-13, TEL-18; open point 1 of ADR 0015
-- **Problem:** the catalogue designates an event by player, type and press source, and the Telegram flow of an upcoming calendar-derived event is left open by ADR 0015.
+- **Problem:** the catalog designates an event by player, type and press source, and the Telegram flow of an upcoming calendar-derived event is left open by ADR 0015.
 - **Ruling:**
-  - The alert of a sheet holding a calendar-derived event (CL-ALE-13) follows TEL-11, designating that event by player and type name and, in place of a source, "from the schedule" with the derived game; every other content of TEL-11 applies.
-  - When such an event is deleted before tip-off (CL-SUI-14) on a sheet already notified, an alert update (TEL-12) says in one or two lines that the event no longer applies and why, with the sheet's state, if this is known before the game's scheduled start; when the deletion follows the owner's own change, such as a corrected birthday, nothing is sent (TEL-18).
+  - The alert of a sheet holding a calendar-derived event (CL-ALE-13) follows TEL-11, designating that event by player and type name and, in place of a source, "from the calendar" with the derived game; every other content of TEL-11 applies.
+  - When such an event is deleted before tip-off (CL-TAX-19, CL-SUI-14) on a sheet already notified, an alert update (TEL-12) says in one or two lines that the event no longer applies and why, with the sheet's state, if this is known before the game's scheduled start; when the deletion follows the owner's own change, such as a corrected birthday, nothing is sent (TEL-18).
   - Tracked-game results follow TEL-13; the mention « pas encore de backtest : ce cas compte déjà dans son profil, qui ne repose que sur ses cas suivis » never applies to a calendar-derived type.
   - Since upcoming events come only from scheduled runs (CL-SUI-14), their alerts are notified like any other.
 - **Why:** this completes ADR 0015's recommended flow without new message kinds.
@@ -209,18 +209,18 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** TEL-07, TEL-29, TEL-31, IHM-10
 - **Problem:** TEL-07 and IHM-10 forbid secrets in links, while TEL-29 carries a one-time code in the "Open Telegram" button.
-- **Ruling:** As written: TEL-29 says the code is « porté par le bouton « Ouvrir Telegram » »; TEL-07 and IHM-10 concern the return links to the app and its screens' addresses. The code is single-use, valid 15 minutes, and its value is never written to the activity journal, refused attempts included (TEL-31).
+- **Ruling:** As written: TEL-29 says the code is « porté par le bouton « Ouvrir Telegram » »; TEL-07 and IHM-10 concern the return links to the app and its screens' addresses. The code is single-use, valid 15 minutes by default (the TEL-29 parameter), and its value is never written to the activity journal, refused attempts included (TEL-31).
 - **Why:** the code is the linking mechanism itself, short-lived and single-use.
 - **Owner review:** no
 
 ## Passed to the glossary
 
-- Category names, the first-line labels of every catalogue entry and of the service messages: link confirmation, test, catch-up, cap reached, quiet-hours digest, pass digest, "deadline changed", "urgent".
+- Category names, the first-line labels of every catalog entry and of the service messages: link confirmation, test, catch-up, cap reached, quiet-hours digest, pass digest, "deadline changed", "urgent".
 - Message statuses « à envoyer », « différé », « envoyé », « regroupé », « abandonné », « en échec »; link states « non reliée », « en attente de confirmation », « reliée depuis le… », « rompue ».
 - The closing line « Mesure du passé, pas un pronostic. »; « après le coup d'envoi »; « événement sensible »; « pas encore de backtest : ce cas compte déjà dans son profil, qui ne repose que sur ses cas suivis »; « Cette conversation n'est plus reliée à Egoscope »; « Tout est dans l'application ».
 - The new parameter "catch-up interval" (CL-TEL-12).
 
 ## Ruled elsewhere
 
-- File 14, TRV-67: recommendation — read "at most the neutral answer" as "no answer", as TEL-31 says (CL-TEL-06).
-- File 13, DSN-28: the limits shown before a withdrawal include the number of Telegram messages concerned (CL-TEL-09).
+- File 14, TRV-67: ruled by CL-TRV-21 — "at most the neutral answer" is no answer, as TEL-31 says (CL-TEL-06).
+- File 13, DSN-28: ruled by CL-DSN-19 — the limits shown before a withdrawal include the number of Telegram messages concerned, counted as CL-TEL-09 says.

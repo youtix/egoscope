@@ -59,7 +59,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
   - his profiles with their verdict-history entries, and the type-proposal occurrences that concern him (the proposal itself stays);
   - in the journal, every reference to him or to his events, which then read "a deleted player" or "an item that no longer exists" (CL-TRV-10).
 
-  The counter grows by the number of his events, all origins and states (CA-JOU-16). No fingerprint is created (CL-JOU-24); one deleted-player entry is kept so that a restore deletes him again (CL-TRV-06). Before the double confirmation the screen shows the counts and these limits: backups keep the data until they rotate out; a restore made within the fingerprint horizon deletes him again; downloaded exports keep it; Telegram messages that can no longer be deleted stay. General trends are then recalculated.
+  The counter grows by the number of his events, all origins and states (CA-JOU-16). No fingerprint is created (CL-JOU-24); one deleted-player entry is kept so that a restore deletes him again (CL-TRV-06). Before the double confirmation the screen shows the counts and these limits: backups keep the data until they rotate out; a restore made within the fingerprint horizon deletes him again, except a restore into a new database without the old one (CL-TRV-06); downloaded exports keep it; Telegram messages that can no longer be deleted stay. General trends are then recalculated.
 - **Why:** "toutes ses données" leaves no exception; when in doubt the app erases more.
 - **Owner review:** yes — deletion also removes his statistics lines, verdict history and journal mentions, and leaves one unreadable entry for the fingerprint horizon.
 
@@ -134,7 +134,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Ruling:**
   - JOU-02 covers the season in progress (from its first regular-season game to its last playoff game, STA-48) and, between seasons, the last season played; the indicator names the season it covers.
   - The date of the last game played covers every official game.
-  - The consecutive team games missed are the official games of the team the player belonged to at each game date, counted since his last game played: after a trade the new team's games count from his arrival, games before his arrival or after his departure never count (07 « Cas limites »), the count carries over the off-season, and nothing is added while he has no team. JOU-22's suggestion uses this count.
+  - The consecutive team games missed are the official games of the team the player belonged to at each game date, counted since his last game played, as CL-STA-05 and CL-STA-21 define them: after a trade the new team's games count from his arrival, games before his arrival or after his departure never count (07 « Cas limites »), the count carries over the off-season, and nothing is added while he has no team. JOU-22's suggestion uses this count.
 - **Why:** a long absence often spans a season end or a trade; the indicator must stay meaningful there.
 - **Owner review:** no
 
@@ -144,10 +144,10 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Problem:** JOU-11 would add "le seul jour anniversaire" if Q-TAX-01 went to the calendar, without saying whether the year is excluded or where the value comes from.
 - **Ruling:** the identity gains one optional field, the day and month of birth, never the year (record 0015).
   - It is filled from the statistics source when a mapping is confirmed and the source gives a date of birth, only if the field is empty: the adapter keeps the day and month and drops the year before anything is stored, shown or logged. The application never overwrites it afterwards, except as CL-JOU-11 says.
-  - The owner can enter, correct or remove it. Before saving, the screen shows how many birthday events and cases the change adds and drops; a full derivation of his birthday events then runs (CL-TAX-19). Events of games that no longer qualify are deleted with their cases; this is not a withdrawal: no fingerprint, no counter, and no Telegram message (CL-TEL-21).
+  - The owner can enter, correct or remove it. Before saving, the screen shows how many birthday events and cases the change adds and drops; a full derivation of his birthday events then runs (CL-TAX-19). Events of games that no longer qualify are deleted with their cases, each deletion written to the journal (CL-TAX-19); this is not a withdrawal: no fingerprint, no counter, and no Telegram message (CL-TEL-21). Those whose game had already started count among the exits of his birthday profile, as a number without date or game (CL-SEN-25). Alert sheets and Telegram messages already produced for such events stay as they are, apart from the update of CL-ALE-13 for a drop before tip-off; to remove them too, the owner withdraws the events before changing the birthday (CL-DSN-09).
   - The player page shows it as day and month ("14 March"); when it is missing, the page and the birthday profile say "birthday not recorded: no birthday events".
 - **Why:** the owner agreed to this one exception to JOU-11; removing the value must not leave events whose dates reveal it.
-- **Owner review:** yes — removing or correcting the birthday deletes the birthday cases it no longer supports, without counting them as withdrawals.
+- **Owner review:** yes — removing or correcting the birthday deletes the birthday cases it no longer supports, without counting them as withdrawals; the profile counts those already played among its exits, without dates.
 
 ### CL-JOU-17 — Birthday on 29 February
 
@@ -161,7 +161,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** JOU-11, JOU-13, STA-08, STA-45; record 0015; register open point "Former teams known only from seasons the source does not cover"
 - **Problem:** former teams were to be added to the identity; record 0015 derives them from box scores, which exist only for covered seasons.
-- **Ruling:** former teams are never entered nor stored in the identity. At each derivation they are read from the stored box scores of covered seasons: a team for which the player played at least one official game with minutes, his stint with it ending at his last official game played for it. Teams are identified by the statistics source's stable team identifier, so a franchise that moved or was renamed stays one team when the source keeps its identifier. A team the player left during a season the source does not cover stays unknown and its reunions are missed; a first meeting is derived only when every season from the departure to that game is covered. The former-team profile carries a permanent mention that its team history starts with the first covered season, which it names.
+- **Ruling:** former teams are never entered nor stored in the identity. At each derivation they are read from the stored box scores of covered seasons: a team for which the player played (CL-STA-04) at least one official game, his stint with it ending at his last official game played for it. Teams are identified by the statistics source's stable team identifier, so a franchise that moved or was renamed stays one team when the source keeps its identifier. A team the player left during a season the source does not cover stays unknown and its reunions are missed; a first meeting is derived only when every season from the departure to that game is covered. The former-team profile carries a permanent mention that its team history starts with the first covered season, which it names.
 - **Why:** the box scores are the only automatic evidence of a player's teams; the mention keeps the limit visible.
 - **Owner review:** yes — reunions with teams left before the first covered season are missed, and the profile says so.
 
@@ -215,10 +215,11 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## Ruled elsewhere
 
-- **A result bearing a deleted player's identifier** — owned by 06: IMP-07 settles it (lookup by identifier, then by name, attachment offered, never automatic); no change needed.
-- **Missed games across trades and seasons** — owned by 07 (STA-46): recommendation, count as CL-JOU-15 says, by the player's team at each game date.
-- **Distinct articles in the exposure count** — owned by 04 (DET-57): recommendation, count each article once per player, as CL-JOU-19 says.
-- **Profile mentions for calendar-derived types** — owned by 08 (SEN-46): recommendation, add the former-team history mention of CL-JOU-18 and the "birthday not recorded" mention of CL-JOU-16 to the profile warnings.
+- **A result bearing a deleted player's identifier** — owned by 06: ruled by CL-IMP-32 (lookup by identifier, then by name, attachment offered, never automatic).
+- **Missed games across trades and seasons** — owned by 07 (STA-46): ruled by CL-STA-05 and CL-STA-21 (the player's team at each game date, counted across seasons), which CL-JOU-15 applies.
+- **Distinct articles in the exposure count** — owned by 04 (DET-57): ruled by CL-DET-14 (each article counts once per player), which CL-JOU-19 stores.
+- **Profile mentions for calendar-derived types** — owned by 08 (SEN-46): ruled by CL-SEN-03, which shows the former-team history mention of CL-JOU-18, the "birthday not recorded" mention of CL-JOU-16 and the covered-seasons mention of CL-STA-24 among the profile warnings.
+- **Birthday events dropped after their game** — owned by 08 (SEN-33): ruled by CL-SEN-25 (they count among the profile's exits, as a number only).
 
 ## Passed to the glossary
 

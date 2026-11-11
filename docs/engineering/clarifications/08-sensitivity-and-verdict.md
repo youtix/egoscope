@@ -35,8 +35,8 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
   - No skipping (SEN-03), no window (SEN-04), no precedence check (IMP-18, SEN-44), no "dating to verify" (SEN-45).
   - The case's reference is the game's date, with the provenance "known in advance". The case is tracked or historical as CL-VUE-13 rules: tracked when the event was created before the game's scheduled start, historical otherwise.
   - Context indications start "unknown" (ADR 0015), so only the calculated conditions of SEN-13 and SEN-14 apply until the owner sets them.
-  - These events are never withdrawn; the owner excludes their cases instead (SEN-17, CL-DSN-09).
-  - SEN-43 does not count these cases. The coverage warnings of SEN-46 never show for these types; their profile warnings are "birthday not recorded" (CL-JOU-16) and the team-history mention of CL-JOU-18, as CL-STA-24 places them.
+  - These events can be withdrawn like any event (DSN-26, CL-DSN-09); excluding a case by hand (SEN-17) is the permanent way to keep one out of the calculations.
+  - SEN-43 does not count these cases. The coverage warnings of SEN-46 never show for these types; their profile warnings are "birthday not recorded" (CL-JOU-16), the team-history mention of CL-JOU-18 and the covered-seasons mention of birthday profiles, as CL-STA-24 places them.
   - Co-occurrence (SEN-06) applies: a derived event and an event of another type on the same game each give a co-occurring case.
 - **Why:** ADR 0015 and its register rows, applied to every rule of 08 that the derived game touches.
 - **Owner review:** no
@@ -45,8 +45,8 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** SEN-02, SEN-04, SEN-13, H-SEN-02
 - **Problem:** SEN-02 attaches an event known in advance by local dates, while SEN-04's window counts from a reference instant that such an event does not have, and whether skipped games count as absences is not said.
-- **Ruling:** As written (register row SEN-02), made computable. E is the event's date: the public date as written for a historical event, the US date of the reference date for a detected one. The candidate games are the player's team games (CL-STA-05) whose venue local date (CL-STA-14) is E or later, in order; games he did not play are skipped and count as absences; the first game he played is the measured game if its venue local date is at most E + 10 days (the SEN-04 parameter, counted in calendar days), otherwise the case is not measurable, "no game played within the window". No seeded type is of this kind.
-- **Why:** keeps SEN-02's local dates and gives SEN-04 a date to count from.
+- **Ruling:** As written (register row SEN-02), made computable. E is the event's date: the public date as written for a historical event, the date in US Eastern time of the reference date for a detected one (CL-TRV-03). The candidate games are the player's team games (CL-STA-05) whose day (CL-TRV-03, CL-STA-14) is E or later, in order; games he did not play are skipped and count as absences; the first game he played is the measured game if its day is at most E + 10 days (the SEN-04 parameter, counted in calendar days), otherwise the case is not measurable, "no game played within the window". No seeded type is of this kind.
+- **Why:** keeps SEN-02's date comparison, the local date at the venue being the game's Eastern day (CL-TRV-03), and gives SEN-04 a date to count from.
 - **Owner review:** no
 
 ### CL-SEN-05 — The order in which a case gets its state and reason
@@ -187,7 +187,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
   | « événement écarté » | A detected event dismissed (SEN-48, lot 2). |
   | « changement de paramètre » | A parameter change; the criterion switch of a type (ADR 0016). |
   | « recalcul » | A recalculation the owner asks for; a withdrawal; the deletion of a player's data (CL-SEN-18). |
-  | "event corrected or removed" (new) | A correction of an event (type, date, context, sources, research confidence, reservation; IMP-32, DET-47, DET-48); a dating mark lifted (lot 2); a requalification, reassignment or distribution (TAX-25, TAX-29); a manual deletion (IMP-33); a merge of detected events (DET-47); a derived event no longer derived (CL-SEN-25). |
+  | "event corrected or removed" (new) | A correction of an event (type, date, context, sources, research confidence, reservation; IMP-32, DET-47, DET-48); a dating mark lifted (lot 2); a requalification, reassignment or distribution (TAX-25, TAX-29); a manual deletion (IMP-33); a merge of detected events (DET-47); a derived event no longer derived (CL-SEN-25), or derived anew after a change of the player's birthday or team history (CL-TAX-19). |
   | "event reinstated" (new) | A dismissed event reinstated (DET-45, lot 2). |
   | "taxonomy changed" (new) | A type validated, withdrawn, reactivated, merged or split; a substantive change of a calendar-derived sheet that runs its derivation again. |
 
@@ -261,7 +261,8 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Ruling:**
   - An upcoming event dropped before its game's scheduled start is deleted with its case and leaves no trace in the tally (CL-SUI-14, CL-TAX-19): nothing about it could depend on a result.
   - An event whose game had started is deleted with its case (CL-TAX-19, CL-JOU-16), and its profile's tally counts it among the events that left the count, with the reason "no longer derived from the calendar" (SEN-33). The tally keeps only that number per reason, with no date and no game, so that a removed or corrected birthday leaves nothing that reveals it (CL-JOU-16).
-  - Where this differs from CL-TAX-19 and CL-JOU-16, which record such drops in the journal only: SEN-33 requires every exit from the count to show on the profile, by reason, and an owner's correction of a birthday after seeing results must stay visible there.
+  - Both records exist: the drop is written to the journal (CL-TAX-19, CL-JOU-16) and counted on the profile, since SEN-33 requires every exit from the count to show on the profile, by reason, and an owner's correction of a birthday after seeing results must stay visible there.
+  - Storage: per player and calendar-derived type, the number of events dropped after their game started, kept with the profile's exit counts and surviving the deletion of those events and their cases; it holds no date, game or event reference. A profile whose tally holds only such exits still exists (CL-SEN-26).
 - **Why:** SEN-32 and SEN-33 forbid silent exits once a game has been played; before it, no exit can follow a result.
 - **Owner review:** no
 
@@ -269,7 +270,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** SEN-19, SEN-20, SEN-33, SEN-48
 - **Problem:** a profile exists "as soon as an event of the type concerns the player", but after dismissals or deletions it may hold no event at all.
-- **Ruling:** A profile exists for a player and a validated type while its tally holds at least one event, the events that left the count included, except withdrawn ones (SEN-33). A pair whose events were all dismissed or deleted keeps a profile that shows those exits by reason and its verdict history. Withdrawn events count nowhere (CL-SEN-18).
+- **Ruling:** A profile exists for a player and a validated type while its tally holds at least one event, the events that left the count included, except withdrawn ones (SEN-33). A pair whose events were all dismissed or deleted keeps a profile that shows those exits by reason and its verdict history. Withdrawn events count nowhere (CL-SEN-18). While the birthday type is validated, a player without a recorded birthday also has a birthday profile, with an empty tally, that only says why (record 0015, CL-JOU-16).
 - **Why:** SEN-33 shows exits by reason, and the history of verdict changes must stay visible after deletions.
 - **Owner review:** no
 
@@ -293,6 +294,6 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 ## Ruled elsewhere
 
 - The cautious instant of a date-only article (COL-21, file 03): ruled by CL-COL-02, which CL-SEN-02 follows.
-- Withdrawing a calendar-derived event (ADR 0015 open point 6, file 13): ruled by CL-DSN-09 — these events are never withdrawn, their cases can be excluded (SEN-17). The fingerprint check that CL-SUI-14 runs in the derivation can therefore never match; it is harmless.
+- Withdrawing a calendar-derived event (ADR 0015 open point 6, file 13): ruled by CL-DSN-09 — these events can be withdrawn like any event, with a fingerprint that every derivation checks before it creates an event (CL-TAX-19, CL-SUI-14); excluding the case (SEN-17) keeps it out of the calculations for good.
 - The origin of a calendar-derived case and its Lot 2 flow (ADR 0015 open point 1): ruled by CL-VUE-13, CL-SUI-14, CL-ALE-13 and CL-TEL-21, which CL-SEN-03 follows.
 - A case dismissed after its expected game's tip-off (DET-44, SUI-17): ruled by CL-DET-15, which CL-SEN-05 follows.

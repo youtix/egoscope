@@ -27,7 +27,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** IMP-13, register row IMP-13
 - **Problem:** the heuristic looks for numbers followed by « points », « rebonds » or « passes », French words that English descriptions do not use.
-- **Ruling:** A description, or a reservation (`non_verifie`, stored like it), gets the warning "may contain statistics or a score" when, ignoring case, it contains:
+- **Ruling:** A description, or a reservation (`unverified_note`, the spec's `non_verifie`, stored like it), gets the warning "may contain statistics or a score" when, ignoring case, it contains:
   1. a number written in digits (decimals allowed), followed after an optional space or hyphen by one of: point, points, pt, pts, rebound, rebounds, reb, rebs, assist, assists, ast, steal, steals, stl, block, blocks, blk, turnover, turnovers, tov, minute, minutes, min, field goal, field goals, free throw, free throws, three-pointer, three-pointers, pointer, pointers, threes;
   2. the word double-double or triple-double;
   3. a score: two numbers of two or three digits joined by a hyphen or a dash, such as 102-98 or 99–101 (a season such as 2023-24 does not match).
@@ -54,9 +54,9 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Affects:** IMP-13, IMP-15, DSN-10, DSN-21, DSN-24, CA-IMP-24; CL-DSN-03 (file 13 ruling)
 - **Problem:** IMP-13 rejects a description containing "straight or typographic quotation marks", but English and French text is full of apostrophes, and the typographic apostrophe is the same character as the right single quotation mark.
 - **Ruling:**
-  - The check is the one file 13 defines (CL-DSN-03), applied as it is: a text fails when it contains one of the quotation-mark characters CL-DSN-03 lists, or a single-quoted span as CL-DSN-03 defines it; any other apostrophe passes ("player's", "players' union", "l'équipe").
-  - A description that fails is rejected (IMP-13), and the message names the character or span found.
-  - A reservation (`non_verifie`) or a limitation that fails is ignored with a warning, like a too-long one (IMP-15), because both are stored and DSN-10 subjects them to the same wording rules. Precisions and leads are not checked, since they are never stored; titles never are (DSN-08).
+  - The check is the one file 13 defines (CL-DSN-03), applied as it is: a text fails when it contains one of the quotation-mark characters CL-DSN-03 lists, and only then; an apostrophe, straight or typographic, always passes ("player's", "players' union", "l'équipe"), and no single-quoted span is looked for.
+  - A description that fails is rejected (IMP-13), and the message names the character found.
+  - A reservation (`unverified_note`) or a limitation that fails is ignored with a warning, like a too-long one (IMP-15), because both are stored and DSN-10 subjects them to the same wording rules. Precisions and leads are not checked, since they are never stored; titles never are (DSN-08).
 - **Why:** one check for every stored text, whoever writes it; file 13 owns the wording rules.
 - **Owner review:** no
 
@@ -81,8 +81,8 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
   | `null` or an empty string for an optional field | Treated as absent, without a warning. |
   | `null` or an empty string for a required field | Treated as missing: that field's own rule applies (rejection, or default value with a warning). |
   | Enumerated values or identifiers in another case, with accents or surrounding spaces | Accepted (CL-IMP-22). |
-  | `version_format` written `1`, or as the number 1 or 1.0 | Read as version 1.0, with a warning. |
-  | `format` or `version_format` missing, structure recognized | Warning, version 1.0 assumed (IMP-06). The structure is recognized when the object has the keys of the covered types, the covered period and the events. |
+  | `format_version` written `1`, or as the number 1 or 1.0 | Read as version 1.0, with a warning. |
+  | `format` or `format_version` missing, structure recognized | Warning, version 1.0 assumed (IMP-06). The structure is recognized when the object has the keys of the covered types, the covered period and the events. |
   | Date written with `Z`, seconds, a compact offset or a space instead of `T`; date-time without offset; time 00:00 | CL-IMP-08. |
   | Keys renamed by the AI (camel case, French keys) | Unknown fields, ignored and never saved (IMP-16); the rules of the missing required fields apply. |
 - **Why:** each row either applies a rule the spec already states or settles an unambiguous form; nothing that would change meaning is repaired.
@@ -290,7 +290,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Affects:** IMP-25, IMP-37, DSN-29, ADR 0017 and its open point 1, register rows IMP-37 and IHM-68, CA-IMP-28; CL-DSN-04, CL-DSN-06 (file 13 rulings)
 - **Problem:** an exact-date fingerprint misses a withdrawn fact reported again one day apart, and the preview's handling of a match is not described.
 - **Ruling:**
-  - Every accepted event of the result is checked against the live fingerprints as CL-DSN-06 rules: its player, its type after any merge or split attachment, and its day d — the date as recorded for a date without time, the UTC calendar date for an instant. It matches when a fingerprint equals the hash for one of the days from d − g to d + g, g being the window of CL-IMP-34 (2 days by default).
+  - Every accepted event of the result is checked against the live fingerprints as CL-DSN-06 rules: its player, its type after any merge or split attachment, and its day d — the date as recorded for a date without time, the calendar date of the instant in the owner's time zone (TRV-72) otherwise. It matches when a fingerprint equals the hash for one of the days from d − g to d + g, g being the window of CL-IMP-34 (2 days by default).
   - A matching event shows, beside it, the flag "matches an event you withdrew", with no other detail, and the choice "don't record — sensitive data". Nothing is preselected and nothing is declined automatically (ADR 0017). Declining increases the withdrawn-events counter (IMP-37, CL-DSN-04).
   - The save confirmation says how many flagged events will be recorded. Recording a flagged event erases the fingerprints it matches (CL-DSN-06).
 - **Why:** follows ADR 0017 and file 13's ruling; the confirmation keeps a withdrawn sensitive fact from coming back unseen without asking a separate answer per event.
@@ -357,7 +357,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ## Ruled elsewhere
 
-- The list of tracking elements removed from links (COL-28, file 03), which CL-COL-18 relies on without listing. Recommendation: the `utm_*` parameters and the usual click identifiers (`fbclid`, `gclid`, `mc_cid`, `mc_eid`), listed in one constant.
+- The list of tracking elements removed from links (COL-28, file 03), which CL-COL-18 and CL-IMP-14 rely on: ruled by CL-COL-23 (the `utm_*` parameters and the usual click identifiers `fbclid`, `gclid`, `mc_cid`, `mc_eid`, in one constant of the shared link module).
 - The day hashed in a withdrawal fingerprint (DSN-27, file 13): ruled by CL-DSN-06, which CL-IMP-28 follows.
 - The quotation-mark check of DSN-21 and DSN-24 (file 13): ruled by CL-DSN-03, which CL-IMP-05 applies.
-- The sheet version of events distributed after a split (TAX-29, file 02). Recommendation: the version of the chosen type in force at distribution, as CL-IMP-21 does at import and CL-TAX-07 does for a reassignment.
+- The sheet version of events distributed after a split (TAX-29, file 02): ruled by CL-TAX-22 (the version of the chosen type in force at distribution, as CL-IMP-21 does at import and CL-TAX-07 does for a reassignment).

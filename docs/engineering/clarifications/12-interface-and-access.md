@@ -66,9 +66,9 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** IHM-14, ALE-15, TEL-04, TRV-71, TRV-72, CA-IHM-15, CA-TRV-36
 - **Problem:** IHM-14 recalls a game's US date when it differs from the local date, without saying which US zone defines it or how "evening" is chosen, while TRV-71 also asks for the venue's local time.
 - **Ruling:**
-  - A game's US date is the calendar date of its scheduled start in US Eastern time (`America/New_York`), for every game, abroad included.
+  - A game's US date is the calendar date of its scheduled start in US Eastern time (`America/New_York`), for every game, abroad included: the day of a game that CL-TRV-03 rules.
   - Wherever a game is shown, its US date follows when it differs from the date of its start in the owner's zone, with the part of day of its Eastern start: morning before 12:00, afternoon from 12:00 to 16:59, evening from 17:00. Example: "Wed 18 Nov 2026, 01:30 — Tuesday evening in the US", the zone being named as CL-IHM-04 says.
-  - The venue's local time is not shown.
+  - The venue's local time is not shown (CL-TRV-02).
   - CA-IHM-15 checks "Wednesday 18 November 2026, 01:30 Paris time — Tuesday evening in the US" in the full form, or the short form under the screen's zone statement.
 - **Why:** the league dates its games in Eastern time; IHM-14, ALE-15 and TEL-04 recall the US date only when it differs, and a third time on one phone line adds little.
 - **Owner review:** no
@@ -168,9 +168,9 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 ### CL-IHM-19 — A link to an object that no longer exists
 
 - **Affects:** IHM-17, IHM-68, TEL-07, edge case « Lien vers un objet disparu », DSN-29; ADR 0017
-- **Problem:** the edge case says a link to a vanished object (a withdrawn event, a cancelled request) explains what became of it, while after a withdrawal no screen may mention the event and the counter is its only trace (DSN-29).
+- **Problem:** the edge case says a link to a vanished object (a withdrawn event, a canceled request) explains what became of it, while after a withdrawal no screen may mention the event and the counter is its only trace (DSN-29).
 - **Ruling:**
-  - An object that still exists in another state — dismissed event, cancelled request, closed or cancelled sheet, archived profile, withdrawn player or type — opens normally and shows its state and reason: that is "what became of it".
+  - An object that still exists in another state — dismissed event, canceled request, closed or canceled sheet, archived profile, withdrawn player or type — opens normally and shows its state and reason: that is "what became of it".
   - An identifier that matches no object shows one generic screen, the same for every kind of object and every cause (withdrawal, deletion of a historical event or of a player's data, merge, or an identifier that never existed): "This item no longer exists", with a link to the home screen. The app keeps no record of erased identifiers and never consults the withdrawal fingerprints for this (ADR 0017).
   - Identifiers are never reused (ALE-30 for sheet numbers; database identifiers likewise).
 - **Why:** a withdrawn event cannot be explained without a trace of it; one message for every missing object reveals nothing.
@@ -180,16 +180,16 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** IHM-20, TRV-45, TEL-15, TEL-24
 - **Problem:** TRV-45 lets an incident be closed "automatically ... or by the user", while IHM-20 only lets the owner hide one, which stays open while its cause lasts.
-- **Ruling:** the owner's only action on an incident is to hide it (IHM-20): it leaves the to-do list, stays open while its cause lasts, stays in the activity journal and on the status screen, and counts among the « incidents masqués » until it closes; its Telegram messages are unaffected, the category settings governing them (TEL-24). Incidents close only automatically, when their cause disappears (TRV-45, CL-COL-05, CL-DET-04). An incident opened after a closure shows again even if the previous one was hidden.
+- **Ruling:** the owner's only action on an incident is to hide it (IHM-20): it leaves the to-do list, stays open while its cause lasts, stays in the activity journal and on the status screen, and counts among the « incidents masqués » until it closes; its Telegram messages are unaffected, the category settings governing them (TEL-24). Incidents close only automatically, when their cause disappears (TRV-45, CL-TRV-11, CL-COL-05, CL-DET-04). An incident opened after a closure shows again even if the previous one was hidden.
 - **Why:** a closure by the owner while the cause persists would contradict TRV-45's « reste ouvert tant que la cause subsiste », and every incident of the specs has an automatic end.
-- **Owner review:** yes
+- **Owner review:** no
 
 ### CL-IHM-21 — The sheet of a calendar-derived event
 
 - **Affects:** IHM-24, IHM-25, IHM-32, IHM-67, IHM-68; ADR 0015
 - **Problem:** the event sheet lists press sources, confidences and marks, and actions that do not fit an event derived from the calendar (birthday game, first game against a former team).
 - **Ruling:**
-  - The sheet shows player, type and the sheet version it was qualified under, "derived from the schedule" with the derived game (date, time, opponent, home or away), the reference date (that game's day, before tip-off), the description written by the app, context indications with their origin, the case's state and the correction history.
+  - The sheet shows player, type and the sheet version it was qualified under, "derived from the calendar" with the derived game (date, time, opponent, home or away) and the basis of the derivation (CL-VUE-15), the reference date (that game's day, before tip-off), the description written by the app, context indications with their origin, the case's state and the correction history.
   - It shows no source, no research or detection confidence, no precedence and no mark.
   - Its actions are correcting the context indications (H-09) and withdrawing the event (IHM-68); there is no dismissal, no deletion and no correction of type, player or date, which are derived (ADR 0015).
   - Such events never appear in the detected-events list (IHM-32); in case lists they show their case origin like any other (IHM-46).
@@ -213,7 +213,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 ## Ruled elsewhere
 
-- File 14, TRV-24, TRV-71 and TRV-72: recommendation — a game's US date is its Eastern date, recalled only when it differs (IHM-14), without the venue's local time, the zone being named by the full form or the screen's statement (CL-IHM-04, CL-IHM-07); CA-TRV-36's "plus the US date and local time" then reads "plus the US date when it differs".
-- File 14, TRV-45: recommendation — read « ou par l'utilisateur » as the hiding of IHM-20 (CL-IHM-20).
-- File 14, TRV-38: recommendation — the register marks each parameter that influences calculations, ADR 0016's switch included (CL-IHM-12).
-- File 14, TRV-51: the store of server-held drafts stays out of backups (CL-IHM-10).
+- File 14, TRV-24, TRV-71 and TRV-72: ruled by CL-TRV-02 and CL-TRV-03 — a game's US date is its Eastern date, recalled only when it differs (IHM-14), without the venue's local time, the zone being named by the full form or the screen's statement (CL-IHM-04, CL-IHM-07); CA-TRV-36's "plus the US date and local time" then reads "plus the US date when it differs".
+- File 14, TRV-45: ruled by CL-TRV-11 — « ou par l'utilisateur » is the hiding of IHM-20 (CL-IHM-20).
+- File 14, TRV-38: ruled by CL-TRV-17 — the register marks each parameter that influences calculations, ADR 0016's switch included (CL-IHM-12).
+- File 14, TRV-51: ruled by CL-TRV-05 — the store of server-held drafts stays out of backups (CL-IHM-10).
