@@ -133,7 +133,7 @@ One source in which an article was seen, with the feed's item identifier when th
 
 ### 1.6 Deduplication trace — `dedup_traces`
 
-What remains of a purged article so that a feed still offering it does not bring it back (COL-34). Never created for an erased article (§1.10).
+What remains of a purged article so that a feed still offering it does not bring it back (COL-34). Never created for an erased article (§1.11).
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -216,7 +216,7 @@ Which source a source-level incident or warning concerns, so that it closes on t
 
 ### 1.11 Withdrawal, other erasures, purge, export and backup
 
-**Withdrawal of an event** (DSN-27, DSN-34, COL-37, `CL-DSN-10`, `CL-DSN-16`). Collection's eraser runs last among the Lot 2 erasers, after detection has removed the event's attachments and the facts that designate it (detection.md §1.8). In the withdrawal's transaction it then:
+**Withdrawal of an event** (DSN-27, DSN-34, COL-37, `CL-DSN-10`, `CL-DSN-16`). Collection's eraser runs last among the Lot 2 erasers, after detection has removed the event's attachments and the facts that designate it (detection.md §1.9). In the withdrawal's transaction it then:
 
 1. finds every article left with no role — no attachment to another event, no fact linked to a pending proposal, no pending part (CL-COL-16);
 2. for each one whose `retained_published_at + maxArticleAgeDays` is still in the future, asks the core's withdrawal ledger to record an article skip entry (HMAC-SHA-256 of `link` with the fingerprint secret, expiring at that instant);
