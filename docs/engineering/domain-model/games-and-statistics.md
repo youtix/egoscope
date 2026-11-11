@@ -370,15 +370,15 @@ read for search only: whether a followed player played for a team comes from his
 lines (CL-JOU-18, CL-STA-04), never from here. It is public roster data, linked to no followed
 player, so it says nothing about whom the owner follows.
 
-| column              | type        | null | default  | constraint or reference                                                                   | class | spec IDs       |
-| ------------------- | ----------- | ---- | -------- | ----------------------------------------------------------------------------------------- | ----- | -------------- |
-| `id`                | integer     | no   | identity | primary key                                                                               | —     | —              |
-| `stats_source`      | text        | no   | —        | `CHECK (stats_source IN ('sportsdataverse_espn'))`                                        | —     | STA-02         |
-| `season`            | text        | no   | —        | `REFERENCES seasons(season) ON DELETE RESTRICT`                                           | —     | STA-03         |
-| `source_player_ref` | text        | no   | —        | the source's player identifier                                                            | —     | STA-02, STA-03 |
-| `display_name`      | text        | no   | —        | as the source writes it                                                                   | —     | JOU-10         |
-| `search_names`      | text[]      | no   | —        | every name the source gives (full, display, short), folded as CL-JOU-13 does, accents off | —     | JOU-10         |
-| `fetched_at`        | timestamptz | no   | —        | —                                                                                         | —     | STA-42         |
+| column              | type        | null | default  | constraint or reference                                                               | class | spec IDs       |
+| ------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------- | ----- | -------------- |
+| `id`                | integer     | no   | identity | primary key                                                                           | —     | —              |
+| `stats_source`      | text        | no   | —        | `CHECK (stats_source IN ('sportsdataverse_espn'))`                                    | —     | STA-02         |
+| `season`            | text        | no   | —        | `REFERENCES seasons(season) ON DELETE RESTRICT`                                       | —     | STA-03         |
+| `source_player_ref` | text        | no   | —        | the source's player identifier                                                        | —     | STA-02, STA-03 |
+| `display_name`      | text        | no   | —        | as the source writes it                                                               | —     | JOU-10         |
+| `search_names`      | text[]      | no   | —        | the names the source gives (display and short), folded as CL-JOU-13 does, accents off | —     | JOU-10         |
+| `fetched_at`        | timestamptz | no   | —        | —                                                                                     | —     | STA-42         |
 
 `player_directory_teams`: `entry_id integer NOT NULL REFERENCES player_directory_entries(id) ON
 DELETE CASCADE`, `team_id integer NOT NULL REFERENCES teams(id) ON DELETE RESTRICT`,
