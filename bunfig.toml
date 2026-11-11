@@ -1,0 +1,6 @@
+# Bun settings shared by every checkout and by CI.
+[install]
+# Pin exact versions on `bun add`; upgrades are deliberate, reviewed changes.
+exact = true
+# A flat node_modules, which Next.js and the ESLint plugin loader expect.
+linker = "hoisted"
