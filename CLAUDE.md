@@ -54,7 +54,8 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
 ## Tests
 
 - A test sits beside the file it tests: `foo.test.ts` next to `foo.ts`. Component tests are
-  `.test.tsx` files and run in jsdom.
+  `.test.tsx` files and run in jsdom. Playwright specs must not use the `.test.ts` suffix, which
+  Vitest collects and the structure check pairs with a source file: name them `.spec.ts`.
 - A title starts with the requirement IDs it verifies, in square brackets, then states the
   behavior: `it('[JOU-04] rejects a 31st active player', ...)`. Every acceptance criterion you
   implement gets a test that cites it.
@@ -81,6 +82,14 @@ disabled at all. Fix the code; if a rule is wrong, say so in the PR instead.
 `bun run gate` passes locally, CI is green (`ci-ok`), and the PR template is filled in. New CI jobs
 go in `.github/workflows/ci.yml` (reuse `./.github/actions/setup-project`) and in the `needs` of
 `ci-ok`; their local counterpart goes into the `gate:ci` script, in the same order.
+
+## Dependencies
+
+Add or update a dependency with `bun add --exact <name>@<version>`. `bunfig.toml` refuses any
+version, direct or transitive, published less than seven days ago (`minimumReleaseAge`): pick the
+newest release that is old enough, and keep packages that ship together on matching versions. An
+urgent security fix that is younger gets an exact `name@version` entry in
+`minimumReleaseAgeExcludes`, justified in the PR and removed once that version is seven days old.
 
 ## Git and pull requests
 
