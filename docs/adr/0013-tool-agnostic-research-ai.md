@@ -21,8 +21,16 @@ The research AI stays tool-agnostic, as specified (BKT-19). The import is tested
 
 ## Open points
 
-- A citation marker inside a text value (a description, a title) passes every control of the specs and would be stored. Recommended handling: a warning on the event in the preview (IMP-19, "added with warning"), never a silent rewrite.
+- A citation marker inside a text value (a description, a title) passes every control of the specs and would be stored. Recommended handling: a warning on the event in the preview (IMP-19, "added with warning"), never a silent rewrite. **Settled on 2026-11-11 as recommended** (CL-IMP-07; see Amendments).
 
 ## Alternatives considered
 
 - Choosing one research AI and tailoring the prompt and the import to it. Not retained.
+
+## Amendments
+
+### 2026-11-11 — Citation markers inside text values (CL-IMP-07)
+
+- The open point is settled as recommended. A text value holds a citation marker when it matches one of the patterns CL-IMP-07 lists — bracketed number lists, footnote calls, bracketed `cite` tokens, text between `【` and `】`, superscript digits, daggers, private-use characters, Markdown links — kept in one constant, each with a fixture.
+- In a description, a reservation, an outlet name or an article title, the value is stored as written, never rewritten, and the event gets the warning "possible citation marker in {field}", so its outcome is "added with warning" unless something else rejects it (IMP-19); the owner can correct it (IMP-32).
+- In a limitation, the value is kept as written, with a warning on the whole result. In a link, the source fails the complete-address check (IMP-14) and is dropped with a warning.

@@ -24,3 +24,8 @@ The specs set no code-quality rule, but several requirements need strong verific
 - Each acceptance criterion is cited by at least one test. Criteria with an ID are cited by it (for example CA-TRV-21). Criteria that a spec numbers or lists without an ID are cited by document and position, for example `08 AC-11` for the eleventh criterion of document 08; the traceability tooling may fix the exact syntax. A criterion whose expected value the [deviations register](../engineering/spec-deviations.md) changes is tested against the register's value and cites both.
 - Key journeys include, for example, the Lot 1 journey of [12](../12-interface-et-acces.md) from player to first profile, an import with errors and its correction message, the withdrawal screen, offline consultation and, in Lot 2, the alert sheet.
 - The requirement status of TRV-79 is generated from the traceability data.
+
+## See also
+
+- [0026](0026-runtime-node-in-production-bun-for-tooling.md): the Node.js version shared by local runs, CI and production.
+- [0027](0027-supply-chain-guard.md): the supply-chain guard on dependencies.

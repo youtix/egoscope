@@ -23,3 +23,8 @@ The orchestrator chooses the remaining services by the specs' criteria (TRV-11, 
 - "Fewest accounts first" favors an account the owner needs anyway — for example the GitHub account that holds the repository — whenever it meets the criteria.
 - Each sheet carries the TRV-09 items and, for a replaced service, what failed and why the replacement is the closest free equivalent. Replacing Vercel or Neon also amends [0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md).
 - The limits written in the sheets become the quota parameters of TRV-03, which have no default value (TRV-39).
+
+## See also
+
+- [0023](0023-statistics-source-sportsdataverse-releases.md): the statistics source chosen.
+- [0024](0024-external-services.md): the other services chosen.

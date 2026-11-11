@@ -40,3 +40,11 @@ The press half of H-11 is separate: sources are in English or French (COL-05, CO
 ## Alternatives considered
 
 - A French product, as H-11 specifies. Not retained.
+
+## Amendments
+
+### 2026-11-11 — How games are shown (CL-TRV-02, CL-IHM-07)
+
+- A game's local time at the venue is never shown. Wherever a game appears, its US date — its day in US Eastern time ([0028](0028-a-game-day-is-its-us-eastern-date.md)) — follows when it differs from the date of its start in the owner's time zone, with the part of day of its Eastern start: morning before 12:00, afternoon from 12:00 to 16:59, evening from 17:00. Example: "Wed 18 Nov 2026, 01:30 — Tuesday evening in the US". The "et son heure locale" of TRV-71 is read as that recall.
+- CA-TRV-36 therefore expects "Wednesday 11 November 2026, 04:30 Paris time — Tuesday evening in the US".
+- Where the zone is named — in the full form, once at the top of a screen that uses the short form, after every clock time in Telegram — is ruled by CL-IHM-04.

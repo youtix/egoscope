@@ -32,3 +32,9 @@
 - Running the tasks on the host's own scheduler, the first option of TRV-13. Not retained: all scheduled work comes through the external trigger.
 - Accepting a service that needs a payment card after warning the owner, as TRV-02 allows. Not retained.
 - JavaScript instead of TypeScript (D-28 left the choice open). Not retained.
+
+## See also
+
+- [0024](0024-external-services.md): the services as chosen and verified on 2026-11-11, including the trigger's backstop caller.
+- [0025](0025-database-compute-budget-shapes-the-scheduler.md): how the database's compute budget shapes the scheduler.
+- [0026](0026-runtime-node-in-production-bun-for-tooling.md): the runtime outcome, Node.js in production.

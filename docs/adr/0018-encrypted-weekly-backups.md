@@ -31,3 +31,15 @@ From Q-TRV-01:
 
 - Manual exports only, with the reminders of TRV-54. Not retained.
 - The host's free file storage. Kept as the alternative the decision names, if it checks out better.
+
+## Amendments
+
+### 2026-11-11 — What a backup holds (CL-TRV-05, CL-DSN-08)
+
+- A backup holds all the application's data — players, types and sheets, requests, events of every origin, import traces, articles, cases, statistics, profiles and verdict history, alert sheets, tracked cases, Telegram texts and the link to the conversation, settings, the activity journal with its technical details, incidents and task-run history — and the value of the withdrawn-events counter.
+- It never holds the deployment configuration's values, drafts (server copies included), the entries of the withdrawal ledger (fingerprints and deleted-player entries, [0017](0017-temporary-fingerprint-of-withdrawn-events.md)), the account's password data, sessions or the login-failure state. A full export holds the same, unencrypted.
+- A restore keeps the target database's account data when it has some and closes every session; into a new database, the account starts from the configured initial password and the owner chooses a new one. How a restore re-applies withdrawals and deletions: [0017](0017-temporary-fingerprint-of-withdrawn-events.md), CL-TRV-06.
+
+### 2026-11-11 — The space chosen (CL-TRV-04)
+
+- The private space on the owner's GitHub account checked out better than the host's file storage: one draft release in a separate private repository, each backup one release asset, deleted through the interface ([0024](0024-external-services.md)). How the adapter encrypts, names, uploads, deletes, verifies the deletion and checks that the space is private is ruled by CL-TRV-04.

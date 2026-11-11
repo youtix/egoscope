@@ -1,59 +1,70 @@
 # Decision records
 
-These records hold the product and delivery decisions the owner settled in the design interview of 2026-11-11, before any code was written. All are accepted and dated 2026-11-11. Record N carries decision N of that interview.
+Records 0001 to 0022 hold the product and delivery decisions the owner settled in the design interview of 2026-11-11, before any code was written; record N carries decision N of that interview. Records 0023 to 0028 hold the choices the orchestrator made on the same day under the owner's delegation (records 0008 and 0011): the services, and the rules those services impose. All are accepted and dated 2026-11-11.
 
-The French functional specs in `docs/` stay the reference. Where a record changes, extends or settles a requirement, the [deviations register](../engineering/spec-deviations.md) lists it; implementers and reviewers check the register first. French terms map to English through `docs/engineering/glossary.md`.
+The French functional specs in `docs/` stay the reference. Where a record changes, extends or settles a requirement, the [deviations register](../engineering/spec-deviations.md) lists it; implementers and reviewers check the register first. The rulings of `docs/engineering/clarifications/` settle what the specs and the records leave unclear; where a ruling went beyond a record, that record carries a dated "Amendments" section citing it. French terms map to English through `docs/engineering/glossary.md`.
 
 ## Records
 
-| Record                                                                         | Decision                                                                              |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| [0001](0001-build-both-lots-in-dependency-ordered-waves.md)                    | Both lots built in one run: foundation, Lot 1 to a tagged milestone, then Lot 2        |
-| [0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md)       | Vercel Hobby and Neon, all free; TypeScript and Bun; scheduled work via an external trigger |
-| [0003](0003-public-repository-and-pull-request-workflow.md)                    | Public repository, one pull request per task, merge on green CI and independent review |
-| [0004](0004-quality-bar.md)                                                    | Quality bar: strict typing, lint, coverage, property and mutation tests, traceability  |
-| [0005](0005-code-organization-rules.md)                                        | Data apart from code, one naming convention, shallow folders, one entry point          |
-| [0006](0006-public-specs-without-license-or-real-players.md)                   | Public specs, no license, no real player names                                         |
-| [0007](0007-next-native-module-layout.md)                                      | Next-native layout: pages under `src/app/`, shared logic under `src/lib/`              |
-| [0008](0008-autonomous-build-and-end-of-build-handover.md)                     | No checkpoints; accounts and secrets handed over at the end                            |
-| [0009](0009-minor-open-questions-keep-spec-defaults.md)                        | The nine minor open questions keep the spec defaults                                   |
-| [0010](0010-english-product.md)                                                | English product; press stays English and French                                        |
-| [0011](0011-choosing-the-remaining-services.md)                                | Remaining services chosen by the spec criteria, fewest accounts first                  |
-| [0012](0012-statistics-coverage-gives-way.md)                                  | Statistics coverage gives way; indicator unchanged                                     |
-| [0013](0013-tool-agnostic-research-ai.md)                                      | Tool-agnostic research AI; import tested against AI output quirks                      |
-| [0014](0014-developer-level-deployment-guide.md)                               | Deployment guide written for a developer                                               |
-| [0015](0015-calendar-derived-event-types.md)                                   | Birthday and former-team events derived from the calendar                              |
-| [0016](0016-per-type-doubtful-criterion-switch.md)                             | A type sheet can switch off one doubtful-case criterion                                |
-| [0017](0017-temporary-fingerprint-of-withdrawn-events.md)                      | Temporary keyed fingerprint of a withdrawn event                                       |
-| [0018](0018-encrypted-weekly-backups.md)                                       | Encrypted weekly backups outside the database                                          |
-| [0019](0019-two-daily-collection-and-detection-runs.md)                        | Collection and detection at 16:30 and 23:00 Paris time                                 |
-| [0020](0020-empty-initial-player-list.md)                                      | The app starts with an empty player list                                               |
-| [0021](0021-verdict-thresholds-and-chance.md)                                  | Editable verdict thresholds; chance shown, not corrected                               |
-| [0022](0022-uncertain-events-keep-spec-defaults.md)                            | Uncertain events keep the spec defaults                                                |
+| Record | Decision | Amended |
+| --- | --- | --- |
+| [0001](0001-build-both-lots-in-dependency-ordered-waves.md) | Both lots built in one run: foundation, Lot 1 to a tagged milestone, then Lot 2 | |
+| [0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md) | Vercel Hobby and Neon, all free; TypeScript and Bun; scheduled work via an external trigger | |
+| [0003](0003-public-repository-and-pull-request-workflow.md) | Public repository, one pull request per task, merge on green CI and independent review | |
+| [0004](0004-quality-bar.md) | Quality bar: strict typing, lint, coverage, property and mutation tests, traceability | |
+| [0005](0005-code-organization-rules.md) | Data apart from code, one naming convention, shallow folders, one entry point | |
+| [0006](0006-public-specs-without-license-or-real-players.md) | Public specs, no license, no real player names | |
+| [0007](0007-next-native-module-layout.md) | Next-native layout: pages under `src/app/`, shared logic under `src/lib/` | |
+| [0008](0008-autonomous-build-and-end-of-build-handover.md) | No checkpoints; accounts and secrets handed over at the end | |
+| [0009](0009-minor-open-questions-keep-spec-defaults.md) | The nine minor open questions keep the spec defaults | |
+| [0010](0010-english-product.md) | English product; press stays English and French | 2026-11-11 |
+| [0011](0011-choosing-the-remaining-services.md) | Remaining services chosen by the spec criteria, fewest accounts first | |
+| [0012](0012-statistics-coverage-gives-way.md) | Statistics coverage gives way; indicator unchanged | 2026-11-11 |
+| [0013](0013-tool-agnostic-research-ai.md) | Tool-agnostic research AI; import tested against AI output quirks | 2026-11-11 |
+| [0014](0014-developer-level-deployment-guide.md) | Deployment guide written for a developer | |
+| [0015](0015-calendar-derived-event-types.md) | Birthday and former-team events derived from the calendar | 2026-11-11 |
+| [0016](0016-per-type-doubtful-criterion-switch.md) | A type sheet can switch off one doubtful-case criterion | |
+| [0017](0017-temporary-fingerprint-of-withdrawn-events.md) | Temporary keyed fingerprint of a withdrawn event | 2026-11-11 |
+| [0018](0018-encrypted-weekly-backups.md) | Encrypted weekly backups outside the database | 2026-11-11 |
+| [0019](0019-two-daily-collection-and-detection-runs.md) | Collection and detection at 16:30 and 23:00 Paris time | |
+| [0020](0020-empty-initial-player-list.md) | The app starts with an empty player list | |
+| [0021](0021-verdict-thresholds-and-chance.md) | Editable verdict thresholds; chance shown, not corrected | |
+| [0022](0022-uncertain-events-keep-spec-defaults.md) | Uncertain events keep the spec defaults | |
+| [0023](0023-statistics-source-sportsdataverse-releases.md) | Statistics source: the SportsDataverse open-data releases, from 1993-94, no account | |
+| [0024](0024-external-services.md) | External services: Vercel, Neon, a Cloudflare trigger with a Vercel backstop, Workers AI with an optional Groq fallback, Telegram, GitHub release assets for backups | |
+| [0025](0025-database-compute-budget-shapes-the-scheduler.md) | An idle tick never opens the database; no design assumes a 5-minute cadence | |
+| [0026](0026-runtime-node-in-production-bun-for-tooling.md) | Node.js 22 in production and throughout the build; Bun for tooling | |
+| [0027](0027-supply-chain-guard.md) | Dependency versions younger than seven days refused; exact versions pinned | |
+| [0028](0028-a-game-day-is-its-us-eastern-date.md) | A game's day is its US Eastern date, for every rule and display | |
 
 ## The twelve points to settle before development
 
 Every point of the section « Points à trancher avant de développer » of the specs' [README](../README.md) is settled:
 
-| Point in `docs/README.md`                                       | Questions          | Record                                                                                                                     |
-| --------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Services gratuits                                               | Q-02               | [0011](0011-choosing-the-remaining-services.md), with [0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md) for host and database |
-| Couverture de la source de statistiques                         | Q-STA-01           | [0012](0012-statistics-coverage-gives-way.md)                                                                              |
-| IA de recherche gratuite et son quota                           | Q-BKT-02           | [0013](0013-tool-agnostic-research-ai.md)                                                                                  |
-| Niveau technique de l'utilisateur                               | Q-01               | [0014](0014-developer-level-deployment-guide.md)                                                                           |
-| Liste initiale des joueurs                                      | Q-03               | [0020](0020-empty-initial-player-list.md)                                                                                  |
-| Seuils du verdict et profils nombreux                           | Q-04, Q-VUE-01     | [0021](0021-verdict-thresholds-and-chance.md)                                                                              |
-| Heure de la détection quotidienne                               | Q-SUI-02           | [0019](0019-two-daily-collection-and-detection-runs.md)                                                                    |
-| Types connus d'avance                                           | Q-TAX-01           | [0015](0015-calendar-derived-event-types.md)                                                                               |
-| Types liés à un facteur parasite                                | Q-SEN-01           | [0016](0016-per-type-doubtful-criterion-switch.md)                                                                         |
-| Événements peu sûrs                                             | Q-BKT-01, Q-IMP-01 | [0022](0022-uncertain-events-keep-spec-defaults.md)                                                                        |
-| Empreinte d'un événement retiré                                 | Q-DSN-01           | [0017](0017-temporary-fingerprint-of-withdrawn-events.md)                                                                  |
-| Emplacement des sauvegardes                                     | Q-TRV-01           | [0018](0018-encrypted-weekly-backups.md)                                                                                   |
+| Point in `docs/README.md` | Questions | Record |
+| --- | --- | --- |
+| Services gratuits | Q-02 | [0011](0011-choosing-the-remaining-services.md), with [0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md) for host and database; the choices in [0023](0023-statistics-source-sportsdataverse-releases.md) and [0024](0024-external-services.md) |
+| Couverture de la source de statistiques | Q-STA-01 | [0012](0012-statistics-coverage-gives-way.md), the source in [0023](0023-statistics-source-sportsdataverse-releases.md) |
+| IA de recherche gratuite et son quota | Q-BKT-02 | [0013](0013-tool-agnostic-research-ai.md) |
+| Niveau technique de l'utilisateur | Q-01 | [0014](0014-developer-level-deployment-guide.md) |
+| Liste initiale des joueurs | Q-03 | [0020](0020-empty-initial-player-list.md) |
+| Seuils du verdict et profils nombreux | Q-04, Q-VUE-01 | [0021](0021-verdict-thresholds-and-chance.md) |
+| Heure de la détection quotidienne | Q-SUI-02 | [0019](0019-two-daily-collection-and-detection-runs.md) |
+| Types connus d'avance | Q-TAX-01 | [0015](0015-calendar-derived-event-types.md) |
+| Types liés à un facteur parasite | Q-SEN-01 | [0016](0016-per-type-doubtful-criterion-switch.md) |
+| Événements peu sûrs | Q-BKT-01, Q-IMP-01 | [0022](0022-uncertain-events-keep-spec-defaults.md) |
+| Empreinte d'un événement retiré | Q-DSN-01 | [0017](0017-temporary-fingerprint-of-withdrawn-events.md) |
+| Emplacement des sauvegardes | Q-TRV-01 | [0018](0018-encrypted-weekly-backups.md), the space in [0024](0024-external-services.md) |
 
 The same section names the heaviest drafting hypotheses. H-12 (two lots) is confirmed by [0001](0001-build-both-lots-in-dependency-ordered-waves.md), H-13 (indicator formula) by [0012](0012-statistics-coverage-gives-way.md), H-03 (five valid cases) by [0021](0021-verdict-thresholds-and-chance.md).
 
+## Open to the owner's review
+
+- [0023](0023-statistics-source-sportsdataverse-releases.md): the provenance of the statistics releases, compiled by their publisher from ESPN's web API; the application itself calls no undocumented endpoint.
+- The rulings marked "Owner review: yes" in `docs/engineering/clarifications/README.md`, several of which amend records 0015, 0017 and 0018. The application is built as ruled meanwhile.
+
 ## Adding or changing a record
 
-- A new record takes the next free number and a kebab-case title, and keeps the sections of the others: status and date, context, decision, consequences, alternatives considered where any were.
-- Numbers never change. To change a decision, add a record that supersedes the old one and mark the old one "Superseded by" with the new number.
+- A new record takes the next free number and a kebab-case title, and keeps the sections of the others: status and date, context, decision, consequences, alternatives considered where any were; the orchestrator's records also say who decided and what would change the decision.
+- Numbers never change. A ruling or a later choice that refines a record goes into a dated "Amendments" section of that record, citing its source; the original decision stays as written, and the body changes only where it would otherwise contradict the amendment. A decision that replaces another gets a new record that supersedes the old one, which is then marked "Superseded by" with the new number.
 - The rows of the deviations register change in the same pull request as the record.
