@@ -254,7 +254,7 @@ Modeling choices of this file:
 
 1. **The validation table is not stored.** Every value is a function of stored case data and parameters; computing it on read cannot go stale, and a few hundred tracked cases a season keep that cheap. Its "computed at" is the read instant.
 2. **Recording timing is derived**, not stored, so a measured game changed after tip-off is followed without a second copy (`CL-SUI-03`).
-3. **Forecast versions take the instant of the profile change, not the tick's**, from the core's append-only profile history (module map choice 4).
+3. **Forecast versions take the instant of the profile change, not the tick's**, from the core's append-only profile history (module map choice 8).
 4. **Decisions are recorded with their effect whatever their position**, and "post-tip-off" is derived against the measured game once established, like the dismissal position of `CL-DET-15`; the effect cannot be recomputed later, the position can.
 5. **New enumeration `TrackedGameResultKind`** (`indicative`, `final`), to add to the glossary.
 

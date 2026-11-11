@@ -1,6 +1,6 @@
 # Domain model — Telegram notifications (Lot 2)
 
-The link with the owner's private chat, its one-time codes, messages and their statuses, the facts and events each message concerns, the daily sent counts behind the cap, the incident cycle (derived), and the data every message template needs: file 11 (TEL-01 to TEL-38) as ruled by `CL-TEL-01` to `CL-TEL-23`, with `CL-DSN-13`, `CL-TRV-05` and ADR 0019. Messages are composed from facts other modules record in the core's outbox (module map choice 3); incidents, the activity journal and parameters (the notification settings among them) belong to the core model.
+The link with the owner's private chat, its one-time codes, messages and their statuses, the facts and events each message concerns, the daily sent counts behind the cap, the incident cycle (derived), and the data every message template needs: file 11 (TEL-01 to TEL-38) as ruled by `CL-TEL-01` to `CL-TEL-23`, with `CL-DSN-13`, `CL-TRV-05` and ADR 0019. Messages are composed from facts other modules record in the core's outbox (module map choice 7); incidents, the activity journal and parameters (the notification settings among them) belong to the core model.
 
 **Conventions.** As in [collection.md](collection.md). A message's "day" for the cap is the owner's day (parameter `timeZone`), 00:00 to 24:00 (`CL-TEL-07`).
 
@@ -166,7 +166,7 @@ One notified interruption (TEL-15, `CL-TEL-08`), computed from the core's incide
 
 1. **Messages concerned** are those with E in `notification_message_events`, those whose fact is E's case, and those whose fact is a sheet that will be erased (its only event is E) or an update of such a sheet; plus every digest or catch-up that grouped one of them.
 2. **Unsent ones** (`to_send`, `deferred`, `failed`) are deleted: they hold no text.
-3. **Sent ones:** for each, one deletion request to Telegram in the chat it was sent to, even a chat no longer linked; then the row is deleted — text, chat identifier and Telegram identifier — whatever the answer. A digest is deleted whole: its grouped rows that concern E are deleted, the others keep `grouped` with no digest and are not sent again.
+3. **Sent ones:** for each, one deletion request to Telegram in the chat it was sent to, even a chat no longer linked (a message older than Telegram's 48-hour deletion limit gets no request and is listed at once, as the module map's `notifications` does); then the row is deleted — text, chat identifier and Telegram identifier — whatever the answer. A digest is deleted whole: its grouped rows that concern E are deleted, the others keep `grouped` with no digest and are not sent again.
 4. The messages Telegram refused or could not reach — send date and time with the zone, digest or not — are returned to the withdrawal screen once and never stored.
 5. Their activity-journal entries lose their mention of E (core journal, `CL-TRV-10`).
 
