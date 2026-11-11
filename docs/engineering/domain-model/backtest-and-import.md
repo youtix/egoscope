@@ -18,26 +18,26 @@ coverage.
 A request to the owner to run a deep research for one player; at most one to do per player
 (BKT-01, BKT-07, BKT-12).
 
-| column                     | type        | null | default   | constraint or reference                                                                                                         | class | spec IDs                          |
-| -------------------------- | ----------- | ---- | --------- | ------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------- |
-| `id`                       | integer     | no   | identity  | primary key                                                                                                                     | PI    | —                                 |
-| `reference`                | text        | no   | —         | unique; `CHECK (reference ~ '^REQ-[0-9]{4}-[0-9]{4,}$')`; from the per-year counter, never changed or reused                    | PI    | BKT-12, CL-BKT-11                 |
-| `player_id`                | uuid        | no   | —         | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                                             | PI    | BKT-01                            |
-| `kind`                     | text        | no   | —         | `CHECK (kind IN ('initial','supplement','full_redo'))`                                                                          | PI    | BKT-01, BKT-08, BKT-09            |
-| `trigger`                  | text        | no   | —         | `CHECK (trigger IN ('manual_action','detection','type_validated','type_reactivated','type_broadened','incomplete_import'))`      | PI    | BKT-01, BKT-03 to BKT-06          |
-| `trigger_event_type_id`    | text        | yes  | —         | `REFERENCES event_types(id) ON DELETE RESTRICT`; the type of a validation, reactivation or broadening                           | PI    | BKT-05, 05 « Données manipulées » |
-| `trigger_import_id`        | integer     | yes  | —         | `REFERENCES imports(id) ON DELETE SET NULL`; the import an incomplete-import supplement stems from                              | PI    | BKT-06                            |
-| `status`                   | text        | no   | `'to_do'` | `CHECK (status IN ('to_do','imported','canceled'))`                                                                             | PI    | BKT-13                            |
-| `created_at`               | timestamptz | no   | `now()`   | —                                                                                                                               | PI    | BKT-17                            |
-| `created_on`               | date        | no   | —         | the owner's calendar date at creation, in his time zone; ends the periods of a new request                                     | PI    | BKT-08, CL-BKT-10                 |
-| `imported_at`              | timestamptz | yes  | —         | —                                                                                                                               | PI    | BKT-13                            |
-| `canceled_at`              | timestamptz | yes  | —         | kept if a canceled request is imported later                                                                                    | PI    | BKT-14, IMP-08                    |
-| `cancellation_reason_code` | text        | yes  | —         | `CHECK (cancellation_reason_code IN ('player_withdrawn'))`                                                                      | PI    | BKT-14                            |
-| `cancellation_reason_text` | text        | yes  | —         | the owner's optional reason                                                                                                     | PI TX | BKT-14, DSN-10                    |
-| `prompt_text`              | text        | no   | —         | the research prompt as produced, every placeholder filled                                                                      | PI    | BKT-20, BKT-22                    |
-| `prompt_produced_at`       | timestamptz | no   | —         | —                                                                                                                               | PI    | BKT-20                            |
-| `last_copied_at`           | timestamptz | yes  | —         | set by a successful Copy or Share; also the "prompt copied" indication of IHM-39 (`promptCopiedAt`)                             | PI    | BKT-20, IHM-39, IHM-40, CL-BKT-12 |
-| `row_version`              | integer     | no   | `1`       | incremented by every save                                                                                                       | —     | CL-IHM-18                         |
+| column                     | type        | null | default   | constraint or reference                                                                                                     | class | spec IDs                          |
+| -------------------------- | ----------- | ---- | --------- | --------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------- |
+| `id`                       | integer     | no   | identity  | primary key                                                                                                                 | PI    | —                                 |
+| `reference`                | text        | no   | —         | unique; `CHECK (reference ~ '^REQ-[0-9]{4}-[0-9]{4,}$')`; from the per-year counter, never changed or reused                | PI    | BKT-12, CL-BKT-11                 |
+| `player_id`                | uuid        | no   | —         | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                                         | PI    | BKT-01                            |
+| `kind`                     | text        | no   | —         | `CHECK (kind IN ('initial','supplement','full_redo'))`                                                                      | PI    | BKT-01, BKT-08, BKT-09            |
+| `trigger`                  | text        | no   | —         | `CHECK (trigger IN ('manual_action','detection','type_validated','type_reactivated','type_broadened','incomplete_import'))` | PI    | BKT-01, BKT-03 to BKT-06          |
+| `trigger_event_type_id`    | text        | yes  | —         | `REFERENCES event_types(id) ON DELETE RESTRICT`; the type of a validation, reactivation or broadening                       | PI    | BKT-05, 05 « Données manipulées » |
+| `trigger_import_id`        | integer     | yes  | —         | `REFERENCES imports(id) ON DELETE SET NULL`; the import an incomplete-import supplement stems from                          | PI    | BKT-06                            |
+| `status`                   | text        | no   | `'to_do'` | `CHECK (status IN ('to_do','imported','canceled'))`                                                                         | PI    | BKT-13                            |
+| `created_at`               | timestamptz | no   | `now()`   | —                                                                                                                           | PI    | BKT-17                            |
+| `created_on`               | date        | no   | —         | the owner's calendar date at creation, in his time zone; ends the periods of a new request                                  | PI    | BKT-08, CL-BKT-10                 |
+| `imported_at`              | timestamptz | yes  | —         | —                                                                                                                           | PI    | BKT-13                            |
+| `canceled_at`              | timestamptz | yes  | —         | kept if a canceled request is imported later                                                                                | PI    | BKT-14, IMP-08                    |
+| `cancellation_reason_code` | text        | yes  | —         | `CHECK (cancellation_reason_code IN ('player_withdrawn'))`                                                                  | PI    | BKT-14                            |
+| `cancellation_reason_text` | text        | yes  | —         | the owner's optional reason                                                                                                 | PI TX | BKT-14, DSN-10                    |
+| `prompt_text`              | text        | no   | —         | the research prompt as produced, every placeholder filled                                                                   | PI    | BKT-20, BKT-22                    |
+| `prompt_produced_at`       | timestamptz | no   | —         | —                                                                                                                           | PI    | BKT-20                            |
+| `last_copied_at`           | timestamptz | yes  | —         | set by a successful Copy or Share; also the "prompt copied" indication of IHM-39 (`promptCopiedAt`)                         | PI    | BKT-20, IHM-39, IHM-40, CL-BKT-12 |
+| `row_version`              | integer     | no   | `1`       | incremented by every save                                                                                                   | —     | CL-IHM-18                         |
 
 Row checks: `(status = 'imported') = (imported_at IS NOT NULL)`;
 `status = 'canceled'` implies `canceled_at IS NOT NULL`;
@@ -68,15 +68,15 @@ Each type of a request with the sheet version its prompt used and its requested 
 BKT-09, BKT-15). Every row is a planned type; a reduction leaves the row but stops requesting it, so
 that the post-import supplement can cover it again (CL-BKT-07).
 
-| column                 | type     | null | default | constraint or reference                                                                                                   | class | spec IDs                     |
-| ---------------------- | -------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------- |
-| `id`                   | integer  | no   | identity | primary key                                                                                                              | PI    | —                            |
-| `backtest_request_id`  | integer  | no   | —       | `REFERENCES backtest_requests(id) ON DELETE CASCADE`                                                                      | PI    | BKT-08                       |
-| `event_type_id`        | text     | no   | —       | a research type                                                                                                           | PI    | BKT-08, CL-BKT-03            |
-| `sheet_version_number` | smallint | no   | —       | with `event_type_id`, `REFERENCES type_sheet_versions(event_type_id, version_number) ON DELETE RESTRICT`                  | PI    | BKT-15, TAX-23               |
-| `period_start_on`      | date     | yes  | —       | null means "from his first NBA game", its date unknown; otherwise the first NBA game's US date or a first uncovered day   | PI    | BKT-08, BKT-09, CL-BKT-05    |
-| `period_end_on`        | date     | no   | —       | the owner's calendar date of the creation or the last update, or a season's end after a reduction                         | PI    | BKT-08, BKT-15, CL-BKT-09, CL-BKT-10 |
-| `is_requested`         | boolean  | no   | `true`  | false once a reduction removed it from the prompt                                                                         | PI    | BKT-15, CL-BKT-07            |
+| column                 | type     | null | default  | constraint or reference                                                                                                 | class | spec IDs                             |
+| ---------------------- | -------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------ |
+| `id`                   | integer  | no   | identity | primary key                                                                                                             | PI    | —                                    |
+| `backtest_request_id`  | integer  | no   | —        | `REFERENCES backtest_requests(id) ON DELETE CASCADE`                                                                    | PI    | BKT-08                               |
+| `event_type_id`        | text     | no   | —        | a research type                                                                                                         | PI    | BKT-08, CL-BKT-03                    |
+| `sheet_version_number` | smallint | no   | —        | with `event_type_id`, `REFERENCES type_sheet_versions(event_type_id, version_number) ON DELETE RESTRICT`                | PI    | BKT-15, TAX-23                       |
+| `period_start_on`      | date     | yes  | —        | null means "from his first NBA game", its date unknown; otherwise the first NBA game's US date or a first uncovered day | PI    | BKT-08, BKT-09, CL-BKT-05            |
+| `period_end_on`        | date     | no   | —        | the owner's calendar date of the creation or the last update, or a season's end after a reduction                       | PI    | BKT-08, BKT-15, CL-BKT-09, CL-BKT-10 |
+| `is_requested`         | boolean  | no   | `true`   | false once a reduction removed it from the prompt                                                                       | PI    | BKT-15, CL-BKT-07                    |
 
 Row check: `period_start_on IS NULL OR period_start_on <= period_end_on`.
 
@@ -86,11 +86,11 @@ Period dates are calendar dates compared as written with the research's dates (C
 
 ### 1.3 `backtest_request_events` — detected events attached to a request (Lot 2)
 
-| column                | type        | null | default | constraint or reference                               | class | spec IDs            |
-| --------------------- | ----------- | ---- | ------- | ----------------------------------------------------- | ----- | ------------------- |
-| `backtest_request_id` | integer     | no   | —       | `REFERENCES backtest_requests(id) ON DELETE CASCADE`  | EV    | BKT-03, BKT-07      |
-| `player_event_id`            | integer     | no   | —       | `REFERENCES events(id) ON DELETE CASCADE`             | EV    | BKT-07, BKT-18      |
-| `attached_at`         | timestamptz | no   | `now()` | —                                                     | EV    | BKT-07              |
+| column                | type        | null | default | constraint or reference                              | class | spec IDs       |
+| --------------------- | ----------- | ---- | ------- | ---------------------------------------------------- | ----- | -------------- |
+| `backtest_request_id` | integer     | no   | —       | `REFERENCES backtest_requests(id) ON DELETE CASCADE` | EV    | BKT-03, BKT-07 |
+| `player_event_id`     | integer     | no   | —       | `REFERENCES events(id) ON DELETE CASCADE`            | EV    | BKT-07, BKT-18 |
+| `attached_at`         | timestamptz | no   | `now()` | —                                                    | EV    | BKT-07         |
 
 Primary key `(backtest_request_id, player_event_id)`. A dismissal keeps the link (only the urgency it
 carried goes); a withdrawal erases it, the request staying with its trigger `detection`
@@ -102,17 +102,17 @@ Per player and research type, the periods covered by an imported result, even an
 with the sheet version it was researched under (BKT-10). Coverage is a union per player and type
 (CL-BKT-20).
 
-| column                 | type        | null | default  | constraint or reference                                                         | class | spec IDs                     |
-| ---------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------- | ----- | ---------------------------- |
-| `id`                   | integer     | no   | identity | primary key                                                                     | PI    | —                            |
-| `player_id`            | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                             | PI    | BKT-10                       |
-| `event_type_id`        | text        | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`; never a calendar-derived type  | PI    | BKT-10, CL-BKT-03            |
-| `start_on`             | date        | no   | —        | —                                                                               | PI    | BKT-10, IMP-10               |
-| `end_on`               | date        | no   | —        | `CHECK (start_on <= end_on)`                                                    | PI    | BKT-10, IMP-10               |
-| `sheet_version_number` | smallint    | no   | —        | `CHECK (sheet_version_number >= 0)`; 0 for a period a split type inherited      | PI    | BKT-10, TAX-23, CL-BKT-06    |
-| `origin`               | text        | no   | —        | `CHECK (origin IN ('import','merge','split'))`                                  | PI    | BKT-10, CL-BKT-06            |
-| `import_id`            | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE CASCADE`; the import that brought it          | PI    | BKT-10, IMP-30               |
-| `recorded_at`          | timestamptz | no   | `now()`  | the import's date, or the merge or split's                                      | PI    | BKT-10                       |
+| column                 | type        | null | default  | constraint or reference                                                        | class | spec IDs                  |
+| ---------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------ | ----- | ------------------------- |
+| `id`                   | integer     | no   | identity | primary key                                                                    | PI    | —                         |
+| `player_id`            | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                            | PI    | BKT-10                    |
+| `event_type_id`        | text        | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`; never a calendar-derived type | PI    | BKT-10, CL-BKT-03         |
+| `start_on`             | date        | no   | —        | —                                                                              | PI    | BKT-10, IMP-10            |
+| `end_on`               | date        | no   | —        | `CHECK (start_on <= end_on)`                                                   | PI    | BKT-10, IMP-10            |
+| `sheet_version_number` | smallint    | no   | —        | `CHECK (sheet_version_number >= 0)`; 0 for a period a split type inherited     | PI    | BKT-10, TAX-23, CL-BKT-06 |
+| `origin`               | text        | no   | —        | `CHECK (origin IN ('import','merge','split'))`                                 | PI    | BKT-10, CL-BKT-06         |
+| `import_id`            | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE CASCADE`; the import that brought it         | PI    | BKT-10, IMP-30            |
+| `recorded_at`          | timestamptz | no   | `now()`  | the import's date, or the merge or split's                                     | PI    | BKT-10                    |
 
 Row check: `(origin = 'import') = (import_id IS NOT NULL)`.
 
@@ -127,23 +127,23 @@ The absorbed types' periods are kept as history and never consulted (CL-BKT-06).
 A saved import: what it did, for which request, and what it kept of the result (IMP-31, DSN-32).
 A result refused in full creates no row; the journal records it (IMP-31, CL-IMP-33).
 
-| column                         | type        | null | default  | constraint or reference                                                                    | class | spec IDs                      |
-| ------------------------------ | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------ | ----- | ----------------------------- |
-| `id`                           | integer     | no   | identity | primary key                                                                                | PI    | —                             |
-| `sequence_number`              | integer     | no   | —        | unique; from the gapless counter `import_sequence`                                         | PI    | IMP-31                        |
-| `backtest_request_id`          | integer     | no   | —        | `REFERENCES backtest_requests(id) ON DELETE CASCADE`                                       | PI    | IMP-01, IMP-07                |
-| `player_id`                    | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`; the request's player                  | PI    | IMP-07                        |
-| `imported_at`                  | timestamptz | no   | `now()`  | —                                                                                          | PI    | IMP-31                        |
-| `mode`                         | text        | no   | —        | `CHECK (mode IN ('first_import','addition','replacement'))`                                | PI    | IMP-22, IMP-28, IMP-29        |
-| `format_version`               | text        | no   | `'1.0'`  | `CHECK (format_version IN ('1.0'))`                                                        | —     | IMP-06, BKT-24                |
-| `truncation_recovered`         | boolean     | no   | `false`  | the IMP-05 recovery was used                                                               | PI    | IMP-05, CL-IMP-18             |
-| `recovered_event_count`        | smallint    | yes  | —        | required when recovered                                                                    | PI    | CL-IMP-18                     |
-| `declared_limitations`         | text[]      | no   | `'{}'`   | the AI's limitations kept as text, each within `maxDescriptionLength`, no quotation mark  | PI TX | H-IMP-10, DSN-10, DSN-32      |
-| `unverified_lead_counts`       | jsonb       | no   | `'{}'`   | immutable snapshot: `{"<type id>": n, "none": n}`; lead texts are never kept               | PI    | H-IMP-10, CL-IMP-23, DSN-32   |
-| `result_warnings`              | jsonb       | no   | `'[]'`   | immutable snapshot of the whole-result warnings (shape below)                              | PI    | IMP-06, IMP-09, IMP-10, IMP-16 |
-| `coverage_gaps`                | jsonb       | no   | `'[]'`   | immutable snapshot: `[{"event_type_id": "...", "start_on": "YYYY-MM-DD", "end_on": "YYYY-MM-DD"}]`, a type with no declared period having the whole requested period | PI    | IMP-10, BKT-06                |
-| `deleted_by_replacement_count` | integer     | no   | `0`      | historical events a replacement deleted                                                     | PI    | IMP-29, IMP-31                |
-| `deleted_corrected_count`      | integer     | no   | `0`      | of which manually corrected                                                                 | PI    | IMP-29, CA-IMP-16             |
+| column                         | type        | null | default  | constraint or reference                                                                                                                                              | class | spec IDs                       |
+| ------------------------------ | ----------- | ---- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------ |
+| `id`                           | integer     | no   | identity | primary key                                                                                                                                                          | PI    | —                              |
+| `sequence_number`              | integer     | no   | —        | unique; from the gapless counter `import_sequence`                                                                                                                   | PI    | IMP-31                         |
+| `backtest_request_id`          | integer     | no   | —        | `REFERENCES backtest_requests(id) ON DELETE CASCADE`                                                                                                                 | PI    | IMP-01, IMP-07                 |
+| `player_id`                    | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`; the request's player                                                                                            | PI    | IMP-07                         |
+| `imported_at`                  | timestamptz | no   | `now()`  | —                                                                                                                                                                    | PI    | IMP-31                         |
+| `mode`                         | text        | no   | —        | `CHECK (mode IN ('first_import','addition','replacement'))`                                                                                                          | PI    | IMP-22, IMP-28, IMP-29         |
+| `format_version`               | text        | no   | `'1.0'`  | `CHECK (format_version IN ('1.0'))`                                                                                                                                  | —     | IMP-06, BKT-24                 |
+| `truncation_recovered`         | boolean     | no   | `false`  | the IMP-05 recovery was used                                                                                                                                         | PI    | IMP-05, CL-IMP-18              |
+| `recovered_event_count`        | smallint    | yes  | —        | required when recovered                                                                                                                                              | PI    | CL-IMP-18                      |
+| `declared_limitations`         | text[]      | no   | `'{}'`   | the AI's limitations kept as text, each within `maxDescriptionLength`, no quotation mark                                                                             | PI TX | H-IMP-10, DSN-10, DSN-32       |
+| `unverified_lead_counts`       | jsonb       | no   | `'{}'`   | immutable snapshot: `{"<type id>": n, "none": n}`; lead texts are never kept                                                                                         | PI    | H-IMP-10, CL-IMP-23, DSN-32    |
+| `result_warnings`              | jsonb       | no   | `'[]'`   | immutable snapshot of the whole-result warnings (shape below)                                                                                                        | PI    | IMP-06, IMP-09, IMP-10, IMP-16 |
+| `coverage_gaps`                | jsonb       | no   | `'[]'`   | immutable snapshot: `[{"event_type_id": "...", "start_on": "YYYY-MM-DD", "end_on": "YYYY-MM-DD"}]`, a type with no declared period having the whole requested period | PI    | IMP-10, BKT-06                 |
+| `deleted_by_replacement_count` | integer     | no   | `0`      | historical events a replacement deleted                                                                                                                              | PI    | IMP-29, IMP-31                 |
+| `deleted_corrected_count`      | integer     | no   | `0`      | of which manually corrected                                                                                                                                          | PI    | IMP-29, CA-IMP-16              |
 
 `result_warnings` items: `{"kind": "...", "detail": ...}` with `kind` among `format_missing`,
 `version_assumed`, `version_written_as_number`, `types_ignored` (detail: the slugs as read),
@@ -167,7 +167,15 @@ deleted events only, which can no longer be withdrawn.
 ```ts
 type ImportId = Brand<number, 'ImportId'>;
 type ImportMode = 'first_import' | 'addition' | 'replacement';
-interface ImportTally { added: number; addedWithWarning: number; duplicatesNotAdded: number; sourcesAttached: number; ignored: number; refused: number; deletedByReplacement: number } // derived
+interface ImportTally {
+  added: number;
+  addedWithWarning: number;
+  duplicatesNotAdded: number;
+  sourcesAttached: number;
+  ignored: number;
+  refused: number;
+  deletedByReplacement: number;
+} // derived
 ```
 
 ### 1.6 `import_event_outcomes` — the outcome of each result event
@@ -176,16 +184,16 @@ Exactly one outcome per event of the result (IMP-19), except an event the owner 
 sensitive data, of which nothing is kept but the counter (IMP-37, DSN-29). Refused and ignored
 events keep their rank, type and date as read and their reason, nothing else.
 
-| column                | type    | null | default  | constraint or reference                                                                                     | class | spec IDs                    |
-| --------------------- | ------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------- | ----- | --------------------------- |
-| `id`                  | integer | no   | identity | primary key                                                                                                 | PI    | —                           |
-| `import_id`           | integer | no   | —        | `REFERENCES imports(id) ON DELETE CASCADE`                                                                  | PI    | IMP-31                      |
-| `position`            | integer | no   | —        | `CHECK (position >= 1)`; the 1-based rank in the events list as pasted                                      | PI    | IMP-20, CL-IMP-02           |
-| `outcome`             | text    | no   | —        | `CHECK (outcome IN ('added','added_with_warning','duplicate_not_added','ignored','refused'))`               | PI    | IMP-19                      |
-| `player_event_id`            | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`; the event added, or the existing event it duplicated           | EV    | IMP-26, IMP-27, IMP-31      |
-| `event_type_as_read`  | text    | yes  | —        | ignored and refused only                                                                                    | PI    | 06 « Données manipulées »   |
-| `date_as_read`        | text    | yes  | —        | ignored and refused only                                                                                    | PI    | 06 « Données manipulées »   |
-| `reason`              | text    | yes  | —        | ignored: `CHECK` among `type_not_validated`, `type_not_requested`, `type_derived_from_calendar`, `split_type_ignored`, `outside_requested_period`, `before_first_nba_game`; refused: among `type_missing`, `type_unknown`, `public_date_missing`, `public_date_bad_format`, `public_date_impossible`, `description_missing`, `description_too_long`, `description_quotation_marks`, `no_usable_source`, `source_before_public_date` | PI    | IMP-11 to IMP-14, CL-IMP-29 |
+| column               | type    | null | default  | constraint or reference                                                                                                                                                                                                                                                                                                                                                                                                             | class | spec IDs                    |
+| -------------------- | ------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------- |
+| `id`                 | integer | no   | identity | primary key                                                                                                                                                                                                                                                                                                                                                                                                                         | PI    | —                           |
+| `import_id`          | integer | no   | —        | `REFERENCES imports(id) ON DELETE CASCADE`                                                                                                                                                                                                                                                                                                                                                                                          | PI    | IMP-31                      |
+| `position`           | integer | no   | —        | `CHECK (position >= 1)`; the 1-based rank in the events list as pasted                                                                                                                                                                                                                                                                                                                                                              | PI    | IMP-20, CL-IMP-02           |
+| `outcome`            | text    | no   | —        | `CHECK (outcome IN ('added','added_with_warning','duplicate_not_added','ignored','refused'))`                                                                                                                                                                                                                                                                                                                                       | PI    | IMP-19                      |
+| `player_event_id`    | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`; the event added, or the existing event it duplicated                                                                                                                                                                                                                                                                                                                                    | EV    | IMP-26, IMP-27, IMP-31      |
+| `event_type_as_read` | text    | yes  | —        | ignored and refused only                                                                                                                                                                                                                                                                                                                                                                                                            | PI    | 06 « Données manipulées »   |
+| `date_as_read`       | text    | yes  | —        | ignored and refused only                                                                                                                                                                                                                                                                                                                                                                                                            | PI    | 06 « Données manipulées »   |
+| `reason`             | text    | yes  | —        | ignored: `CHECK` among `type_not_validated`, `type_not_requested`, `type_derived_from_calendar`, `split_type_ignored`, `outside_requested_period`, `before_first_nba_game`; refused: among `type_missing`, `type_unknown`, `public_date_missing`, `public_date_bad_format`, `public_date_impossible`, `description_missing`, `description_too_long`, `description_quotation_marks`, `no_usable_source`, `source_before_public_date` | PI    | IMP-11 to IMP-14, CL-IMP-29 |
 
 Row checks: `outcome IN ('ignored','refused')` iff `reason IS NOT NULL`, and then `player_event_id IS NULL`;
 `outcome IN ('added','added_with_warning','duplicate_not_added')` implies `event_type_as_read`,
@@ -201,13 +209,13 @@ every row designating the withdrawn event (IMP-37).
 For each possible duplicate, the existing event concerned and the owner's answer, and each
 `keep_as_distinct` override of a duplicate (IMP-25, IMP-26, 06 « Données manipulées »).
 
-| column              | type    | null | default  | constraint or reference                                                        | class | spec IDs        |
-| ------------------- | ------- | ---- | -------- | ------------------------------------------------------------------------------ | ----- | --------------- |
-| `id`                | integer | no   | identity | primary key                                                                    | PI    | —               |
-| `import_id`         | integer | no   | —        | `REFERENCES imports(id) ON DELETE CASCADE`                                     | PI    | IMP-25          |
-| `position`          | integer | no   | —        | the result event's rank                                                        | PI    | IMP-25          |
-| `existing_player_event_id` | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                     | EV    | IMP-25          |
-| `answer`            | text    | no   | —        | `CHECK (answer IN ('same_fact','distinct_facts','keep_as_distinct'))`          | PI    | IMP-25, IMP-26  |
+| column                     | type    | null | default  | constraint or reference                                               | class | spec IDs       |
+| -------------------------- | ------- | ---- | -------- | --------------------------------------------------------------------- | ----- | -------------- |
+| `id`                       | integer | no   | identity | primary key                                                           | PI    | —              |
+| `import_id`                | integer | no   | —        | `REFERENCES imports(id) ON DELETE CASCADE`                            | PI    | IMP-25         |
+| `position`                 | integer | no   | —        | the result event's rank                                               | PI    | IMP-25         |
+| `existing_player_event_id` | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                            | EV    | IMP-25         |
+| `answer`                   | text    | no   | —        | `CHECK (answer IN ('same_fact','distinct_facts','keep_as_distinct'))` | PI    | IMP-25, IMP-26 |
 
 Index: `import_possible_duplicates_event_idx (existing_player_event_id)` for the withdrawal step.
 
@@ -215,13 +223,13 @@ Index: `import_possible_duplicates_event_idx (existing_player_event_id)` for the
 
 ### 2.1 Request status (BKT-13, BKT-14)
 
-| from     | to       | trigger                                                          | guard                                                                                                          | side effects                                                                                                                         |
-| -------- | -------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| (none)   | to_do    | owner's request, an accepted proposal, or detection (Lot 2)      | a research type validated (BKT-02); player active or paused, active for detection (BKT-01, BKT-03); no to-do request for him (BKT-07) | reference from the counter; types and periods (BKT-08, BKT-09, CL-BKT-05); prompt produced and stored (BKT-20)                       |
-| to_do    | to_do    | update (BKT-15, CL-BKT-08) or reduction (CL-BKT-09)              | a reduction leaving no type is refused                                                                         | types, versions and periods changed; prompt regenerated under the same reference; the stale-copy warning if copied before (BKT-20)   |
-| to_do    | imported | an import is saved                                               | —                                                                                                              | `imported_at` set (IMP-30)                                                                                                           |
-| to_do    | canceled | owner cancels; or the player is withdrawn                        | —                                                                                                              | `canceled_at`; reason optional, or `player_withdrawn` (BKT-14); a new trigger may create a new request                              |
-| canceled | imported | an import is saved after the explicit confirmation of IMP-08     | —                                                                                                              | `imported_at` set; another to-do request of the player stays open (CL-BKT-20)                                                        |
+| from     | to       | trigger                                                      | guard                                                                                                                                 | side effects                                                                                                                       |
+| -------- | -------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| (none)   | to_do    | owner's request, an accepted proposal, or detection (Lot 2)  | a research type validated (BKT-02); player active or paused, active for detection (BKT-01, BKT-03); no to-do request for him (BKT-07) | reference from the counter; types and periods (BKT-08, BKT-09, CL-BKT-05); prompt produced and stored (BKT-20)                     |
+| to_do    | to_do    | update (BKT-15, CL-BKT-08) or reduction (CL-BKT-09)          | a reduction leaving no type is refused                                                                                                | types, versions and periods changed; prompt regenerated under the same reference; the stale-copy warning if copied before (BKT-20) |
+| to_do    | imported | an import is saved                                           | —                                                                                                                                     | `imported_at` set (IMP-30)                                                                                                         |
+| to_do    | canceled | owner cancels; or the player is withdrawn                    | —                                                                                                                                     | `canceled_at`; reason optional, or `player_withdrawn` (BKT-14); a new trigger may create a new request                             |
+| canceled | imported | an import is saved after the explicit confirmation of IMP-08 | —                                                                                                                                     | `imported_at` set; another to-do request of the player stays open (CL-BKT-20)                                                      |
 
 `imported` is final; `canceled → to_do` does not exist; pausing the player changes nothing
 (H-BKT-10).
@@ -232,53 +240,53 @@ Only the draft and the saved import are stored; the preview, the outcomes before
 fingerprint flags and the correction message are computed and discarded (06 « Ce qui n'est pas
 conservé »).
 
-| from                  | to             | trigger                      | guard                                                                                                        | side effects                                                                                                                                                                                                                                                   |
-| --------------------- | -------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (none)                | draft          | owner pastes or picks a file | at most `maxPastedSize` bytes (CL-IMP-27)                                                                     | the request's draft row written (CL-DSN-17)                                                                                                                                                                                                                    |
-| draft                 | blocking_error | Check                        | a whole-result check fails (IMP-04 to IMP-09)                                                                 | journal entry with date, reference, refusal category and size only (CL-IMP-33); nothing saved                                                                                                                                                                  |
-| draft                 | preview        | Check                        | —                                                                                                            | outcomes computed; each accepted event checked against the live fingerprints for every day within `correspondenceWindowDays` of its day (CL-DSN-06, CL-IMP-28, CL-IMP-34)                                                                                                                                                                                        |
-| preview               | summary        | Save                         | every possible duplicate answered; the partial-import, canceled-request and replacement confirmations given; the save confirmation says how many flagged events will be recorded (CL-IMP-28) | one transaction (IMP-30): events, sources, coverage, outcome rows, trace, request status; each "don't record — sensitive data" adds one to the counter and stores nothing; recording a flagged event erases the fingerprints it matched (CL-DSN-06); draft erased; recalculation job, cause "new cases" |
-| draft or preview      | (discarded)    | Discard                      | —                                                                                                            | draft erased (IMP-03)                                                                                                                                                                                                                                          |
+| from             | to             | trigger                      | guard                                                                                                                                                                                        | side effects                                                                                                                                                                                                                                                                                            |
+| ---------------- | -------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)           | draft          | owner pastes or picks a file | at most `maxPastedSize` bytes (CL-IMP-27)                                                                                                                                                    | the request's draft row written (CL-DSN-17)                                                                                                                                                                                                                                                             |
+| draft            | blocking_error | Check                        | a whole-result check fails (IMP-04 to IMP-09)                                                                                                                                                | journal entry with date, reference, refusal category and size only (CL-IMP-33); nothing saved                                                                                                                                                                                                           |
+| draft            | preview        | Check                        | —                                                                                                                                                                                            | outcomes computed; each accepted event checked against the live fingerprints for every day within `correspondenceWindowDays` of its day (CL-DSN-06, CL-IMP-28, CL-IMP-34)                                                                                                                               |
+| preview          | summary        | Save                         | every possible duplicate answered; the partial-import, canceled-request and replacement confirmations given; the save confirmation says how many flagged events will be recorded (CL-IMP-28) | one transaction (IMP-30): events, sources, coverage, outcome rows, trace, request status; each "don't record — sensitive data" adds one to the counter and stores nothing; recording a flagged event erases the fingerprints it matched (CL-DSN-06); draft erased; recalculation job, cause "new cases" |
+| draft or preview | (discarded)    | Discard                      | —                                                                                                                                                                                            | draft erased (IMP-03)                                                                                                                                                                                                                                                                                   |
 
 ### 2.3 Player coverage situation (BKT-10) — `PlayerCoverageSituation`, derived
 
-| from       | to       | trigger                                   | guard | side effects                                                                 |
-| ---------- | -------- | ----------------------------------------- | ----- | ---------------------------------------------------------------------------- |
-| unprofiled | profiled | the first saved import of the player, even of an empty result | — | Lot 2 routing of his detected events changes (BKT-30); calendar-derived profiles never count (CL-VUE-06) |
+| from       | to       | trigger                                                       | guard | side effects                                                                                             |
+| ---------- | -------- | ------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------- |
+| unprofiled | profiled | the first saved import of the player, even of an empty result | —     | Lot 2 routing of his detected events changes (BKT-30); calendar-derived profiles never count (CL-VUE-06) |
 
 ## 3. Invariants
 
-| rule                                                                                                          | spec IDs                          | enforced by                                                                    |
-| ------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
-| At most one to-do request per player                                                                          | BKT-07                            | partial unique index                                                           |
-| No request for a withdrawn player; none while no research type is validated                                   | BKT-01, BKT-02, CL-BKT-03         | request service                                                                |
-| A reference is unique, never changes and is never reused, canceled requests included                          | BKT-12, CL-BKT-11                 | unique index; the per-year counter in `sequence_counters`, which survives deletions |
-| A request, its prompt and a coverage never hold a calendar-derived type                                       | ADR 0015, CL-BKT-03               | request and import services                                                    |
-| `imported` is final; a canceled request never returns to to do                                                | BKT-13                            | request service                                                                |
-| No placeholder remains in a stored prompt                                                                      | BKT-22                            | prompt builder                                                                 |
-| Saving an import is all or nothing                                                                            | IMP-30                            | one transaction                                                                |
-| Each result event has exactly one outcome; a sensitive-data decline leaves no row                             | IMP-19, IMP-37, DSN-29            | import service                                                                 |
-| Retained coverage is a requested type's requested period intersected with the declared period                | IMP-10                            | import service                                                                 |
-| Historical events take the sheet version of the request's prompt, except attachments after a merge or split    | IMP-30, CL-IMP-21                 | import service                                                                 |
-| A replacement deletes only historical events of earlier imports, per type, inside that type's retained period; never a detected event | IMP-29, CL-IMP-20       | import service                                                                 |
-| The import never modifies a detected event                                                                     | IMP-27, CL-IMP-30                 | import service                                                                 |
-| The pasted text is never stored outside the draft                                                              | IMP-03, DSN-32                    | no column holds it; the draft store is excluded from backups and exports       |
-| A request's remaining refusals are those of its last saved import                                              | IMP-24, H-IMP-12, CL-IMP-24       | derived from the latest `imports` row of the request                           |
+| rule                                                                                                                                  | spec IDs                    | enforced by                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------- |
+| At most one to-do request per player                                                                                                  | BKT-07                      | partial unique index                                                                |
+| No request for a withdrawn player; none while no research type is validated                                                           | BKT-01, BKT-02, CL-BKT-03   | request service                                                                     |
+| A reference is unique, never changes and is never reused, canceled requests included                                                  | BKT-12, CL-BKT-11           | unique index; the per-year counter in `sequence_counters`, which survives deletions |
+| A request, its prompt and a coverage never hold a calendar-derived type                                                               | ADR 0015, CL-BKT-03         | request and import services                                                         |
+| `imported` is final; a canceled request never returns to to do                                                                        | BKT-13                      | request service                                                                     |
+| No placeholder remains in a stored prompt                                                                                             | BKT-22                      | prompt builder                                                                      |
+| Saving an import is all or nothing                                                                                                    | IMP-30                      | one transaction                                                                     |
+| Each result event has exactly one outcome; a sensitive-data decline leaves no row                                                     | IMP-19, IMP-37, DSN-29      | import service                                                                      |
+| Retained coverage is a requested type's requested period intersected with the declared period                                         | IMP-10                      | import service                                                                      |
+| Historical events take the sheet version of the request's prompt, except attachments after a merge or split                           | IMP-30, CL-IMP-21           | import service                                                                      |
+| A replacement deletes only historical events of earlier imports, per type, inside that type's retained period; never a detected event | IMP-29, CL-IMP-20           | import service                                                                      |
+| The import never modifies a detected event                                                                                            | IMP-27, CL-IMP-30           | import service                                                                      |
+| The pasted text is never stored outside the draft                                                                                     | IMP-03, DSN-32              | no column holds it; the draft store is excluded from backups and exports            |
+| A request's remaining refusals are those of its last saved import                                                                     | IMP-24, H-IMP-12, CL-IMP-24 | derived from the latest `imports` row of the request                                |
 
 ## 4. Stored or derived
 
-| item                                                                 | stored or derived | recalculated when                                                                      | spec IDs                            |
-| -------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------- | ----------------------------------- |
-| Prompt text                                                          | stored            | at creation, each update and reduction                                                 | BKT-20                              |
-| Origin of a request                                                  | derived           | trigger and kind                                                                       | 05 « Données manipulées »           |
-| Overall period                                                       | derived           | earliest start to latest end of the requested types                                    | 05 « Données manipulées »           |
-| Deadline, urgency, rank                                              | derived           | on read, never stored                                                                  | BKT-16 to BKT-18, CL-BKT-23, CL-BKT-24 |
-| "In progress", stale copy, outdated sheet version                    | derived           | `last_copied_at` against status, `prompt_produced_at` and the types' current versions  | BKT-15, BKT-20, IHM-40              |
-| Profiled, uncovered types, first uncovered day, covers the type      | derived           | from `imports` and `backtest_coverage_periods` (CL-BKT-05)                             | BKT-10, H-VUE-02                    |
-| Import tally                                                         | derived           | from outcome rows, sources added by the import, and the stored deletion counts         | IMP-22, IMP-31, IMP-37              |
-| Sources the spot check opened                                        | derived           | sources added by the import with a verdict                                             | IMP-23                              |
-| Remaining refusals per request and their sum per player              | derived           | refused outcomes of each request's last import                                        | IMP-24, CL-IMP-24, CL-SEN-22        |
-| Supplement offered after an import                                   | derived           | planned types with an uncovered day, computed on acceptance                            | BKT-06, CL-BKT-07                   |
+| item                                                            | stored or derived | recalculated when                                                                     | spec IDs                               |
+| --------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------- | -------------------------------------- |
+| Prompt text                                                     | stored            | at creation, each update and reduction                                                | BKT-20                                 |
+| Origin of a request                                             | derived           | trigger and kind                                                                      | 05 « Données manipulées »              |
+| Overall period                                                  | derived           | earliest start to latest end of the requested types                                   | 05 « Données manipulées »              |
+| Deadline, urgency, rank                                         | derived           | on read, never stored                                                                 | BKT-16 to BKT-18, CL-BKT-23, CL-BKT-24 |
+| "In progress", stale copy, outdated sheet version               | derived           | `last_copied_at` against status, `prompt_produced_at` and the types' current versions | BKT-15, BKT-20, IHM-40                 |
+| Profiled, uncovered types, first uncovered day, covers the type | derived           | from `imports` and `backtest_coverage_periods` (CL-BKT-05)                            | BKT-10, H-VUE-02                       |
+| Import tally                                                    | derived           | from outcome rows, sources added by the import, and the stored deletion counts        | IMP-22, IMP-31, IMP-37                 |
+| Sources the spot check opened                                   | derived           | sources added by the import with a verdict                                            | IMP-23                                 |
+| Remaining refusals per request and their sum per player         | derived           | refused outcomes of each request's last import                                        | IMP-24, CL-IMP-24, CL-SEN-22           |
+| Supplement offered after an import                              | derived           | planned types with an uncovered day, computed on acceptance                           | BKT-06, CL-BKT-07                      |
 
 ## 5. Exchange formats
 
@@ -291,39 +299,39 @@ enumerated values; an optional field without content is omitted and `null` is ne
 texts in English under the wording rules of DSN-12 to DSN-23, without quotation marks, at most
 `maxDescriptionLength` (200) code points; titles as published.
 
-| key                                   | type             | required | limits and allowed values                                                                                                         |
-| ------------------------------------- | ---------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `format`                              | string           | yes      | `egoscope-backtest`; any other value is refused: "This text is not a backtest result."                                            |
-| `format_version`                      | string           | yes      | `1.0`; an unknown version is refused with the advice to regenerate the prompt                                                     |
-| `request_reference`                   | string           | yes      | the request's `REQ-YYYY-NNNN`; compared trimmed, ignoring case (CL-BKT-11)                                                        |
-| `player`                              | object           | yes      | —                                                                                                                                 |
-| `player.id`                           | string           | yes      | the player's UUID; must be the request's player (IMP-07)                                                                          |
-| `player.name`                         | string           | yes      | a different name gives only a warning                                                                                             |
-| `covered_types`                       | array of strings | yes      | non-empty; slugs of types in the prompt; a repeat counts once with a warning (CL-IMP-23)                                          |
-| `covered_period`                      | object           | yes      | —                                                                                                                                 |
-| `covered_period.start`                | string           | yes      | date without time; at most `covered_period.end`; clamped to the requested period with a warning                                  |
-| `covered_period.end`                  | string           | yes      | date without time                                                                                                                 |
-| `events`                              | array            | yes      | may be empty (BKT-23); sorted by the date part of `public_date` (CL-BKT-15)                                                       |
-| `events[].event_type`                 | string           | yes      | slug of a covered type                                                                                                            |
-| `events[].public_date`                | string           | yes      | the event's reference date                                                                                                        |
-| `events[].description`                | string           | yes      | one factual sentence, 1 to `maxDescriptionLength` code points, no quotation mark (CL-IMP-05)                                      |
-| `events[].sources`                    | array            | yes      | 1 to `maxSourcesPerEvent` (3) objects, oldest first; at least one published before the next game the player played               |
-| `events[].sources[].url`              | string           | yes      | full article address starting `https://` or `http://`, not a home page (CL-IMP-15), not a disallowed domain                       |
-| `events[].sources[].outlet`           | string           | yes      | a missing value gives a warning                                                                                                   |
-| `events[].sources[].title`            | string           | yes      | as published; a missing value gives a warning                                                                                     |
-| `events[].sources[].publication_date` | string           | yes      | same formats as `public_date`; not after the import day; not more than `toleratedSourceLeadDays` before the public date (CL-IMP-11) |
-| `events[].context`                    | object           | yes      | the first NBA game the player played after the event                                                                              |
-| `events[].context.injury_return`      | string           | yes      | `yes`, `no`, `unknown`; another value becomes `unknown` with a warning                                                            |
-| `events[].context.game_stakes`        | string           | yes      | `high`, `normal`, `unknown`; same default                                                                                         |
-| `events[].context.detail`             | string           | no       | shown in the preview, never stored (DSN-07)                                                                                       |
-| `events[].confidence`                 | string           | yes      | `high`, `medium`, `low`; missing or another value becomes `low` with a warning                                                    |
-| `events[].unverified_note`            | string           | no       | within the description length, no quotation mark, else ignored with a warning                                                    |
-| `unverified_leads`                    | array            | yes      | may be empty; a missing list is read as empty with a warning                                                                      |
-| `unverified_leads[].event_type`       | string           | no       | counted under "none" when missing, unknown or not requested (CL-IMP-23)                                                           |
-| `unverified_leads[].approximate_period` | string         | no       | free text, for example "2020-21 season"                                                                                           |
-| `unverified_leads[].description`      | string           | yes      | never stored; only the count per type is kept                                                                                     |
-| `unverified_leads[].reason`           | string           | yes      | never stored                                                                                                                      |
-| `limitations`                         | array of strings | yes      | may be empty; kept as text in `imports.declared_limitations`                                                                      |
+| key                                     | type             | required | limits and allowed values                                                                                                           |
+| --------------------------------------- | ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `format`                                | string           | yes      | `egoscope-backtest`; any other value is refused: "This text is not a backtest result."                                              |
+| `format_version`                        | string           | yes      | `1.0`; an unknown version is refused with the advice to regenerate the prompt                                                       |
+| `request_reference`                     | string           | yes      | the request's `REQ-YYYY-NNNN`; compared trimmed, ignoring case (CL-BKT-11)                                                          |
+| `player`                                | object           | yes      | —                                                                                                                                   |
+| `player.id`                             | string           | yes      | the player's UUID; must be the request's player (IMP-07)                                                                            |
+| `player.name`                           | string           | yes      | a different name gives only a warning                                                                                               |
+| `covered_types`                         | array of strings | yes      | non-empty; slugs of types in the prompt; a repeat counts once with a warning (CL-IMP-23)                                            |
+| `covered_period`                        | object           | yes      | —                                                                                                                                   |
+| `covered_period.start`                  | string           | yes      | date without time; at most `covered_period.end`; clamped to the requested period with a warning                                     |
+| `covered_period.end`                    | string           | yes      | date without time                                                                                                                   |
+| `events`                                | array            | yes      | may be empty (BKT-23); sorted by the date part of `public_date` (CL-BKT-15)                                                         |
+| `events[].event_type`                   | string           | yes      | slug of a covered type                                                                                                              |
+| `events[].public_date`                  | string           | yes      | the event's reference date                                                                                                          |
+| `events[].description`                  | string           | yes      | one factual sentence, 1 to `maxDescriptionLength` code points, no quotation mark (CL-IMP-05)                                        |
+| `events[].sources`                      | array            | yes      | 1 to `maxSourcesPerEvent` (3) objects, oldest first; at least one published before the next game the player played                  |
+| `events[].sources[].url`                | string           | yes      | full article address starting `https://` or `http://`, not a home page (CL-IMP-15), not a disallowed domain                         |
+| `events[].sources[].outlet`             | string           | yes      | a missing value gives a warning                                                                                                     |
+| `events[].sources[].title`              | string           | yes      | as published; a missing value gives a warning                                                                                       |
+| `events[].sources[].publication_date`   | string           | yes      | same formats as `public_date`; not after the import day; not more than `toleratedSourceLeadDays` before the public date (CL-IMP-11) |
+| `events[].context`                      | object           | yes      | the first NBA game the player played after the event                                                                                |
+| `events[].context.injury_return`        | string           | yes      | `yes`, `no`, `unknown`; another value becomes `unknown` with a warning                                                              |
+| `events[].context.game_stakes`          | string           | yes      | `high`, `normal`, `unknown`; same default                                                                                           |
+| `events[].context.detail`               | string           | no       | shown in the preview, never stored (DSN-07)                                                                                         |
+| `events[].confidence`                   | string           | yes      | `high`, `medium`, `low`; missing or another value becomes `low` with a warning                                                      |
+| `events[].unverified_note`              | string           | no       | within the description length, no quotation mark, else ignored with a warning                                                       |
+| `unverified_leads`                      | array            | yes      | may be empty; a missing list is read as empty with a warning                                                                        |
+| `unverified_leads[].event_type`         | string           | no       | counted under "none" when missing, unknown or not requested (CL-IMP-23)                                                             |
+| `unverified_leads[].approximate_period` | string           | no       | free text, for example "2020-21 season"                                                                                             |
+| `unverified_leads[].description`        | string           | yes      | never stored; only the count per type is kept                                                                                       |
+| `unverified_leads[].reason`             | string           | yes      | never stored                                                                                                                        |
+| `limitations`                           | array of strings | yes      | may be empty; kept as text in `imports.declared_limitations`                                                                        |
 
 Tolerances of the import, beyond these rules: surrounding text, code fences and invisible
 characters are stripped; date variants (`Z`, seconds, compact offsets) are accepted with a warning,
