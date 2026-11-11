@@ -1,0 +1,43 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# test and analysis output
+coverage/
+playwright-report/
+test-results/
+reports/
+.stryker-tmp/
+
+# environment and secrets (never commit real values)
+.env
+.env.*
+!.env.example
+
+# local databases
+*.pglite/
+.pglite/
+
+# tooling caches
+.eslintcache
+.turbo/
+.vercel/
+
+# agent worktrees and local assistant settings
+.claude/worktrees/
+.claude/settings.local.json
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
