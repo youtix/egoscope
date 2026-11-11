@@ -1125,4 +1125,1129 @@ Decisions:
 - « état » and « statut » are synonyms in the specs: both are "status". « motif » and « raison » are both "reason". « origine » and « provenance » are both "origin".
 - Every « journal » keeps the word "journal" (pre-decided), so "log" is not used for any of them.
 
+## 4. Enumerations
+
+Every set is a string-literal union in code and a text column in the database. Values are listed in the order the specs give them. A UI label in braces (`{date}`) is filled at display time. "VUE-08" marks the common states whose labels the specs require on every screen.
+
+### 4.1 Sets by domain
+
+#### Players
+
+`PlayerStatus` — JOU-15, VUE-08
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| actif | `active` | Active |
+| en pause | `paused` | Paused |
+| retiré | `withdrawn` | Withdrawn |
+
+`PlayerStatusChangeReason` — JOU-15, H-JOU-06 (optional on every status change)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| absence prolongée | `prolonged_absence` | Prolonged absence |
+| fin de carrière | `end_of_career` | End of career |
+| départ de la NBA | `left_nba` | Left the NBA |
+| exposition insuffisante | `insufficient_exposure` | Insufficient exposure |
+| autre | `other` | Other |
+
+`TeamChangeOrigin` — JOU-13
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| constaté | `observed` | Observed |
+| saisi | `entered` | Entered |
+
+`NameVariantKind` — JOU-08
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| variante d'écriture | `spelling` | Spelling variant |
+| surnom | `nickname` | Nickname |
+
+`StatsSourceMappingStatus` — JOU-10, STA-03
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| correspondance à établir | `to_establish` | Mapping to establish |
+| correspondance confirmée | `established` | Mapping established |
+
+`PlayerBacktestStatus` — JOU-25, IHM-21 (derived, shown on the player page and list)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| aucun, jamais demandé | `never_requested` | Never requested |
+| demande à faire | `request_to_do` | Request to do |
+| importé (le …) | `imported` | Imported on {date} |
+| demande complémentaire à faire | `supplementary_request_to_do` | Supplementary request to do |
+
+#### Event types
+
+`EventTypeStatus` — TAX-10, VUE-08
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| proposé | `proposed` | Proposed |
+| validé | `validated` | Validated |
+| rejeté | `rejected` | Rejected |
+| retiré | `withdrawn` | Withdrawn |
+
+`EventTypeOrigin` — TAX-15
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| cadrage | `scoping` | Scoping |
+| exploration | `exploration` | Exploration |
+| détection | `detection` | Detection |
+
+`TypeRejectionReason` — TAX-13, H-TAX-04
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| non net | `not_clean` | Not clean |
+| non datable | `not_datable` | Not datable |
+| doublon d'un type existant | `duplicate_of_existing_type` | Duplicate of an existing type |
+| hors périmètre | `out_of_scope` | Out of scope |
+| autre | `other` | Other |
+
+`TypeWithdrawalReasonKind` — TAX-27, TAX-29, TAX-31 (the reason itself is free text)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| motif saisi | `entered` | (the owner's text) |
+| fusionné dans | `merged_into` | Merged into {type} |
+| scindé en | `split_into` | Split into {types} |
+
+`DocumentationDifficulty` — TAX-01, TAX-08
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| facile | `easy` | Easy |
+| moyenne | `medium` | Medium |
+| difficile | `hard` | Hard |
+
+`SheetChangeQualification` — TAX-22
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| de forme | `formal` | Formal change |
+| de fond | `substantive` | Substantive change |
+
+`SubstantiveChangeScope` — TAX-22
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| élargit | `broadens` | Broadens the type |
+| restreint | `narrows` | Narrows the type |
+| les deux | `both` | Both |
+
+`RequalificationChoice` — TAX-25
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| conforme à la nouvelle version | `conforms` | Conforms to the new version |
+| réaffecté à un autre type validé | `reassigned` | Reassigned to another validated type |
+| non conforme | `non_conforming` | Does not conform |
+
+`EventTypeLinkMark` — TAX-25, TAX-29
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| à requalifier | `to_requalify` | To requalify |
+| à répartir | `to_distribute` | To distribute |
+
+`ExplorationMode` — TAX-16
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| général | `general` | General |
+| ciblé | `targeted` | Targeted |
+
+#### Events
+
+`EventOrigin` — DSN-06
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| détecté | `detected` | Detected |
+| historique | `historical` | Historical |
+
+`DetectedEventStatus` — DET-43, DET-45, VUE-08
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| détecté | `detected` | Detected |
+| écarté | `dismissed` | Dismissed |
+
+`DismissalReason` — DET-43
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| pas un événement | `not_an_event` | Not an event |
+| ne relève d'aucun type validé | `no_validated_type_fits` | Fits no validated type |
+| fait ancien | `old_fact` | Old fact |
+| information non publique ou invérifiable | `non_public_or_unverifiable` | Non-public or unverifiable information |
+| doublon d'un événement historique | `duplicate_of_historical_event` | Duplicate of a historical event |
+| autre (avec commentaire) | `other` | Other |
+
+`DismissalTiming` — DET-46
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| avant le coup d'envoi du match mesuré | `before_tip_off` | Before tip-off |
+| après le coup d'envoi | `after_tip_off` | After tip-off |
+
+`EventMark` — DET-21, DET-32, DET-33, DET-58
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| datation à vérifier | `dating_to_verify` | Dating to verify |
+| détecté après le coup d'envoi | `detected_after_tip_off` | Detected after tip-off |
+| doublon possible d'un événement historique | `possible_historical_duplicate` | Possible duplicate of a historical event |
+| description à revoir | `description_to_review` | Description to review |
+
+`DatePrecision` — COL-20, DET-30, DSN-06
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| exacte | `exact` | Exact |
+| approximative | `approximate` | Approximate |
+| absente | `none` | No date |
+
+`Precedence` — IMP-18, SEN-44
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| établie | `established` | Established |
+| incertaine | `uncertain` | Uncertain |
+| non établie | `not_established` | Not established |
+| à vérifier | `to_verify` | To verify |
+
+`InjuryReturn` — SEN-13, BKT format, DSN-07
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| oui | `yes` | Yes |
+| non | `no` | No |
+| inconnu | `unknown` | Unknown |
+
+`GameStakes` — SEN-14, BKT format
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| fort | `high` | High |
+| normal | `normal` | Normal |
+| inconnu | `unknown` | Unknown |
+
+`ResearchConfidence` — BKT prompt rule 2.8, IMP-15
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| haute | `high` | High |
+| moyenne | `medium` | Medium |
+| faible | `low` | Low |
+
+`ContextIndicationOrigin` — SEN-18, H-09, ALE-08
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| recherche | `research` | Research |
+| classification | `classification` | Classification |
+| utilisateur | `user` | You |
+| calcul | `calculation` | Calculated |
+
+`HistoricalEventDeletionReason` — IMP-33
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| fait inexact ou source fausse | `inaccurate_fact_or_false_source` | Inaccurate fact or false source |
+| hors des critères du type | `outside_type_criteria` | Outside the type's criteria |
+| doublon | `duplicate` | Duplicate |
+| autre (avec une précision courte) | `other` | Other |
+
+`ReferenceInstantOrigin` — SEN-01, SEN-02, SEN-44, 08 Données manipulées
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| instant connu | `known_instant` | Known time |
+| date seule | `date_only` | Date only |
+| événement connu à l'avance | `known_in_advance` | Known in advance |
+| report pour antériorité incertaine | `uncertain_precedence_shift` | Uncertain precedence |
+
+#### Cases
+
+`CaseOrigin` — SEN-21, IHM-46
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| historique | `historical` | Historical |
+| suivi | `tracked` | Tracked |
+
+`CaseStatus` — SEN-07, VUE-08
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| en attente du match | `awaiting_game` | Awaiting game |
+| mesuré | `measured` | Measured |
+| exclu (cas douteux) | `excluded` | Excluded (doubtful case) |
+| non mesurable | `not_measurable` | Not measurable |
+
+`CaseStatusReason` — SEN-07, SEN-04, SEN-44, SEN-45, SEN-47, STA-35, STA-45 (an excluded case carries its triggered criteria instead)
+
+| French | Code value | UI label | For status |
+| --- | --- | --- | --- |
+| match pas encore joué | `game_not_played_yet` | Game not played yet | awaiting game |
+| statistiques en attente | `statistics_pending` | Statistics pending | awaiting game |
+| correspondance statistique non confirmée | `mapping_not_established` | Stats-source mapping not established | awaiting game |
+| référence en constitution | `baseline_building` | Baseline being built | awaiting game |
+| antériorité à vérifier | `precedence_to_verify` | Precedence to verify | awaiting game |
+| datation à vérifier | `dating_to_verify` | Dating to verify | awaiting game |
+| aucun match joué dans le délai | `no_game_within_window` | No game played within the window | not measurable |
+| feuille incomplète (match consolidé) | `box_score_incomplete` | Box score incomplete | not measurable |
+| feuille douteuse (match consolidé) | `box_score_suspect` | Box score suspect | not measurable |
+| feuille indisponible | `box_score_unavailable` | Box score unavailable | not measurable |
+| référence insuffisante | `insufficient_baseline` | Insufficient baseline | not measurable |
+| saison non couverte par la source | `season_not_covered` | Season not covered by the source | not measurable |
+| antériorité non établie | `precedence_not_established` | Precedence not established | not measurable |
+
+`DoubtfulCaseCriterion` — SEN-11–SEN-17
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| temps de jeu trop faible | `playing_time_too_low` | Playing time too low |
+| retour de blessure | `injury_return` | Return from injury |
+| enjeu inhabituel | `unusual_stakes` | Unusual stakes |
+| niveau de l'adversaire | `opponent_strength` | Opponent strength |
+| concomitant (si le paramètre est activé) | `co_occurring` | Co-occurring |
+| décision manuelle | `manual` | Excluded by you |
+
+`CriterionCondition` — SEN-13, SEN-14
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| signalée | `flagged` | Flagged |
+| calculée | `calculated` | Calculated |
+
+`ReviewFlag` — SEN-16
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| premier match avec une nouvelle équipe | `first_game_with_new_team` | First game with a new team |
+| expulsion pendant le match mesuré | `ejection` | Ejected during the game |
+
+`ManualDecisionKind` — SEN-17
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| exclure | `exclude` | Exclude |
+| réintégrer | `reinstate` | Reinstate |
+
+`ManualExclusionReason` — SEN-17 (comment required for the last one)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| temps de jeu | `playing_time` | Playing time |
+| retour de blessure | `injury_return` | Return from injury |
+| enjeu inhabituel | `unusual_stakes` | Unusual stakes |
+| niveau de l'adversaire | `opponent_strength` | Opponent strength |
+| autre facteur parasite | `other_confounding_factor` | Other confounding factor |
+
+`ManualReinstatementReason` — SEN-17 (comment required for the last one)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| indication de contexte erronée | `incorrect_context_indication` | Incorrect context indication |
+| critère inadapté à ce cas | `criterion_unsuited_to_case` | Criterion unsuited to this case |
+
+`TallyExitReason` — SEN-33 (a withdrawal never appears here)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| écarté | `dismissed` | Dismissed |
+| fusionné avec un autre événement détecté | `merged` | Merged with another event |
+| supprimé à la main | `deleted` | Deleted |
+| remplacé à l'import | `replaced_at_import` | Replaced at import |
+| effacé lors d'une requalification ou d'une répartition | `erased` | Erased by requalification |
+
+#### Backtest requests
+
+`BacktestRequestStatus` — BKT-13, VUE-08
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| à faire | `to_do` | To do |
+| importée | `imported` | Imported |
+| annulée | `canceled` | Canceled |
+
+`BacktestRequestKind` — BKT-01, BKT-08, BKT-09
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| initiale | `initial` | Initial request |
+| complément | `supplement` | Supplementary request |
+| reprise complète | `full_redo` | Full redo |
+
+`BacktestRequestTrigger` — BKT-01, BKT-03–BKT-06, IHM-27
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| action manuelle | `manual_action` | Requested by you |
+| détection | `detection` | Detection |
+| validation d'un type | `type_validated` | Type validated |
+| réactivation d'un type | `type_reactivated` | Type reactivated |
+| élargissement d'un type | `type_broadened` | Type broadened |
+| import incomplet | `incomplete_import` | Incomplete import |
+
+`BacktestRequestOrigin` — BKT Données manipulées, TEL-09, IHM-27 (derived from trigger and kind)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| née d'une détection | `from_detection` | From detection |
+| manuelle | `manual` | Manual |
+| complémentaire | `supplementary` | Supplementary |
+
+`RequestCancellationReason` — BKT-14 (otherwise free text)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| joueur retiré | `player_withdrawn` | Player withdrawn |
+
+`MeasuredGameTiming` — BKT-18 (per attached detected event)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| à venir | `upcoming` | Upcoming |
+| joué | `played` | Played |
+
+`PlayerCoverageSituation` — BKT-10, H-VUE-02
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| sans backtest, non profilé | `unprofiled` | No backtest yet |
+| déjà traité, profilé | `profiled` | Profiled |
+
+#### Import
+
+`ImportMode` — IMP-22, IMP-28, IMP-29
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| premier import | `first_import` | First import |
+| complément | `addition` | Add to existing |
+| remplacement | `replacement` | Replace existing |
+
+`ImportOutcome` — IMP-19
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| ajouté | `added` | Added |
+| ajouté avec avertissement | `added_with_warning` | Added with warning |
+| doublon, non ajouté | `duplicate_not_added` | Duplicate, not added |
+| ignoré | `ignored` | Ignored |
+| refusé | `refused` | Refused |
+| non enregistré pour donnée sensible | `not_recorded_sensitive_data` | Not recorded: sensitive data |
+
+`PossibleDuplicateAnswer` — IMP-25, IMP-26
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| même fait | `same_fact` | Same fact |
+| faits distincts | `distinct_facts` | Distinct facts |
+| événements distincts (doublon confirmé ajouté quand même) | `keep_as_distinct` | Distinct events |
+
+`SpotCheckVerdict` — IMP-23
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| conforme | `consistent` | Consistent |
+| non conforme | `inconsistent` | Inconsistent |
+| inaccessible | `inaccessible` | Inaccessible |
+
+`LinkStatus` — IMP-17 (no mark means the check found nothing wrong or did not run)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| introuvable | `not_found` | Not found |
+
+`ImportStep` — IMP-01–IMP-35, IHM-28–IHM-30
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| brouillon | `draft` | Draft |
+| erreur bloquante | `blocking_error` | — |
+| aperçu | `preview` | Preview |
+| bilan | `summary` | Summary |
+
+`ImportDraftStatus` — IHM-42, 12 edge cases
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| brouillon gardé | `kept` | Draft saved at {time} |
+| demande déjà importée | `request_already_imported` | Request already imported |
+
+#### Games and statistics
+
+`GamePhase` — STA-04, STA-05
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| saison régulière | `regular_season` | Regular season |
+| tournoi de qualification | `play_in` | Play-in |
+| phases finales | `playoffs` | Playoffs |
+
+`BaselinePhase` — STA-16, STA-18 (also the values of the STA-18 parameter)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| saison régulière | `regular_season` | Regular season |
+| tournoi de qualification et phases finales (référence de phases finales) | `postseason` | Postseason |
+
+`GameStatus` — STA-05
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| prévu | `scheduled` | Scheduled |
+| en cours | `in_progress` | In progress |
+| terminé | `final` | Final |
+| reporté | `postponed` | Postponed |
+| annulé | `canceled` | Canceled |
+
+`GameConsolidation` — STA-33
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| dans la fenêtre de correction | `in_correction_window` | — |
+| consolidé | `consolidated` | Consolidated |
+
+`BoxScoreStatus` — STA-09, STA-10, STA-35
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| complète | `complete` | Complete |
+| incomplète | `incomplete` | Incomplete |
+| douteuse | `suspect` | Suspect |
+| indisponible | `unavailable` | Unavailable |
+
+`GamePlayClassification` — STA-13, STA-14
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| non joué | `not_played` | Did not play |
+| joué non exploitable | `played_not_usable` | Not usable |
+| exploitable | `usable` | Usable |
+
+`SeasonBaselineStatus` — STA-16, STA-19–STA-22 (plus the separate notice « partielle », `isPartial`, "Partial", STA-24)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| définitive | `final` | Final |
+| provisoire | `provisional` | Provisional |
+| en constitution | `building` | Being built |
+| insuffisante | `insufficient` | Insufficient |
+
+`GapStatus` — SEN-09
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| provisoire | `provisional` | Provisional |
+| définitif | `final` | Final |
+
+`NoNextGameReason` — STA-26
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| intersaison | `offseason` | Offseason |
+| équipe éliminée | `team_eliminated` | Team eliminated |
+| joueur sans équipe | `player_without_team` | Player without a team |
+| calendrier non publié | `schedule_not_published` | Schedule not published |
+
+`GameVenue` — STA-26
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| à domicile | `home` | Home |
+| à l'extérieur | `away` | Away |
+
+`FetchWaitReason` — STA-36, STA-39
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| panne | `outage` | Source outage |
+| quota | `quota` | Quota |
+
+`StatCorrectionOrigin` — STA-33, STA-34
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| fenêtre de correction | `correction_window` | Correction window |
+| relance manuelle | `manual_refetch` | Manual refetch |
+
+`FetchPriority` — STA-40 (stored as the integers 1 to 5)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| feuilles des matchs qui mesurent un cas suivi en attente | `1` | — |
+| calendrier de la saison en cours et prochain match | `2` | — |
+| résultats et feuilles de la journée écoulée, corrections | `3` | — |
+| saisons des cas historiques en attente | `4` | — |
+| reste de la carrière | `5` | — |
+
+#### Sensitivity, verdicts and profiles
+
+`ProfileView` — SEN-21
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| tous les cas | `all_cases` | All cases |
+| cas historiques | `historical_only` | Historical cases only |
+| cas suivis | `tracked_only` | Tracked cases only |
+
+`VerdictLevel` — SEN-23, D-16, IHM-50
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| non concluant | `inconclusive` | Inconclusive |
+| possible | `possible` | Possible |
+| probable | `probable` | Probable |
+
+`VerdictDirection` — SEN-24
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| hausse | `increase` | Increase |
+| baisse | `decrease` | Decrease |
+
+`ProfileConfidence` — SEN-25
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| faible | `low` | Low |
+| moyen | `medium` | Medium |
+| élevé | `high` | High |
+
+`ConfidenceStepDownReason` — SEN-25, SEN-29 (the starting level comes from n and is not a reason)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| dispersion des écarts au-dessus du seuil | `high_dispersion` | Cases disagree |
+| part de cas douteux au-dessus du seuil | `high_doubtful_share` | Many doubtful cases |
+| verdict fragile | `fragile_verdict` | Fragile verdict |
+| un joueur apporte plus de la moitié des cas (tendance) | `dominant_player` | One player brings most cases |
+
+`VerdictChangeCause` — SEN-37, SEN-48
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| nouveaux cas | `new_cases` | New cases |
+| correction de statistiques | `stats_correction` | Statistics correction |
+| référence mise à jour | `baseline_updated` | Baseline updated |
+| décision manuelle | `manual_decision` | Manual decision |
+| événement écarté | `event_dismissed` | Event dismissed |
+| changement de paramètre | `parameter_change` | Parameter change |
+| recalcul | `recalculation` | Recalculation |
+
+`CoverageWarningKind` — SEN-46 (shown with the earlier-version and remaining-refusal counts)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| type non couvert par le backtest | `type_not_covered` | Type not covered by the backtest |
+| profil incomplet | `incomplete_profile` | Incomplete profile |
+
+#### Press collection
+
+`ActivationStatus` — COL-09, COL-10, COL-40
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| active | `active` | Active |
+| désactivée | `deactivated` | Deactivated |
+| retirée | `withdrawn` | Withdrawn |
+
+`HealthStatus` — COL-40–COL-43
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| jamais lue | `never_read` | Never read |
+| fonctionnelle | `working` | Working |
+| en panne | `down` | Down since {date} |
+| muette | `silent` | Silent since {date} |
+
+`ArticleProcessingStatus` — COL-35
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| à analyser | `to_analyze` | To analyze |
+| en attente de classification | `awaiting_classification` | Awaiting classification |
+| non pertinent | `not_relevant` | Not relevant |
+| rattaché | `attached` | Attached |
+| lié à une proposition | `linked_to_proposal` | Linked to a proposal |
+
+`Language` — COL-05, COL-17 (ISO 639-1 codes)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| anglais | `en` | English |
+| français | `fr` | French |
+
+`CollectionRunOrigin` — COL-48
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| planifiée | `scheduled` | Scheduled |
+| à la demande | `on_demand` | On demand |
+| avec rattrapage | `with_catch_up` | With catch-up |
+
+`SourceReadOutcome` — COL-48
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| réussite | `success` | Succeeded |
+| échec | `failure` | Failed |
+
+#### Detection
+
+`NotRelevantReason` — DET-06, DET-16, DET-20, DET-24, DET-34, DET-36, DET-58
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| aucun joueur suivi | `no_followed_player` | No followed player |
+| aucun fait | `no_fact` | No fact |
+| sous le seuil | `below_threshold` | Below threshold |
+| fait ancien | `old_fact` | Old fact |
+| déjà rapporté par un backtest | `already_reported_by_backtest` | Already reported by a backtest |
+| type rejeté ou retiré | `type_rejected_or_withdrawn` | Type rejected or withdrawn |
+| proposition rejetée | `proposal_rejected` | Proposal rejected |
+
+`ClassificationOrigin` — DET-13, DET-49
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| modèle | `model` | Model |
+| utilisateur | `user` | You |
+
+`RoutingCase` — DET-37–DET-40, BKT-30 (every detected event is also tracked)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| joueur non profilé : besoin de backtest | `backtest_need` | — |
+| joueur profilé, type couvert : fiche d'alerte | `alert_sheet` | — |
+| joueur profilé, type non couvert : fiche « type non couvert » et besoin de complément | `alert_sheet_type_not_covered` | — |
+
+#### Alert sheets
+
+`AlertSheetStatus` — ALE-26
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| ouverte | `open` | Open |
+| close | `closed` | Closed |
+| annulée | `canceled` | Canceled |
+
+`AlertSheetTiming` — ALE-06, ALE-24 (the late mark is added to any status)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| produite avant le coup d'envoi | `produced_before_tip_off` | Produced before tip-off |
+| tardive | `late` | Late |
+
+`AlertSheetCancellationReason` — ALE-22, ALE-31
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| tous ses événements écartés | `all_events_dismissed` | All events dismissed |
+| rattachement corrigé | `attachment_corrected` | Attachment corrected |
+
+`CaveatKind` — ALE-16
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| petit échantillon | `small_sample` | Small sample |
+| sens de l'effet (toujours présente) | `effect_direction` | Direction of the effect |
+| contexte connu avant le match | `known_context` | Known context |
+| plusieurs événements | `several_events` | Several events |
+| confiance de détection proche du seuil | `confidence_near_threshold` | Detection confidence near the threshold |
+| datation à vérifier | `dating_to_verify` | Dating to verify |
+| profil incomplet ou version antérieure | `incomplete_or_earlier_version` | Incomplete profile or earlier sheet version |
+| fiche tardive | `late_sheet` | Late sheet |
+| type non couvert | `type_not_covered` | Type not covered |
+
+`ProfileStatusNotice` — ALE-05, ALE edge cases
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| profil en cours de calcul | `profile_being_computed` | Profile being computed |
+| recalcul en cours | `recalculation_in_progress` | Recalculation in progress |
+| aucun cas mesuré pour ce type à ce jour | `no_measured_case_yet` | No measured case for this type yet |
+
+`SubjectStatusNotice` — ALE edge cases
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| joueur en pause | `player_paused` | Player paused |
+| joueur retiré | `player_withdrawn` | Player withdrawn |
+| type retiré | `type_withdrawn` | Type withdrawn |
+
+`ExpectedGameState` — ALE-15, ALE-23
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| match attendu | `current` | Expected game |
+| ancien match attendu (barré, avec motif) | `superseded` | (struck through) |
+| match attendu inconnu | `unknown` | Expected game unknown |
+
+`ProfileSnapshotState` — ALE-05, ALE-19
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| profil en cours de calcul | `pending` | Profile being computed |
+| valeurs figées | `frozen` | — |
+
+#### Automatic tracking and validation
+
+`RecordingTiming` — SUI-06
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| enregistré à temps | `recorded_in_time` | Recorded in time |
+| enregistré après le coup d'envoi | `recorded_after_tip_off` | Recorded after tip-off |
+
+`ForecastSource` — SUI-08, SUI-09
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| profil du joueur | `player_profile` | Player profile |
+| tendance générale | `general_trend` | General trend |
+| aucune | `none` | None |
+
+`CaseCategory` — SUI-22 (valid tracked cases only)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| confirmé | `confirmed` | Confirmed |
+| démenti | `refuted` | Refuted |
+| neutre | `neutral` | Neutral |
+| sans pronostic | `no_forecast` | No forecast |
+
+`RowAssessment` — SUI-26, SUI-27 (absent under the minimum: "too few tracked cases")
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| confirmé | `confirmed` | Confirmed |
+| confirmé, effet plus faible qu'annoncé | `confirmed_weaker_than_announced` | Confirmed, weaker effect than announced |
+| démenti | `refuted` | Refuted |
+| indécis | `undecided` | Undecided |
+
+`ValidationRowScope` — SUI-23, SUI-28
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| type | `type` | Type |
+| joueur | `player` | Player |
+| couple joueur-type | `player_type_pair` | Player and type |
+| ensemble | `overall` | Overall |
+| sous-ligne de l'ensemble | `overall_subrow` | — |
+
+`OverallSubrowKind` — SUI-28
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| profil probable | `probable_profile` | Probable profile |
+| profil possible | `possible_profile` | Possible profile |
+| tendance générale | `general_trend` | General trend |
+
+`PostTipOffDecisionKind` — SUI-17
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| écartement de l'événement | `event_dismissed` | Event dismissed |
+| réintégration de l'événement | `event_reinstated` | Event reinstated |
+| exclusion manuelle du cas | `case_excluded` | Case excluded |
+| réintégration manuelle du cas | `case_reinstated` | Case reinstated |
+| correction d'une indication de contexte | `context_corrected` | Context corrected |
+| correction de la date de référence | `reference_date_corrected` | Reference date corrected |
+| correction du joueur | `player_corrected` | Player corrected |
+| correction du type | `type_corrected` | Type corrected |
+| levée de la marque « datation à vérifier » | `dating_mark_lifted` | Dating mark lifted |
+
+`PostTipOffDecisionEffect` — SUI-17
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| sortie (des comptes) | `exit` | Left the counts |
+| entrée (dans les comptes) | `entry` | Entered the counts |
+| changement de match mesuré | `measured_game_change` | Measured game changed |
+
+#### Notifications
+
+`TelegramLinkStatus` — TEL-28–TEL-32, TEL-37
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| non reliée | `not_linked` | Not linked |
+| en attente de confirmation | `awaiting_confirmation` | Awaiting confirmation |
+| reliée | `linked` | Linked since {date} |
+| rompue | `broken` | Broken |
+
+`NotificationMessageStatus` — TEL-33
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| à envoyer | `to_send` | To send |
+| différé | `deferred` | Deferred |
+| envoyé | `sent` | Sent |
+| regroupé | `grouped` | Grouped |
+| abandonné | `discarded` | Discarded |
+| en échec | `failed` | Failed |
+
+`NotificationCategory` — TEL-24 (service messages have none)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| demandes de backtest (rappels compris) | `backtest_requests` | Backtest requests |
+| alertes (mises à jour comprises) | `alerts` | Alerts |
+| résultats suivis | `tracked_results` | Tracked results |
+| propositions de type | `type_proposals` | Type proposals |
+| incidents | `incidents` | Incidents |
+
+`NotificationSubOption` — TEL-24
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| rappel avant échéance | `deadline_reminder` | Reminder before the deadline |
+| alertes au verdict « non concluant » | `inconclusive_alerts` | Alerts with an inconclusive verdict |
+| fin d'incident | `incident_end` | Incident resolved |
+
+`NotificationKind` — TEL-09–TEL-16, TEL-36
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| demande de backtest à faire | `backtest_request_to_do` | Backtest to do |
+| échéance modifiée | `deadline_changed` | Deadline changed |
+| rappel avant échéance | `deadline_reminder` | Reminder |
+| alerte pour un joueur profilé | `alert` | Alert |
+| mise à jour d'une alerte | `alert_update` | Update |
+| résultat d'un match suivi | `tracked_game_result` | Tracked game result |
+| proposition de nouveau type à valider | `new_type_proposal` | New type proposed |
+| incident (début) | `incident_start` | Incident |
+| rappel d'incident | `incident_reminder` | Incident reminder |
+| fin d'incident | `incident_end` | Incident resolved |
+| rappel d'export | `export_reminder` | Export reminder |
+| confirmation de mise en relation | `link_confirmation` | — |
+| message d'essai | `test_message` | — |
+| message groupé d'un passage | `pass_digest` | — |
+| message groupé de fin de plage de silence | `quiet_hours_digest` | During quiet hours |
+| message de rattrapage | `catch_up` | — |
+| plafond atteint | `daily_cap_reached` | Daily cap reached |
+| avis à une conversation qui n'est plus reliée | `chat_unlinked_notice` | — |
+
+`SendFailureKind` — TEL-35, TEL-37
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| échec temporaire | `temporary` | — |
+| échec définitif | `permanent` | — |
+
+#### Interface and access
+
+`NavigationEntry` — IHM-16
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| Accueil | `home` | Home |
+| Joueurs | `players` | Players |
+| Alertes (lot 2) | `alerts` | Alerts |
+| Types | `types` | Types |
+| Plus | `more` | More |
+
+`MoreMenuEntry` — IHM-16
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| Demandes de backtest | `backtest_requests` | Backtest requests |
+| Réglages | `settings` | Settings |
+| État de l'application | `app_status` | App status |
+| Journal d'activité | `activity_journal` | Activity journal |
+| Méthode et limites | `method_and_limits` | Method and limits |
+| Aide | `help` | Help |
+| Événements détectés (lot 2) | `detected_events` | Detected events |
+| Tableau de validation (lot 2) | `validation_table` | Validation table |
+| Collecte et détection (lot 2) | `collection_and_detection` | Collection and detection |
+
+`SettingsSection` — IHM-37
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| Compte | `account` | Account |
+| Affichage | `display` | Display |
+| Paramètres | `parameters` | Parameters |
+| Notifications (lot 2) | `notifications` | Notifications |
+| Aide | `help` | Help |
+
+`TodoSection` — IHM-20, in this order
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| demandes de backtest « à faire » | `requests_to_do` | Backtest requests to do |
+| demandes complémentaires proposées | `proposed_supplements` | Proposed supplementary requests |
+| incidents en cours | `incidents` | Incidents |
+| joueurs | `players` | Players |
+| types d'événements « proposés » | `proposed_types` | Proposed types |
+| événements et cas à examiner | `events_and_cases_to_review` | Events and cases to review |
+
+`ConnectivityMode` — IHM-57, IHM-58
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| en ligne | `online` | — |
+| hors connexion | `offline` | Offline |
+
+`SessionEndReason` — IHM-08, TRV-60, TRV-62, TRV-63
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| expiration | `expired` | Session expired |
+| déconnexion | `logged_out` | Logged out |
+| changement de mot de passe | `password_changed` | Password changed |
+| réinitialisation | `reset` | Password reset |
+
+#### Sensitive data
+
+`CalculationExitWay` — DSN-26 (the four ways an event or case leaves the calculations)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| écarter | `dismiss` | Dismiss |
+| supprimer | `delete` | Delete |
+| exclure | `exclude` | Exclude |
+| retirer | `withdraw` | Withdraw |
+
+`PersonRole` — DSN-17, BKT prompt rule 2.6
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| un adversaire | `opponent` | an opponent |
+| un coéquipier | `teammate` | a teammate |
+| un entraîneur | `coach` | a coach |
+| un dirigeant | `executive` | an executive |
+| un spectateur | `spectator` | a spectator |
+| un proche | `loved_one` | a loved one |
+
+#### Operations
+
+`JournalLevel` — TRV-43
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| information | `info` | Info |
+| avertissement | `warning` | Warning |
+| incident | `incident` | Incident |
+
+`JournalEntryCategory` — TRV-41, TEL-34
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| passage de tâche | `task_pass` | Task |
+| recalcul des profils | `profile_recalculation` | Recalculation |
+| échec d'un service externe | `service_failure` | Service failure |
+| incident | `incident` | Incident |
+| action de l'utilisateur | `user_action` | Your action |
+| import refusé en entier | `import_refused` | Import refused |
+| changement de paramètre | `parameter_change` | Parameter change |
+| connexion refusée | `login_refused` | Login refused |
+| blocage | `login_lockout` | Login locked |
+| message Telegram | `telegram_message` | Telegram message |
+
+`IncidentStatus` — TRV-45
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| ouvert | `open` | Open |
+| clos | `closed` | Closed |
+
+`ServiceStatus` — TRV-46
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| normal | `normal` | Normal |
+| dégradé | `degraded` | Degraded |
+| indisponible | `unavailable` | Unavailable |
+
+`ServiceRole` — TRV-01, TRV-09
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| hébergement | `hosting` | Hosting |
+| base de données | `database` | Database |
+| source de statistiques | `stats_source` | Stats source |
+| modèle de langage | `language_model` | Language model |
+| flux d'actualités | `news_feeds` | News feeds |
+| notifications | `notifications` | Notifications |
+| service de déclenchement | `trigger_service` | Task trigger |
+| espace de sauvegarde | `backup_storage` | Backup storage |
+
+`QuotaLimitKind` — TRV-03
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| par minute | `per_minute` | per minute |
+| par jour | `per_day` | per day |
+| par mois | `per_month` | per month |
+| en volume | `volume` | volume |
+
+`QuotaStatus` — TRV-04–TRV-06
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| normal | `normal` | — |
+| avertissement (80 %) | `warning` | Quota warning |
+| limite atteinte | `reached` | Quota reached |
+
+`TaskRunTrigger` — TRV-33
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| planifiée | `scheduled` | Scheduled |
+| à la demande | `on_demand` | On demand |
+
+`TaskRunStatus` — TRV-26, TRV-28, TRV-30, TRV-31
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| report | `postponed` | Postponed |
+| en cours | `running` | Running |
+| réussite | `succeeded` | Succeeded |
+| échec | `failed` | Failed |
+| exécution interrompue | `interrupted` | Interrupted |
+| exécution manquée | `missed` | Missed |
+
+`ParameterOrigin` — TRV-34
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| décision du journal | `journal_decision` | Decision |
+| hypothèse du journal | `journal_hypothesis` | Hypothesis |
+| hypothèse locale à confirmer | `local_hypothesis` | Local hypothesis, to be confirmed |
+
+`BackupStatus` — TRV-50
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| faite | `done` | Done |
+| en échec | `failed` | Failed |
+
+`InstallationCheckResult` — TRV-47
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| réussite | `success` | OK |
+| échec (avec cause probable et marche à suivre) | `failure` | Failed |
+
+`RequirementStatus` — TRV-79
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| réalisée | `done` | Done |
+| partielle | `partial` | Partial |
+| non réalisée | `not_done` | Not done |
+
 <!-- next -->
