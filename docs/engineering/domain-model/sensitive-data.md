@@ -1,15 +1,15 @@
 # Sensitive data
 
 The rules of `docs/13-donnees-sensibles.md` as they apply to the model: the withdrawal ledger
-(the temporary fingerprints of ADR 0017 and the global counter), the erasure step every removal
-of an event goes through, the deletion of a player's data, the purges, and what exports and backups
-hold. The sensitive-data class of every column is given in the area files; the classes are defined
-in the [README](README.md) section 3.
+(the temporary fingerprints of ADR 0017, the deleted-player entries and the global counter), the
+erasure step every removal of an event goes through, the deletion of a player's data, the purges,
+and what exports and backups hold. The sensitive-data class of every column is given in the area
+files; the classes are defined in the [README](README.md) section 3.
 
 ## 1. Entities: the withdrawal ledger
 
-Fingerprints, deleted-player entries, article skip entries and the counter form the withdrawal
-ledger (CL-DSN-08). No backup and no export contains a ledger entry; the counter's value is written
+Fingerprints and deleted-player entries form the withdrawal ledger, with the withdrawn-events
+counter (CL-DSN-08). No backup and no export contains a ledger entry; the counter's value is written
 into each backup and full export. A restore never overwrites the ledger and re-applies it
 ([operations.md](operations.md) section 2.5, CL-TRV-06). Every hash is HMAC-SHA-256 with the
 fingerprint secret of the deployment configuration (TRV-37, ADR 0017); a hash is never displayed,
@@ -18,7 +18,8 @@ logged, exported or sent anywhere.
 ### 1.1 `withdrawal_fingerprints` — `WithdrawalFingerprint`
 
 A keyed hash of the player, type and day of a withdrawn event, kept for the fingerprint horizon so
-that detection cannot recreate the event and an import flags it (ADR 0017, CL-DSN-06).
+that detection and the calendar derivation cannot recreate the event and an import flags it
+(ADR 0017, CL-DSN-06).
 
 | column        | type        | null | default  | constraint or reference                                                                  | class | spec IDs                    |
 | ------------- | ----------- | ---- | -------- | ---------------------------------------------------------------------------------------- | ----- | --------------------------- |
@@ -26,11 +27,15 @@ that detection cannot recreate the event and an import flags it (ADR 0017, CL-DS
 | `fingerprint` | bytea       | no   | —        | unique; `CHECK (octet_length(fingerprint) = 32)`; HMAC of `<player id>\|<type id>\|<YYYY-MM-DD>` | WL    | ADR 0017, CL-DSN-06, CL-JOU-24 |
 | `created_at`  | timestamptz | no   | `now()`  | the only other datum                                                                     | WL    | ADR 0017                    |
 
-The day is the event's reference date: `reference_date_on` for a date without time; for an
-instant, its calendar date in UTC. The same function gives the day of every event compared with a
-fingerprint (CL-DSN-06). An event of player p, type t and day d matches when the hash of
-`p|t|d'` is a live fingerprint for some d' from d − g to d + g, g being `correspondenceWindowDays`
-(2 by default); the unique index serves these lookups.
+The day is the event's reference date: the date as written when it has no time
+(`reference_date_on`); otherwise the calendar date of the reference instant in the owner's time
+zone (TRV-72). The same function gives the day of every event compared with a fingerprint; a change
+of the owner's time zone can shift a day by one, which the window absorbs (CL-DSN-06). An event of
+player p, type t and day d matches when the hash of `p|t|d'` is a live fingerprint for some d' from
+d − g to d + g, g being `correspondenceWindowDays` (2 by default), the single window of CL-IMP-34;
+the unique index serves these lookups. Fingerprints are checked by detection before a model-origin
+fact creates an event, never for the owner's own classifications; by the calendar derivation before
+it creates an event; in every import preview; and at every restore (CL-DSN-06, CL-TAX-19).
 
 ### 1.2 `deleted_player_entries` — the deleted-player entry
 
@@ -43,21 +48,7 @@ again after a restore (CL-JOU-24, CL-TRV-06).
 | `fingerprint` | bytea       | no   | —        | unique; 32 bytes; HMAC of the player's UUID                        | WL    | CL-JOU-24             |
 | `created_at`  | timestamptz | no   | `now()`  | —                                                                 | WL    | CL-JOU-24, CL-DSN-07  |
 
-### 1.3 `article_skip_entries` — the article skip entry (Lot 2)
-
-A keyed hash of the cleaned link of an article erased because of a withdrawal, or because its fact
-matches a live fingerprint, so that collection drops the item instead of storing and classifying it
-again (CL-DSN-10). Written by the erasure step, read by collection (`collection.md`).
-
-| column        | type        | null | default  | constraint or reference                                                                                     | class | spec IDs              |
-| ------------- | ----------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------- | ----- | --------------------- |
-| `id`          | integer     | no   | identity | primary key                                                                                                 | WL    | —                     |
-| `fingerprint` | bytea       | no   | —        | unique; 32 bytes; HMAC of the cleaned link (COL-28)                                                         | WL    | CL-DSN-10             |
-| `expires_at`  | timestamptz | no   | —        | the article's retained publication instant plus `maxArticleAgeDays`; no entry when that moment has passed   | WL    | CL-DSN-10, COL-24     |
-
-It holds no player, type, date or event reference.
-
-### 1.4 `withdrawn_event_counter` — `withdrawnEventCount`
+### 1.3 `withdrawn_event_counter` — `withdrawnEventCount`
 
 The global count of removal decisions since go-live: withdrawals, preview declines for sensitive
 data and the events of deleted players (DSN-29, CL-DSN-04). One row.
@@ -78,28 +69,33 @@ Every removal of an event row goes through one step, run in one transaction with
 that calls it; each Lot 2 module adds its own sub-step with a test (CL-DSN-16). The step never
 completes with part of the event left. Its variants:
 
-| cause                                        | fingerprint | counter | tally exit           | designating trace rows deleted | Lot 2 sub-steps | spec IDs                     |
-| -------------------------------------------- | ----------- | ------- | -------------------- | ------------------------------ | --------------- | ---------------------------- |
-| withdrawal (detected or historical only)     | created     | + 1     | none                 | yes                            | all             | DSN-26 to DSN-29, ADR 0017   |
-| player-data deletion (every origin)          | none        | + 1 per event | none           | yes                            | all             | JOU-24, CL-JOU-06, CL-JOU-24 |
-| requalification "does not conform", split erasure | none   | none    | `erased`             | yes                            | all             | TAX-25, TAX-29, CL-TAX-09    |
-| manual deletion of a historical event        | none        | none    | `deleted`, the deletion trace | no                    | —               | IMP-33                       |
-| replacement at import                        | none        | none    | `replaced_at_import` | no                             | —               | IMP-29, CL-IMP-20            |
-| derivation drop of a schedule event          | none        | none    | `no_longer_derived`  | no                             | sheets and tracked case (CL-TAX-19) | CL-TAX-19, CL-SEN-25 |
-| merge of detected events (Lot 2)             | none        | none    | `merged`             | no                             | articles move to the kept event | DET-47           |
+| cause                                              | fingerprint | counter       | tally exit                    | designating trace rows deleted | Lot 2 sub-steps                     | spec IDs                     |
+| -------------------------------------------------- | ----------- | ------------- | ----------------------------- | ------------------------------ | ----------------------------------- | ---------------------------- |
+| withdrawal, of an event of any origin              | created     | + 1           | none                          | yes                            | all                                 | DSN-26 to DSN-29, ADR 0017, CL-DSN-09 |
+| player-data deletion (every origin)                | none        | + 1 per event | none                          | yes                            | all                                 | JOU-24, CL-JOU-06, CL-JOU-24 |
+| requalification "does not conform", split erasure  | none        | none          | `erased`                      | yes                            | all                                 | TAX-25, TAX-29, CL-TAX-09    |
+| manual deletion of a historical event              | none        | none          | `deleted`, the deletion trace | no                             | —                                   | IMP-33                       |
+| replacement at import                              | none        | none          | `replaced_at_import`          | no                             | —                                   | IMP-29, CL-IMP-20            |
+| derivation drop of a schedule event, game started  | none        | none          | `no_longer_derived`, a count only | no                         | sheets and tracked case (CL-TAX-19) | CL-TAX-19, CL-SEN-25         |
+| derivation drop of an upcoming schedule event      | none        | none          | none                          | no                             | sheets and tracked case (CL-SUI-14) | CL-TAX-19, CL-SEN-25         |
+| merge of detected events (Lot 2)                   | none        | none          | `merged`                      | no                             | articles move to the kept event     | DET-47                       |
 
-A calendar-derived event is never withdrawn one by one: its page offers no withdrawal, and its case
-can be excluded instead (CL-DSN-09).
+A calendar-derived event can be withdrawn like any other (CL-DSN-09). The regular derivation never
+revisits a game it has derived and checks the fingerprints first, so such an event can come back
+only through a full derivation run after its fingerprint has expired; the withdrawal screen says so
+and offers the permanent alternative, excluding its case (SEN-17, CL-DSN-19).
 
 Order of a withdrawal of event E, every row of the left column being deleted unless stated:
 
-1. Guards: E is detected or historical; the owner confirmed after the screen of CL-DSN-19.
+1. Guards: the owner confirmed after the screen of CL-DSN-19, which lists what disappears and the
+   limits, the number of Telegram messages mentioning E included.
 2. Upsert the fingerprint of E into `withdrawal_fingerprints` with `created_at = now()`.
 3. Lot 2 sub-steps: in the alert sheet holding E, everything about it, or the whole sheet and its
    alert-history entry if E was its only event; its tracked-case data; the stored Telegram texts
-   mentioning it, with a deletion attempt in the chat whose failures are shown once and not kept
-   (CL-DSN-13); the classification results of its articles; every article attached to E and to no
-   other event, with an `article_skip_entries` row and no dedup trace (DSN-34, CL-DSN-10).
+   and identifiers of the messages mentioning it, after one deletion request each, the refused
+   ones being listed once to the owner and not kept (CL-DSN-13); the classification results of its
+   articles; every article attached to E and to no other event, with no dedup trace and no other
+   record (DSN-34, CL-DSN-10).
 4. `import_event_outcomes` and `import_possible_duplicates` rows whose event is E, so that the
    import trace, counts included, keeps nothing designating it (IMP-37).
 5. `journal_technical_details` of journal entries that concerned only E; the entries' references
@@ -113,10 +109,12 @@ Order of a withdrawal of event E, every row of the left column being deleted unl
 10. A full recalculation job with cause `recalculation`; a profile or trend it leaves with no event
     is erased with its verdict history (SEN-48, CL-SEN-18).
 
-What remains afterwards: the counter and, for the horizon, the fingerprint (and in Lot 2 the skip
-entries of its articles). Accepted residual limits: a `recalculation` verdict-history entry dated
-that day (CL-SEN-18); backups until they rotate out; exports already downloaded; Telegram messages
-the bot can no longer delete; a device left offline until its next refresh (DSN-28, CL-DSN-19).
+What remains afterwards: the counter and, for the horizon, the fingerprint. Accepted residual
+limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); backups until they
+rotate out; exports already downloaded; Telegram messages the bot could not delete; a device left
+offline until its next refresh; in Lot 2, an article still in a feed, collected and classified
+again for at most its maximum age while the fingerprint keeps it from becoming an event
+(DSN-28, CL-DSN-10, CL-DSN-19).
 
 ### 2.2 Deleting a player's data (JOU-24, CL-JOU-06)
 
@@ -150,7 +148,6 @@ The daily purge task (`data_purge`, 04:00 by default, TRV-25) removes:
 | Journal entries and their technical details                                   | older than `journalRetentionDays` (90), except entries tied to an incident still open          | TRV-48, H-TRV-08             |
 | Closed incidents                                                              | closed for longer than `journalRetentionDays`                                                  | TRV-48                       |
 | Withdrawal fingerprints and deleted-player entries                            | older than the horizon (`backupsKept` × the backup interval, 8 weeks by default) and no backup in the register made before them; nothing while the register is in doubt | CL-DSN-07, ADR 0017 |
-| Article skip entries (Lot 2)                                                  | at `expires_at`                                                                                | CL-DSN-10                    |
 | Drafts                                                                        | `draftRetentionDays` (7) after their last change                                              | IHM-42, CL-IHM-11            |
 | Done recalculation jobs, finished task runs, quota-usage periods, ended sessions and login failures outside the observation period | older than `journalRetentionDays`, or ended                   | own choice (store less)      |
 | Lot 2: non-relevant articles, excerpts, dedup traces; exposure counts         | per `collection.md` and `detection.md` (COL-34 to COL-39, CL-JOU-19)                          | COL-39, CL-JOU-19            |
@@ -162,7 +159,7 @@ free space (TRV-07).
 
 | destination                              | holds                                                                                                       | never holds                                                                                              | spec IDs                          |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| Backup (encrypted, off-site)             | every table of classes —, PI, BD, EV, TX and PR, the activity journal with its technical details, incidents, task runs, and the counter's value | SE rows (account password data, sessions, login failures), WL rows (the ledger), DR rows (drafts), any deployment-configuration value | TRV-51, CL-TRV-05, CL-DSN-08, CL-DSN-17 |
+| Backup (encrypted, off-site)             | every table of classes —, PI, BD, EV, TX and PR, the activity journal with its technical details, incidents, task runs, and the counter's value | SE rows (account password data, sessions, login failures), WL rows (the ledger), DR rows (drafts, server copies included), any deployment-configuration value | TRV-51, CL-TRV-05, CL-DSN-08, CL-DSN-17 |
 | Full export (unencrypted, owner only)    | the same as a backup                                                                                        | the same                                                                                                 | TRV-52, CL-TRV-05                 |
 | Spreadsheet exports                      | the columns listed in [operations.md](operations.md) section 5.3                                            | free texts beyond the event description, any SE, WL or DR value                                          | TRV-52, CA-TRV-17                 |
 | Journal export for a helper              | journal entries rendered for display, technical details per the CL-DSN-11 allowlist                         | descriptions, justifications, titles, links, excerpts, DSN-18 items, the birthday value                   | TRV-49, DSN-11, CL-DSN-11, CL-DSN-21 |
@@ -173,12 +170,12 @@ free space (TRV-07).
 
 ### 4.1 Withdrawal fingerprint (ADR 0017, CL-DSN-06, CL-DSN-07)
 
-| from     | to       | trigger                                                  | guard                                                                                 | side effects                                                                        |
-| -------- | -------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| (none)   | live     | a withdrawal                                             | —                                                                                     | detection creates no event matching it; an import preview flags a matching event    |
-| live     | (erased) | the owner records a flagged event in an import preview   | —                                                                                     | he has taken that fact back (CL-DSN-06)                                             |
-| live     | (erased) | the daily purge                                          | older than the horizon and no backup in the register made before it                   | —                                                                                   |
-| live     | live     | a restore                                                | —                                                                                     | re-applied to the restored data, never overwritten (CL-TRV-06)                      |
+| from     | to       | trigger                                                  | guard                                                                                 | side effects                                                                                    |
+| -------- | -------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| (none)   | live     | a withdrawal                                             | —                                                                                     | detection and the derivation create no event matching it; an import preview flags a match       |
+| live     | (erased) | the owner records a flagged event in an import preview   | —                                                                                     | he has taken that fact back (CL-DSN-06)                                                         |
+| live     | (erased) | the daily purge                                          | older than the horizon and no backup in the register made before it                   | —                                                                                               |
+| live     | live     | a restore                                                | —                                                                                     | re-applied to the restored data, never overwritten (CL-TRV-06)                                  |
 
 A changed fingerprint secret makes every fingerprint unmatchable (CL-DSN-06); the deployment guide
 says so.
@@ -193,7 +190,7 @@ value and the backup's and does not grow when it re-applies a withdrawal (CL-TRV
 
 | rule                                                                                                      | spec IDs                          | enforced by                                                         |
 | --------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------- |
-| After a withdrawal nothing designates the event but the counter and the fingerprint (and Lot 2 skip entries, which designate no event) | DSN-27, DSN-29, ADR 0017, CL-DSN-10 | the erasure step, in one transaction                               |
+| After a withdrawal nothing designates the event but the counter and, for the horizon, the fingerprint     | DSN-27, DSN-29, ADR 0017          | the erasure step, in one transaction                                |
 | Only a withdrawal creates a fingerprint                                                                    | CL-DSN-06                         | the erasure step's variants                                         |
 | A fingerprint holds only its hash and its creation instant; it is never shown, logged, exported or backed up | ADR 0017                        | table shape; backup and export writers skip the ledger by name      |
 | The counter never decreases and carries no date                                                            | DSN-29, CL-DSN-04                 | `CHECK`; no date column; no service decrements it                   |
@@ -207,35 +204,38 @@ value and the backup's and does not grow when it re-applies a withdrawal (CL-TRV
 
 | item                                                                 | stored or derived | when                                                                  | spec IDs              |
 | -------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------- | --------------------- |
-| Fingerprints, deleted-player entries, skip entries                   | stored            | written by the erasure step; erased by the purge                      | ADR 0017, CL-DSN-10   |
+| Fingerprints, deleted-player entries                                 | stored            | written by the erasure step and the player deletion; erased by the purge | ADR 0017, CL-JOU-24 |
 | Counter                                                              | stored            | each removal decision                                                 | DSN-29                |
 | Fingerprint horizon                                                  | derived           | `backupsKept` × the backup interval                                   | CL-DSN-07             |
 | "Matches an event you withdrew" in a preview                         | derived           | at each preview, never stored                                         | ADR 0017, CL-IMP-28   |
-| The generic "This item no longer exists" page                        | derived           | an identifier that matches no row; no tombstone is kept               | CL-DSN-05, CL-IHM-19  |
+| The generic "This item no longer exists" page                        | derived           | an identifier that matches no row; no tombstone is kept, the fingerprints are never consulted | CL-DSN-05, CL-IHM-19 |
 
 ## 7. Exchange formats
 
 The fingerprint input is the UTF-8 string `<player id>|<type id>|<YYYY-MM-DD>` (the player's UUID
-in lowercase, the type slug, the day), hashed with HMAC-SHA-256 under the fingerprint secret; the
-deleted-player entry hashes the UUID alone; the skip entry hashes the cleaned link (CL-DSN-06,
-CL-JOU-24, CL-DSN-10). None of these values ever leaves the database.
+in lowercase, the type slug, the day of section 1.1), hashed with HMAC-SHA-256 under the
+fingerprint secret; the deleted-player entry hashes the UUID alone (CL-DSN-06, CL-JOU-24). None of
+these values ever leaves the database.
 
 ## 8. Rulings applied
 
-- ADR 0017, CL-DSN-06, CL-DSN-07: the fingerprint, its day, its window, its horizon and its erasure.
+- ADR 0017, CL-DSN-06, CL-DSN-07: the fingerprint, its day, its window, its checks, its horizon
+  and its erasure. The lot-1 text of CL-IMP-28 still takes the UTC date of an instant; the model
+  follows CL-DSN-06, which file 13 owns and CL-IMP-28 says it follows. Flagged.
 - CL-DSN-04: what the counter counts.
 - CL-DSN-05, CL-IHM-19: no tombstone; one generic page.
 - CL-DSN-08: the ledger stays out of backups and exports.
-- CL-DSN-09: calendar-derived events are not withdrawn. CL-IHM-21 lists a withdrawal among a
-  calendar-derived event's actions; the model follows CL-DSN-09, which belongs to the file that owns
-  withdrawals. Flagged.
-- CL-DSN-10: article skip entries.
+- CL-DSN-09: calendar-derived events can be withdrawn, with a fingerprint, and their cases
+  excluded; the lot-1 text of CL-SEN-03 still says they are never withdrawn, against CL-DSN-09,
+  CL-TAX-20, CL-IHM-21 and CL-VUE-12. The model follows CL-DSN-09. Flagged.
+- CL-DSN-10: no skip entry for an erased article; the repeated classification is accepted.
 - CL-DSN-11, CL-TRV-10: the journal's references and its allowlist.
-- CL-DSN-13: Telegram deletion failures shown once, not kept.
+- CL-DSN-13: Telegram deletion requests, refusals shown once and not kept.
 - CL-DSN-16: one erasure step, extended by each Lot 2 module.
 - CL-DSN-17: the draft store.
 - CL-DSN-21: the birthday's limits.
 - CL-JOU-06, CL-JOU-24: the scope of a player-data deletion and its entry.
+- CL-SEN-25: a dropped schedule event leaves only a count once its game had started, nothing before.
 - CL-TAX-09: requalification and split erasures have a withdrawal's scope without fingerprint or
   counter.
 - Own choice: the counter row has no date column, the strictest reading of DSN-29.
@@ -248,7 +248,6 @@ CL-JOU-24, CL-DSN-10). None of these values ever leaves the database.
 erDiagram
   events ||--o| withdrawal_fingerprints : "withdrawal leaves (unlinked hash)"
   followed_players ||--o| deleted_player_entries : "deletion leaves (unlinked hash)"
-  articles ||--o| article_skip_entries : "erased article leaves (unlinked hash, Lot 2)"
   withdrawn_event_counter {
     smallint id
     integer value

@@ -89,10 +89,10 @@ Period dates are calendar dates compared as written with the research's dates (C
 | column                | type        | null | default | constraint or reference                               | class | spec IDs            |
 | --------------------- | ----------- | ---- | ------- | ----------------------------------------------------- | ----- | ------------------- |
 | `backtest_request_id` | integer     | no   | —       | `REFERENCES backtest_requests(id) ON DELETE CASCADE`  | EV    | BKT-03, BKT-07      |
-| `event_id`            | integer     | no   | —       | `REFERENCES events(id) ON DELETE CASCADE`             | EV    | BKT-07, BKT-18      |
+| `player_event_id`            | integer     | no   | —       | `REFERENCES events(id) ON DELETE CASCADE`             | EV    | BKT-07, BKT-18      |
 | `attached_at`         | timestamptz | no   | `now()` | —                                                     | EV    | BKT-07              |
 
-Primary key `(backtest_request_id, event_id)`. A dismissal keeps the link (only the urgency it
+Primary key `(backtest_request_id, player_event_id)`. A dismissal keeps the link (only the urgency it
 carried goes); a withdrawal erases it, the request staying with its trigger `detection`
 (BKT-14, CL-DSN-05).
 
@@ -182,18 +182,18 @@ events keep their rank, type and date as read and their reason, nothing else.
 | `import_id`           | integer | no   | —        | `REFERENCES imports(id) ON DELETE CASCADE`                                                                  | PI    | IMP-31                      |
 | `position`            | integer | no   | —        | `CHECK (position >= 1)`; the 1-based rank in the events list as pasted                                      | PI    | IMP-20, CL-IMP-02           |
 | `outcome`             | text    | no   | —        | `CHECK (outcome IN ('added','added_with_warning','duplicate_not_added','ignored','refused'))`               | PI    | IMP-19                      |
-| `event_id`            | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`; the event added, or the existing event it duplicated           | EV    | IMP-26, IMP-27, IMP-31      |
+| `player_event_id`            | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`; the event added, or the existing event it duplicated           | EV    | IMP-26, IMP-27, IMP-31      |
 | `event_type_as_read`  | text    | yes  | —        | ignored and refused only                                                                                    | PI    | 06 « Données manipulées »   |
 | `date_as_read`        | text    | yes  | —        | ignored and refused only                                                                                    | PI    | 06 « Données manipulées »   |
 | `reason`              | text    | yes  | —        | ignored: `CHECK` among `type_not_validated`, `type_not_requested`, `type_derived_from_calendar`, `split_type_ignored`, `outside_requested_period`, `before_first_nba_game`; refused: among `type_missing`, `type_unknown`, `public_date_missing`, `public_date_bad_format`, `public_date_impossible`, `description_missing`, `description_too_long`, `description_quotation_marks`, `no_usable_source`, `source_before_public_date` | PI    | IMP-11 to IMP-14, CL-IMP-29 |
 
-Row checks: `outcome IN ('ignored','refused')` iff `reason IS NOT NULL`, and then `event_id IS NULL`;
+Row checks: `outcome IN ('ignored','refused')` iff `reason IS NOT NULL`, and then `player_event_id IS NULL`;
 `outcome IN ('added','added_with_warning','duplicate_not_added')` implies `event_type_as_read`,
 `date_as_read` and `reason` are null.
 
 Unique: `import_event_outcomes_position_key (import_id, position)`.
 
-Indexes: `import_event_outcomes_event_idx (event_id)` serves the withdrawal step, which deletes
+Indexes: `import_event_outcomes_event_idx (player_event_id)` serves the withdrawal step, which deletes
 every row designating the withdrawn event (IMP-37).
 
 ### 1.7 `import_possible_duplicates` — the owner's answers
@@ -206,10 +206,10 @@ For each possible duplicate, the existing event concerned and the owner's answer
 | `id`                | integer | no   | identity | primary key                                                                    | PI    | —               |
 | `import_id`         | integer | no   | —        | `REFERENCES imports(id) ON DELETE CASCADE`                                     | PI    | IMP-25          |
 | `position`          | integer | no   | —        | the result event's rank                                                        | PI    | IMP-25          |
-| `existing_event_id` | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                     | EV    | IMP-25          |
+| `existing_player_event_id` | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                     | EV    | IMP-25          |
 | `answer`            | text    | no   | —        | `CHECK (answer IN ('same_fact','distinct_facts','keep_as_distinct'))`          | PI    | IMP-25, IMP-26  |
 
-Index: `import_possible_duplicates_event_idx (existing_event_id)` for the withdrawal step.
+Index: `import_possible_duplicates_event_idx (existing_player_event_id)` for the withdrawal step.
 
 ## 2. Lifecycles
 
@@ -236,8 +236,8 @@ conservé »).
 | --------------------- | -------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | (none)                | draft          | owner pastes or picks a file | at most `maxPastedSize` bytes (CL-IMP-27)                                                                     | the request's draft row written (CL-DSN-17)                                                                                                                                                                                                                    |
 | draft                 | blocking_error | Check                        | a whole-result check fails (IMP-04 to IMP-09)                                                                 | journal entry with date, reference, refusal category and size only (CL-IMP-33); nothing saved                                                                                                                                                                  |
-| draft                 | preview        | Check                        | —                                                                                                            | outcomes computed; fingerprints checked from D − 2 to D + 2 (CL-IMP-28)                                                                                                                                                                                        |
-| preview               | summary        | Save                         | every possible duplicate and fingerprint flag answered; the partial-import, canceled-request and replacement confirmations given | one transaction (IMP-30): events, sources, coverage, outcome rows, trace, request status; each "don't record — sensitive data" adds one to the counter and stores nothing; recording a flagged event erases the fingerprints it matched (CL-DSN-06); draft erased; recalculation job, cause "new cases" |
+| draft                 | preview        | Check                        | —                                                                                                            | outcomes computed; each accepted event checked against the live fingerprints for every day within `correspondenceWindowDays` of its day (CL-DSN-06, CL-IMP-28, CL-IMP-34)                                                                                                                                                                                        |
+| preview               | summary        | Save                         | every possible duplicate answered; the partial-import, canceled-request and replacement confirmations given; the save confirmation says how many flagged events will be recorded (CL-IMP-28) | one transaction (IMP-30): events, sources, coverage, outcome rows, trace, request status; each "don't record — sensitive data" adds one to the counter and stores nothing; recording a flagged event erases the fingerprints it matched (CL-DSN-06); draft erased; recalculation job, cause "new cases" |
 | draft or preview      | (discarded)    | Discard                      | —                                                                                                            | draft erased (IMP-03)                                                                                                                                                                                                                                          |
 
 ### 2.3 Player coverage situation (BKT-10) — `PlayerCoverageSituation`, derived
@@ -356,7 +356,7 @@ type, an event or a birthday (CL-DSN-21).
 - ADR 0010, CL-BKT-02: the English format 1.0, the only contract.
 - ADR 0013, CL-IMP-06, CL-IMP-07: research-AI quirks and citation markers, as warnings.
 - ADR 0015, CL-BKT-03, CL-IMP-29: research types only; `type_derived_from_calendar` ignores.
-- ADR 0017, CL-IMP-28, CL-DSN-06: the fingerprint flags of the preview, never stored.
+- ADR 0017, CL-IMP-28, CL-IMP-34, CL-DSN-06: the fingerprint flags of the preview, never stored, one window parameter for duplicates and fingerprints. CL-IMP-28 takes the UTC date of a timed event as its day, the newer CL-DSN-06 the date in the owner's time zone; the import follows CL-DSN-06, which CL-IMP-28 says it applies. Flagged.
 - ADR 0022: low-confidence events count; uncertain precedence shifts (in the cases area).
 - CL-BKT-05, CL-BKT-06: counting periods, the broadening version, version 0 of a split.
 - CL-BKT-07, CL-BKT-08, CL-BKT-09: planned and requested types, updates, reductions.

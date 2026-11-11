@@ -11,7 +11,8 @@ Conventions are in the [README](README.md).
 An event has one of three origins (CL-VUE-12): `detected` (Lot 2, from articles), `historical`
 (saved by an import) and `schedule` (created by the calendar derivation, ADR 0015; "derived from
 the schedule" on screen). Only detected events have a status (CL-VUE-07). The code type is
-`PlayerEvent`, so that it never shadows the DOM's `Event`; the table is `events`.
+`PlayerEvent`, keyed by `playerEventId`, so that it never shadows the DOM's `Event`; the table is
+`events` and every foreign key to it is `player_event_id` (glossary section 2).
 
 ## 1. Entities
 
@@ -26,7 +27,7 @@ the DSN-06 list and nothing else; the row checks of each origin say which apply.
 | `player_id`                | uuid        | no   | —           | `REFERENCES followed_players(id) ON DELETE RESTRICT`                                                                         | EV    | VUE-04, DSN-06                               |
 | `event_type_id`            | text        | no   | —           | `REFERENCES event_types(id) ON DELETE RESTRICT`; the type it counts under                                                    | EV    | DSN-06, TAX-23                               |
 | `sheet_event_type_id`      | text        | no   | —           | with `sheet_version_number`, `REFERENCES type_sheet_versions(event_type_id, version_number) ON DELETE RESTRICT`              | EV    | TAX-23, CL-TAX-08, IMP-30, DET-53            |
-| `sheet_version_number`     | smallint    | no   | —           | the version it was qualified under; may name an absorbed type's sheet (CL-TAX-08)                                           | EV    | TAX-23, CL-TAX-08                            |
+| `sheet_version_number`     | smallint    | no   | —           | the version in force at creation (detection, the request's prompt, the derivation), replaced at each correction of its type, requalification, reassignment, merge or re-derivation; may name an absorbed type's sheet | EV    | TAX-23, CL-TAX-08, CL-TAX-22                 |
 | `origin`                   | text        | no   | —           | `CHECK (origin IN ('detected','historical','schedule'))`; fixed at creation                                                 | EV    | DSN-06, IMP-27, CL-VUE-12                    |
 | `type_link_mark`           | text        | yes  | —           | `CHECK (type_link_mark IN ('to_requalify','to_distribute'))`                                                                | EV    | TAX-25, TAX-29, DSN-06                       |
 | `reference_date_on`        | date        | yes  | —           | historical: the public date's calendar date as written; schedule: the derived game's US date; detected: null               | EV    | TAX-05, IMP-12, CL-IMP-09, CL-VUE-12         |
@@ -101,13 +102,13 @@ CL-TRV-10). The step deletes the case when the event was its last one, and write
 every reason but a withdrawal (SEN-33).
 
 ```ts
-type EventId = Brand<number, 'EventId'>;
+type PlayerEventId = Brand<number, 'PlayerEventId'>;
 type EventOrigin = 'detected' | 'historical' | 'schedule';
 type DateOrInstant = { on: IsoDate; at: null } | { on: IsoDate; at: EpochMs; offsetMinutes: number }; // a historical public date
 type PlayerEvent = HistoricalEvent | DetectedEvent | ScheduleEvent; // discriminated by origin; see the row checks
 ```
 
-### 1.2 `event_sources` — `EventSource`
+### 1.2 `event_sources` — `PlayerEventSource`
 
 A press article cited for an event, reduced to link, outlet, title and publication date (DSN-06,
 DSN-08). Historical events get theirs from imports and corrections; a detected event's articles
@@ -117,7 +118,7 @@ date earlier (DET-48) are rows here. Schedule events have none (CL-DSN-20).
 | column                       | type        | null | default  | constraint or reference                                                                  | class    | spec IDs                     |
 | ---------------------------- | ----------- | ---- | -------- | ---------------------------------------------------------------------------------------- | -------- | ---------------------------- |
 | `id`                         | integer     | no   | identity | primary key                                                                              | EV       | —                            |
-| `event_id`                   | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                | EV       | DSN-06                       |
+| `player_event_id`                   | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                | EV       | DSN-06                       |
 | `position`                   | smallint    | no   | —        | order of CL-IMP-16 (calendar date, timed first, instant)                                 | EV       | IMP-14, CL-IMP-16            |
 | `url`                        | text        | no   | —        | exactly as published, never rewritten                                                    | EV PR    | DSN-08, H-DSN-04             |
 | `cleaned_url`                | text        | no   | —        | technical: the link after the cleaning of CL-IMP-14, for the shared-link match           | EV PR    | IMP-25, CL-IMP-14            |
@@ -134,7 +135,7 @@ date earlier (DET-48) are rows here. Schedule events have none (CL-DSN-20).
 
 Row check: `(publication_at IS NULL) = (publication_offset_minutes IS NULL)`.
 
-Indexes: `event_sources_event_idx (event_id, position)` — an event's sources;
+Indexes: `event_sources_event_idx (player_event_id, position)` — an event's sources;
 `event_sources_cleaned_url_idx (cleaned_url)` — the shared-link match (IMP-25, CL-IMP-13);
 `event_sources_unchecked_idx (id) WHERE link_checked_at IS NULL` — the link-check job (CL-IMP-25).
 
@@ -149,14 +150,14 @@ A warning received at import, kept on the saved event and visible on its page (I
 | column            | type     | null | default  | constraint or reference                                                 | class | spec IDs                     |
 | ----------------- | -------- | ---- | -------- | ----------------------------------------------------------------------- | ----- | ---------------------------- |
 | `id`              | integer  | no   | identity | primary key                                                             | EV    | —                            |
-| `event_id`        | integer  | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                               | EV    | IMP-19                       |
+| `player_event_id`        | integer  | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                               | EV    | IMP-19                       |
 | `import_id`       | integer  | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`                             | EV    | IMP-19, IMP-31               |
 | `kind`            | text     | no   | —        | `CHECK (kind IN ('merged_type_attached','type_not_in_covered_types','public_date_outside_declared_period','may_contain_statistics','source_dropped_incomplete_address','source_dropped_disallowed_domain','source_dropped_bad_publication_date','source_outlet_missing','source_title_missing','same_link_several_events','research_confidence_defaulted','context_defaulted','unverified_note_ignored','date_non_standard_form','time_ignored','possible_citation_marker'))` | EV    | IMP-11 to IMP-17, CL-IMP-03, CL-IMP-07, CL-IMP-08 |
 | `field`           | text     | yes  | —        | the format 1.0 key concerned, for example `description`                 | EV    | CL-IMP-02, CL-IMP-07         |
 | `source_position` | smallint | yes  | —        | the 1-based position of the source concerned                            | EV    | CL-IMP-02                    |
 
 A warning never quotes a free text of the result (CL-IMP-02). Index:
-`event_import_warnings_event_idx (event_id)`.
+`event_import_warnings_event_idx (player_event_id)`.
 
 ### 1.4 `event_marks` — `EventMark` (Lot 2)
 
@@ -165,13 +166,13 @@ A flag set on a detected event, later lifted or upheld (DET-21, DET-32, DET-33, 
 | column        | type        | null | default  | constraint or reference                                                                                              | class | spec IDs                      |
 | ------------- | ----------- | ---- | -------- | -------------------------------------------------------------------------------------------------------------------- | ----- | ----------------------------- |
 | `id`          | integer     | no   | identity | primary key                                                                                                          | EV    | —                             |
-| `event_id`    | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                                            | EV    | DSN-06                        |
+| `player_event_id`    | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                                            | EV    | DSN-06                        |
 | `mark`        | text        | no   | —        | `CHECK (mark IN ('dating_to_verify','detected_after_tip_off','possible_historical_duplicate','description_to_review'))` | EV    | DET-21, DET-32, DET-33, DET-58 |
 | `status`      | text        | no   | `'set'`  | `CHECK (status IN ('set','lifted','upheld'))`                                                                        | EV    | DET-32, DET-33, DET-58        |
 | `set_at`      | timestamptz | no   | `now()`  | —                                                                                                                    | EV    | DET-32                        |
 | `resolved_at` | timestamptz | yes  | —        | when lifted or upheld                                                                                                | EV    | DET-32, SUI-17                |
 
-Unique: `event_marks_event_mark_key (event_id, mark)`. Detected events only (service).
+Unique: `event_marks_event_mark_key (player_event_id, mark)`. Detected events only (service).
 
 ### 1.5 `event_status_changes` — dismissals and reinstatements (Lot 2)
 
@@ -181,7 +182,7 @@ tip-off (DET-43 to DET-46, DET-52).
 | column              | type        | null | default  | constraint or reference                                         | class | spec IDs        |
 | ------------------- | ----------- | ---- | -------- | --------------------------------------------------------------- | ----- | --------------- |
 | `id`                | integer     | no   | identity | primary key                                                     | EV    | —               |
-| `event_id`          | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                       | EV    | DET-52          |
+| `player_event_id`          | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                       | EV    | DET-52          |
 | `changed_at`        | timestamptz | no   | `now()`  | —                                                               | EV    | DET-46, DET-52  |
 | `to_status`         | text        | no   | —        | `CHECK (to_status IN ('detected','dismissed'))`                 | EV    | DET-43, DET-45  |
 | `dismissal_reason`  | text        | yes  | —        | the values of `events.dismissal_reason`; required when dismissed | EV    | DET-43          |
@@ -197,7 +198,7 @@ structured fields DET-52 keeps before and after (CA-DET-27).
 | column         | type        | null | default  | constraint or reference                                                                                                         | class    | spec IDs                          |
 | -------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
 | `id`           | integer     | no   | identity | primary key                                                                                                                     | EV       | —                                 |
-| `event_id`     | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                                                       | EV       | IMP-32, DET-52                    |
+| `player_event_id`     | integer     | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                                                       | EV       | IMP-32, DET-52                    |
 | `corrected_at` | timestamptz | no   | `now()`  | —                                                                                                                               | EV       | IMP-32, DET-52                    |
 | `field`        | text        | no   | —        | `CHECK (field IN ('player','event_type','reference_date','description','sources','injury_return','game_stakes','research_confidence','unverified_note','reference_article'))` | EV       | IMP-32, DET-47, DET-48            |
 | `before_value` | text        | yes  | —        | detected events only, never for `description`, `unverified_note` or `sources`                                                   | EV PI    | DET-52, CA-DET-27                 |
@@ -205,7 +206,7 @@ structured fields DET-52 keeps before and after (CA-DET-27).
 
 Row check: `field NOT IN ('description','unverified_note','sources') OR (before_value IS NULL AND after_value IS NULL)`.
 The service writes the values only for detected events. Index:
-`event_corrections_event_idx (event_id, corrected_at)`.
+`event_corrections_event_idx (player_event_id, corrected_at)`.
 
 ### 1.7 `cases` — `Case`
 
@@ -373,15 +374,17 @@ a withdrawal never leaves a row (SEN-33, DSN-29).
 | `player_id`        | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                         | PI    | SEN-33                     |
 | `event_type_id`    | text        | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                             | PI    | SEN-33, IMP-33             |
 | `exit_reason`      | text        | no   | —        | `CHECK (exit_reason IN ('merged','deleted','replaced_at_import','erased','no_longer_derived'))`             | PI    | SEN-33, CL-SEN-25          |
-| `exited_at`        | timestamptz | no   | `now()`  | —                                                                                                           | PI    | IMP-33, SEN-33             |
+| `exited_at`        | timestamptz | yes  | —        | the deletion date, for `deleted` only; the other reasons keep only the count, with no date (CL-SEN-25)      | PI    | IMP-33, SEN-33, CL-SEN-25  |
 | `import_id`        | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`; the replacing import                                           | PI    | IMP-29                     |
 | `deletion_reason`  | text        | yes  | —        | `CHECK (deletion_reason IN ('inaccurate_fact_or_false_source','outside_type_criteria','duplicate','other'))` | PI    | IMP-33                     |
 | `deletion_detail`  | text        | yes  | —        | the short precision required for `other`                                                                    | PI TX | IMP-33, DSN-10             |
 | `public_date_on`   | date        | yes  | —        | the deleted event's public date                                                                             | PI    | IMP-33                     |
 | `public_at`        | timestamptz | yes  | —        | when that date had a time                                                                                   | PI    | IMP-33                     |
 
-Row checks: `(exit_reason = 'deleted') = (deletion_reason IS NOT NULL AND public_date_on IS NOT NULL)`;
-`deletion_detail IS NOT NULL` iff `deletion_reason = 'other'`; `import_id IS NULL OR exit_reason = 'replaced_at_import'`.
+Row checks: `(exit_reason = 'deleted') = (deletion_reason IS NOT NULL AND public_date_on IS NOT NULL AND exited_at IS NOT NULL)`;
+`exited_at IS NULL OR exit_reason = 'deleted'`; `deletion_detail IS NOT NULL` iff
+`deletion_reason = 'other'`; `import_id IS NULL OR exit_reason = 'replaced_at_import'`. A schedule
+event dropped before its game's scheduled start leaves no row (CL-SEN-25).
 
 Indexes: `tally_exits_player_type_idx (player_id, event_type_id)` — a profile's tally (SEN-20);
 `tally_exits_type_idx (event_type_id)` — a trend's tally.
@@ -396,7 +399,7 @@ type TallyExitReason = 'dismissed' | 'merged' | 'deleted' | 'replaced_at_import'
 
 | from      | to        | trigger                                      | guard                                                             | side effects                                                                                                                                                         |
 | --------- | --------- | -------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (none)    | detected  | classification at or above the threshold, or the owner's classification or rescue | no matching historical event (DET-58); no live withdrawal fingerprint (ADR 0017, CL-DSN-06) | event and its tracked case created pending (SUI-01); routing (DET-37 to DET-40)                                                                                     |
+| (none)    | detected  | classification at or above the threshold, or the owner's classification or rescue | no matching historical event (DET-58); for a model-origin fact, no live withdrawal fingerprint (ADR 0017, CL-DSN-06) | event and its tracked case created pending (SUI-01); routing (DET-37 to DET-40)                                                                                     |
 | detected  | dismissed | owner dismisses                              | a reason; a comment for `other`                                   | status change row with its timing; event and case leave every calculation, the case keeping its values (SEN-48); recalculation, cause "event dismissed"              |
 | dismissed | detected  | owner reinstates                             | —                                                                 | back into the calculations; recalculation, cause "event reinstated" (CL-SEN-17)                                                                                      |
 
@@ -412,15 +415,38 @@ Historical and schedule events have no status (CL-VUE-07): they exist until eras
 
 ### 2.3 Schedule events — the calendar derivation (CL-TAX-18, CL-TAX-19, CL-STA-25)
 
-| from     | to        | trigger                                                                                                         | guard                                                                                         | side effects                                                                                                                                     |
-| -------- | --------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| (none)   | (exists)  | a derivation run: type validated or reactivated, statistics update, stored season, birthday or mapping change, player active or paused, schedule change, substantive sheet change | validated calendar-derived type; active or paused player with an established mapping; official final game of a covered season (Lot 1), or the player's next game (Lot 2) | event with its template description; its case is tracked if created before the game's scheduled start, else historical (CL-VUE-13); journal entry |
-| (exists) | (exists)  | a substantive change of the type's sheet                                                                        | —                                                                                             | takes the new version (CL-TAX-20)                                                                                                                |
-| (exists) | (dropped) | a derivation run no longer produces it                                                                          | before tip-off: game postponed, canceled, moved, or no longer his team's; after: a correction of the birthday or the box scores | erased with its case, no fingerprint, no counter; tally exit `no_longer_derived` (CL-SEN-25); journal entry                                    |
+The derivation (CL-TAX-18, CL-TAX-19) works for each validated calendar-derived type and each
+active or paused player with an established mapping, over the official games of covered seasons.
+The birthday type counts every game of his team whose day (`game_day_on`, CL-TRV-03) has his day
+and month of birth — 28 February in common years for a 29 February birthday (CL-JOU-17); the
+former-team type counts, per stint with a former team, the first game between his team and it after
+his last game played for it, when every season in between is covered (CL-JOU-18). "His team" is
+the membership of CL-STA-05, and at his next game his current team.
 
-A withdrawn player's or a withdrawn type's events are neither created nor dropped (CL-JOU-05,
-CL-TAX-20). These events are never withdrawn one by one (CL-DSN-09) and never take part in duplicate
-matching (CL-IMP-29).
+- **Regular runs**, at the end of every statistics update and, in Lot 2, of every
+  collection-and-detection pass: every qualifying game started since the player's previous run
+  (`followed_players.last_schedule_derivation_at`), and his next game (STA-26) if it qualifies,
+  gets an event when it has none. A regular run never revisits a game it has derived.
+- **First storage of a season** of his history: its qualifying games get events.
+- **Full derivations**, over every game already started: at the validation, the reactivation and
+  the substantive change of the type, for every eligible player; for one player, at a change of his
+  birthday (birthday type), of his mapping, or at a box-score correction that changes his team
+  history (former-team type). They create the missing events and delete those whose game no longer
+  qualifies.
+
+| from     | to        | trigger                                        | guard                                                                                      | side effects                                                                                                                                      |
+| -------- | --------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)   | (exists)  | a regular run, a season stored, a full derivation | the game qualifies; no live withdrawal fingerprint matches (CL-DSN-06)                    | event with its template description and the type's current version; its case is tracked if created before the game's scheduled start, else historical (CL-VUE-13); journal entry |
+| (exists) | (exists)  | a full derivation after a substantive change   | —                                                                                          | takes the new version (CL-TAX-20, CL-TAX-22)                                                                                                      |
+| (exists) | (deleted) | a regular run before the game's scheduled start | the game no longer qualifies: postponed, canceled, moved, opponent changed, no longer his team's, birthday or team history corrected | deleted with its case; no fingerprint, no counter, no tally exit (CL-SUI-14, CL-SEN-25); journal entry                                             |
+| (exists) | (deleted) | a full derivation after the game's scheduled start | a correction of its inputs removes the qualification                                     | deleted with its case; no fingerprint, no counter; tally exit `no_longer_derived`, a count only (CL-SEN-25); journal entry                       |
+| (exists) | (erased)  | the owner withdraws it                         | —                                                                                          | the withdrawal of sensitive-data 2.1, with a fingerprint (CL-DSN-09)                                                                              |
+
+A withdrawn player's events are neither created nor deleted while he stays withdrawn; after his
+reactivation the next regular run covers the gap (CL-JOU-05, CL-TAX-19). A withdrawn type keeps its
+events, upcoming ones included, and gets no new one (CL-TAX-20). These events are never dismissed;
+a withdrawn one can come back only through a full derivation after its fingerprint expired
+(CL-DSN-09). They never take part in duplicate matching (CL-IMP-29).
 
 ### 2.4 Case status (SEN-07, CL-SEN-05)
 
@@ -445,7 +471,11 @@ the transitions that rules produce.
 | any                                   | re-attached                                   | a corrected date, an older source, a new derivation              | —                                                                             | measured-game change in the history; decisions on the old game stop applying and flag `manual_decision_to_review` (CL-SEN-12) |
 
 A season not covered by the source gives `not_measurable` (`season_not_covered`) before any
-attachment (CL-SEN-05 step 2). An outage alone never changes a status (STA-36).
+attachment (CL-SEN-05 step 2). An outage alone never changes a status (STA-36). In Lot 2, a case
+whose detected event was dismissed at or after its expected game's scheduled start keeps being
+evaluated, outside every profile, trend, control and verdict, so that the validation table counts it
+apart (SUI-17); one dismissed earlier keeps the state and gap it had until a reinstatement
+(SEN-48, CL-SEN-05).
 
 ### 2.5 Case grouping (SEN-05, SEN-06, CL-VUE-03, CL-SEN-06, SUI-04)
 
@@ -517,10 +547,18 @@ None of this area's own: historical events arrive through the research result
 - CL-SEN-09, CL-SEN-10: absence runs within the season, the not-evaluable stakes.
 - CL-SEN-11, CL-SEN-12: the ejection flag stays empty with the chosen source; decisions bound to
   their game and the new flag `manual_decision_to_review`.
-- CL-SEN-25, CL-SEN-26: the exit reason `no_longer_derived`; exits keep a profile alive.
+- CL-SEN-25, CL-SEN-26: the exit reason `no_longer_derived` as a dateless count, nothing for a drop
+  before kick-off; exits keep a profile alive.
+- CL-TAX-18, CL-TAX-19, CL-TAX-20, CL-JOU-17, CL-SUI-14: the derivation's regular runs, full
+  derivations, upcoming events and the 28 February rule; `last_schedule_derivation_at` on the
+  player.
+- CL-TAX-22: when an event's sheet version is replaced.
+- CL-DSN-09: schedule events can be withdrawn; never dismissed.
 - CL-IMP-09, CL-IMP-16, CL-IMP-25: dates stored as calendar date, instant and offset; the order of
   sources; the link check.
-- CL-DSN-03, CL-DSN-15: the quotation-mark set; no old free text in corrections.
+- CL-DSN-03, CL-DSN-15: the quotation-mark set; no old free text in corrections. The lot-1 text of
+  CL-IMP-05 also rejects single-quoted spans, which the newer CL-DSN-03 drops; the writing services
+  follow CL-DSN-03, the file-13 ruling CL-IMP-05 defers to. Flagged.
 - DET-52 keeps before and after values of a detected event's corrections (CA-DET-27), while
   CL-DSN-15 reads as if no old value were kept; the model keeps them for structured fields only, so
   that no earlier free text survives, which is CL-DSN-15's stated aim. Flagged.

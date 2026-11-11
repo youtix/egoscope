@@ -101,7 +101,6 @@ except that `confidence_step_down_reasons` also admits `dominant_player` (SEN-29
 | `distinct_player_count`            | integer | no   | —       | players with at least one valid case                                                     | —     | SEN-28, SEN-29        |
 | `top_contributor_valid_count`      | integer | no   | —       | valid cases of the player who brings the most; the share is this over `valid_count`     | —     | SEN-28, SEN-29        |
 | `incomplete_profile_player_count`  | integer | no   | —       | players whose profile for the type is incomplete                                         | —     | SEN-46                |
-| `derivation_limit_player_count`    | integer | no   | —       | calendar-derived types: players whose career may start before the first covered season  | —     | CL-STA-24             |
 
 The trend carries no `player_id`, so its tally is classed `EV` only through its counts; it names no
 player.
@@ -221,7 +220,7 @@ player-data deletion removes his id from pending jobs and deletes done jobs nami
 | Archived, recalculating, below threshold                             | derived           | on read                                                                   | SEN-19, SEN-31, SEN-36       |
 | Remaining refusals shown on profiles                                 | derived           | the sum over the player's requests (CL-SEN-22)                            | SEN-46, CL-SEN-22            |
 | Confounder warning; "all cases are excluded for unusual stakes"      | derived           | from the type's switch and the profile's criteria counts (CL-SEN-13)      | ADR 0016, CL-SEN-13          |
-| Derivation-limit mention, "birthday not recorded"                    | derived           | from the player's first NBA game and birthday (CL-STA-24, CL-JOU-16)      | CL-STA-24, CL-JOU-16         |
+| Calendar-derived profile warnings: the team-history mention on every former-team profile; "birthday not recorded" and "counted from the first covered season" on a birthday profile | derived | from the type, the player's birthday and his first NBA game (CL-STA-24) | CL-STA-24, CL-JOU-16, CL-JOU-18 |
 | Doubtful share, top contributor's share, proportions as counts       | derived           | from stored counts; shown as "k out of m" below `countsBelowCaseCount`    | SEN-25, SEN-29, SEN-39, CL-SEN-21 |
 | Evaluated pairs and verdicts chance alone would produce              | derived           | on read: default-view profiles with n ≥ threshold × 2 × (1 − Φ(t))        | SEN-41, CL-SEN-20, ADR 0021  |
 | Date of the last change of a parameter that affects calculations     | derived           | latest of `parameter_changes` (affects calculations) and criterion-switch changes | SEN-37, TRV-35, CL-TRV-17 |

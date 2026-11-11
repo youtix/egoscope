@@ -81,7 +81,7 @@ so that an erased item's references disappear at once (CL-TRV-10).
 | `message_key`         | text        | no   | —        | the fixed message (TRV-42's four answers), for example `event_withdrawn`                                                                                        | —     | TRV-42, CL-TRV-10      |
 | `message_params`      | jsonb       | no   | `'{}'`   | counts, durations, service roles, task keys, a request reference; never a player, type, date, description, title, link or birthday value                       | —     | CL-TRV-10, DSN-11, CL-DSN-21 |
 | `player_id`           | uuid        | yes  | —        | `REFERENCES followed_players(id) ON DELETE SET NULL`                                                                                                            | PI    | TRV-41, CL-TRV-10      |
-| `event_id`            | integer     | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                                                                                                      | EV    | TRV-41, CL-TRV-10      |
+| `player_event_id`            | integer     | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                                                                                                      | EV    | TRV-41, CL-TRV-10      |
 | `event_type_id`       | text        | yes  | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                                                                                 | —     | TRV-41                 |
 | `backtest_request_id` | integer     | yes  | —        | `REFERENCES backtest_requests(id) ON DELETE SET NULL`                                                                                                           | PI    | TRV-41                 |
 | `import_id`           | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`                                                                                                                     | PI    | TRV-41                 |
@@ -97,7 +97,7 @@ is written as `event_withdrawn` with no reference (CL-TRV-10).
 Indexes: `journal_entries_occurred_idx (occurred_at)` — the journal screen and the export of a
 period (TRV-41, TRV-49); `journal_entries_category_idx (category, occurred_at)` — its filters;
 `journal_entries_incident_idx (incident_id)` — retention of entries tied to an open incident
-(TRV-48); `journal_entries_event_idx (event_id)` and `journal_entries_player_idx (player_id)` — the
+(TRV-48); `journal_entries_event_idx (player_event_id)` and `journal_entries_player_idx (player_id)` — the
 erasure step's scrubbing.
 
 Retention: deleted by the daily purge after `journalRetentionDays`, except while tied to an open
@@ -117,23 +117,23 @@ and a structured response's validation outcome.
 
 ### 1.3 `incidents` — `Incident`
 
-A function that no longer does its job, opened once per cause and closed when the cause disappears
-(TRV-45); the kinds and their opening and closing rules are glossary section 9.2.
+A function that no longer does its job, opened once per cause and closed automatically when the
+cause disappears (TRV-45); the owner can only hide one (IHM-20, CL-IHM-20, CL-TRV-11). The kinds
+and their opening and closing rules are glossary section 9.2.
 
 | column         | type        | null | default  | constraint or reference                                                                                                                                                                                       | class | spec IDs                     |
 | -------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------- |
 | `id`           | integer     | no   | identity | primary key                                                                                                                                                                                                   | —     | —                            |
-| `kind`         | text        | no   | —        | `CHECK (kind IN ('press_source_down','collection_impossible','press_source_silent','feed_too_short','quota_reached','quota_warning','database_volume_warning','stats_source_unavailable','task_not_run','backup_failed','logins_refused','telegram_link_broken','export_reminder'))` | —     | TRV-45, glossary 9.2         |
+| `kind`         | text        | no   | —        | `CHECK (kind IN ('press_source_down','collection_impossible','press_source_silent','feed_too_short','quota_reached','quota_warning','database_volume_warning','stats_source_unavailable','stats_source_schema_changed','task_not_run','backup_failed','logins_refused','telegram_link_broken','export_reminder'))` | —     | TRV-45, glossary 9.2         |
 | `cause_key`    | text        | no   | `''`     | what makes two incidents of a kind different causes: the quota limit's key, the task key, the press source id, the backup failure cause                                                                     | —     | TRV-45, CL-TRV-04, CL-TRV-08 |
 | `service_role` | text        | yes  | —        | `CHECK (service_role IN ('hosting','database','stats_source','language_model','news_feeds','notifications','trigger_service','backup_storage'))`; the "{service function}" of quota incidents             | —     | TRV-05, TRV-09               |
 | `status`       | text        | no   | `'open'` | `CHECK (status IN ('open','closed'))`                                                                                                                                                                         | —     | TRV-45                       |
 | `opened_at`    | timestamptz | no   | `now()`  | —                                                                                                                                                                                                             | —     | TRV-45                       |
 | `closed_at`    | timestamptz | yes  | —        | —                                                                                                                                                                                                             | —     | TRV-45                       |
-| `close_cause`  | text        | yes  | —        | `CHECK (close_cause IN ('cause_resolved','closed_by_owner'))`                                                                                                                                                | —     | TRV-45, CL-TRV-11            |
 | `hidden_at`    | timestamptz | yes  | —        | hidden from Home and the to-do list by the owner; still open, journaled and counted among the hidden incidents                                                                                               | —     | IHM-20, CL-IHM-20            |
 | `details`      | jsonb       | no   | `'{}'`   | counts only (pending requests, waiting articles), never a player or an event                                                                                                                                  | —     | STA-37, DET-11               |
 
-Row check: `(status = 'closed') = (closed_at IS NOT NULL AND close_cause IS NOT NULL)`.
+Row check: `(status = 'closed') = (closed_at IS NOT NULL)`.
 
 Unique: `incidents_open_cause_key (kind, cause_key) WHERE status = 'open'` — one open incident per
 cause (TRV-45).
@@ -143,7 +143,7 @@ counted days of STA-35 read the periods of `stats_source_unavailable` and `quota
 (CL-STA-11).
 
 ```ts
-type IncidentKind = 'press_source_down' | 'collection_impossible' | 'press_source_silent' | 'feed_too_short' | 'quota_reached' | 'quota_warning' | 'database_volume_warning' | 'stats_source_unavailable' | 'task_not_run' | 'backup_failed' | 'logins_refused' | 'telegram_link_broken' | 'export_reminder';
+type IncidentKind = 'press_source_down' | 'collection_impossible' | 'press_source_silent' | 'feed_too_short' | 'quota_reached' | 'quota_warning' | 'database_volume_warning' | 'stats_source_unavailable' | 'stats_source_schema_changed' | 'task_not_run' | 'backup_failed' | 'logins_refused' | 'telegram_link_broken' | 'export_reminder';
 // the level (incident, warning, reminder) is fixed per kind (glossary 9.2), never stored
 ```
 
@@ -338,8 +338,7 @@ issued twice (BKT-12, CL-BKT-11).
 | ------ | ------ | --------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
 | (none) | open   | the cause appears (glossary 9.2)                    | no open incident of the same cause  | journal entry `incident`; Lot 2 message (TEL-15)                                             |
 | open   | open   | the owner hides it                                  | —                                   | `hidden_at` set; still open, counted as hidden                                                |
-| open   | closed | the cause disappears                                | —                                   | `close_cause = 'cause_resolved'`; journal entry; Lot 2 end message (TEL-15)                    |
-| open   | closed | the owner closes it, where the screen offers it     | see section 6                       | `close_cause = 'closed_by_owner'`; a later observation of the cause opens a new incident      |
+| open   | closed | the cause disappears; for the TRV-06 refusal, the owner saves a new value for that limit, or a full period passes without a refusal | — | `closed_at` set; journal entry; Lot 2 end message (TEL-15); the same cause later opens a new incident, shown even if the previous one was hidden |
 
 ### 2.2 Task run (TRV-26 to TRV-33, CL-TRV-07, CL-TRV-08, CL-TRV-23)
 
@@ -353,7 +352,7 @@ issued twice (BKT-12, CL-BKT-11).
 | running   | failed      | an error ends the run                             | —                                           | journal entry                                                                                |
 | running   | source_late | `stats_update` reaches the cut-off without a refresh | —                                       | warning entry; after `statsLateDaysBeforeIncident` days, `stats_source_unavailable` (CL-TRV-23) |
 | running   | interrupted | found stale at a wake-up (twice the host's maximum invocation time) | —                         | warning entry; the lock released; the next portion resumes from `cursor`                     |
-| (none)    | missed      | no run started at or after the due time succeeded by due time plus `missedRunMarginHours` | — | journal entry per missed occurrence; one `task_not_run` incident per task; one catch-up run  |
+| (none)    | missed      | no run started at or after the due time succeeded by due time plus `missedRunMarginHours` | — | journal entry per missed occurrence; one `task_not_run` incident per task; one catch-up run, recorded with `trigger = 'scheduled'`, standing for the missed occurrences |
 
 ### 2.3 Backup (TRV-50, TRV-55, CL-TRV-04, CL-TRV-19)
 
@@ -425,7 +424,15 @@ issued twice (BKT-12, CL-BKT-11).
 
 ### 5.1 Full export, format `egoscope-export` 1.0
 
-One UTF-8 JSON document, readable without the application (TRV-52, TRV-53):
+One ZIP archive, readable without the application (TRV-52, TRV-53), named
+`egoscope-export-<YYYYMMDDTHHMMSSZ>.zip`, holding one JSON Lines file per table and a manifest, the
+archive layout the module map gives the export, backup and restore (one format for all three):
+
+- `<table>.jsonl` for every table the backup holds (sensitive-data section 3): UTF-8, one JSON object
+  per row and per line, one key per column named as in this model; instants as ISO 8601 UTC strings
+  with milliseconds; dates `YYYY-MM-DD`; jsonb columns embedded as JSON; arrays as JSON arrays;
+  numbers with a plain decimal point; `null` for a null column.
+- `manifest.json`, the archive's last entry, so that a cut archive is seen as incomplete:
 
 ```json
 {
@@ -433,34 +440,33 @@ One UTF-8 JSON document, readable without the application (TRV-52, TRV-53):
   "format_version": "1.0",
   "exported_at": "2026-11-11T04:10:00.000Z",
   "withdrawn_event_count": 2,
-  "tables": {
-    "teams": [{ "id": 1, "abbreviation": "AAA", "name": "Team X" }],
-    "followed_players": [{ "id": "6f1c…", "display_name": "Player A", "status": "active" }]
-  }
+  "tables": [
+    { "name": "teams", "file": "teams.jsonl", "rows": 30, "sha256": "…" },
+    { "name": "followed_players", "file": "followed_players.jsonl", "rows": 24, "sha256": "…" }
+  ]
 }
 ```
 
-| key                     | type    | rule                                                                                                                                                                                    |
-| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format`                | string  | `egoscope-export`                                                                                                                                                                       |
-| `format_version`        | string  | `1.0`; a new column, table or value changes the version                                                                                                                                 |
-| `exported_at`           | string  | ISO 8601 instant in UTC with milliseconds                                                                                                                                               |
-| `withdrawn_event_count` | integer | the counter's value (CL-DSN-08)                                                                                                                                                         |
-| `tables`                | object  | one key per table, every table the backup holds (sensitive-data section 3), in foreign-key order so that a restore inserts them in sequence; each value an array of rows               |
-| row                     | object  | one key per column, named as in this model; instants as ISO 8601 UTC strings; dates `YYYY-MM-DD`; jsonb columns embedded as JSON; arrays as JSON arrays; numbers with a plain decimal point; `null` for a null column |
+| key                     | type    | rule                                                                                                                                         |
+| ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`                | string  | `egoscope-export`                                                                                                                            |
+| `format_version`        | string  | `1.0`; a new column, table or value changes the version                                                                                      |
+| `exported_at`           | string  | ISO 8601 instant in UTC with milliseconds                                                                                                    |
+| `withdrawn_event_count` | integer | the counter's value (CL-DSN-08)                                                                                                              |
+| `tables`                | array   | every exported table, in foreign-key order so that a restore inserts them in sequence: `name`, `file`, `rows` (integer), `sha256` (hex of the file) |
+| `backup_kind`           | string  | in a backup only: `weekly`, `manual` or `before_update`                                                                                      |
 
 Excluded tables: `accounts`, `sessions`, `login_failures`, `drafts`, `withdrawal_fingerprints`,
-`deleted_player_entries`, `article_skip_entries`, and the counter row itself (its value is the
-root key) (CL-TRV-05, CL-DSN-08).
+`deleted_player_entries`, and the counter row itself (its value is in the manifest) (CL-TRV-05,
+CL-DSN-08).
 
 ### 5.2 Backup file
 
-The full export document of 5.1 with one more root key, `"backup_kind": "weekly" | "manual" |
-"before_update"`, compressed with gzip, then encrypted with AES-256-GCM under the backup key of the
-deployment configuration (ADR 0018, CL-TRV-04). Layout: the 16 ASCII bytes `EGOSCOPE-BACKUP1`, a
-12-byte random nonce, the ciphertext, the 16-byte authentication tag. Object name
-`egoscope-backup-<YYYYMMDDTHHMMSSZ>-<kind>.bin`: only the creation instant in UTC and the kind. The
-file never holds the key or the token.
+The archive of 5.1, with `backup_kind` in its manifest, encrypted as one object with AES-256-GCM
+under the backup key of the deployment configuration (ADR 0018, CL-TRV-04). Layout: the 16 ASCII
+bytes `EGOSCOPE-BACKUP1`, a 12-byte random nonce, the ciphertext, the 16-byte authentication tag.
+Object name `egoscope-backup-<YYYYMMDDTHHMMSSZ>-<kind>.bin`: only the creation instant in UTC and the
+kind. The file never holds the key or the token.
 
 ### 5.3 Spreadsheet exports (TRV-52, CA-TRV-17)
 
@@ -471,8 +477,8 @@ decimal point, no thousands separator and the ASCII minus; instants as ISO 8601 
 | file           | one row per | columns                                                                                                                                                                                                                                                                                 |
 | -------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `players.csv`  | player      | `player_id`, `display_name`, `current_team`, `status`, `birthday` (`MM-DD`, empty when none), `backtest_status`, `valid_case_count`, `added_at`                                                                                                                                       |
-| `events.csv`   | event       | `event_id`, `player_id`, `display_name`, `event_type_id`, `sheet_version_number`, `origin`, `status`, `reference_date`, `reference_at`, `reference_date_precision`, `description`, `injury_return`, `game_stakes`, `research_confidence`, `detection_confidence`, `precedence`, `source_urls` (space-separated), `case_id` |
-| `cases.csv`    | case        | `case_id`, `player_id`, `display_name`, `event_type_id`, `origin`, `status`, `status_reason`, `event_ids` (space-separated), `reference_instant_at`, `measured_game_day`, `opponent`, `measured_minutes`, `performance_index`, `baseline_season`, `baseline_phase`, `baseline_game_count`, `baseline_mean`, `baseline_standard_deviation`, `baseline_status`, `normalized_gap`, `gap_status`, `triggered_criteria` (space-separated) |
+| `events.csv`   | event       | `player_event_id`, `player_id`, `display_name`, `event_type_id`, `sheet_version_number`, `origin`, `status`, `reference_date`, `reference_at`, `reference_date_precision`, `description`, `injury_return`, `game_stakes`, `research_confidence`, `detection_confidence`, `precedence`, `source_urls` (space-separated), `case_id` |
+| `cases.csv`    | case        | `case_id`, `player_id`, `display_name`, `event_type_id`, `origin`, `status`, `status_reason`, `player_event_ids` (space-separated), `reference_instant_at`, `measured_game_day`, `opponent`, `measured_minutes`, `performance_index`, `baseline_season`, `baseline_phase`, `baseline_game_count`, `baseline_mean`, `baseline_standard_deviation`, `baseline_status`, `normalized_gap`, `gap_status`, `triggered_criteria` (space-separated) |
 | `profiles.csv` | profile     | `player_id`, `display_name`, `event_type_id`, `view`, `valid_count`, `mean_gap`, `range_low`, `range_high`, `verdict_level`, `verdict_direction`, `is_fragile`, `profile_confidence`, `computed_at`                                                                                   |
 
 ### 5.4 Journal export for a helper (TRV-49)
@@ -488,8 +494,12 @@ details, if any, indented. It holds nothing DSN-11 forbids.
   before a structure change.
 - CL-TRV-05, CL-TRV-06: what backups hold, and the restore.
 - CL-TRV-10: references by identifier; the scrubbing.
-- CL-TRV-11 lets the owner close an incident; CL-IHM-20 allows only hiding. `close_cause` admits
-  both, and the model does not decide which screen offers closing. Flagged for the orchestrator.
+- CL-TRV-11, CL-IHM-20: the owner only hides an incident; every incident closes automatically, the
+  TRV-06 refusal when the owner saves a new limit or after a full period without refusal.
+- CL-TRV-08: a catch-up run is recorded as a scheduled run.
+- CL-STA-15 and the statistics service sheet open an incident when a source file is missing or its
+  columns changed; the glossary has no kind for it, so the model adds `stats_source_schema_changed`
+  (the module map names the same cause).
 - CL-TRV-12: quota limits as a parameter with periods and resets; usage per period instance.
 - CL-TRV-16, CL-TRV-17: bounds in the registry; the flag "affects calculations".
 - CL-TRV-22: the export reminder from the first start.

@@ -58,11 +58,9 @@ ignored by every rule.
 | `season`                  | text        | no   | —        | `CHECK (season ~ '^[0-9]{4}-[0-9]{2}$')`, the second year following the first (`2024-25`); assigned from the date, never from the file | —     | STA-05, STA-48, CL-STA-28                 |
 | `phase`                   | text        | no   | —        | `CHECK (phase IN ('regular_season','play_in','playoffs'))`                                                                | —     | STA-04, STA-05, CL-STA-02                 |
 | `status`                  | text        | no   | —        | `CHECK (status IN ('scheduled','in_progress','final','postponed','canceled'))`                                            | —     | STA-05                                    |
-| `scheduled_start_at`      | timestamptz | no   | —        | the latest known scheduled start; for a time to be determined, the deemed start: 00:00 at the venue on that date, or 00:00 New York time when the venue zone is unknown | —     | STA-05, STA-29, STA-31, CL-STA-14, CL-SEN-23 |
+| `scheduled_start_at`      | timestamptz | no   | —        | the latest known scheduled start; for a time to be determined, the deemed start: 00:00 New York time on `game_day_on`     | —     | STA-05, STA-29, STA-31, CL-STA-14, CL-TRV-03, CL-SEN-23 |
 | `is_start_time_tbd`       | boolean     | no   | `false`  | the source flags the time as not valid                                                                                    | —     | STA-31, CL-STA-14                         |
-| `game_day_on`             | date        | no   | —        | US date: calendar date of the scheduled start in `America/New_York`, the source's league date                              | —     | TRV-72, CL-TRV-03, CL-IHM-07, STA-32       |
-| `venue_time_zone`         | text        | yes  | —        | IANA zone of the venue from the adapter's fixed venue table; null when the venue is not in it (the journal records the venue) | —     | CL-STA-14, CL-TRV-03                      |
-| `venue_local_date_on`     | date        | no   | —        | calendar date of the scheduled start in the venue's zone; equals `game_day_on` when the zone is unknown                    | —     | SEN-02, CL-STA-14, CL-TRV-03, ADR 0015     |
+| `game_day_on`             | date        | no   | —        | the day of the game: the calendar date of its scheduled start in `America/New_York`, the source's league date; it also stands for the venue's local date (SEN-02, STA-31, the birthday) | —     | TRV-72, CL-TRV-03, CL-IHM-07, STA-32, ADR 0015 |
 | `home_team_id`            | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`; null only for a placeholder whose teams are still to be determined              | —     | STA-05, CL-STA-14                         |
 | `away_team_id`            | integer     | yes  | —        | as `home_team_id`                                                                                                          | —     | STA-05, CL-STA-14                         |
 | `home_score`              | smallint    | yes  | —        | final score; stored, never a measure                                                                                       | —     | STA-05, VUE-03                            |
@@ -103,14 +101,17 @@ Indexes, with the query each serves:
 - `games_open_status_idx (scheduled_start_at) WHERE status IN ('scheduled','in_progress','postponed')`
   — the upcoming schedule (STA-26, STA-28) and "is a phase still under way" (CL-STA-02, CL-STA-20).
 
-Deletion: never. A season moved to another source is discarded and fetched again whole
-(CL-STA-23); that procedure first deletes the cases' references through a full recalculation.
+Deletion: never. At a source replacement, stored seasons keep the rows and identifiers of the
+source they came from; the season in progress is fetched again whole from the new source, its games
+matched to the stored rows by date, home team and away team, which then take the new source's
+identifiers, so that no season mixes two sources (CL-STA-23, CL-TRV-14). No venue time zone is
+stored (CL-TRV-03).
 
 ```ts
 type GameId = Brand<number, 'GameId'>;
 type Season = Brand<string, 'Season'>; // '2024-25'
 type GameConsolidation = 'in_correction_window' | 'consolidated'; // derived from consolidatedAt
-interface Game { id: GameId; season: Season; phase: GamePhase; status: GameStatus; scheduledStartAt: EpochMs; gameDayOn: IsoDate; venueLocalDateOn: IsoDate; finalScore: { home: number; away: number } | null }
+interface Game { id: GameId; season: Season; phase: GamePhase; status: GameStatus; scheduledStartAt: EpochMs; gameDayOn: IsoDate; finalScore: { home: number; away: number } | null }
 ```
 
 ### 1.4 `series` — a play-in or playoff pairing
@@ -225,7 +226,7 @@ per followed player with an established mapping.
 | column                          | type             | null | default | constraint or reference                                                             | class | spec IDs                              |
 | ------------------------------- | ---------------- | ---- | ------- | ----------------------------------------------------------------------------------- | ----- | ------------------------------------- |
 | `player_id`                     | uuid             | no   | —       | primary key; `REFERENCES followed_players(id) ON DELETE CASCADE`                    | PI    | STA-46                                |
-| `indicator_season`              | text             | no   | —       | the season the two next columns cover (CL-STA-21)                                   | PI    | JOU-02, CL-STA-21, CL-JOU-15          |
+| `indicator_season`              | text             | no   | —       | the season the two next columns cover: the season in progress, or between seasons the last season played | PI    | JOU-02, CL-STA-21, CL-JOU-15          |
 | `games_played_this_season`      | smallint         | no   | —       | official games played in `indicator_season`                                         | PI    | JOU-02, STA-46                        |
 | `average_minutes_this_season`   | double precision | yes  | —       | mean minutes per game played; null with no game                                     | PI    | JOU-02, STA-46                        |
 | `last_game_played_id`           | integer          | yes  | —       | `REFERENCES games(id) ON DELETE RESTRICT`                                           | PI    | JOU-21, STA-46                        |
@@ -359,7 +360,7 @@ Unique: `stats_source_files_key (stats_source, file_key)`.
 | ----------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------- | ------------------------------- |
 | Series, game numbers, wins before, elimination flag                     | stored on `series` and `games` | each ingestion of a season's postseason games                         | STA-05, STA-07, CL-STA-18       |
 | Box-score status and failed checks                                      | stored                       | each write of the line; `unavailable` at the daily update              | STA-09, STA-10, STA-35          |
-| Venue local date, US date, deemed start of a time to be determined      | stored on `games`            | each schedule ingestion                                                | CL-STA-14, CL-TRV-03            |
+| US date (the day of the game) and the deemed start of a time to be determined | stored on `games`      | each schedule ingestion                                                | CL-STA-14, CL-TRV-03            |
 | Participation in a game (played, not played, unknown)                   | derived                      | on read, from `box_scores` and the team's `*_lines_published`          | CL-STA-04                       |
 | Team membership at a date                                               | derived                      | from played lines and `player_team_changes`                            | CL-STA-05                       |
 | Game Score, decimal minutes, performance index                          | derived (engine)             | each recalculation                                                     | STA-11, STA-12, H-13            |
@@ -378,9 +379,9 @@ Unique: `stats_source_files_key (stats_source, file_key)`.
 
 No format of the application's own. The source's season files enter through the port of the
 statistics-source evaluation (section 12): `Game` maps to `games` (`tipoff.instant` to
-`scheduled_start_at`, `tipoff.leagueDate` to `game_day_on`, `tipoff.venueDate` to
-`venue_local_date_on`, `tipoff.timeKnown` to `NOT is_start_time_tbd`, `overtimes`, `series`,
-`makeUpOf`); `PlayerLine` maps to `box_scores` (`participation = 'did_not_play'` lines are not
+`scheduled_start_at`, `tipoff.leagueDate` to `game_day_on`, `tipoff.timeKnown` to
+`NOT is_start_time_tbd`, `overtimes`, `series`, `makeUpOf`; the port's `venue` and
+`tipoff.venueDate` are not stored, CL-TRV-03); `PlayerLine` maps to `box_scores` (`participation = 'did_not_play'` lines are not
 stored; `ejected: null` stays null); `PlayerCandidate` to `mapping_candidates`; `PlayerProfile` to
 the birthday and current-team observations of [players.md](players.md); `SeasonCoverage` and
 `Publication` to `stats_source_files`. The port's `SeasonStart` year number is converted to the
@@ -395,15 +396,19 @@ the birthday and current-team observations of [players.md](players.md); `SeasonC
 - CL-STA-06: whole minutes, `seconds` null, the rounded-minutes notice.
 - CL-STA-10, CL-TRV-23: `stats_source_files.source_refreshed_at` holds the probe's answer.
 - CL-STA-12: `first_nba_game_on` stays null until it is certain.
-- CL-STA-14, CL-TRV-03, CL-IHM-07: the deemed start, the US date and the venue local date.
+- CL-TRV-03, CL-IHM-07: the day of a game is its US date for every rule and display, the venue's
+  local date included; no venue time zone is stored. The lot-1 text of CL-STA-14 still describes a
+  venue table with a deemed start at 00:00 at the venue; the model follows CL-TRV-03, which file 14
+  owns and CL-STA-14 itself defers to: the deemed start is 00:00 New York time on the game's day.
+  Flagged.
 - CL-STA-16: excluded games are never stored.
 - CL-STA-17: one game, with the make-up identifier as an alias.
 - CL-STA-18: `series` and the nullable elimination flag.
 - CL-STA-19: records from stored scores only.
-- CL-STA-21 and CL-JOU-15 disagree on the off-season "current season" (the coming season against
-  the last season played); `indicator_season` stores whichever the statistics service computes,
-  CL-STA-21 being the owning file's ruling. Flagged for the orchestrator.
-- CL-STA-23: application team ids, `team_source_refs`, `stats_source` on every row.
+- CL-STA-21, CL-JOU-15: the indicators cover the season in progress, or between seasons the last
+  season played, and name it.
+- CL-STA-23, CL-TRV-14: application team ids, `team_source_refs`, `stats_source` on every row, one
+  source per season, the season in progress fetched again at a replacement.
 - CL-STA-26: `stat_corrections` keeps old values; event corrections never do.
 - CL-STA-28 asks for seasons written "2024-2025" in data; the glossary's code value is `2024-25`.
   The model stores the glossary's form, so data and display share one spelling. Flagged.

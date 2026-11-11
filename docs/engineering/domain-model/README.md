@@ -36,9 +36,10 @@ foreign key always states its `ON DELETE` rule.
 ## 2. Conventions
 
 **Names.** Tables are snake_case plurals, columns snake_case; code uses the camelCase of the same
-words; every name is the glossary's. The code type of an event is `PlayerEvent`, so that it never
-shadows the DOM's `Event`; its table is `events` and its key `eventId`. A foreign key to a followed
-player is `player_id`.
+words; every name is the glossary's. No code type takes the name of a browser built-in: an event
+is `PlayerEvent`, keyed by `playerEventId` (columns `player_event_id`), and its source is
+`PlayerEventSource`; the tables keep the plain words (`events`, `event_sources`). A foreign key to a
+followed player is `player_id`.
 
 **Keys.** Every table has an integer identity `id` primary key, except where a spec demands another
 identifier: `followed_players.id` is a random UUID (CL-JOU-09); `event_types.id` is the kebab-case
@@ -54,11 +55,9 @@ Every date column names its calendar:
 
 | calendar              | meaning                                                                                       | used by                                                                       | spec IDs              |
 | --------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------- |
-| US date               | the date of an instant in `America/New_York`: the day of a game                                | `games.game_day_on`, the derived event's date, first and last game played     | TRV-72, CL-TRV-03     |
-| venue local date      | the date of a game's scheduled start in the venue's zone                                      | `games.venue_local_date_on` (birthday games, SEN-02)                          | SEN-02, CL-STA-14     |
-| owner's calendar      | the date in the owner's time zone (the `timeZone` parameter, Paris by default)                | `backtest_requests.created_on`, request period ends, task days                | TRV-72, CL-BKT-10     |
+| US date               | the date of an instant in `America/New_York`: the day of a game, which also stands for the venue's local date (SEN-02, STA-31, birthdays) | `games.game_day_on`, the derived event's date, first and last game played     | TRV-72, CL-TRV-03     |
+| owner's calendar      | the date in the owner's time zone (the `timeZone` parameter, Paris by default)                | `backtest_requests.created_on`, request period ends, task days, the day hashed in a withdrawal fingerprint for a timed event | TRV-72, CL-BKT-10, CL-DSN-06 |
 | as written            | the date part of a value the research AI or the owner wrote, in its own offset                | historical public dates, source and illustration dates, coverage periods      | CL-IMP-09             |
-| UTC                   | the date of an instant in UTC                                                                 | the day hashed in a withdrawal fingerprint for a timed event                  | CL-DSN-06             |
 
 A "date, or date and time" from the research is three columns: the calendar date as written, the
 instant when it had a time, and the original offset (TRV-68, CL-IMP-09). The pure engine receives
@@ -134,7 +133,7 @@ type IsoDate = Brand<string, 'IsoDate'>; // 'YYYY-MM-DD', from date; its calenda
 type Season = Brand<string, 'Season'>; // '2024-25'
 ```
 
-Each integer key has its brand (`EventId`, `CaseId`, `GameId`, `TeamId`, `BacktestRequestId`,
+Each integer key has its brand (`PlayerEventId`, `CaseId`, `GameId`, `TeamId`, `BacktestRequestId`,
 `ImportId`, …); `PlayerId` brands a UUID string and `EventTypeId` a slug. Status sets are unions of
 the glossary's values; rows with per-origin columns are discriminated unions (`PlayerEvent`).
 
@@ -164,7 +163,7 @@ the glossary's values; rows with per-origin columns are discriminated unions (`P
 | `IllustrationSource`                       | `type_illustration_sources`    | [event-types.md](event-types.md)                           | 1    |
 | `TypeOccurrence`                           | `type_occurrences`, `type_occurrence_articles` | [event-types.md](event-types.md)           | 2    |
 | `PlayerEvent`                              | `events`                       | [events-and-cases.md](events-and-cases.md)                 | both |
-| `EventSource`                              | `event_sources`                | [events-and-cases.md](events-and-cases.md)                 | both |
+| `PlayerEventSource`                              | `event_sources`                | [events-and-cases.md](events-and-cases.md)                 | both |
 | `ImportWarning`                            | `event_import_warnings`        | [events-and-cases.md](events-and-cases.md)                 | 1    |
 | `EventMark`                                | `event_marks`                  | [events-and-cases.md](events-and-cases.md)                 | 2    |
 | dismissal history                          | `event_status_changes`         | [events-and-cases.md](events-and-cases.md)                 | 2    |
@@ -188,7 +187,6 @@ the glossary's values; rows with per-origin columns are discriminated unions (`P
 | recalculation jobs                         | `recalculation_jobs`           | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
 | `WithdrawalFingerprint`                    | `withdrawal_fingerprints`      | [sensitive-data.md](sensitive-data.md)                     | 1    |
 | deleted-player entry                       | `deleted_player_entries`       | [sensitive-data.md](sensitive-data.md)                     | 1    |
-| article skip entry                         | `article_skip_entries`         | [sensitive-data.md](sensitive-data.md)                     | 2    |
 | `withdrawnEventCount`                      | `withdrawn_event_counter`      | [sensitive-data.md](sensitive-data.md)                     | 1    |
 | parameter overrides                        | `parameter_overrides`          | [operations.md](operations.md)                             | both |
 | parameter changes                          | `parameter_changes`            | [operations.md](operations.md)                             | both |
@@ -225,7 +223,7 @@ The glossary is the naming authority; these values are new and wait for it to ab
 | events and cases                        | `ImportWarningKind` (sixteen values, events-and-cases 1.3); `event_corrections.field` values; `ReviewFlag` `manual_decision_to_review` (CL-SEN-12); `TallyExitReason` `no_longer_derived` (CL-SEN-25)                            |
 | backtest and import                     | coverage `origin`: `import`, `merge`, `split`; ignore reasons (`type_not_validated`, `type_not_requested`, `type_derived_from_calendar`, `split_type_ignored`, `outside_requested_period`, `before_first_nba_game`) and refusal reasons (ten values); whole-result warning kinds |
 | sensitivity and profiles                | `VerdictChangeCause`: `event_corrected_or_removed`, `event_reinstated`, `taxonomy_changed` (CL-SEN-17); recalculation `scope`: `import`, `statistics_update`, `event_or_case_change`, `full`; job status `pending`, `running`, `done` |
-| operations                              | `TaskRunStatus` `source_late` (CL-TRV-23); `BackupKind`: `weekly`, `manual`, `before_update`; backup failure causes; `ExportKind`: `full`, `players`, `events`, `cases`, `profiles`; `DraftKind`: `import`, `exploration`; incident `close_cause`: `cause_resolved`, `closed_by_owner`; parameters `statsUpdateCutoffTime`, `statsUpdateProbeIntervalMinutes`, `statsLateDaysBeforeIncident`; export format `egoscope-export` |
+| operations                              | `TaskRunStatus` `source_late` (CL-TRV-23); `IncidentKind` `stats_source_schema_changed` (CL-STA-15); `BackupKind`: `weekly`, `manual`, `before_update`; backup failure causes; `ExportKind`: `full`, `players`, `events`, `cases`, `profiles`; `DraftKind`: `import`, `exploration`; parameters `statsUpdateCutoffTime`, `statsUpdateProbeIntervalMinutes`, `statsLateDaysBeforeIncident`; export format `egoscope-export` |
 
 ## 7. Overview
 
