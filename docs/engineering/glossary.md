@@ -941,4 +941,188 @@ Decisions:
 - Route segments are proposals that follow the conventions; the interface module may refine them, keeping kebab-case and the English terms above.
 - "To do" names two things: the request status `to_do` and the to-do list. Code keeps them apart: `BacktestRequestStatus` `to_do` versus `TodoList` / `TodoItem`.
 
+### 3.14 Sensitive data
+
+| French | English | Code | UI label | Meaning | IDs |
+| --- | --- | --- | --- | --- | --- |
+| donnée sensible | sensitive data | `sensitive_data` | Sensitive data | Also the only reason to decline an accepted event in an import preview. | DSN-18, IMP-37 |
+| sujet intime | intimate subject | `isIntimateSubject` | Intimate subject | Bereavement, racism suffered and the like; strict wording rules; never named in Telegram. | DSN-12–DSN-17, TAX-01 |
+| détail intime | intimate detail | — | — | What no description, message or field may contain. | D-20, DSN-12 |
+| événement sensible | sensitive event | — | sensitive event | How Telegram designates an event of an intimate-subject type. | DSN-35, TEL-06 |
+| stockage minimal | minimal storage | — | — | Event fields limited to the DSN-06 whitelist. | D-20, DSN-06 |
+| presse publique, presse sportive, archives d'actualités | public press, sports press, news archives | — | — | The only admissible origins of a source. | DSN-01, D-10 |
+| source admissible | admissible source | — | — | Public, dated press or news-archive article; a social post only through an article. | DSN-01, DSN-03 |
+| usage strictement personnel | strictly personal use | — | — | No sharing or third-party export of the data. | DSN-30 |
+| partage, export pour un tiers | third-party sharing | — | — | Forbidden, except the activity-journal export for a helper. | DSN-30, TRV-49 |
+| deuil | bereavement | — | — | Intimate subject: say only that a loved one died. | DSN-12 |
+| proche | loved one | `loved_one` | a loved one | Family member or person the press presents as close; also a role. | DSN-12, BKT prompt 2.6 |
+| défunt, obsèques, lien de parenté, cause du décès | the deceased, funeral, family relationship, cause of death | — | — | Never stated. | DSN-12, DSN-18 |
+| propos, actes racistes subis | racist remarks or acts suffered | — | — | Intimate subject: never the terms used, nor the player's origin. | DSN-13 |
+| vie privée, famille, vie sentimentale | private life, family, love life | — | — | Never stored. | DSN-14, DSN-18 |
+| santé, diagnostic, santé mentale, nature d'une blessure | health, diagnosis, mental health, nature of an injury | — | — | Never stored; return from injury is yes, no or unknown only. | DSN-15, DSN-07 |
+| affaire judiciaire, mise en cause publique, faits reprochés, parties | legal matter, public implication, alleged facts, parties | — | — | Say only that the player is publicly implicated. | DSN-16 |
+| personne privée, personnalité publique, plaignant, auteur anonyme | private person, public figure, complainant, anonymous author | — | — | Private persons are never named; others are designated by role. | DSN-17, DSN-18 |
+| rôle (désignation par le rôle) | role | `PersonRole` | — | opponent, teammate, coach, executive, spectator, loved one. | DSN-17, BKT prompt 2.6 |
+| règles de formulation | wording rules | — | — | One factual neutral sentence, no quotation, no judgment, no interpretation, no forecast. | DSN-19–DSN-23 |
+| longueur maximale d'une description | maximum description length | `maxDescriptionLength` | — | 200 characters; applied by detection, prompt and import. | DSN-20 |
+| citation textuelle, guillemets | verbatim quotation, quotation marks | — | — | Forbidden; descriptions with quotation marks are refused. | DSN-21, IMP-13 |
+| jugement de valeur | value judgment | — | — | Forbidden ("shameful", "magnificent"). | DSN-22 |
+| interprétation psychologique | psychological interpretation | — | — | Forbidden ("his pride was hurt"). | DSN-22 |
+| pronostic (sur le match) | forecast about the game | — | — | Forbidden in descriptions. | DSN-22 |
+| récit | narrative | — | — | Context indications are never a narrative. | DSN-07 |
+| textes libres | free-text fields | — | — | Description, unverified note, justification, decision comment, declared limitations: all under the wording rules. | DSN-10 |
+| retrait (d'un événement) | event withdrawal | `withdrawEvent()` | Withdraw | Permanent erasure for sensitivity, at any time, from the event page, after confirmation. | DSN-26–DSN-29 |
+| effacement définitif | permanent erasure | — | — | What a withdrawal does. | DSN-26, DSN-27 |
+| limites du retrait | withdrawal limits | — | — | Telegram messages not deletable, backups, exports, offline devices, re-collection, re-import. | DSN-28 |
+| compteur global des événements retirés | withdrawn-events counter | `withdrawnEventCount` | Withdrawn events | Only trace of a withdrawal; no player, type or date. | DSN-29 |
+| empreinte (de retrait) | withdrawal fingerprint | `WithdrawalFingerprint` | — | Keyed hash of player, type and date, kept eight weeks, so detection cannot recreate the event (decision Q-DSN-01). | Q-DSN-01 |
+| données gardées sur l'appareil | device-kept data | `DeviceCache` | — | Only what screens show; erased at logout; a withdrawal reaches it at next refresh. | DSN-33 |
+| RGPD | GDPR | — | — | European data-protection regulation; would apply in full outside personal use. | 13 limits |
+
+Merged into other rows: « presse sportive », « archives d'actualités » (into public press); « effacement définitif » kept as the definition of event withdrawal.
+
+Decisions:
+
+- « sujet intime » is "intimate subject", paired with "intimate detail"; "sensitive" stays for « donnée sensible » and « événement sensible ».
+- « proche » is "loved one", which covers family and friends as the French does; "relative" would narrow it to family.
+
+### 3.15 Operations
+
+| French | English | Code | UI label | Meaning | IDs |
+| --- | --- | --- | --- | --- | --- |
+| gratuité totale | zero cost | — | — | No paid tier, no payment card, anywhere. | TRV-01, D-07 bis |
+| offre gratuite, palier gratuit | free tier | — | Free tier | Permanent free offer of a service. | TRV-01, TRV-11 |
+| essai gratuit limité dans le temps | time-limited free trial | — | — | Never acceptable. | TRV-11 |
+| moyen de paiement | payment method | — | — | Never registered. | TRV-02 |
+| quota, limite | quota, limit | `QuotaLimit` | Quota | Per minute, day, month or volume, from the verified terms. | TRV-03 |
+| consommation | usage | `QuotaUsage` | Usage | The app counts its own usage per limit and period. | TRV-04 |
+| remise à zéro | reset | `resetAt` | Resets at {time} | When a quota period renews. | TRV-46 |
+| avertissement de quota | quota warning | `quota_warning` | Quota warning | At 80 % of a limit. | TRV-05, H-TRV-02 |
+| limite atteinte | limit reached | `quota_reached` | Quota reached | Operations deferred, never lost; an early refusal counts as reached. | TRV-05, TRV-06 |
+| avertissement de volume | database volume warning | `database_volume_warning` | Database volume warning | At 80 % of the free capacity; core data never deleted. | TRV-07, H-TRV-03 |
+| fiche de service | service sheet | `docs/services/*` | — | Role, free tier, limits, terms date and address, behavior at the limit, replacement. | TRV-09, TRV-10 |
+| rôle (d'un service) | service role | `ServiceRole` | — | hosting, database, stats source, language model, news feeds, notifications, trigger service, backup storage. | TRV-09 |
+| conception technique | technical design | — | — | Engineering documents that fix what the specs leave open. | TRV-25 |
+| hébergement, hébergeur | hosting, host | — | — | The free hosting service. | TRV-13 |
+| mise en sommeil, réveil | sleep, wake-up | — | — | Free hosts' idle behavior. | TRV-13 |
+| base relationnelle hébergée | hosted relational database | — | — | Free-tier hosted database. | D-23, TRV-14 |
+| service de déclenchement, secret de déclenchement | trigger service, trigger secret | — | — | External scheduler calling the app, protected by a secret. | TRV-65 |
+| tâche planifiée, tâche | scheduled task, task | `ScheduledTask`; key `taskKey` | Task | Recurring work with a plain-language name, an owner document, a time or a predecessor (section 9). | TRV-25, TRV-26 |
+| calendrier d'ensemble (des tâches) | task schedule | — | — | The default times of all tasks. | TRV-25 |
+| passage | pass | `TaskPass` | Pass | One run of a task plus everything chained to it; groups messages. | TRV-26, TEL-19 |
+| exécution | run | `TaskRun` | Run | One execution of a task, with start, end and result. | TRV-26, TRV-28 |
+| exécution planifiée, à la demande | scheduled run, on-demand run | `TaskRunTrigger` | Scheduled; On demand | A manual run is marked on demand and keeps the next scheduled one. | TRV-33 |
+| report (d'une exécution) | postponement | `postponed` | Postponed | A run waits for the previous one to finish; journaled. | TRV-28 |
+| exécution interrompue, reprise | interrupted run, resumption | `interrupted` | Interrupted | Resumes where it stopped at the next run. | TRV-30 |
+| portion | chunk | — | — | Long work is cut into chunks that fit the host's limits. | TRV-30 |
+| exécution manquée | missed run | `missed` | Missed | Last success older than its interval plus a margin; opens an incident and runs at once. | TRV-31 |
+| contrôle des exécutions | run check | task `run_check` | — | Detects missed runs at the end of each pass and at each app opening. | TRV-25, TRV-31 |
+| changement d'heure, heure d'hiver | clock change, winter time | — | — | One execution on a day when a time is missing or doubled. | TRV-27 |
+| réglage, réglages, écran de réglages | setting, settings, settings screen | — | Settings | Anything the owner adjusts in the app. | TRV-34, IHM-37 |
+| paramètre | parameter | `Parameter`; key `parameterKey` | — | Registry entry: name, purpose, unit, current and default value, allowed values, owner, origin. | TRV-34 |
+| registre des paramètres | parameter registry | `parameterRegistry` | — | Every parameter by owning document (section 9). | TRV-38 |
+| valeur par défaut, « Rétablir la valeur par défaut » | default value, restore default | `defaultValue` | Restore default | — | TRV-34, TRV-35 |
+| valeurs admises | allowed values | `allowedValues` | Allowed values | Out-of-range input is refused with an explanation. | TRV-35 |
+| origine (d'un paramètre) | parameter origin | `ParameterOrigin` | Origin | journal decision, journal hypothesis, local hypothesis to confirm. | TRV-34 |
+| date du dernier changement de paramètre | last parameter change | `lastCalculationParameterChangeAt` | Last parameter change | Of a parameter that affects calculations; shown with profiles and the validation table. | TRV-35, SEN-37, SUI-25 |
+| configuration de déploiement | deployment configuration | — | — | Service addresses, keys, bot token, initial password, trigger secret; never in the app. | TRV-37, TRV-64 |
+| valeurs secrètes | secrets | — | — | Never displayed, journaled or exported. | TRV-64 |
+| journal d'activité, journal | activity journal | `JournalEntry` | Activity journal | Every pass, recalculation, failure, incident, data-changing action, parameter change, refused login, message. | TRV-41 |
+| entrée (du journal) | journal entry | `JournalEntry` | Entry | With a category, a level and a plain-language message. | TRV-41–TRV-43 |
+| catégorie (d'une entrée) | entry category | `JournalEntryCategory` | Category | Section 4. | TRV-41 |
+| niveau | level | `JournalLevel` | Level | info, warning or incident. | TRV-43 |
+| désignation d'un événement | event reference | `eventRef` | — | Player, type and reference date: the only way an entry names an event; erased on withdrawal. | TRV-41 |
+| détails techniques, réponse brute | technical details, raw response | `technicalDetails` | Technical details | Stored apart, hidden by default, no secret and no event text. | TRV-44, DSN-11 |
+| incident | incident | `Incident` | Incident | A function no longer does its job; opened once per cause, closed when it disappears or by the owner. | TRV-45 |
+| incident ouvert, clos, clore | open, closed, close | `IncidentStatus` | Open; Closed | — | TRV-45 |
+| écran d'état | status screen | route `/status` | App status | See section 3.13. | TRV-46, IHM-70 |
+| état (d'un service) | service status | `ServiceStatus` | — | normal, degraded or unavailable. | TRV-46 |
+| éléments en attente | pending items | — | Pending | Classification queue, requests to do. | TRV-46 |
+| vérification de l'installation | installation check | `runInstallationCheck()` | Check installation | Per service: success, or failure with probable cause and steps. | TRV-47 |
+| durée de conservation (des journaux) | journal retention | `journalRetentionDays` | — | 90 days; open incidents kept until closed. | TRV-48, H-TRV-08 |
+| export du journal | journal export | — | Export journal | Text file of a period for a helper. | TRV-49 |
+| sauvegarde | backup | `Backup` | Backup | Full, automatic, weekly, encrypted, kept outside the database; 8 kept. | TRV-50, Q-TRV-01 |
+| espace de sauvegarde | backup storage | — | — | Private storage receiving the encrypted backups. | TRV-50, TRV-75 |
+| sauvegarde en échec | backup failed | `backup_failed` | Backup failed | Incident. | TRV-50 |
+| export complet, exports partiels | full export, partial exports | `exportAll()` | Export | Full export in an open documented format; spreadsheet exports of players, events, cases, profiles. | TRV-52 |
+| rappel d'export | export reminder | `export_reminder` | Export reminder | After 30 days without an export. | TRV-54 |
+| restauration, bilan (de restauration) | restore, restore summary | — | Restore | Into an empty database; then a consistency check and counts. | TRV-53 |
+| mise à jour (de l'application), structure des données, retour à la version précédente | app update, data structure, rollback | — | — | A structure change triggers a backup, then the app's own migration. | TRV-55, TRV-76, TRV-77 |
+| environnement d'essai | test environment | — | — | Not required: the app has one environment, the owner's. | TRV-78 |
+| compte unique, inscription | single account, sign-up | — | — | No sign-up exists. | TRV-57, H-10 |
+| mot de passe initial, mot de passe définitif | initial password, chosen password | — | — | Initial from the configuration, then replaced at first login. | TRV-57, TRV-63 |
+| empreinte non lisible (du mot de passe initial) | initial-password fingerprint | — | — | Non-readable hash kept to detect a reset. | TRV-63 |
+| réinitialisation (du mot de passe) | password reset | — | — | Through the deployment configuration, no email. | TRV-63 |
+| blocage (de la connexion), « connexions refusées » | lockout, logins refused | `logins_refused` | Logins refused | Security incident after repeated failures; closed at the next successful login. | TRV-61 |
+| durée de session sans utilisation | idle session duration | `sessionIdleDays` | — | 30 days. | TRV-62 |
+| connexion chiffrée | encrypted connection | — | — | HTTPS only. | TRV-59, IHM-10 |
+| instant absolu | absolute instant | — | — | Moment independent of time zones; epoch milliseconds in code. | TRV-68, STA-29 |
+| fuseau d'origine | original time zone | — | — | Kept when it helps understanding. | TRV-68 |
+| heure locale (du match) | local time | — | — | Venue time of a game. | TRV-71 |
+| jour d'une tâche, jour d'un match | task day, game day | — | — | A task's day is in the owner's zone; a game's day is its US date. | TRV-72 |
+| guide de déploiement, d'utilisation, d'exploitation | deployment guide, user guide, operations guide | — | — | Delivered documentation. | TRV-74, TRV-75, TRV-79 |
+| aide-mémoire de dépannage, notes de version | troubleshooting sheet, release notes | — | — | Delivered documentation. | TRV-79 |
+| état de réalisation des exigences | requirement status | `RequirementStatus` | — | done, partial or not done, per requirement ID. | TRV-79 |
+| agent de développement | development agent | — | — | AI agent writing the code. | D-23, D-28 |
+| langage unique | single language | — | — | JavaScript or TypeScript for server, interface and tasks. | TRV-20, D-28 |
+
+Merged into other rows: « tâche » (into scheduled task); « journal » alone (into activity journal when it means the app's journal); « limite » (into quota).
+
+Decisions:
+
+- « passage » is "pass" and « exécution » is "run": a pass is a run plus the work chained to it (TRV-26).
+- « tâche planifiée » is "scheduled task" everywhere, in code too (`ScheduledTask`); "job" is not a synonym.
+- « réglage » is "setting" and « paramètre » is "parameter": settings are what the owner adjusts; parameters are registry entries.
+
+### 3.16 Project, documentation and general words
+
+| French | English | Code | UI label | Meaning | IDs |
+| --- | --- | --- | --- | --- | --- |
+| journal des décisions | decision journal | — | — | `docs/90-journal-des-decisions.md`; authoritative over the specs. | 90 |
+| décision (D-xx) | decision | — | — | Explicit choice of the owner. | 90 |
+| hypothèse de rédaction (H-xx), hypothèse locale (H-XXX-nn) | drafting hypothesis, local hypothesis | — | — | Assumption made while writing, "to be confirmed". | 90, each spec |
+| question ouverte (Q-xx) | open question | — | — | Point left open; defaults apply unless the owner decided. | 90 |
+| « à confirmer » | to be confirmed | — | — | Mark of every hypothesis. | 90 |
+| Points à trancher avant de développer | points to settle before development | — | — | The twelve README points, all settled on 2026-11-11. | README |
+| cadrage, cycle | scoping, cycle | — | — | The interview cycles of the decision journal. | 90 |
+| lot, Lot 1, Lot 2 | lot, Lot 1, Lot 2 | `lot` | — | Delivery slice: the minimal app, then the watch and the real-world test. | H-12, 00 |
+| lot initial | initial batch | — | — | A first batch of backtests for all players; rejected by D-36, unrelated to Lot 1. | D-36 |
+| idée d'origine | original idea | — | — | Betting-oriented starting point, refocused by D-08. | 00, 90 |
+| détecteur de sensibilité par joueur | per-player sensitivity detector | — | — | What Egoscope is first (D-08). | 00, 90 |
+| score d'impact | impact score | — | — | Figure with sources the app outputs instead of raw alerts (D-05). | D-05 |
+| alertes brutes | raw alerts | — | — | What the app does not output. | D-05 |
+| hypothèse conditionnelle | conditional hypothesis | — | — | Some players may react to some public events; to be tested, not assumed. | 00, VUE-09 |
+| limites connues | known limits | — | Known limits | The five limits shown on "Method and limits". | 00, VUE-09 |
+| garde-fous | safeguards | — | — | Rules that keep the test honest, listed in 00. | 00 |
+| égo | ego | — | — | What the events may touch; never measured. | 00, TAX-04 |
+| contre-performance | underperformance | — | — | A game below the player's norm. | 90 |
+| exemples marquants, doublés, 4-0 historique | striking examples, braces, historic 4-0 | — | — | Motivating examples of the journal (braces: two goals, football). | D-32 |
+| parcours de bout en bout | end-to-end journey | — | — | Steps 1 to 10 from adding a player to the validation table. | 00 |
+| exigence | requirement | — | — | Numbered rule `XXX-nn` with its lot. | every spec |
+| critères d'acceptation | acceptance criteria | — | — | `CA-XXX-nn` (positional IDs where the spec gives none). | decisions |
+| cas limites et erreurs | edge cases and errors | — | — | Spec section. | every spec |
+| données manipulées | data handled | — | — | Spec section listing stored data. | every spec |
+| mention | notice | — | — | Text shown on an object (« mention « partielle » » is the partial notice); not a mark. | STA-24, ALE-17, IHM-50 |
+| motif, raison | reason | `reason` | Reason | Why something happened; « motif » for closed lists, « raison » for free text. | many |
+| état, statut | status | `status` | Status | Lifecycle position of an object. | many |
+| origine, provenance | origin | `origin` | Origin | Where something comes from. | many |
+| catégorie | category | — | Category | Case category, notification category or journal-entry category, by context. | SUI-22, TEL-24, TRV-41 |
+| nature | kind | `kind` | Kind | Request kind, manual-decision kind, caveat kind, incident kind. | BKT-01, SEN-17 |
+| seuil | threshold | — | Threshold | — | many |
+| fenêtre | window | — | — | Correction, grouping, title-dedup window. | STA-33, DET-29, COL-30 |
+| conservation | retention | — | — | — | COL-34, TRV-48 |
+| effacer, effacement | erase, erasure | — | — | Removal with no trace (withdrawal cascade, requalification); the import screen's « Effacer » button is labeled "Clear". | DSN-27, TAX-25, IHM-28 |
+| supprimer, suppression | delete, deletion | — | Delete | Removal that keeps a trace (historical event, purge, player data). | IMP-33, COL-34, JOU-24 |
+| rattacher | attach | — | Attach | Link one object to another (article to event, event to game, result to request). | DET-27, SEN-03, IMP-07 |
+| historique | history | — | History | Dated list of past changes (status, verdict, alert, correction). | many |
+| journal | journal | — | Journal | Every « journal » is a journal: activity, collection, detection, update, stats correction, decision. | TRV-41, COL-48, DET-55, ALE-31, STA-33, 90 |
+| trace | trace | — | — | Minimal record kept after an action (import, dedup, deletion). | IMP-31, COL-34, IMP-33 |
+| IA | AI | — | AI | — | many |
+| Egoscope | Egoscope | — | Egoscope | Product name, never translated. | IHM-02 |
+
+Decisions:
+
+- « état » and « statut » are synonyms in the specs: both are "status". « motif » and « raison » are both "reason". « origine » and « provenance » are both "origin".
+- Every « journal » keeps the word "journal" (pre-decided), so "log" is not used for any of them.
+
 <!-- next -->
