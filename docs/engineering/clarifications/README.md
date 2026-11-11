@@ -151,7 +151,7 @@ Each row is an amendment to make to the record or to read into the hypothesis. "
 | Record 0017, open point 4 | CL-COL-16, CL-DSN-10 | Settled as recommended: a matching article is erased at once, with no skip trace; re-collection costs are accepted. |
 | Record 0017, Consequences (import flag, counter) | CL-IMP-28, CL-DSN-04 | The flag reads "matches an event you withdrew" with the choice "don't record — sensitive data"; the save confirmation counts the flagged events recorded; every decline counts, flagged or not; a restore's re-application does not count. |
 | Record 0018 (register row TRV-51) | CL-TRV-05 | Settled: backups hold no drafts (server copies included), no withdrawal ledger, no password data, no sessions. |
-| H-TRV-07 and TRV-25 (statistics at 12:00) | CL-TRV-23, CL-STA-10 | The update starts at 15:00, probes the source every 60 minutes, at 20:00 fetches what is published and ends "source late"; the "Stats source unavailable" incident opens after 2 consecutive late competition days. Cut-off, probe interval and late days are new parameters. |
+| H-TRV-07 and TRV-25 (statistics at 12:00) | CL-TRV-23, CL-STA-10 | The update is one run per competition day: it starts at 15:00, probes the source about every 60 minutes without opening the database, and ends "succeeded" when the refresh is ingested or, at the 20:00 cut-off, fetches what is published and ends "source late"; the "Stats source unavailable" incident opens after 2 consecutive late competition days. Cut-off, probe interval and late days are new parameters. |
 | H-STA-11 | CL-STA-14, CL-TRV-03 | A game whose time is to be determined is deemed to start at 00:00 US Eastern time on its date. |
 | H-SEN-01 | CL-SEN-02 | The end-of-day Pacific rule serves historical events whose public date has no time; a detected event keeps the instant DET-30 records (CL-COL-02). |
 | H-IMP-02 (correspondence window) | CL-IMP-34 | The same parameter also sets detection's "possible duplicate" mark and the fingerprint checks at import and detection. |
@@ -235,7 +235,7 @@ Each line names something a ruling requires the app to store that the specs do n
 - CL-TRV-10: journal entries made of a fixed message and references by identifier, the text being built at display; references removed when their item is erased.
 - CL-TRV-12: per quota limit, its unit, period, reset instant and zone; consumption per limit and period instance; whether the warning was given in that instance.
 - CL-TRV-22: the instant of the last full export downloaded, and of the first start.
-- CL-TRV-23: per competition day, the update's result, "source late" included, and the source's last refresh instant seen by the probe; the number of consecutive late competition days is computed from the stored run results, not stored.
+- CL-TRV-23: per competition day, the one run of the statistics update with its result ("succeeded" or "source late"), the last refresh instant seen and the number of probes; probes are not recorded on their own, and the number of consecutive late competition days is computed from the stored results.
 
 ## Parameters set by rulings
 
