@@ -172,7 +172,7 @@ The outcome of one case of the sheet at closure (ALE-27). Its profile after the 
 
 ### 1.9 Withdrawal, other erasures, purge, export and backup
 
-**Withdrawal of an event E** (ALE-30, DSN-27). The alerts eraser runs after the notifications eraser, which has already deleted every message about E's sheet that names E (notifications.md §1.6), and before the tracking eraser. In the withdrawal's transaction:
+**Withdrawal of an event E** (ALE-30, DSN-27). The alerts eraser runs after the notifications eraser, which has already deleted every message about E's sheet that names E (notifications.md §1.8), and before the tracking eraser. In the withdrawal's transaction:
 
 1. if E is the only event of its sheet, the sheet is deleted with everything below it; its number is never reused;
 2. otherwise E's sheet-event row, its update entries and its per-event caveats are deleted, its section too if no other event remains in it, and the caveats are recomputed even when frozen; the outcome of E's case is deleted when that case is erased;

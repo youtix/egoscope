@@ -96,7 +96,7 @@ A stored feed item reduced to the COL-25 minimum, dated cautiously (COL-19 to CO
 | `language` | text | no | — | `CHECK (language IN ('en','fr'))`; the item's declared language, else the source's | `none` | COL-17, CL-COL-11 |
 | `excerpt` | text | yes | null | feed-supplied text without formatting, truncated to `excerptMaxLength`; `CHECK (char_length(excerpt) BETWEEN 1 AND 1000)`; null when the feed gave none or once erased | `excerpt` | COL-25, COL-27, COL-37, DSN-09 |
 | `processing_status` | text | no | `'to_analyze'` | `CHECK (processing_status IN ('to_analyze','awaiting_classification','not_relevant','attached','linked_to_proposal'))` (`ArticleProcessingStatus`) | `none` | COL-35, CL-DET-01 |
-| `not_relevant_reasons` | text[] | no | `'{}'` | every distinct non-relevance reason of the article's parts and facts (detection.md §4); `CHECK (not_relevant_reasons <@ ARRAY['no_followed_player','no_fact','below_threshold','old_fact','already_reported_by_backtest','type_rejected_or_withdrawn','proposal_rejected','detached_by_owner'])`; `CHECK (processing_status <> 'not_relevant' OR cardinality(not_relevant_reasons) > 0)` | `none` | DET-54, CL-DET-01, CL-DET-12 |
+| `not_relevant_reasons` | text[] | no | `'{}'` | every distinct non-relevance reason of the article's parts and facts (detection.md §2.3); `CHECK (not_relevant_reasons <@ ARRAY['no_followed_player','no_fact','below_threshold','old_fact','already_reported_by_backtest','type_rejected_or_withdrawn','proposal_rejected','detached_by_owner'])`; `CHECK (processing_status <> 'not_relevant' OR cardinality(not_relevant_reasons) > 0)` | `none` | DET-54, CL-DET-01, CL-DET-12 |
 | `retention_clock_started_at` | timestamptz | yes | null | start of the not-relevant retention (CL-COL-08): `first_collected_at` when the prefilter found no followed player, else the instant the article last became not relevant; `CHECK ((processing_status = 'not_relevant') = (retention_clock_started_at IS NOT NULL))` | `none` | COL-36, COL-38, CL-COL-08, CL-COL-14 |
 | `first_press_source_id` | integer | no | — | → `press_sources.id` `ON DELETE RESTRICT`; the source whose read first stored it | `none` | CL-COL-21 |
 | `first_task_run_id` | integer | yes | null | → core `task_runs.id` `ON DELETE SET NULL`; the collection run that stored it | `none` | COL-49, CL-COL-14 |
@@ -233,7 +233,7 @@ What may remain: the source rows, the daily counts and the run counters (numbers
 **Daily purge** (task `data_purge`, COL-39, CL-COL-08, CL-COL-12). Each run, in order:
 
 1. deletes every article with `processing_status = 'not_relevant'` and `retention_clock_started_at + notRelevantRetentionDays <= now`, and inserts one deduplication trace per deleted article (`link_sha256`, its `first_collected_at`, `article_deleted_at = now`);
-2. sets `excerpt` to null on every article with `processing_status = 'attached'` and `first_collected_at + notRelevantRetentionDays <= now`, unless a fact of the article is linked to a pending type proposal or a part of it is pending (detection.md §3);
+2. sets `excerpt` to null on every article with `processing_status = 'attached'` and `first_collected_at + notRelevantRetentionDays <= now`, unless a fact of the article is linked to a pending type proposal or a part of it is pending (DSN-09, CL-COL-08);
 3. deletes the deduplication traces with `article_deleted_at + dedupTraceRetentionDays <= now`;
 4. deletes the source reads older than `journalRetentionDays`;
 5. deletes the daily counts older than 90 days.
