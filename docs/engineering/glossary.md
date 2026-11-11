@@ -8,6 +8,7 @@ The functional specifications in `docs/` are written in French and stay the refe
 - Distinct French terms never share an English name. When the specs use one French word for two things, this file gives two English terms and says how to tell them apart (section 4.2). When the specs use two French words for one thing, the second is listed as a synonym in the same row.
 - A term that is missing is added to this file in the same pull request that needs it, in the right domain table, with its spec IDs.
 - This file wins over any other English rendering: the spec digests, comments, earlier code, an agent's own translation. Code, UI strings, messages and documentation use the names below and no variant of them.
+- Ownership. This file owns every domain term, every label and fixed sentence, and every stored or displayed enumeration value: states, reasons, kinds, origins, categories, incident kinds, journal categories, outbox fact kinds, exchange-format keys and values. The module map (`docs/engineering/module-map.md`) owns module names, route segments, parameter keys and scheduled-task keys; sections 3.13 and 9 copy them with their French term and English label. The rulings (`docs/engineering/clarifications/`, cited `CL-<PREFIX>-nn`) settle meanings and use these terms.
 - Columns of the domain tables: **French** as written in the specs; **English** term used in prose and documentation; **Code** identifier (type, property, function or enumeration value); **UI label** in sentence case, when the term is shown; **Meaning** in one line; **IDs** of the owning requirements. "—" means not applicable.
 - Wherever the specs require French text in the product ("en français", H-11, TRV-24, TEL-04, IHM-12, DSN-23, DET-21, prompt rule 2.6, H-BKT-05), read "in English": the owner overrode H-11 on 2026-11-11. The press itself is still read in English and in French (COL-05).
 
@@ -15,7 +16,7 @@ The functional specifications in `docs/` are written in French and stay the refe
 
 **Language.** American English: canceled, cancellation, analyze, behavior, catalog, color, labeled, judgment. Plain words over jargon in the interface (TRV-42, IHM-37).
 
-**NBA vocabulary.** Where the NBA has its own English word, use it: game (never "match"), tip-off (never "kickoff"), box score, regular season, play-in tournament, playoffs, postseason, the Finals, series, game number (Game 7), preseason, exhibition game, All-Star Game, offseason, home and away, overtime, ejection, elimination game, trade, signing, release, roster, rookie, win-loss record, minutes. Box-score abbreviations follow NBA.com: PTS, FGM, FGA, 3PM, FTM, FTA, OREB, DREB, AST, STL, BLK, TOV, PF, MIN. A season is labeled `2024-25` (STA-48 says « 2024-2025 »).
+**NBA vocabulary.** Where the NBA has its own English word, use it: game (never "match"), tip-off (never "kick-off" or "kickoff"; it is the game's scheduled start as last known, CL-SEN-23, CL-SUI-13), box score, regular season, play-in tournament, playoffs, postseason, the Finals, series, game number (Game 7), preseason, exhibition game, All-Star Game, offseason, home and away, overtime, ejection, elimination game, trade, signing, release, roster, rookie, win-loss record, minutes. Box-score abbreviations follow NBA.com: PTS, FGM, FGA, 3PM, FTM, FTA, OREB, DREB, AST, STL, BLK, TOV, PF, MIN. A season is labeled `2024-25` (STA-48 says « 2024-2025 »).
 
 **Code.**
 
@@ -34,16 +35,17 @@ The functional specifications in `docs/` are written in French and stay the refe
 
 **Identifiers with a fixed shape.**
 
-- Event-type identifiers are kebab-case slugs (lowercase ASCII letters, digits and hyphens), immutable once seeded (TAX-02, section 5).
-- Route segments are kebab-case: `/backtest-requests/[requestId]`, `/validation-table`.
-- Scheduled-task keys, incident kinds and parameter keys are listed in section 9.
+- Event-type identifiers are kebab-case slugs, immutable once given (TAX-02, section 5). A type created later gets its slug from its English name: Unicode NFKD, diacritics removed, lowercase, every run of other characters than a–z and 0–9 replaced by one hyphen, no leading or trailing hyphen, cut at a hyphen to at most 40 characters, then `-2`, `-3`… if already used (CL-TAX-02).
+- Route segments, module names, scheduled-task keys and parameter keys are the module map's (its sections 3, 2, 4 and 6); this file never renames them. Incident kinds and outbox fact kinds are enumeration values of this file (sections 4 and 9).
 - The human-readable backtest-request reference is `REQ-YYYY-NNNN` (the specs' indicative « DEM-2026-0007 » becomes `REQ-2026-0007`, BKT-12).
 
 **Interface.**
 
 - UI labels in sentence case: "Backtest requests", "Request a backtest", "Method and limits". Proper nouns keep their capitals: Egoscope, NBA, Telegram, Game Score, the Finals, All-Star Game.
-- Dates shown to the owner (decision of 2026-11-11): Paris time by default, English, day–month–year with month names, 24-hour clock, zone named. Long form "Wednesday 11 November 2026 at 05:10, Paris time"; short form "Wed 18 Nov at 01:30". When a game's US date differs, add it: "Tuesday evening in the US" (IHM-14, TRV-71).
-- Numbers use a decimal point and a thousands comma: "+0.80", "1,000". Normalized gaps carry their sign and two decimals (SEN-09); the performance index shows three decimals (STA-12). Below 20 cases, proportions are counts, never percentages: "5 of 7 cases above zero" (SEN-39).
+- Dates and times (record 0010, CL-TRV-02, CL-IHM-04): in the owner's time zone, Paris by default. Full form where one instant is the subject of a block: "Wednesday 11 November 2026, 05:10 Paris time". Short form in lists, tables and summaries, on screens that state the zone once at the top ("Times in Paris time"): "Wed 18 Nov 2026, 01:30". A date without a time takes no zone: "Wed 18 Nov 2026". Durations and relative times take none: "in 3 h 20", "12 min ago". Telegram names the zone after every clock time (CL-TEL-03). Zone names are "<city> time": "Paris time", "New York time".
+- A game's US date is the calendar date of its scheduled start in US Eastern time, abroad included (CL-TRV-03). It follows the game only when it differs from the date in the owner's zone, with the part of day of the Eastern start — "morning" before 12:00, "afternoon" from 12:00 to 16:59, "evening" from 17:00: "Wed 18 Nov 2026, 01:30 — Tuesday evening in the US" (CL-IHM-07). A venue's local time is never shown (CL-TRV-02).
+- Numbers (CL-IHM-03): a decimal point and a comma between thousands from 1,000 on ("0.751", "12,345"); a signed value carries "+" or the true minus sign "−" (U+2212), and a value that rounds to zero carries none ("0.00"); counts carry no sign. Normalized gaps show two decimals (SEN-09), the performance index three (STA-12). Below 20 cases, proportions are counts, never percentages: "5 of 7 cases above zero" (SEN-39). Machine formats (prompt JSON, imports, exports) use a plain point, no thousands separator and the ASCII hyphen-minus.
+- The owner as actor: where the specs say « utilisateur » as the origin of an action or a classification, the label is "You" ("Classified by you", "Detached by you"); the code value stays `user`.
 
 ## 3. Terms by domain
 
@@ -62,19 +64,21 @@ The functional specifications in `docs/` are written in French and stay the refe
 | variante ambiguë, marque « ambiguë » | ambiguous variant | `isAmbiguous` | Ambiguous | Variant also naming other people or a common word; detection needs a corroborating clue. | JOU-09, DET-04 |
 | variante partagée | shared variant | — | Shared with {player} | Variant identical to another followed player's; accepted and flagged at entry. | JOU-09, DET-04 |
 | homonyme, homonymes | namesake | — | — | Other person with the same name; the player marker in the prompt prevents confusion. | BKT-29, STA-03 |
-| équipe actuelle | current team | `currentTeamId` | Current team | NBA team of the player now; updated from box scores or by hand. | JOU-08, JOU-13, STA-25 |
+| équipe actuelle | current team | `currentTeamId` | Current team | NBA team of the player now; updated from box scores or by hand; can become "without team". | JOU-08, JOU-13, STA-25 |
+| joueur sans équipe | without team | `currentTeamId` empty | Without team | After a reported release or the owner's choice; the next game is then none, reason "player without a team". | CL-JOU-20, STA-26 |
 | historique des équipes | team history | `PlayerTeamChange` | Team history | Dated list of team changes with their origin. | JOU-13 |
 | changement d'équipe | team change | `PlayerTeamChange` | Team change | Move to another team; changes no existing event or case. | JOU-13, JOU-14 |
 | constaté (origine) | observed | `TeamChangeOrigin` `observed` | Observed | Change seen by the stats update in a box score. | JOU-13 |
-| saisi (origine) | entered | `TeamChangeOrigin` `entered` | Entered | Change entered by the owner, confirmed by the first game with the new team. | JOU-13 |
+| saisi (origine) | entered | `TeamChangeOrigin` `entered` | Entered | Change entered by the owner, dated by its entry, then marked as below. | JOU-13, CL-JOU-03 |
+| — (CL-JOU-03) | unconfirmed, confirmed by the game of … | `TeamChangeConfirmation` | Unconfirmed; Confirmed by the game of {date} | Whether the player's first game after an entered change was for the entered team. | CL-JOU-03 |
 | transfert, échange | trade | — | Trade | Player moved to another team by a trade. | JOU-13, STA-25 |
 | signature | signing | — | Signing | Player signed by a team. | STA-25 |
 | libération | release | — | Release | Player released by his team. | STA-25 |
-| anciennes équipes | former teams | `formerTeamIds` | Former teams | Teams the player played at least one official game for, from team history and box scores (decision Q-TAX-01). | Q-TAX-01, JOU-11 |
-| jour anniversaire | birthday | `birthday` (`{ month, day }`) | Birthday | Day and month only, no year: agreed exception to JOU-11 (decision Q-TAX-01). | JOU-11, Q-TAX-01 |
+| anciennes équipes | former teams | — (read from box scores, never stored) | Former teams | Teams the player played at least one official game for in a covered season; never entered. | Q-TAX-01, CL-JOU-18, CL-STA-24 |
+| jour anniversaire | birthday | `birthday` (`{ month, day }`) | Birthday | Day and month only, never the year, from the stats source or the owner; shown as "14 March". | JOU-11, CL-JOU-16 |
 | correspondance statistique, correspondance avec la source de statistiques | stats-source mapping | `StatsSourceMapping` | Stats-source mapping | User-confirmed mapping of a followed player to his record in the stats source; one per player. | JOU-10, STA-03 |
 | « correspondance à établir » | mapping to establish | `StatsSourceMappingStatus` `to_establish` | Mapping to establish | Notice shown while no candidate is confirmed; no statistics are fetched meanwhile. | JOU-10, IHM-66 |
-| candidat (de correspondance) | mapping candidate | `MappingCandidate` | Candidates | Stats-source identity offered for confirmation. | JOU-10, STA-03 |
+| candidat (de correspondance) | mapping candidate | `MappingCandidate` | Candidates | Stats-source identity offered for confirmation; one already linked shows "already followed as {name}" and cannot be confirmed. | JOU-10, STA-03, CL-JOU-04 |
 | état (du joueur) | player status | `PlayerStatus` | Status | active, paused or withdrawn; changed only by the owner. | JOU-15, JOU-22 |
 | actif | active | `active` | Active | Counts toward the maximum; detected, alerted, tracked. | JOU-16 |
 | en pause, mise en pause | paused, pause | `paused`; `pausePlayer()` | Paused; Pause | Temporarily out of detection and alerts; data and open cases kept. | JOU-17, JOU-18 |
@@ -82,7 +86,7 @@ The functional specifications in `docs/` are written in French and stay the refe
 | réactivation, réactiver, reprise | reactivation, reactivate | `reactivatePlayer()` | Reactivate | Back to active, subject to the maximum; creates no request. | JOU-20, JOU-18 |
 | historique des états | status history | `PlayerStatusChange` | Status history | Dated changes with optional reason. | JOU-15 |
 | motif (du changement d'état) | status-change reason | `PlayerStatusChangeReason` | Reason | Optional reason of a status change (section 4). | JOU-15, H-JOU-06 |
-| absence prolongée | prolonged absence | `prolonged_absence`; `prolongedAbsenceThreshold` | Prolonged absence | At least N consecutive team games missed (default 10); reason value and parameter. | JOU-22 |
+| absence prolongée | prolonged absence | `prolonged_absence`; `players.prolongedAbsenceGames` | Prolonged absence | At least N consecutive team games missed (default 10); reason value and parameter. | JOU-22 |
 | suggestion de pause | pause suggestion | `PauseSuggestion` | Suggest pausing | To-do item offered after a prolonged absence; refused once, it waits for a new absence. | JOU-22, IHM-20 |
 | fin de carrière | end of career | `end_of_career` | End of career | Reason value. | JOU-15 |
 | départ de la NBA | left the NBA | `left_nba` | Left the NBA | Reason value. | JOU-15 |
@@ -96,12 +100,12 @@ The functional specifications in `docs/` are written in French and stay the refe
 | matchs consécutifs manqués, matchs consécutifs de son équipe manqués | consecutive team games missed | `consecutiveTeamGamesMissed` | Consecutive games missed | Team games missed since the last game played; the cause is never stored. | JOU-21, STA-46 |
 | blessure longue, suspension, choix de l'entraîneur, raison personnelle | causes of absence | — | — | Never recorded (JOU-21, DSN-15). | JOU-21, STA-13 |
 | recrue | rookie | — | Rookie | Player with no NBA game yet: can be added, mapping may stay to establish. | 01 edge cases |
-| nombre maximal de joueurs actifs | maximum active players | `maxActivePlayers` | Maximum active players | Parameter; blocks additions and reactivations beyond it. | JOU-04 |
-| nombre indicatif minimal, minimum indicatif | indicative minimum | `indicativeMinimumPlayers` | Indicative minimum | Parameter; below it the to-do list reminds the owner. | JOU-04, IHM-20 |
-| suppression des données (d'un joueur) | player data deletion | `deletePlayerData()` | Delete player data | Irreversible, only for a withdrawn player, after double confirmation; applies event withdrawal to each event. | JOU-24 |
+| nombre maximal de joueurs actifs | maximum active players | `players.maxActive` | Maximum active players | Parameter; blocks additions and reactivations beyond it. | JOU-04 |
+| nombre indicatif minimal, minimum indicatif | indicative minimum | `players.indicativeMin` | Indicative minimum | Parameter; below it the to-do list reminds the owner. | JOU-04, IHM-20 |
+| suppression des données (d'un joueur) | player data deletion | `deletePlayerData()`; route `/players/[playerId]/delete` | Delete player data | Irreversible, only for a withdrawn player, after double confirmation; applies event withdrawal to each event. | JOU-24 |
 | double confirmation | double confirmation | — | — | Two explicit confirmations before deleting a player's data. | JOU-24 |
 | état du backtest (du joueur) | player backtest status | `PlayerBacktestStatus` | Backtest | Derived summary on the player page (section 4). | JOU-25, IHM-21 |
-| fiche joueur | player page | route `/players/[playerId]` | — (player's name) | Screen of one followed player. | IHM-22 |
+| fiche joueur | player page | routes `/players/[playerId]`, `/players/[playerId]/edit` | — (player's name) | Screen of one followed player, and the edit of his identity. | IHM-22 |
 | archivé | archived | `isArchived` | Archived | Display of the profiles of a withdrawn player or type; still recalculated, feed no alert. | SEN-19, TAX-31 |
 
 Merged into other rows: « mise en pause » and « reprise » (into paused and reactivation); « échange » and « transfert » (into trade); « liste des joueurs suivis » (into follow list).
@@ -118,14 +122,14 @@ Decisions:
 | --- | --- | --- | --- | --- | --- |
 | taxonomie | taxonomy | — | Types | The set of event types and their sheets. | TAX-01–TAX-33 |
 | type d'événement | event type | `EventType`; key `eventTypeId` | Type | Category of event defined by a sheet; only validated types serve. | TAX-01, TAX-11 |
-| fiche de type, fiche | type sheet | `TypeSheet` | Type sheet | Name, definition, inclusion and exclusion criteria, dating rule, example, caution notes. | TAX-01 |
+| fiche de type, fiche | type sheet | `TypeSheet`; routes `/types/[typeId]`, `/types/[typeId]/edit` | Type sheet | Name, definition, inclusion and exclusion criteria, dating rule, example, caution notes. | TAX-01 |
 | identifiant (du type) | type ID | `EventType.id` (slug) | — | Kebab-case slug, immutable, never reused; carried by every research-result event. | TAX-02 |
 | nom (du type) | type name | `name` | Name | Display name; changing it is a formal change. | TAX-01, TAX-22 |
 | définition | definition | `definition` | Definition | Short sentences an AI can apply without interpretation. | TAX-01 |
 | critères d'inclusion | inclusion criteria | `inclusionCriteria` | Inclusion criteria | Allow a yes or no decision from reading an article. | TAX-01, TAX-04 |
 | critères d'exclusion | exclusion criteria | `exclusionCriteria` | Exclusion criteria | Say which neighboring type prevails. | TAX-01, TAX-06 |
 | règle de datation | dating rule | `datingRule` | Dating rule | How to set the reference date, and whether events are known in advance. | TAX-01, TAX-05 |
-| connu à l'avance | known in advance | `knownInAdvance` | Known in advance | Event read from the schedule (birthday, former team); measured on that day's game. | TAX-01, SEN-02 |
+| connu à l'avance | known in advance | `knownInAdvance` | Known in advance | Dating-rule mark: the event's date is known beforehand; measured on the first game played on or after that date (US Eastern). Calendar-derived types carry their own mark (section 10). | TAX-01, SEN-02, CL-SEN-04, CL-TAX-20 |
 | exemple générique | generic example | `genericExample` | Example | Names no real person; uses the placeholders below. | TAX-03 |
 | « le joueur A », « l'équipe X », « un média national » | "player A", "team X", "a national outlet" | — | — | Placeholders of every example. | TAX-03 |
 | points de vigilance | caution notes | `cautionNotes` | Caution notes | Optional notes on a type's risks; also the methodological notes of the overview. | TAX-01, VUE-09 |
@@ -133,7 +137,7 @@ Decisions:
 | mention « sujet intime » | intimate subject | `isIntimateSubject` | Intimate subject | Type within the intimate subjects of 13 (bereavement, racism); Telegram never names it. | TAX-01, DSN-35 |
 | net, types nets et datables | clean, clean and datable types | — | Clean | Recognized from a public fact by yes-or-no criteria, names one player, overlaps no type. | TAX-04 |
 | datable | datable | — | Datable | Gives each event one reference date, at least to the day. | TAX-05 |
-| liste de contrôle « net et datable » | clean-and-datable checklist | `ValidationChecklist` | Clean and datable checklist | Eight points confirmed one by one before validation. | TAX-12 |
+| liste de contrôle « net et datable » | clean-and-datable checklist | `ValidationChecklist` | Clean and datable checklist | Eight points confirmed one by one before validation (section 7.2). | TAX-12, CL-TAX-20 |
 | fait public et observable | public, observable fact | — | — | What a type is recognized by, never a state of mind. | TAX-04 |
 | état d'esprit | state of mind | — | — | Never measured or supposed. | TAX-04 |
 | belles histoires | feel-good stories | — | — | What a type defined by its outcome would retain. | TAX-07, SUI-06 |
@@ -143,7 +147,7 @@ Decisions:
 | ébauche, ébauches des types candidats, ébauches de départ | starter sheet | `starterSheets` (seed data) | — | Annex content loaded at first start-up for the nine candidates. | TAX-15, H-TAX-05 |
 | origine (du type) | type origin | `EventTypeOrigin` | Origin | scoping, exploration or detection. | TAX-15 |
 | cadrage | scoping | `scoping` | Scoping | The design interviews that produced the nine candidates. | TAX-15 |
-| validation, valider | validation, validate | `validateEventType()` | Validate | Explicit act of the owner after a complete sheet and the checklist; creates version 1. | TAX-12, TAX-20 |
+| validation, valider | validation, validate | `validateEventType()`; route `/types/[typeId]/validate` | Validate | Explicit act of the owner after a complete sheet and the checklist; creates version 1. | TAX-12, TAX-20 |
 | rejet, rejeter | rejection, reject | `rejectEventType()` | Reject | Ends a proposal with a reason; kept so it is not proposed again. | TAX-13 |
 | motif de rejet | rejection reason | `TypeRejectionReason` | Reason | Closed list (section 4). | TAX-13, H-TAX-04 |
 | réouverture, rouvrir | reopening, reopen | `reopenEventType()` | Reopen | Rejected back to proposed, with its sheet. | TAX-14 |
@@ -152,7 +156,7 @@ Decisions:
 | « fusionné dans » | "merged into" | `merged_into` | Merged into {type} | Automatic withdrawal reason of absorbed types. | TAX-27 |
 | « scindé en » | "split into" | `split_into` | Split into {types} | Automatic withdrawal reason of a split type. | TAX-29 |
 | réactivation (d'un type), réactiver | type reactivation, reactivate | `reactivateEventType()` | Reactivate | Withdrawn back to validated, through the checklist again. | TAX-32 |
-| prompt d'exploration | exploration prompt | `ExplorationPrompt` | Explore new types | Text the owner pastes into a deep-research AI to get type proposals. | TAX-16 |
+| prompt d'exploration | exploration prompt | `ExplorationPrompt`; route `/types/explore` | Explore new types | Text the owner pastes into a deep-research AI to get type proposals. | TAX-16 |
 | général, ciblé (mode) | general, targeted | `ExplorationMode` | General; Targeted | Find new types, or deepen one proposal or idea. | TAX-16 |
 | retour d'exploration | exploration response | `ExplorationResponse` | — | JSON pasted back, format `egoscope-exploration`; kept only as a draft. | TAX-17, DSN-32 |
 | aperçu (d'exploration) | exploration preview | `ExplorationPreview` | Preview | Proposed types with missing items and possible duplicates; the owner ticks what to create. | TAX-17 |
@@ -170,15 +174,15 @@ Decisions:
 | modification de forme | formal change | `formal` | Formal | Does not change which facts belong; no new version. | TAX-22 |
 | modification de fond | substantive change | `substantive` | Substantive | Changes which facts belong; new version; broadens, narrows or both. | TAX-22 |
 | élargit, restreint, les deux | broadens, narrows, both | `SubstantiveChangeScope` | Broadens; Narrows; Both | Scope of a substantive change. | TAX-22, TAX-24, TAX-25 |
-| requalification, requalifier, « à requalifier » | requalification, requalify, to requalify | `to_requalify` | To requalify | After a narrowing, each older event is judged against the new version. | TAX-25 |
+| requalification, requalifier, « à requalifier » | requalification, requalify, to requalify | `to_requalify`; route `/types/[typeId]/review-events` | To requalify | After a narrowing, each older event is judged against the new version. | TAX-25 |
 | conforme à la nouvelle version | conforms to the new version | `conforms` | Conforms | Requalification choice. | TAX-25 |
 | réaffecté à un autre type validé, réaffectation | reassigned to another validated type, reassignment | `reassigned` | Reassign to another type | Requalification choice. | TAX-25 |
 | non conforme | non-conforming | `non_conforming` | Does not conform | Requalification choice: the event is erased with its case, counted on the type sheet. | TAX-25, TAX-26 |
 | effacé, effacement (requalification, scission) | erased, erasure | `erased` | Erased | Removal with a withdrawal's scope, counted on the type sheet, not in the withdrawn-events counter. | TAX-25, TAX-29 |
-| fusion, fusionner | type merge, merge | `mergeEventTypes()` | Merge | Two or more validated types into a surviving one. | TAX-27 |
+| fusion, fusionner | type merge, merge | `mergeEventTypes()`; route `/types/merge` | Merge | Two or more validated types into a surviving one. | TAX-27 |
 | type subsistant | surviving type | `survivingTypeId` | Surviving type | Type kept by a merge; its sheet gets a new version. | TAX-27 |
 | type absorbé | absorbed type | `mergedIntoTypeId` | — | Type withdrawn by a merge; its ID is attached to the survivor at import. | TAX-27, TAX-28 |
-| scission, scinder, type scindé | split, split type | `splitEventType()`; `splitIntoTypeIds` | Split | One validated type into several validated in one act. | TAX-29, TAX-30 |
+| scission, scinder, type scindé | split, split type | `splitEventType()`; `splitIntoTypeIds`; route `/types/[typeId]/split` | Split | One validated type into several validated in one act. | TAX-29, TAX-30 |
 | répartir, « à répartir », répartition | distribute, to distribute, distribution | `to_distribute` | To distribute | Assigning a split type's events one by one to the new types. | TAX-29 |
 | fiches transmises | transmitted sheets | — | — | Current versions of validated sheets, in full, sent to prompt, import, calculation, classification. | TAX-33 |
 | statut particulier (ébauche) | special status | — | — | Note on the former-team draft: proposed in scoping, not taken up by the owner. | Annex |
@@ -215,10 +219,10 @@ Decisions:
 | événement détecté | detected event | `PlayerEvent` with origin `detected` | Detected event | Event found by daily detection from collected articles (Lot 2). | DET-24, DET-37 |
 | événement historique | historical event | `PlayerEvent` with origin `historical` | Historical event | Past event reported by a backtest and saved at import. | IMP-30 |
 | origine (de l'événement) | event origin | `EventOrigin` | Origin | detected or historical; fixed by the first recording. | DSN-06, IMP-27 |
-| date de référence | reference date | `referenceDate` (+ `referenceDatePrecision`) | Reference date | Moment the fact became public, with its precision. | TAX-05, DET-30, DSN-06 |
-| précision (de la date de référence, de l'instant retenu) | precision | `DatePrecision` | Precision | exact, approximate or none (section 4). | COL-20, DET-30, DSN-06 |
-| date publique | public date | `publicDate`; JSON `public_date` | Public date | A historical event's reference date as the research reports it (date, or date and time). | BKT format, IMP-12 |
-| instant de référence | reference instant | `referenceInstant` | — | Instant the event is deemed public, used to find the measured game; date-only means end of day, Pacific time. | SEN-01, SEN-02 |
+| date de référence | reference date | `referenceDate` | Reference date | Moment the fact became public. Detected event: an instant with its precision; historical event: its public date; calendar-derived event: its game's day. | TAX-05, DET-30, DSN-06, CL-VUE-12 |
+| précision (de la date de référence, de l'instant retenu) | precision | `DatePrecision` | Precision | exact, approximate or none: of an article's retained instant and a detected event's reference date only (section 4). | COL-20, DET-30, CL-SEN-02 |
+| date publique | public date | `publicDate`; JSON `public_date` | Public date | A historical event's reference date as the research reports it, stored as its calendar date plus, when timed, the instant and the original offset. | IMP-12, CL-IMP-09 |
+| instant de référence | reference instant | `referenceInstant` | — | Instant the measured game is searched from: a timed public date as is; a date-only public date at 00:00 Los Angeles time the next day; a detected event's DET-30 instant; none for a calendar-derived event. | SEN-01, SEN-02, CL-SEN-02 |
 | provenance de l'instant de référence | reference-instant origin | `ReferenceInstantOrigin` | — | known instant, date only, known in advance, or uncertain-precedence shift (section 4). | SEN-01, SEN-02, SEN-44 |
 | devenu public | became public | — | — | The moment that dates an event; never the moment the fact happened, if earlier. | TAX-05 |
 | source (d'un événement) | event source | `PlayerEventSource` | Sources | Press article cited for an event: link, outlet, title, publication date; nothing else. | DSN-06, DSN-08 |
@@ -237,25 +241,25 @@ Decisions:
 | confiance de la recherche | research confidence | `researchConfidence`; JSON `confidence` | Research confidence | high, medium or low, set by the research AI per prompt rule 2.8. | BKT prompt 2.8, IMP-15 |
 | version de fiche (de l'événement) | sheet version | `sheetVersion` | Sheet version | Version of the type sheet the event was qualified under. | TAX-23, DET-53, IMP-30 |
 | qualifier, qualifié (sous une version) | qualify, qualified | — | — | Recognize a fact as an event of a type under one sheet version. | TAX-23 |
-| marque | mark | `EventMark` | — | Flag set on an event, later lifted or upheld (section 4). | DET-32, DET-33, DET-58 |
+| marque | mark | `EventMark` | — | Flag set on a detected event, later lifted or upheld (section 4); calendar-derived events carry none. | DET-32, DET-33, DET-58, CL-VUE-12 |
 | « datation à vérifier » | dating to verify | `dating_to_verify` | Dating to verify | The article places the fact before its own publication and a game may have been played in between. | DET-32, SEN-45 |
 | « détecté après le coup d'envoi » | detected after tip-off | `detected_after_tip_off` | Detected after tip-off | The expected game's tip-off had passed when the event was created. | DET-33 |
 | antériorité | precedence | `Precedence` | Precedence | Of a historical event: its oldest source compared with the measured game's tip-off. | IMP-18, SEN-44 |
 | écarter, écartement, écarté, événements écartables | dismiss, dismissal, dismissed, dismissable events | `dismissEvent()`; status `dismissed` | Dismiss; Dismissed | Owner corrects a wrong detection; the event is kept, leaves all calculations, reversible. | DET-43–DET-46, H-08 |
 | réintégrer, réintégré, réintégration (d'un événement) | reinstate, reinstated, event reinstatement | `reinstateEvent()` | Reinstate | Undo a dismissal; the event re-enters calculations. | DET-45 |
-| retirer, retrait (d'un événement) | withdraw, event withdrawal | `withdrawEvent()` | Withdraw | Permanent erasure of an event and its traces for a sensitivity reason; only the counter remains. | DSN-26–DSN-29 |
+| retirer, retrait (d'un événement) | withdraw, event withdrawal | `withdrawEvent()` | Withdraw and erase | Permanent erasure of an event and its traces for a sensitivity reason; only the counter remains. Always labeled "Withdraw and erase" (section 4.2). | DSN-26–DSN-29, CL-VUE-04 |
 | compteur des événements retirés, compteur global des événements retirés | withdrawn-events counter | `withdrawnEventCount` | Withdrawn events | Global, anonymous count since go-live; also counts events declined for sensitive data. | DSN-29, VUE-09 |
 | supprimer, suppression (d'un événement historique) | delete, deletion | `deleteHistoricalEvent()` | Delete | Removal of a historical event for an error, with a reason; traced. | IMP-33 |
-| corriger, correction (d'un événement) | correct, correction | `correctEvent()` | Correct | Change of type, date, description, sources, context, confidence or note. | IMP-32, DET-47, DET-48 |
+| corriger, correction (d'un événement) | correct, correction | `correctEvent()`; route `/events/[eventId]/edit` | Correct | Change of type, date, description, sources, context, confidence or note. | IMP-32, DET-47, DET-48 |
 | historique des corrections | correction history | `correctionHistory` | Correction history | What changed and when; never the old value of a description. | DET-52, IMP-32, D-20 |
 | cas | case | `Case`; key `caseId` | Case | One event (or several of the same type) and its measured game; the unit of calculation. | SEN-05, SEN-07 |
 | match mesuré | measured game | `measuredGameId` | Measured game | First game the player plays after the event became public. | H-02, SEN-03 |
 | rattacher, rattachement (au match mesuré) | attach, attachment | `attachToMeasuredGame()` | — | Linking an event to its measured game. | SEN-01–SEN-05 |
-| délai de rattachement, délai maximal de rattachement | attachment window | `attachmentWindowDays` | Attachment window | Days after the reference instant within which a game must be played (default 10). | SEN-04 |
+| délai de rattachement, délai maximal de rattachement | attachment window | `sensitivity.maxAttachmentDays` | Attachment window | Days after the reference instant within which a game must be played (default 10). | SEN-04 |
 | absence | absence | — | — | Team game the player did not play; skipped and counted for the injury-return criterion. | SEN-03, SEN-13 |
 | origine (du cas) | case origin | `CaseOrigin` | Origin | historical or tracked; written in full on screen. | SEN-21, IHM-46 |
 | cas historique | historical case | `historical` | Historical | Case born from a historical event. | SEN-21 |
-| cas suivi | tracked case | `tracked` | Tracked | Case born from a detected event, observed in real conditions. | SUI-01 |
+| cas suivi | tracked case | `tracked` | Tracked | Case born from a detected event, or from a calendar-derived event created before its game's scheduled start. | SUI-01, CL-VUE-13 |
 | état (du cas) | case status | `CaseStatus` | Status | awaiting game, measured, excluded or not measurable, always with a reason. | SEN-07 |
 | motif (de l'état) | status reason | `CaseStatusReason` | Reason | Why a case is in its status (section 4). | SEN-07, SEN-47 |
 | cas valide | valid case | `isValid` (status `measured`) | Valid case | Measured case with its gap computed and no doubtful-case criterion triggered; only these enter a verdict. | SEN-07 |
@@ -346,7 +350,7 @@ Decisions:
 | un fait, un événement | one fact, one event | — | — | A fact reported by several articles is one event with up to N sources. | BKT prompt 2.9, H-BKT-06 |
 | hors champ | out of scope | — | — | Facts outside the period, about the whole team, or of an undefined type. | BKT prompt 2.10 |
 | profondeur historique | historical depth | — | — | The player's whole NBA career; not a parameter. | H-06, BKT-08, TRV-38 |
-| nombre maximal de sources par événement | maximum sources per event | `maxSourcesPerEvent` | Maximum sources per event | Parameter, default 3. | H-BKT-09 |
+| nombre maximal de sources par événement | maximum sources per event | `backtests.maxSourcesPerEvent` | Maximum sources per event | Parameter, default 3. | H-BKT-09 |
 | période réellement couverte | actually covered period | JSON `covered_period` | — | What the AI really processed; an earlier end signals a cut answer. | BKT prompt 2.11 |
 
 Merged into other rows: « complément » (into supplementary request); « déjà traité », « déjà profilé » (into profiled player); « sans backtest », « non profilé », « pas encore de backtest » (into unprofiled player); « IA de recherche » (into deep-research AI).
@@ -363,11 +367,11 @@ Decisions:
 | --- | --- | --- | --- | --- | --- |
 | import, importer | import | `Import`; key `importId` | Import | Pasting, checking and saving a research result for a request. | IMP-01–IMP-37 |
 | « Coller le résultat » | paste result | — | Paste result | Entry action from the request screen or the in-progress banner. | IMP-01, IHM-27 |
-| écran d'import | import screen | route `/backtest-requests/[requestId]/import` | Import | Always tied to one request. | IHM-28 |
+| écran d'import | import screen | route `/backtests/[requestId]/import` | Import | Always tied to one request. | IHM-28 |
 | brouillon d'import, brouillon | import draft | `ImportDraft` | Draft | The only copy of the pasted text, on the device and in the app; never saved data, trace, journal or backup. | IMP-03, IHM-42, DSN-32 |
 | texte collé | pasted text | `pastedText` | — | The JSON as pasted, kept only in the draft. | IHM-42, DSN-32 |
 | « Vérifier » | check | — | Check | Runs the checks and opens the preview or the blocking error. | IHM-28 |
-| erreur bloquante | blocking error | `BlockingError` | — | Whole result refused; nothing saved; explanation and correction message offered. | IMP-09, IHM-29 |
+| erreur bloquante | blocking error | `BlockingError`; `BlockingErrorKind` | — | Whole result refused; nothing saved; explanation and correction message offered. Its kind is the refusal category the journal keeps (section 4). | IMP-09, IHM-29, CL-IMP-33 |
 | aperçu (d'import), aperçu d'import | import preview | `ImportPreview` | Preview | Summary then detail of what saving would do. | IMP-22 |
 | « Enregistrer » | save | `saveImport()` | Save | Atomic save of the accepted events, coverage and trace. | IMP-30 |
 | « Abandonner » | discard | — | Discard | Leaves the import; nothing is saved, the draft is erased. | IMP-03 |
@@ -385,16 +389,18 @@ Decisions:
 | ignoré | ignored | `ignored` | Ignored | Import outcome: outside the request's scope; not a refusal. | IMP-19, IMP-10–IMP-12 |
 | refusé, refus | refused, refusal | `refused` | Refused | Import outcome: a defect the AI can correct. | IMP-19, H-IMP-01 |
 | non enregistré pour donnée sensible | not recorded: sensitive data | `not_recorded_sensitive_data` | Not recorded: sensitive data | Import outcome chosen by the owner; increments the withdrawn-events counter. | IMP-37, DSN-29 |
-| avertissement (d'import) | import warning | `ImportWarning` | Warning | Kept on the saved event and visible on its page. | IMP-19 |
-| avertissements d'ensemble | result warnings | `resultWarnings` | — | Missing format, ignored types, clamped period, unknown fields. | IMP-06–IMP-16 |
-| motif (de refus, d'ignorance) | reason | `reason` | Reason | Why an event was refused or ignored; kept with position, type and date only. | IMP-19, IMP Données manipulées |
-| rang (d'un événement dans le résultat) | position | `position` | — | "4th event"; not the request's rank. | IMP-20 |
+| ne pas enregistrer (pour le seul motif « donnée sensible ») | decline as sensitive data | — | Don't record — sensitive data | Choice open on every accepted event of a preview, shown beside each flagged one; nothing preselected, nothing declined automatically. | IMP-37, CL-IMP-28, CL-DSN-04 |
+| avertissement (d'import) | import warning | `ImportWarning`; `ImportWarningKind` | Warning | Kept on the saved event and visible on its page; never a refusal and never in the correction message (section 4). | IMP-19, CL-IMP-04 |
+| avertissements d'ensemble | result warnings | `resultWarnings` | — | Warnings on the whole result: missing format or version, ignored declared types, clamped period, missing lists, unknown fields, unsorted events (section 4). | IMP-06–IMP-16, CL-IMP-06, CL-IMP-19 |
+| motif (de refus, d'ignorance) | refusal reason, ignore reason | `ImportRefusalReason`, `ImportIgnoreReason` | Reason | Why an event was refused or ignored (section 4); kept with position, type and date only. An ignored event is never a refusal. | IMP-11–IMP-14, IMP-19, CL-IMP-29 |
+| rang (d'un événement dans le résultat) | position | `position` | — | 1-based place in the events list as pasted, refused and ignored events counted; a source adds its place among the event's sources, a lead or a limitation its place in its list. "Event 4"; not the request's rank. | IMP-20, CL-IMP-02 |
 | résultat coupé, récupération | truncated result, recovery | `truncationRecovery` | — | Text cut before the end; complete sorted events can be recovered. | IMP-05, H-IMP-04 |
 | couverture déclarée | declared coverage | — | Declared coverage | Types and period the result says it covered. | IMP-10 |
 | couverture retenue | retained coverage | `retainedCoverage` | Covered | Per type: requested period intersected with the declared period. | IMP-10 |
 | manques, manques constatés | coverage gaps | `coverageGaps` | Gaps | Requested types not declared and missing periods. | IMP-10, BKT-06 |
-| correspondance (entre événements), se correspondre | correspondence, correspond | `eventsCorrespond()` | — | Same type within 2 days, or a shared cleaned link. | IMP-25, H-IMP-03 |
-| doublon possible (à l'import) | possible duplicate | `PossibleDuplicate` | Possible duplicate | Correspondence the owner must judge before saving. | IMP-25 |
+| correspondance (entre événements), se correspondre | correspondence, correspond | `eventsCorrespond()` | — | Same type, and public dates within the correspondence window or a shared cleaned link. Calendar-derived events never take part. | IMP-25, H-IMP-03, CL-IMP-12, CL-IMP-13, CL-IMP-29 |
+| doublon possible (à l'import) | possible duplicate | `PossibleDuplicate` | Possible duplicate | A result event and a saved event of different types, with public dates within the window or a shared link: the owner judges before saving. | IMP-25, CL-IMP-13 |
+| écart maximal entre dates publiques de deux événements correspondants | correspondence window | `imports.duplicateMaxDateGapDays` | — | 2 days by default; one parameter for correspondences and possible duplicates at import, detection's DET-58 search and every fingerprint check. | IMP-25, H-IMP-02, CL-IMP-34 |
 | « même fait », « faits distincts » | same fact, distinct facts | `PossibleDuplicateAnswer` | Same fact; Distinct facts | Answers to a possible duplicate. | IMP-25 |
 | « événements distincts » | distinct events | `keep_as_distinct` | Distinct events | Override that adds an event corresponding to an existing historical event. | IMP-26 |
 | doublon d'un événement historique (import) | duplicate of a historical event | — | — | Not added; its new sources attach to the existing event. | IMP-26 |
@@ -402,13 +408,13 @@ Decisions:
 | sondage des sources | source spot check | `SourceSpotCheck` | Spot-check sources | Optional: open 3 random sources and judge each. | IMP-23, H-IMP-09 |
 | « conforme », « non conforme », « inaccessible » | consistent, inconsistent, inaccessible | `SpotCheckVerdict` | Consistent; Inconsistent; Inaccessible | Spot-check verdict on a source. | IMP-23 |
 | vérification des liens, « introuvable » | link check, not found | `LinkStatus` `not_found` | Not found | After saving, each link is opened; a dead page is marked, nothing deleted. | IMP-17, H-IMP-08 |
-| domaines non admis | disallowed domains | `disallowedDomains` | Disallowed domains | Social networks, forums, collaborative encyclopedias, video platforms (parameter). | IMP-14, H-IMP-13 |
-| avance tolérée (d'une source sur la date publique) | tolerated source lead | `toleratedSourceLeadDays` | — | How much earlier than the public date a source may be. | IMP-14, TRV-38 |
-| taille maximale du texte collé | maximum pasted size | `maxPastedSize` | — | Parameter (default 2 MB). | IMP-02 |
+| domaines non admis | disallowed domains | `imports.disallowedSourceDomains` | Disallowed domains | Social networks, forums, collaborative encyclopedias, video platforms (parameter). | IMP-14, H-IMP-13 |
+| avance tolérée (d'une source sur la date publique) | tolerated source lead | `imports.maxSourceLeadDays` | — | How much earlier than the public date a source may be. | IMP-14, TRV-38 |
+| taille maximale du texte collé | maximum pasted size | `imports.maxPastedTextMegabytes` | — | Parameter (default 2 MB). | IMP-02 |
 | pistes et limites | leads and limitations | — | Leads and limitations | Preview block listing unverified leads and declared limitations. | IMP-22, IHM-29 |
 | texte non sûr, données non sûres | untrusted text | — | — | Result texts shown as plain text; links open only on tap. | IMP-16 |
 | champs inconnus | unknown fields | — | — | Ignored, never stored, signaled once. | IMP-16 |
-| message de correction | correction message | `CorrectionMessage` | Copy the correction message | Ready-to-copy message asking the AI to fix and resend the full JSON. | IMP-21, IHM-43 |
+| message de correction | correction message | `CorrectionMessage` | Copy the correction message | Ready-to-copy English message asking the AI to fix and resend the full JSON, built from the template of section 7.3; lists refusals only, never stored. | IMP-21, IHM-43, CL-IMP-04 |
 | import partiel | partial import | — | Save accepted events | Saving accepted events while some are refused, after a confirmation. | IMP-24 |
 | correction manuelle | manual correction | `correctHistoricalEvent()` | Correct | Edit of a historical event under the import checks. | IMP-32 |
 | suppression manuelle, motif de suppression | manual deletion, deletion reason | `HistoricalEventDeletionReason` | Delete; Reason | Closed list (section 4); never because of the game that followed. | IMP-33 |
@@ -445,19 +451,21 @@ Decisions:
 | victoires de chaque équipe avant ce match | series wins before the game | `seriesWinsBefore` | — | Per team, play-in and playoffs only. | STA-05 |
 | une défaite élimine une équipe | elimination game | `isEliminationGame` | Elimination game | Computed; feeds the unusual-stakes criterion. | STA-07, SEN-14 |
 | statut (du match) | game status | `GameStatus` | Status | scheduled, in progress, final, postponed or canceled. | STA-05 |
-| instant prévu de début, début prévu | scheduled start | `scheduledStartAt` | Tip-off | Absolute instant; the latest known time prevails. | STA-05, STA-29, STA-31 |
-| coup d'envoi | tip-off | — | Tip-off | Start of a game; compared as instants, never as local times. | H-02, STA-30, SEN-03 |
-| « heure à déterminer » | time TBD | `isStartTimeTbd` | Time TBD | Game with a date only, deemed to start at the beginning of its local day. | STA-31 |
-| journée de compétition, date américaine | US date, game day | `gameDayOn` | — | A game's day is its calendar date in the US; shown when it differs from the local date. | STA-32, TRV-72, IHM-14 |
+| instant prévu de début, début prévu | scheduled start | `scheduledStartAt` | Tip-off | Absolute instant, the latest known time prevailing. It is the tip-off of every rule; the actual start is never fetched nor used. | STA-05, STA-29, STA-31, CL-SEN-23, CL-SUI-13 |
+| coup d'envoi | tip-off | `scheduledStartAt` | Tip-off | The game's scheduled start as last known; compared as instants, never as local times. | H-02, STA-30, SEN-03, CL-SEN-23, CL-SUI-13 |
+| « heure à déterminer » | time TBD | `isStartTimeTbd` | Time TBD | Game with a date only: deemed to start at 00:00 US Eastern time on that date for every comparison; screens and messages show the date with "Time TBD", never 00:00. | STA-31, CL-STA-14 |
+| date américaine (d'un match) | US date | `gameDayOn` | — | The calendar date of a game's scheduled start in US Eastern time, games abroad included; follows the game's date and time only when it differs from the date in the owner's zone, with a part-of-day word (section 2). No venue time zone is stored. | TRV-72, IHM-14, CL-TRV-03, CL-IHM-07 |
+| journée de compétition | competition day | `competitionDayOn` | — | The league's games of one US date; the unit of the daily statistics update and of "late" days. | STA-32, CL-TRV-03, CL-STA-10 |
+| calendrier (des matchs) | schedule | — | Schedule | The list of games with their scheduled starts, from the stats source. "Calendar" names only the calendar-derived origin and its derivation (section 10). | STA-25–STA-28, record 0015 |
 | équipe qui reçoit, équipe qui se déplace | home team, away team | `homeTeamId`, `awayTeamId` | Home; Away | — | STA-05 |
 | à domicile, à l'extérieur | home, away | `GameVenue` | Home; Away | Venue of the player's team. | STA-26 |
 | score final | final score | `finalScore` | — | Stored, never used as a measure (VUE-03). | STA-05 |
 | prolongation | overtime | `overtimeCount` | OT | Bounds minutes at 48 + 5 per overtime. | STA-09 |
-| expulsion | ejection | `ejection` (review flag) | Ejection | Flagged for review when the source gives it. | SEN-16 |
+| expulsion | ejection | `ejection` (review flag) | Ejection | Flagged for review only when the source reports one; the chosen source never does, so its adapter answers "unknown", never "no", and the app never infers one (section 7.2). | SEN-16, CL-SEN-11 |
 | feuille de match | box score | `BoxScore` | Box score | One player's statistics for one game. | STA-08 |
 | état (de la feuille) | box-score status | `BoxScoreStatus` | Status | complete, incomplete, suspect or unavailable. | STA-09, STA-10, STA-35 |
 | feuille douteuse | suspect box score | `suspect` | Suspect | Fails a consistency check; excluded until a later fetch fixes it. | STA-09 |
-| « minutes arrondies » | rounded minutes | `hasRoundedMinutes` | Rounded minutes | Source gives whole minutes only. | STA-12 |
+| « minutes arrondies » | rounded minutes | `hasRoundedMinutes` | Rounded minutes | Source gives whole minutes only; changes no state. Lists showing minutes or indices say so once (section 7.2). | STA-12, CL-STA-06 |
 | points | points | `points` | PTS | Box-score element. | STA-08 |
 | tirs réussis, tirs tentés | field goals made, field goals attempted | `fieldGoalsMade`, `fieldGoalsAttempted` | FGM; FGA | All field goals, 2 and 3 points, free throws excluded. | STA-08 |
 | tirs à trois points réussis | three-pointers made | `threePointersMade` | 3PM | Only for the points consistency check. | STA-08, STA-09 |
@@ -476,16 +484,16 @@ Decisions:
 | match exploitable | usable game | `usable` | Usable | Played, complete and consistent box score, playing-time threshold reached. | STA-14 |
 | joué non exploitable | played, not usable | `played_not_usable` | Not usable | Played but box score incomplete or suspect, or under the threshold. | STA-14 |
 | seuil de temps de jeu | playing-time threshold | `playingTimeThreshold` | Playing-time threshold | max(15 min, 50 % of regular-season average minutes); same for baselines and measured games. | STA-14, STA-15 |
-| plancher (de temps de jeu) | playing-time floor | `playingTimeFloorMinutes` | — | The 15-minute floor. | STA-14 |
+| plancher (de temps de jeu) | playing-time floor | `games.minutesFloor` | — | The 15-minute floor. | STA-14 |
 | référence de saison | season baseline | `SeasonBaseline` | Season baseline | Mean and standard deviation of the index over the usable games of a season and baseline phase, measured game excluded. | STA-16 |
 | phase de la référence | baseline phase | `BaselinePhase` | Baseline | regular season or postseason (section 4.2). | STA-16, STA-18 |
 | moyenne (de saison) | season mean | `mean` | Mean | Mean index of the baseline. | STA-16 |
 | écart-type (de saison), écart-type de saison | season standard deviation | `standardDeviation` | SD | Sample standard deviation (n − 1). | STA-16, H-STA-04 |
 | variabilité habituelle | usual variability | — | — | The season standard deviation, in plain words. | D-16 |
 | état (de la référence) | baseline status | `SeasonBaselineStatus` | Status | final, provisional, building or insufficient. | STA-19–STA-22 |
-| mention « partielle » | partial baseline | `isPartial` | Partial | Over 20 % of played games lack an index; still usable. | STA-24 |
+| mention « partielle » | partial baseline | `isPartial` | Partial | Over 20 % of played games lack an index; the baseline is still used. | STA-24 |
 | match mesuré exclu | measured game excluded | `excludedGameId` | — | A baseline never contains its own measured game. | STA-16, STA-17 |
-| taille minimale d'une référence | minimum baseline size | `minBaselineGames` | — | 10 usable games. | STA-19 |
+| taille minimale d'une référence | minimum baseline size | `games.minBaselineGames` | — | 10 usable games. | STA-19 |
 | phase terminée | phase over | — | — | Regular season over, or the player's team eliminated or the Finals played. | STA-20 |
 | comparaison indicative | indicative comparison | `IndicativeComparison` | Indicative | While a baseline is building, comparison with the previous regular season; never counted. | STA-23 |
 | bilan (d'une équipe), bilan d'équipe | win-loss record | `TeamWinLossRecord` | Record | Regular-season wins and losses, optionally excluding one game; feeds opponent strength. | STA-06 |
@@ -494,8 +502,8 @@ Decisions:
 | dernier match joué | last game played | `lastGamePlayedOn` | Last game played | — | STA-26, STA-46 |
 | premier match NBA, « date inconnue » | first NBA game, date unknown | `firstNbaGameOn` | First NBA game; Date unknown | Bounds the career for requests and imports. | STA-47 |
 | intersaison | offseason | `offseason` | Offseason | Period between seasons. | STA-26, STA-48 |
-| mise à jour quotidienne, mise à jour des statistiques, tâche de statistiques | daily stats update | task `stats_update` | Statistics update | Once a day, at least 3 h after the last tip-off of the past game day. | STA-32, TRV-25 |
-| fenêtre de correction | correction window | `correctionWindowDays` | — | 7 days during which box scores are re-requested. | STA-33 |
+| mise à jour quotidienne, mise à jour des statistiques, tâche de statistiques | daily stats update | task `statistics-update` | Statistics update | Daily from 15:00 Paris time: waits until the source has refreshed after the past competition day's last scheduled tip-off plus 3 h, checking every hour, until the 20:00 cut-off, which ends the run "source late". | STA-32, TRV-25, CL-STA-10, CL-TRV-23 |
+| fenêtre de correction | correction window | `games.correctionWindowDays` | — | 7 days during which box scores are re-requested. | STA-33 |
 | consolidé | consolidated | `consolidated` | Consolidated | Game past its correction window; never re-requested. | STA-33, STA-42 |
 | journal des corrections | stats correction journal | `StatCorrection` | Corrections | Every changed element with old and new values; unlike event corrections, old values are kept. | STA-33, STA-34 |
 | relance manuelle, forcer la récupération | manual refetch | `refetch()` | Refetch | Owner forces fetching a game, a season or a career; uses quota. | STA-34, STA-44 |
@@ -503,15 +511,16 @@ Decisions:
 | niveau de priorité | priority level | `priority` (1–5) | — | Order in which requests are served under quota. | STA-40 |
 | motif d'attente | waiting reason | `FetchWaitReason` | — | outage or quota. | STA-36, STA-39 |
 | récupération, demande (à la source) | fetch, source request | — | — | A call to the stats source, counted against its quota. | STA-39 |
-| réserve de quota | quota reserve | `quotaReservePercent` | — | Share kept for priority levels 1 and 2 (default 10 %). | STA-39 |
+| réserve de quota | quota reserve | `games.quotaReserveShare` | — | Share kept for priority levels 1 and 2 (default 10 %). | STA-39 |
 | « 9 saisons sur 14 » | progress "9 of 14 seasons" | — | 9 of 14 seasons | Progress of a long fetch, with an estimated end date. | STA-41 |
 | données en mémoire, mise en mémoire | stored data | — | — | Everything fetched is kept; recalculations never call the source. | STA-42, STA-43 |
 | « statistiques en attente » | statistics pending | `statistics_pending` | Statistics pending | Case waiting reason during fetches, outages or missing sheets. | STA-36, STA-41, SEN-07 |
 | « saison non couverte par la source » | season not covered by the source | `season_not_covered` | Season not covered by the source | Not-measurable reason when the source lacks the season. | STA-45, SEN-07 |
-| incident « source de statistiques indisponible » | stats source unavailable | `stats_source_unavailable` | Stats source unavailable | Opened after 12 h of failures; closes when the source answers. | STA-37 |
+| incident « source de statistiques indisponible » | stats source unavailable | `stats_source_unavailable` | Stats source unavailable | Opened after 12 h of continuous failure, or after 2 consecutive late competition days with the cause "not refreshed since {instant}"; closes when the source answers or a refresh lands. | STA-37, CL-STA-10, CL-TRV-23 |
+| — (statistics-source service sheet) | stats source format changed | `stats_source_schema_changed` | Stats source format changed | A current-season file is missing or its columns changed: that file is not ingested; closes when it reads again. | CL-STA-15 |
 | incident « quota atteint » (statistiques) | quota reached | `quota_reached` | Quota reached | Opened when the source quota (minus reserve) is reached; closes at renewal. | STA-39 |
 
-Merged into other rows: « indice » (into performance index); « journée de compétition » (into US date); « forcer la récupération » (into manual refetch).
+Merged into other rows: « indice » (into performance index); « forcer la récupération » (into manual refetch).
 
 Decisions:
 
@@ -527,7 +536,7 @@ Decisions:
 | écart normalisé | normalized gap | `normalizedGap` | Gap | (measured-game index − baseline mean) ÷ baseline SD; never rounded in calculations. | SEN-08, SEN-09 |
 | statut de l'écart, écart provisoire, écart définitif | gap status, provisional gap, final gap | `GapStatus` | Provisional; Final | Provisional while its baseline is. | SEN-09, SUI-15 |
 | profil de sensibilité, profil | sensitivity profile, profile | `SensitivityProfile` | Profile | Calculation for one player and one validated type. | SEN-19, SEN-20 |
-| tendance générale | general trend | `GeneralTrend` | General trend | Same calculation for one type, all followed players together, each case weighing the same. | SEN-28–SEN-30 |
+| tendance générale | general trend | `GeneralTrend`; route `/types/[typeId]/trend` | General trend | Same calculation for one type, all followed players together, each case weighing the same. | SEN-28–SEN-30 |
 | couple joueur-type | player-type pair | — | — | Key of a profile. | SEN-19, SEN-41 |
 | couple évalué | evaluated pair | `evaluatedPairCount` | Evaluated pairs | Pair with at least the valid-case threshold, archived included. | SEN-41 |
 | vue (tous les cas, cas historiques, cas suivis) | profile view | `ProfileView` | All cases; Historical cases only; Tracked cases only | Lot 2: which cases the profile is computed on. | SEN-21 |
@@ -547,8 +556,8 @@ Decisions:
 | sens | direction | `VerdictDirection` | Direction | increase or decrease, only for possible and probable. | SEN-24 |
 | hausse | increase | `increase` | Increase | Mean gap positive. | SEN-24 |
 | baisse | decrease | `decrease` | Decrease | Mean gap negative; shown exactly like an increase. | SEN-24, H-04 |
-| seuils du verdict | verdict thresholds | `possibleSnrThreshold`, `possibleMeanGapThreshold`, `probableSnrThreshold`, `probableMeanGapThreshold` | Verdict thresholds | 2 and 0.25, 3 and 0.40 by default. | SEN-23, Q-04 |
-| seuil de cas valides (par joueur), seuil de cas | valid-case threshold | `validCaseThreshold` | Case threshold | 5 by default; below it the player's verdict is inconclusive. | SEN-23, H-03 |
+| seuils du verdict | verdict thresholds | `sensitivity.possibleSignalToNoise`, `sensitivity.possibleMeanGap`, `sensitivity.probableSignalToNoise`, `sensitivity.probableMeanGap` | Verdict thresholds | 2 and 0.25, 3 and 0.40 by default. | SEN-23, Q-04 |
+| seuil de cas valides (par joueur), seuil de cas | valid-case threshold | `sensitivity.minValidCases` | Case threshold | 5 by default; below it the player's verdict is inconclusive. | SEN-23, H-03 |
 | « non concluant pour ce joueur (k cas valides sur 5 nécessaires) » | inconclusive for this player | — | (section 7) | Label of a profile under the threshold. | SEN-31 |
 | « tendance générale du type, ne décrit pas ce joueur » | general trend of the type, does not describe this player | — | (section 7) | Title above the trend shown for a player under the threshold. | SEN-31 |
 | verdict fragile, « fragile » | fragile verdict | `isFragile` | Fragile | Level or direction changes when the most supportive case is removed. | SEN-26 |
@@ -587,10 +596,10 @@ Decisions:
 
 | French | English | Code | UI label | Meaning | IDs |
 | --- | --- | --- | --- | --- | --- |
-| collecte, collecte des actualités | collection, news collection | task `news_collection` | Collection | Lot 2: reading the registered feeds and storing new articles. | COL-12–COL-16 |
+| collecte, collecte des actualités | collection, news collection | task `news-collection` | Collection | Lot 2: reading the registered feeds and storing new articles. | COL-12–COL-16 |
 | veille quotidienne | daily watch | — | — | Daily collection and detection, the core of Lot 2. | 00, IHM-71 |
 | actualités, flux d'actualités, flux | news, news feed, feed | — | Feed | Public syndicated feed of a news outlet. | COL-02 |
-| source (de presse), source de presse | press source | `PressSource` | Press source | Feed registered by the owner after a trial read and an attestation. | COL-02–COL-10 |
+| source (de presse), source de presse | press source | `PressSource`; routes `/collection/sources`, `/collection/sources/new`, `/collection/sources/[sourceId]` | Press source | Feed registered by the owner after a trial read and an attestation. | COL-02–COL-10, IHM-36 |
 | adresse du flux | feed URL | `feedUrl` | Feed address | Public, standard syndication format, no login or fee. | COL-02, COL-07 |
 | nom du média | outlet name | `outletName` | Outlet | Editable name; for an aggregator item, the origin outlet when given. | COL-06, COL-25 |
 | média d'origine | origin outlet | — | — | Outlet that first published an item an aggregator relays. | COL-06 |
@@ -609,17 +618,17 @@ Decisions:
 | fonctionnelle | working | `working` | Working | Reads bring articles. | COL-43 |
 | en panne | down | `down` | Down since {date} | 2 consecutive failed runs (default). | COL-41 |
 | muette | silent | `silent` | Silent since {date} | Reads succeed but bring nothing new for the silence period. | COL-42 |
-| délai de silence | silence period | `silencePeriodDays` | Silent after | Per source, default 3 days. | COL-42, H-COL-04 |
+| délai de silence | silence period | `collection.silenceDelayDays` | Silent after | Per source, default 3 days. | COL-42, H-COL-04 |
 | lecture, lecture réussie, lecture en échec | read, successful read, failed read | — | — | One reading of a feed during a run. | COL-11, COL-41 |
-| exécution (de collecte) | collection run | `CollectionRun` | Run | One execution, scheduled or on demand. | COL-13–COL-16 |
-| tentative (de lecture) | read attempt | `readAttempts` | — | Up to 3 per run. | COL-13 |
-| rattrapage | catch-up | `isCatchUp` | Catch-up | Admitted age extended after missed runs, to gather what the feed still offers. | COL-45 |
-| ancienneté maximale | maximum age | `maxArticleAgeDays` | — | Older items are not stored (default 3 days). | COL-24, H-COL-02 |
+| exécution (de collecte) | collection run | `CollectionRun`; route `/collection/runs/[runId]` | Run | One execution, scheduled or on demand. | COL-13–COL-16 |
+| tentative (de lecture) | read attempt | `collection.readAttempts` | — | Up to 3 per run. | COL-13 |
+| rattrapage | catch-up | — | Catch-up | Admitted age extended after missed runs, to gather what the feed still offers; marks the run "with catch-up". | COL-45, CL-COL-07 |
+| ancienneté maximale | maximum age | `collection.maxArticleAgeDays` | — | Older items are not stored (default 3 days). | COL-24, H-COL-02 |
 | ancienneté admise | admitted age | — | — | Maximum age, extended during a catch-up. | COL-45 |
 | trou de collecte, trou de collecte possible | possible collection gap | `CollectionGap` | Possible collection gap | Period possibly missed between the last read and the oldest item offered; kept forever. | COL-46, H-01 |
 | période non collectée | uncollected period | — | Uncollected period (source deactivated) | Deactivation period; not a gap, never caught up. | COL-09 |
 | élément (du flux) | feed item | — | — | Entry of a feed before it is stored as an article. | COL-17, COL-18 |
-| article | article | `Article` | Article | Stored feed item: title, outlet, link, instants, language, short excerpt. | COL-25 |
+| article | article | `Article`; route `/collection/articles/[articleId]` | Article | Stored feed item: title, outlet, link, instants, language, short excerpt. | COL-25, DET-54 |
 | dépêche | wire story | — | — | Agency story many outlets repeat; each copy is a distinct article. | COL-32 |
 | instant de publication retenu | retained publication instant | `retainedPublishedAt` | Published | The latest instant compatible with the feed; fixed at first collection. | COL-19–COL-23 |
 | instant de première collecte | first-collection instant | `firstCollectedAt` | First collected | Safe upper bound of publication. | COL-22 |
@@ -631,26 +640,27 @@ Decisions:
 | rubriques | feed sections | — | — | Item categories of the feed; never stored. | COL-25 |
 | lien nettoyé, éléments de suivi publicitaire | cleaned link, ad-tracking parameters | `cleanLink()` | — | Link without ad-tracking parts, used for dedup. | COL-28 |
 | dédoublonnage, doublon | deduplication, duplicate | — | Duplicates | Same link, same feed ID, or same outlet and title within 6 h. | COL-30–COL-33 |
-| fenêtre de dédoublonnage par titre | title dedup window | `titleDedupWindowHours` | — | 6 h by default. | COL-30, H-COL-02 |
+| fenêtre de dédoublonnage par titre | title dedup window | `collection.titleDedupWindowHours` | — | 6 h by default. | COL-30, H-COL-02 |
 | trace de dédoublonnage | dedup trace | `DedupTrace` | — | Link and first-collection instant of a deleted article, kept 180 days; none after a withdrawal. | COL-34, DSN-34 |
 | état de traitement | processing status | `ArticleProcessingStatus` | Status | Set by collection, evolved by detection (section 4). | COL-35 |
 | « à analyser » | to analyze | `to_analyze` | To analyze | — | COL-35 |
 | « en attente de classification » | awaiting classification | `awaiting_classification` | Awaiting classification | — | COL-35 |
-| « non pertinent » | not relevant | `not_relevant` | Not relevant | Deleted after 30 days, rescuable until then. | COL-35, COL-36 |
+| « non pertinent » | not relevant | `not_relevant`; route `/collection/not-relevant` | Not relevant | Deleted after 30 days, rescuable until then. | COL-35, COL-36 |
 | « rattaché » | attached | `attached` | Attached | To at least one event, detected or dismissed. | COL-35, COL-37 |
 | « lié à une proposition » | linked to a proposal | `linked_to_proposal` | Linked to a proposal | Waits for the decision on a type proposal. | COL-35, TAX-19 |
 | conservation, durée de conservation | retention, retention period | — | — | How long data is kept. | COL-34–COL-38 |
-| purge, purge des articles, tâche de purge | purge, purge task | task `data_purge` | Purge | Daily deletion of data past its retention. | COL-39, TRV-25 |
-| journal de collecte, entrée du journal | collection journal, journal entry | `CollectionJournalEntry` | Collection journal | One entry per run, written for a non-specialist. | COL-48, COL-49 |
-| origine (de l'exécution) | run origin | `CollectionRunOrigin` | Origin | scheduled, on demand, with catch-up. | COL-48 |
+| purge, purge des articles, tâche de purge | purge, purge task | task `purge` | Purge | Daily deletion of data past its retention. | COL-39, TRV-25 |
+| journal de collecte, entrée du journal | collection journal, journal entry | `CollectionJournalEntry`; route `/collection/runs` | Collection journal | One entry per run, written for a non-specialist. | COL-48, COL-49 |
+| origine (de l'exécution), « planifiée », « à la demande » | run origin, scheduled, on demand | `CollectionRunOrigin` | Origin | scheduled (the run started after a missed run included) or on demand. | COL-48, CL-COL-07 |
+| « avec rattrapage » | with catch-up | `withCatchUp` | With catch-up | Mark, separate from the origin, on a run that read at least one source with an extended admitted age; the entry names those sources and their admitted age. | COL-45, CL-COL-07 |
 | réussite, échec (d'une source) | success, failure | `SourceReadOutcome` | Succeeded; Failed | Per source, with a plain-language failure reason. | COL-48 |
 | éléments lus, articles nouveaux, doublons, éléments trop anciens, incomplets, en langue non traitée, anomalies de date | items read, new articles, duplicates, too old, incomplete, unsupported language, date anomalies | `CollectionCounters` | (same) | Journal counters per source. | COL-48 |
 | « incomplet » | incomplete | `incomplete` | Incomplete | Item without link or title; not stored, counted. | COL-18 |
 | indicateurs (de la source) | source indicators | `SourceIndicators` | Indicators | Articles per day, shares prefiltered, attached and exactly dated, last read, health. | COL-11 |
 | incident « flux en panne », panne de flux | press source down | `press_source_down` | Press source down | Opened when a source goes down. | COL-41, TEL-15 |
-| incident « collecte impossible » | collection impossible | `collection_impossible` | Collection impossible | All active sources failed in one run: one incident, not one per source. | COL-44 |
+| incident « collecte impossible » | collection impossible | `collection_impossible` | Collection impossible | At least two active sources, every one failed in one run: one incident, no "press source down", no health change; closes at the end of the first later run that reads an active source. | COL-44, CL-COL-05 |
 | avertissement (source muette) | silent press source | `press_source_silent` | Silent press source | Warning, notified like an incident. | COL-42, TEL-15 |
-| avertissement (trou sans exécution manquée) | feed too short | `feed_too_short` | Feed keeps too few items | Warning suggesting another collection time. | COL-46 |
+| avertissement (trou sans exécution manquée) | feed too short | `feed_too_short` | Add a collection time | Warning raised when a gap is recorded although the source's previous successful read was in the previous run, none missed or failed between: the feed keeps too few items. | COL-46, CL-COL-13 |
 | collecte à la demande | on-demand collection | `on_demand` | Collect now | Started by the owner; deferred if a run is in progress. | COL-14, IHM-36 |
 
 Merged into other rows: « flux », « flux d'actualités » (into news feed); « court extrait » (into excerpt); « corps de l'article » (into full text).
@@ -664,51 +674,54 @@ Decisions:
 
 | French | English | Code | UI label | Meaning | IDs |
 | --- | --- | --- | --- | --- | --- |
-| détection, détection quotidienne, balayage quotidien, balayage planifié quotidien | detection, daily detection | task `event_detection` | Detection | Lot 2: classifying collected articles and creating detected events. | DET-01–DET-58 |
+| détection, détection quotidienne, balayage quotidien, balayage planifié quotidien | detection, daily detection | task `detection` | Detection | Lot 2: classifying collected articles and creating detected events. | DET-01–DET-58 |
 | passage de détection | detection pass | — | — | Collection plus the detection chained to it. | ALE-02, TRV-26 |
 | préfiltrage | prefiltering | `prefilter()` | Prefilter | Quota-free search of active players' name variants in each article. | DET-02–DET-07 |
 | joueurs reconnus | recognized players | `recognizedPlayerIds` | Recognized players | Players the prefilter found in an article. | DET-06 |
 | indice complémentaire | corroborating clue | — | — | Team name or other clue required for an ambiguous variant. | DET-04 |
 | décompte d'exposition | exposure count | `ExposureCount` | — | Per player and day, articles citing him; feeds the exposure indicator. | DET-57, JOU-03 |
-| file d'attente (de classification), file d'attente de classification, file, élément de la file | classification queue, queue item | `ClassificationQueueItem` | Classification queue | Articles waiting for the model, in priority order within quota. | DET-08, DET-09 |
-| horizon de priorité | priority horizon | `queuePriorityHorizon` | — | Parameter ordering the queue by next game. | DET-09 |
-| reprise de la file, tâche de reprise | queue resumption | task `classification_queue_resumption` | — | Resumes the queue every 6 h while it is not empty. | DET-10 |
+| file d'attente (de classification), file d'attente de classification, file, élément de la file | classification queue, queue item | `ClassificationQueueItem`; route `/collection/queue` | Classification queue | Articles waiting for the model, in priority order within quota; empty when no item has a pending part without "classification failed". | DET-08, DET-09, CL-DET-04 |
+| horizon de priorité | priority horizon | `detection.priorityHorizonHours` | — | Parameter ordering the queue by next game. | DET-09 |
+| reprise de la file, tâche de reprise | queue resumption | task `classification-resume` | — | Resumes the queue every 6 h while it is not empty. | DET-10 |
 | quota, palier gratuit | quota, free tier | — | Quota | Limits of the free language-model service. | DET-08, TRV-03 |
-| incident « quota atteint » (classification) | quota reached | `quota_reached` | Quota reached | Opened when the quota stops processing; closed when the queue is empty. | DET-11 |
+| incident « quota atteint » (classification) | quota reached | `quota_reached` | Quota reached | Opened or kept open when a run stops at a call refused for quota, refused before the declared limit or not answered, with items left; the message names the cause (section 9.2); closes at the end of the first run after which the queue is empty. | DET-11, CL-DET-04 |
 | modèle, modèle de langage | language model | — | Language model | Free model that classifies articles; designated by its function only. | DET-08, TRV-09 |
 | classification, classer | classification, classify | `classify()` | Classification | Model reading of an article for each recognized player. | DET-13–DET-23 |
 | résultat de classification | classification result | `ClassificationResult` | Classification result | Facts found per article and player, with type, confidence, description, justification. | DET-16, DET-53 |
-| classement par l'utilisateur | manual classification | origin `user` | Classify | Owner gives the type (or none) and the player by hand. | DET-13 |
-| origine (de la classification) | classification origin | `ClassificationOrigin` | Origin | model or user. | DET-13, DET-49 |
+| classement par l'utilisateur | manual classification | origin `user` | Classify; Classified by you | Owner gives the type (or none) and the player by hand; no confidence, justification or instructions version. An event whose results are all the owner's has no detection confidence and shows "Classified by you". | DET-13, CL-DET-07 |
+| origine (de la classification) | classification origin | `ClassificationOrigin` | Origin | model or user ("Classified by you"); the user origin has its own row in the dismissal breakdown. | DET-13, DET-49, CL-DET-07, CL-DET-24 |
 | nouvelle classification, reclassement, reclasser | reclassification, reclassify | `reclassify()` | Classify again | New submission on request (uses quota), or after a type is validated. | DET-36, DET-50 |
 | « classification en échec » | classification failed | `classificationFailed` | Classification failed | Mark on a queue item after the allowed attempts. | DET-22 |
 | réponse inexploitable | malformed response | — | — | Model answer that cannot be read; retried up to 2 times. | DET-22 |
-| instructions données au modèle, version des instructions | model instructions, instructions version | `instructionsVersion` | — | Prompt of the classifier; its version is traced. | DET-23, DET-53 |
+| instructions données au modèle, version des instructions | model instructions, instructions version | `instructionsVersion`; route `/collection/instructions` | — | Prompt of the classifier; its version is traced. | DET-23, DET-53 |
 | fait, fait nouveau, fait ancien | fact, new fact, old fact | `isNewFact` | New fact; Old fact | An old fact is a rehash of something public before the grouping window. | DET-16, DET-20 |
 | justification, justification d'une classification | justification | `justification` | Justification | One sentence citing the satisfied criterion; same wording rules as a description. | DET-16, DET-21 |
-| seuil de détection, « sous le seuil » | detection threshold, below threshold | `detectionThreshold` | Detection threshold; Below threshold | 70/100 by default; below it no event is created. | DET-24, H-DET-03 |
-| tranche de confiance | confidence band | — | — | Band of detection confidence used to show dismissal rates. | DET-25 |
+| seuil de détection, « sous le seuil » | detection threshold, below threshold | `detection.threshold` | Detection threshold; Below threshold | 70/100 by default; below it no event is created. | DET-24, H-DET-03 |
+| tranche de confiance | confidence band | — | — | Band of detection confidence used to show dismissal rates: 10 points wide (0–9 … 90–100), set by the parameter of section 9.3; only bands holding an event are shown, plus the user-origin row. | DET-25, CL-DET-24 |
 | description type | template description | — | — | Neutral description that replaces a non-compliant one. | DET-21 |
 | « description à revoir » | description to review | `description_to_review` | Description to review | Notice until the owner corrects the description. | DET-21, DET-47 |
 | « texte non conservé » | text not kept | — | Text not kept | Replaces a non-compliant justification. | DET-21 |
-| regroupement (des articles), fenêtre de regroupement | grouping, grouping window | `groupingWindowHours` | — | Articles on one fact attach to one event within the window (72 h by default). | DET-27–DET-29 |
-| rattacher, rattachement, détacher (un article) | attach, attachment, detach | `attachArticle()`, `detachArticle()` | Attach; Detach | Link an article to an event, or remove it. | DET-27, DET-47 |
+| regroupement (des articles), fenêtre de regroupement | grouping, grouping window | `detection.groupingWindowHours` | — | Articles on one fact attach to one event within the window (72 h by default). | DET-27–DET-29 |
+| rattacher, rattachement, détacher (un article) | attach, attachment, detach | `attachArticle()`, `detachArticle()` | Attach; Detach | Link an article to an event, or remove it; the detached part gets the reason "Detached by you". | DET-27, DET-47, CL-DET-12 |
 | date de référence (d'un événement détecté) | reference date | `referenceDate` | Reference date | Earliest retained instant of its articles; moves earlier by itself, later only by detaching. | DET-30, DET-31 |
 | avancer, reculer, retarder (la date de référence) | move earlier, move later | `moveReferenceDateEarlier()` | Move the date earlier | Owner adds an older dated public source. | DET-31, DET-48 |
 | borne prudente | conservative bound | — | — | The reference date is a latest-possible instant, never an early guess. | DET-30, ALE-15 |
 | indication d'antériorité | timing hint | `timingHint` | — | Model's hint that the fact predates the article ("Monday night", "yesterday"). | DET-16, DET-32 |
-| « doublon possible d'un événement historique » | possible duplicate of a historical event | `possible_historical_duplicate` | Possible duplicate of a historical event | Mark: another type's fact dated close to a historical event. | DET-58 |
+| « doublon possible d'un événement historique » | possible duplicate of a historical event | `possible_historical_duplicate` | Possible duplicate of a historical event | Mark set when an event is created with a type other than that of a historical event of the same player within the correspondence window; shown wherever the other marks are. | DET-58, CL-DET-10 |
+| — (CL-DET-10) | not the same fact | — | Not the same fact | Event-page action that lifts the possible-duplicate mark; traced, changes no calculation, not a post-tip-off decision. | CL-DET-10 |
 | « doublon d'un événement historique » | duplicate of a historical event | `duplicate_of_historical_event` | Duplicate of a historical event | Dismissal reason when the fact is the same. | DET-43, DET-58 |
 | « déjà rapporté par un backtest » | already reported by a backtest | `already_reported_by_backtest` | Already reported by a backtest | Not-relevant reason; the article keeps a link to the historical event. | DET-58 |
-| motif (de non-pertinence) | not-relevant reason | `NotRelevantReason` | Reason | Why an article became not relevant (section 4). | DET-06–DET-36 |
+| « détaché par l'utilisateur » | detached by you | `detached_by_user` | Detached by you | Not-relevant reason of the part whose article the owner detached; its retention clock starts at the detachment. | CL-DET-12 |
+| « sous le seuil de couverture » | below the coverage threshold | `below_coverage_threshold` | Below the coverage threshold | Not-relevant reason of a fact of a type with a coverage threshold, while its group has fewer than N distinct outlets within D days; kept once those D days have passed. | CL-DET-27, CL-TAX-14 |
+| motif (de non-pertinence) | not-relevant reason | `NotRelevantReason` | Reason | Why an article's part became not relevant (section 4). | DET-06–DET-36, CL-DET-12, CL-DET-27 |
 | motif (d'écartement) | dismissal reason | `DismissalReason` | Reason | Closed list, comment required for "other" (section 4). | DET-43 |
-| position (de l'écartement par rapport au coup d'envoi) | dismissal timing | `DismissalTiming` | Before tip-off; After tip-off | Recorded with every dismissal. | DET-46 |
+| position (de l'écartement par rapport au coup d'envoi) | dismissal timing | — (derived) | Before tip-off; After tip-off | Never stored: each dismissal stores its instant (`dismissedAt`), and the position is derived from it and the measured game's scheduled start. | DET-46 |
 | proposition transmise | submitted proposal | `TypeProposalSubmission` | — | Fact of no validated type sent to the taxonomy as a new proposal. | DET-34, TAX-18 |
 | raison de la non-correspondance | no-fit reason | `noFitReason` | Why no type fits | Sent with each proposal. | DET-34, TAX-18 |
 | repêcher, repêchage | rescue | `rescueArticle()` | Rescue | Owner turns a not-relevant article into an event of his choice. | DET-49 |
 | corriger, fusionner (des événements détectés) | correct, merge events | `correctEvent()`, `mergeEvents()` | Correct; Merge | Wrong player, type or duplicate: corrected, not dismissed. | DET-47 |
-| journal de détection | detection journal | `DetectionJournalEntry` | Detection journal | One entry per run with the counters of the next row. | DET-55 |
-| articles reçus, non retenus par le préfiltrage, classés, classés sans fait, rattachés à un événement existant, sous le seuil, faits anciens, faits déjà rapportés par un backtest, propositions transmises, occurrences ajoutées, descriptions remplacées, classifications en échec, événements créés, articles restant en file, quota consommé et restant | articles received, not prefiltered in, classified, classified without fact, attached to an existing event, below threshold, old facts, already reported by a backtest, proposals submitted, occurrences added, descriptions replaced, failed classifications, events created, still queued, quota used and left | `DetectionCounters` | (same) | Detection journal counters. | DET-55 |
+| journal de détection | detection journal | `DetectionJournalEntry`; route `/collection/detection-log` | Detection journal | One entry per run with the counters of the next row. | DET-55 |
+| articles reçus, non retenus par le préfiltrage, classés, classés sans fait, rattachés à un événement existant, sous le seuil, faits anciens, faits déjà rapportés par un backtest, propositions transmises, occurrences ajoutées, descriptions remplacées, classifications en échec, événements créés, articles restant en file, quota consommé et restant | articles received, not prefiltered in, classified, classified without fact, attached to an existing event, below threshold, old facts, already reported by a backtest, proposals submitted, occurrences added, descriptions replaced, failed classifications, events created, still queued, quota used and left | `DetectionCounters` | (same) | Detection journal counters: per article (received, not prefiltered in, classified, classified without fact, failed classifications, still queued), per fact (the others), quota in calls (used in the run, left for the period). | DET-55, CL-DET-25 |
 | indicateurs de qualité | quality indicators | — | — | Dismissal rates by confidence band and other detection measures. | DET-25, DET-56 |
 | « réponse sur le terrain » | "answer on the court" | — | — | Outcome narrative the classifier must ignore. | DET-19 |
 | événements d'équipe, événement d'équipe, élimination humiliante | team events, humiliating elimination (example) | — | — | Out of scope: a fact that targets only a team is no event. | Q-06, VUE-04 |
@@ -725,7 +738,7 @@ Decisions:
 
 | French | English | Code | UI label | Meaning | IDs |
 | --- | --- | --- | --- | --- | --- |
-| fiche d'alerte, fiche d'alerte complète | alert sheet | `AlertSheet`; key `alertSheetId` | Alert sheet | Lot 2: full, sourced write-up produced when a profiled player has a new detected event. | ALE-01–ALE-31 |
+| fiche d'alerte, fiche d'alerte complète | alert sheet | `AlertSheet`; key `alertSheetId`; route `/alerts/[sheetId]` | Alert sheet | Lot 2: full, sourced write-up produced when a profiled player has a new detected event. | ALE-01–ALE-31 |
 | alerte | alert | — | Alert | An alert sheet, or the Telegram message announcing it. | TEL-11, IHM-16 |
 | historique des alertes | alert history | `AlertHistory` | Alert history | Every sheet with frozen content, updates and outcome; only a withdrawal erases. | ALE-28 |
 | numéro, numéro d'ordre (de la fiche), fiche n° | sheet number | `number` | Sheet no. {n} | Unique, never reused, even after erasure. | ALE-06, ALE-30 |
@@ -736,12 +749,13 @@ Decisions:
 | état (de la fiche) | sheet status | `AlertSheetStatus` | Status | open, closed or canceled, plus the late mark. | ALE-26 |
 | ouverte | open | `open` | Open | One non-dismissed event still has a case awaiting its game. | ALE-26 |
 | close | closed | `closed` | Closed | All those cases are measured, excluded or not measurable. | ALE-26 |
-| annulée | canceled | `canceled` | Canceled | All its events dismissed or reassigned to another player. | ALE-22, ALE-26, ALE-31 |
-| motif d'annulation (de la fiche) | sheet cancellation reason | `AlertSheetCancellationReason` | Reason | all events dismissed, or attachment corrected. | ALE-22, ALE-31 |
+| annulée | canceled | `canceled` | Canceled | No non-dismissed event left: all dismissed, reassigned to another player, or a calendar-derived event dropped before tip-off. Reinstating an event brings the sheet back. | ALE-22, ALE-26, ALE-31, CL-ALE-06, CL-ALE-13 |
+| motif d'annulation (de la fiche) | sheet cancellation reason | `AlertSheetCancellationReason` | Reason | all events dismissed, attachment corrected, or event no longer applies (section 4). | ALE-22, ALE-31, CL-ALE-13 |
+| — (CL-ALE-13) | event no longer applies | `event_no_longer_applies` | Event no longer applies | Cancellation reason when a calendar-derived event is dropped before tip-off and no other non-dismissed event remains. | CL-ALE-13, CL-TEL-21 |
 | en-tête | header | — | — | Player, team at production, number, date, status, late mark, summary sentence. | ALE-07 |
 | phrase de synthèse | summary sentence | — | — | Type, verdict with valid cases (or the under-threshold label), expected game. | ALE-07 |
 | équipe au moment de la production | team at production | `teamIdAtProduction` | Team | Kept even after a trade. | ALE-07 |
-| événement (de la fiche) | sheet event | `AlertSheetEvent` | Event | Type, description, public moment, sources, detection confidence, context, lead time. | ALE-08 |
+| événement (de la fiche) | sheet event | `AlertSheetEvent` | Event | Type, description, public moment, sources, detection confidence, context, lead time. A calendar-derived event shows "Derived from the calendar" with the derived game (date, time, opponent) instead of sources, publication instant and lead time, and no confidence or mark. | ALE-08, CL-ALE-13 |
 | délai entre la publication et le coup d'envoi, délai avant le coup d'envoi | lead time | `leadTime` | Before tip-off | From reference instant to the expected game's tip-off ("25 h 50 min"). | ALE-08 |
 | sensibilité du joueur à ce type | the player's sensitivity to this type | `ProfileSnapshot` | Sensitivity to this type | Profile values copied as they are, default view. | ALE-09 |
 | sens de l'effet | effect direction | `direction` | Direction of the effect | Always written in full; a decrease is shown like an increase. | ALE-10, H-04 |
@@ -754,8 +768,8 @@ Decisions:
 | « match attendu inconnu » | expected game unknown | `ExpectedGameState` `unknown` | Expected game unknown | No game known, with its reason. | ALE-15, ALE-23 |
 | match attendu remplacé (barré) | superseded expected game | `superseded` | — | Former expected game, struck through with its reason. | ALE-23 |
 | temps restant | time remaining | — | Time remaining | Computed at display time. | ALE-15, BKT-16 |
-| réserves, réserve | caveats, caveat | `Caveat`; `CaveatKind` | Caveats | Every applicable caveat in plain sentences, none ever hidden (section 4). | ALE-16 |
-| marge de vigilance | vigilance margin | `vigilanceMarginPoints` | — | Detection confidence under threshold + margin (10 points) raises a caveat. | ALE-16, H-ALE-06 |
+| réserves, réserve | caveats, caveat | `Caveat`; `CaveatKind` | Caveats | Every applicable caveat in plain sentences, none ever hidden (sections 4 and 7.1). | ALE-16, CL-ALE-03, CL-ALE-13 |
+| marge de vigilance | vigilance margin | `alerts.confidenceVigilanceMargin` | — | Detection confidence under threshold + margin (10 points) raises a caveat. | ALE-16, H-ALE-06 |
 | mention permanente | standing notice | — | (section 7) | Closing sentence of every sheet. | ALE-17 |
 | formulations interdites | banned wording | — | — | Section 8. | ALE-18 |
 | valeurs figées | frozen values | `frozenAt` | — | Profile and trend values frozen when they enter the sheet; never rewritten. | ALE-19 |
@@ -783,8 +797,8 @@ Decisions:
 | French | English | Code | UI label | Meaning | IDs |
 | --- | --- | --- | --- | --- | --- |
 | suivi automatique | automatic tracking | — | — | Lot 2: every detected event's case is followed to its measurement without any action. | SUI-01–SUI-30 |
-| suivi du match, suivi des matchs | game tracking | task `game_tracking` | — | Chained after each stats update: measure the pending tracked cases. | SUI-12, TRV-25 |
-| cas suivi | tracked case | `Case` with origin `tracked` | Tracked case | Case born from a detected event. | SUI-01, SUI-05 |
+| suivi du match, suivi des matchs | game tracking | task `game-tracking` | — | Chained after each stats update: measure the pending tracked cases. | SUI-12, TRV-25 |
+| cas suivi | tracked case | `Case` with origin `tracked` | Tracked case | Case born from a detected event, or from a calendar-derived event created before its game's scheduled start (always recorded in time). | SUI-01, SUI-05, CL-VUE-13, CL-SUI-14 |
 | instant de création | creation instant | `createdAt` | Created | Fixed at creation; compared with the measured game's scheduled start. | SUI-01, SUI-06 |
 | enregistrement à temps | recording timing | `RecordingTiming` | — | recorded in time or recorded after tip-off. | SUI-06 |
 | enregistré à temps, cas enregistré à temps | recorded in time | `recorded_in_time` | Recorded in time | Created before its measured game's scheduled start; only these test the hypothesis. | SUI-06, H-SUI-01 |
@@ -800,22 +814,22 @@ Decisions:
 | écart dans le sens du pronostic | gap in forecast direction | `gapInForecastDirection` | Gap in forecast direction | Gap, or its opposite when the forecast is a decrease. | SUI-22 |
 | écart annoncé, écart moyen annoncé | announced gap | `announcedMeanGap` | Announced gap | Mean gap of the frozen forecast. | SUI-22, SUI-24 |
 | catégorie (d'un cas suivi) | case category | `CaseCategory` | Category | confirmed, refuted, neutral or no forecast (section 4). | SUI-22 |
-| seuil de catégorie | category threshold | `categoryThreshold` | — | 0.25 in forecast direction. | SUI-22, H-SUI-05 |
+| seuil de catégorie | category threshold | `tracking.categoryThreshold` | — | 0.25 in forecast direction. | SUI-22, H-SUI-05 |
 | tableau de validation, tableau de validation honnête, profils confirmés ou démentis | validation table | `ValidationTable` | Validation table | Confronts profiles built on historical cases with tracked cases recorded in time; stops nothing. | SUI-23–SUI-30, D-35 |
 | ligne (du tableau) | row | `ValidationRow` | — | type, player, player-type pair, overall, overall sub-row. | SUI-23, SUI-28 |
 | ligne d'ensemble, sous-ligne | overall row, overall sub-row | `overall`, `overall_subrow` | Overall | All tracked cases with forecast; sub-rows by forecast source and level. | SUI-23, SUI-28 |
 | comptes par catégorie | category counts | `categoryCounts` | — | With forecast, confirmed, refuted, neutral; without forecast. | SUI-24 |
-| comptes attendus du hasard | chance-expected counts | `chanceExpectedCounts` | Expected by chance | What chance alone would give for each category. | SUI-24 |
+| comptes attendus du hasard | chance-expected counts | `chanceExpectedCounts` | Expected by chance | What chance alone would give for each category (40.1 %, 40.1 % and 19.7 % at the default threshold), shown with one decimal. | SUI-24, CL-SUI-15 |
 | écart moyen historique actuel | current historical mean gap | `currentHistoricalMeanGap` | — | Same row, valid historical cases. | SUI-24 |
 | comptes à part | separate counts | `separateCounts` | Counted apart | Late forecasts, recorded after tip-off, excluded or pending cases, post-tip-off decisions. | SUI-25 |
 | bilan (d'une ligne) | assessment | `RowAssessment` | Assessment | confirmed, confirmed with a weaker effect, refuted or undecided; needs 10 cases. | SUI-26, SUI-27 |
-| nombre minimal de cas suivis pour un bilan | minimum tracked cases for an assessment | `minTrackedCasesForAssessment` | — | 10 by default. | SUI-26, H-SUI-06 |
+| nombre minimal de cas suivis pour un bilan | minimum tracked cases for an assessment | `tracking.minTrackedCasesForAssessment` | — | 10 by default. | SUI-26, H-SUI-06 |
 | « trop peu de cas suivis pour conclure (k sur 10) » | too few tracked cases | — | (section 7) | Shown instead of an assessment. | SUI-26 |
-| règles de lecture | reading rules | — | How to read this table | Three rules the table always recalls. | SUI-28 |
+| règles de lecture | reading rules | — | How to read this table | Three rules the table always recalls (section 7.2). | SUI-28 |
 | résultat de match suivi, résultat d'un match suivi | tracked game result | `TrackedGameResult` | Tracked game result | Content sent to notifications when a tracked case leaves awaiting game. | SUI-19, TEL-13 |
 | résultat communiqué, transmis | transmitted result | `transmittedResults` | — | What was sent, kept on the case. | SUI-19, SUI-20 |
 | décision prise après le coup d'envoi | post-tip-off decision | `PostTipOffDecision` | After tip-off | Owner decision after tip-off that moves a case in or out of the counts or changes its game. | SUI-17 |
-| sortie, entrée (des comptes), changement de match mesuré | exit, entry, measured-game change | `PostTipOffDecisionEffect` | Left the counts; Entered the counts; Game changed | Effect of a post-tip-off decision. | SUI-17 |
+| sortie, entrée (des comptes), changement de match mesuré | exit, entry, measured-game change | `PostTipOffDecisionEffect` | Left the counts; Entered the counts; Measured game changed | Effect of a post-tip-off decision. Each row shows the three counts, a case once by its present situation and latest decision, each with its mean gap in the forecast direction. | SUI-17, CL-SUI-10 |
 | critère d'arrêt, seuil d'abandon | stopping criterion, abandonment threshold | — | — | None exists: the table never stops or suggests stopping anything. | SUI-29, D-35 |
 | mise à l'épreuve, épreuve des faits | real-world test | — | — | What tracked cases do to profiles. | SUI-11, 00 |
 | conditions réelles | real conditions | — | — | Observation as events happen, before the games. | D-29, 00 glossary |
@@ -825,7 +839,7 @@ Merged into other rows: « tardif » (into late forecast); « résultat d'un mat
 
 Decisions:
 
-- « pronostic » is "forecast", never "prediction": "prediction" is the everyday word of betting tips and stays reserved for the fixed disclaimers (section 8).
+- « pronostic » is "forecast", never "prognosis" and never "prediction": "prognosis" is medical, and "prediction" is the everyday word of betting tips, reserved for the fixed disclaimers (section 8). The register and record 0015 write "prognosis"; code and screens never do.
 - « bilan » of a row is "assessment", so "confirmed / refuted" appear in two enumerations (case category, row assessment) that never share a type (section 4.2).
 
 ### 3.12 Notifications
@@ -849,12 +863,12 @@ Decisions:
 | code à usage unique, code de liaison | one-time link code | `linkCode` | — | Valid 15 minutes; refused if expired, used or unknown. | TEL-29, TEL-31 |
 | « Ouvrir Telegram », « Démarrer » | Open Telegram, Start | — | Open Telegram; Start | The app button, then Telegram's own button. | TEL-29 |
 | message de confirmation | link confirmation message | — | (section 7) | Sent when a chat is linked, always. | TEL-16, TEL-29 |
-| message d'essai | test message | `sendTestMessage()` | Send a test message | Can be requested at any time. | TEL-29, TRV-47 |
+| message d'essai | test message | `sendTestMessage()` | Send a test message | Offered while a chat is linked; leaves at once, quiet hours included; counts toward the cap; never retried. | TEL-29, TRV-47, CL-TEL-19 |
 | catalogue des messages | message catalog | `NotificationKind` | — | Every message kind with trigger, content and link. | TEL-09–TEL-16 |
 | catégorie (de notification) | notification category | `NotificationCategory` | Category | backtest requests, alerts, tracked results, type proposals, incidents. | TEL-24 |
 | sous-option | sub-option | `NotificationSubOption` | — | deadline reminder, inconclusive alerts, incident end. | TEL-24 |
 | messages de service | service messages | — | — | Messages outside any category; only the master switch stops them. | TEL-16 |
-| interrupteur général | master switch | `notificationsEnabled` | Send notifications | Suspends all sending without unlinking. | TEL-25 |
+| interrupteur général | master switch | `notifications.enabled` | Send notifications | Suspends all sending without unlinking. | TEL-25 |
 | réglages de notification | notification settings | `NotificationSettings` | Notifications | Categories, sub-options, quiet hours, urgency, cap, delays, thresholds. | TEL-24–TEL-27 |
 | première ligne | first line | — | — | « Egoscope · catégorie — sujet », often visible on the lock screen. | TEL-06, TEL-08 |
 | écran verrouillé | lock screen | — | — | Why the first line is limited to category and subject. | TEL-06 |
@@ -864,23 +878,23 @@ Decisions:
 | alerte, alerte urgente | alert, urgent alert | `alert` | Alert; Urgent alert | Message announcing an alert sheet. | TEL-11, TEL-21 |
 | mise à jour (d'une alerte) | alert update | `alert_update` | Update | New event, game change or late profile values. | TEL-12 |
 | rappel d'incident, fin d'incident | incident reminder, incident end | `incident_reminder`, `incident_end` | Reminder; Incident resolved | Every 3 days while it lasts; short end message if the start was sent. | TEL-15 |
-| délai de reprise d'un incident | incident recurrence window | `incidentRecurrenceWindowHours` | — | An incident that restarts within 6 h is not notified again. | TEL-15 |
+| délai de reprise d'un incident | incident recurrence window | `notifications.incidentRecurrenceGraceHours` | — | An incident that restarts within 6 h is not notified again. | TEL-15 |
 | sobriété | restraint | — | — | Grouping, quiet hours, urgency and cap keep messages few. | TEL-17–TEL-23 |
 | un fait, un message | one fact, one message | — | — | A fact is notified once. | TEL-17 |
-| regroupement par passage, message groupé | grouping by pass, digest | `digest` | — | Messages of one pass leave as one digest; alerts beyond 3 too. | TEL-19 |
-| seuil de regroupement des alertes | alert grouping threshold | `alertGroupingThreshold` | — | 3 alerts per pass. | TEL-19 |
-| nombre de faits détaillés par message groupé | facts detailed per digest | `maxFactsPerDigest` | — | 10, the rest summarized ("and 4 more"). | TEL-19 |
-| plage de silence | quiet hours | `quietHours` | Quiet hours | 23:00–08:00 in the owner's time zone by default. | TEL-20 |
-| urgence, urgent, exception d'urgence | urgency, urgent, urgent exception | `isUrgent`, `urgentExceptionEnabled` | Urgent | Message about a game starting before quiet hours end; sent at once and alone. | TEL-21 |
-| plafond quotidien, « plafond atteint » | daily cap, cap reached | `dailyCap` | Daily cap; Daily cap reached | 20 messages per day; then one cap message and nothing until the next day. | TEL-22 |
+| regroupement par passage, message groupé | grouping by pass, digest | `digest` | Digest | Messages of one pass leave as one digest; beyond 3 alerts, every alert of the pass joins it; titled with the pass's task name and start (section 7.5). | TEL-19, CL-TEL-11 |
+| seuil de regroupement des alertes | alert grouping threshold | `notifications.alertGroupingThreshold` | — | 3 alerts per pass. | TEL-19 |
+| nombre de faits détaillés par message groupé | facts detailed per digest | `notifications.maxDetailedFacts` | — | 10, the rest summarized ("and 4 more"). | TEL-19 |
+| plage de silence | quiet hours | `notifications.quietHours` | Quiet hours | 23:00–08:00 in the owner's time zone by default. | TEL-20 |
+| urgence, urgent, exception d'urgence | urgency, urgent, urgent exception | `isUrgent`, `notifications.urgentException` | Urgent | Message about a game starting before quiet hours end; sent at once and alone. | TEL-21 |
+| plafond quotidien, « plafond atteint » | daily cap, cap reached | `notifications.dailyCap` | Daily cap; Daily cap reached | 20 messages per day of the owner's zone; then one cap message, and every later message that day is discarded with the reason "daily cap". | TEL-22, CL-TEL-07 |
 | obsolescence, sans objet | staleness, moot | — | — | A deferred message whose fact no longer holds is discarded. | TEL-23 |
 | statut (du message) | message status | `NotificationMessageStatus` | Status | to send, deferred, sent, grouped, discarded, failed. | TEL-33 |
 | différé | deferred | `deferred` | Deferred | Held during quiet hours. | TEL-20, TEL-33 |
-| abandonné | discarded | `discarded` | Discarded | Not sent because moot or its category was turned off. | TEL-23, TEL-26 |
+| abandonné | discarded | `discarded` | Discarded | Not sent: moot, its category turned off, or after the daily cap. | TEL-23, TEL-26, CL-TEL-07 |
 | en échec | failed | `failed` | Failed | After the last retry; Home shows a banner. | TEL-36 |
 | échec temporaire, échec définitif | temporary failure, permanent failure | `SendFailureKind` | — | Retry with growing intervals, or stop and mark the link broken. | TEL-35, TEL-37 |
-| intervalles de nouvelle tentative | retry intervals | `retryIntervalsMinutes` | — | 1, 5, 15, 30, 60 minutes. | TEL-35 |
-| message de rattrapage | catch-up message | `catch_up` | — | One message listing still-current facts not received, with the period. | TEL-36 |
+| intervalles de nouvelle tentative | retry intervals | `notifications.retryIntervalsMinutes` | — | 1, 5, 15, 30, 60 minutes. | TEL-35 |
+| message de rattrapage | catch-up message | `catch_up` | Catch-up | One message listing still-current facts not received, with the period; tried at most once per catch-up interval while a message is failed. | TEL-36, CL-TEL-12 |
 | « événement sensible » | sensitive event | — | sensitive event | Replaces the type name of an intimate-subject type in messages. | TEL-06, DSN-35 |
 | après le coup d'envoi (mention) | after tip-off | — | after tip-off | Notice on a still-useful message whose game has started. | TEL-23 |
 
@@ -895,52 +909,58 @@ Decisions:
 
 | French | English | Code | UI label | Meaning | IDs |
 | --- | --- | --- | --- | --- | --- |
-| application installable, application web installable (PWA) | installable web app | — | — | Phone-first PWA, usable on a large screen. | IHM-01, IHM-02 |
+| application installable, application web installable (PWA) | installable web app | — | — | Phone-first PWA that also works on a large screen. | IHM-01, IHM-02 |
 | écran | screen | — | — | One view of the app; routes in kebab-case. | IHM-17 |
 | barre de navigation | navigation bar | — | — | Bottom on a phone, side on a large screen. | IHM-16 |
 | Accueil | Home | route `/` | Home | Banners, to-do list, open alert sheets, last update dates. | IHM-19 |
 | Joueurs, Joueurs suivis | Players | route `/players` | Players | List of followed players. | IHM-16, IHM-21 |
 | Types | Types | route `/types` | Types | Taxonomy and type sheets. | IHM-16, IHM-31 |
 | Alertes | Alerts | route `/alerts` | Alerts | Lot 2: alert sheets and alert history. | IHM-16, IHM-33 |
-| Plus | More | — | More | Menu of the other screens. | IHM-16 |
-| Demandes de backtest | Backtest requests | route `/backtest-requests` | Backtest requests | — | IHM-16, IHM-26 |
+| Plus | More | route `/more` | More | Menu of the other screens. | IHM-16 |
+| Demandes de backtest | Backtest requests | route `/backtests` | Backtest requests | — | IHM-16, IHM-26 |
 | Réglages | Settings | route `/settings` | Settings | Every parameter and setting, one screen. | IHM-37, TRV-34 |
 | État de l'application | App status | route `/status` | App status | Tasks, services, quotas, volume, backups, pending items, incidents. | IHM-70, TRV-46 |
 | Journal d'activité | Activity journal | route `/journal` | Activity journal | — | IHM-38, TRV-41 |
-| Méthode et limites, page « Méthode et limites » | Method and limits | route `/method-and-limits` | Method and limits | Hypothesis, known limits, caution notes, withdrawn-events counter. | VUE-09, IHM-69 |
+| Méthode et limites, page « Méthode et limites » | Method and limits | route `/method` | Method and limits | Hypothesis, known limits, caution notes, withdrawn-events counter. | VUE-09, IHM-69 |
 | Aide | Help | route `/help` | Help | — | IHM-16, IHM-53 |
 | Événements détectés | Detected events | route `/detected-events` | Detected events | Lot 2. | IHM-16, IHM-32 |
-| Tableau de validation | Validation table | route `/validation-table` | Validation table | Lot 2. | IHM-16, IHM-35 |
-| Collecte et détection, Sources de presse | Collection and detection, Press sources | route `/collection` | Collection and detection; Press sources | Lot 2: sources, journals, queue. | IHM-36, IHM-71 |
-| Détail d'un profil | profile detail | route `/players/[playerId]/profiles/[eventTypeId]` | — | Profile with its case groups. | IHM-24 |
-| fiche d'un événement | event page | route `/events/[playerEventId]` | — | Check and correct an event; withdraw it. | IHM-67 |
-| écran de retrait | withdrawal screen | — | Withdraw this event | Separate from dismissal and deletion; lists what disappears and the limits. | IHM-68, DSN-28 |
-| écran d'une demande | request screen | route `/backtest-requests/[requestId]` | — | Prompt, copy, paste result, update, reduce, cancel. | IHM-27 |
+| Tableau de validation | Validation table | route `/validation` | Validation table | Lot 2. | IHM-16, IHM-35 |
+| Collecte et détection | Collection and detection | route `/collection` | Collection and detection | Lot 2: hub to press sources, runs, queue, not-relevant articles, detection journal and model instructions. | IHM-71 |
+| Sources de presse | Press sources | route `/collection/sources` | Press sources | Lot 2: every source with its health, activation and indicators. | IHM-36 |
+| Ajout d'un joueur | add a player | route `/players/new` | Add a player | Criteria, active count against the maximum, identity, stats-source candidates. | IHM-66, JOU-01 |
+| Détail d'un profil | profile detail | route `/players/[playerId]/profiles/[typeId]` | — | Profile with its case groups. | IHM-24 |
+| liste des profils | profile list | route `/profiles` | Profiles | Every player–type profile; a filter always shows itself and the total; with the chance verdict count. | SEN-41, IHM-49 |
+| détail d'un cas | case detail | route `/cases/[caseId]` | — | Sources, the three numbers of the gap, criteria, flags, decisions, history. | IHM-25 |
+| fiche d'un événement | event page | route `/events/[eventId]` | — | Check and correct an event; withdraw it. A calendar-derived event shows no source, confidence, precedence or mark, and offers only context correction and withdrawal. | IHM-67, CL-IHM-21 |
+| écran de retrait | withdrawal screen | route `/events/[eventId]/withdraw` | Withdraw and erase this event | Separate from dismissal and deletion; lists what disappears and the limits (section 7.4). | IHM-68, DSN-28, CL-DSN-19 |
+| — (CL-IHM-19) | item no longer exists | — | This item no longer exists | One generic page, the same for every object and cause, with a link to Home (section 7.4). | CL-IHM-19, CL-DSN-05 |
+| écran d'une demande | request screen | route `/backtests/[requestId]` | — | Prompt, copy, paste result, update, reduce, cancel. | IHM-27 |
 | liste « à faire » | to-do list | `TodoList` | To do | Everything waiting for the owner, in sections (section 4). | IHM-20 |
 | « à faire » (élément) | to-do item | `TodoItem` | — | One entry of the to-do list; not the request status "to do". | IHM-20 |
 | rubrique | section | `TodoSection` | — | Group of the to-do list or of a screen. | IHM-20 |
 | bandeau | banner | — | — | Strip at the top of Home. | IHM-19, IHM-40 |
-| bandeau « demande en cours » | request-in-progress banner | `inProgressBannerHiddenAt` | Backtest in progress | Most recent request whose prompt was copied; "Later" hides it. | IHM-40 |
+| bandeau « demande en cours » | request-in-progress banner | `inProgressBannerHiddenAt` | Backtest in progress | Request whose prompt was copied last, with the number of other requests in progress; "Later" hides it on every device until the next prompt copy. | IHM-40, CL-IHM-13 |
 | demande en cours, « en cours » | request in progress | — | In progress | Derived: prompt copied, neither imported nor canceled; not a request status. | IHM-40 |
 | indication « prompt copié » | prompt copied | `promptCopiedAt` | Prompt copied | Kept by the server; the request stays to do. | IHM-39, IHM-40 |
 | copie en un toucher | one-tap copy | — | Copy prompt | The whole prompt in one tap. | IHM-39 |
-| outil de recherche, adresse de l'outil de recherche | research tool, research tool URL | `researchToolUrl` | Open research tool | Optional address the owner sets; no tool is imposed. | IHM-44 |
+| outil de recherche, adresse de l'outil de recherche | research tool, research tool URL | `display.researchToolUrl` | Open research tool | Optional address the owner sets; no tool is imposed. | IHM-44 |
 | correction avec l'IA | correction with the AI | — | — | Copying the correction message back to the AI. | IHM-43 |
 | « échéance proche » | deadline soon | — | Deadline soon | Under 24 h (parameter). | IHM-20 |
 | incidents masqués | hidden incidents | `hiddenIncidentIds` | Hidden incidents | Incident hidden by the owner; still journaled and counted. | IHM-20 |
-| masquer (un incident) | hide | `hideIncident()` | Hide | Hides an incident from Home; does not close it. | IHM-20 |
-| tranches (de liste) | list pages | `listPageSize` | — | Lists load 50 items at a time. | IHM-18 |
+| masquer (un incident) | hide | `hideIncident()` | Hide | The owner's only action on an incident: it leaves the to-do list, stays open while its cause lasts, and counts among the hidden incidents until it closes. | IHM-20, CL-IHM-20 |
+| tranches (de liste) | list pages | `display.listPageSize` | — | Lists load 50 items at a time. | IHM-18 |
 | compte unique, authentification minimale | single account, minimal authentication | — | — | One owner, no sign-up. | IHM-05, H-10 |
-| connexion, se connecter | login, log in | — | Log in | Password only. | IHM-06 |
+| connexion, se connecter | login, log in | route `/sign-in` | Log in | Password only. | IHM-06 |
 | déconnexion | logout, log out | — | Log out; Log out of all devices | This device or all devices. | IHM-08 |
 | mot de passe initial | initial password | — | — | From the deployment configuration; forces "Choose your password". | IHM-06, TRV-57 |
-| « Choisir votre mot de passe » | choose your password | — | Choose your password | Only screen open with the initial password. | IHM-06 |
+| « Choisir votre mot de passe » | choose your password | route `/choose-password` | Choose your password | Only screen open with the initial password. | IHM-06 |
 | échecs de connexion, blocage | login failures, lockout | `LoginFailure`, `LoginLockout` | Login locked until {time} | 5 failures in 15 minutes lock login for 15 minutes. | IHM-07, TRV-61 |
 | session, expiration, expiration de session | session, expiry | `Session` | — | Stays open while used at least once per 30 days. | IHM-06, TRV-62 |
 | appareil | device | `device` | Device | Several may be logged in at once. | IHM-06, H-IHM-06 |
-| fuseau horaire, heure de Paris | time zone, Paris time | `timeZone` | Time zone; Paris time | Owner's zone, Paris by default. | IHM-14, H-IHM-02 |
+| fuseau horaire, heure de Paris | time zone, Paris time | `display.timeZone` | Time zone; Paris time | Owner's zone, Paris by default; named "<city> time". A device in another zone is offered once, in a banner, to adopt it. | IHM-14, H-IHM-02, CL-IHM-04, CL-IHM-05 |
 | réglages d'interface | interface settings | `UiSettings` | Display | Time zone, research tool address, guide state, hidden incidents, banner state. | IHM-14, IHM-20, IHM-40, IHM-44, IHM-53 |
 | hors connexion | offline | — | Offline | Reading cached screens; no entry is sent later without the owner knowing. | IHM-57, IHM-58 |
+| « un message clair au lieu d'une page d'erreur » | offline page | route `/offline` | Offline | Shown offline when nothing is cached on the device yet. | TRV-22 |
 | copies d'écrans (gardées sur l'appareil), données gardées sur l'appareil | cached screens, device cache | `DeviceCache` | — | Copies of displayed data only; erased at logout. | IHM-57, IHM-59, DSN-33 |
 | nouvelle version | new version | — | New version available | Banner; reload waits for drafts to be saved. | IHM-03 |
 | guide de démarrage | getting-started guide | `onboardingGuideState` | Getting started | Self-checking steps; can be hidden and reopened from Help. | IHM-53 |
@@ -952,11 +972,11 @@ Decisions:
 | feuille de partage (du téléphone) | share sheet | — | — | The phone's system sharing panel. | BKT-20, IHM-39 |
 | presse-papiers | clipboard | — | — | — | BKT-20 |
 
-Merged into other rows: « Joueurs suivis » (into Players); « Sources de presse » (into Collection and detection); « données gardées sur l'appareil » (into cached screens).
+Merged into other rows: « Joueurs suivis » (into Players); « données gardées sur l'appareil » (into cached screens).
 
 Decisions:
 
-- Route segments are proposals that follow the conventions; the interface module may refine them, keeping kebab-case and the English terms above.
+- Routes are the module map's (its section 3); the rows above give the screen's French name and English title.
 - "To do" names two things: the request status `to_do` and the to-do list. Code keeps them apart: `BacktestRequestStatus` `to_do` versus `TodoList` / `TodoItem`.
 
 ### 3.14 Sensitive data
@@ -982,18 +1002,18 @@ Decisions:
 | personne privée, personnalité publique, plaignant, auteur anonyme | private person, public figure, complainant, anonymous author | — | — | Private persons are never named; others are designated by role. | DSN-17, DSN-18 |
 | rôle (désignation par le rôle) | role | `PersonRole` | — | opponent, teammate, coach, executive, spectator, loved one. | DSN-17, BKT prompt 2.6 |
 | règles de formulation | wording rules | — | — | One factual neutral sentence, no quotation, no judgment, no interpretation, no forecast. | DSN-19–DSN-23 |
-| longueur maximale d'une description | maximum description length | `maxDescriptionLength` | — | 200 characters; applied by detection, prompt and import. | DSN-20 |
+| longueur maximale d'une description | maximum description length | `events.maxDescriptionLength` | — | 200 characters; applied by detection, prompt and import. | DSN-20 |
 | citation textuelle, guillemets | verbatim quotation, quotation marks | — | — | Forbidden; descriptions with quotation marks are refused. | DSN-21, IMP-13 |
 | jugement de valeur | value judgment | — | — | Forbidden ("shameful", "magnificent"). | DSN-22 |
 | interprétation psychologique | psychological interpretation | — | — | Forbidden ("his pride was hurt"). | DSN-22 |
 | pronostic (sur le match) | forecast about the game | — | — | Forbidden in descriptions. | DSN-22 |
 | récit | narrative | — | — | Context indications are never a narrative. | DSN-07 |
 | textes libres | free-text fields | — | — | Description, unverified note, justification, decision comment, declared limitations: all under the wording rules. | DSN-10 |
-| retrait (d'un événement) | event withdrawal | `withdrawEvent()` | Withdraw | Permanent erasure for sensitivity, at any time, from the event page, after confirmation. | DSN-26–DSN-29 |
+| retrait (d'un événement) | event withdrawal | `withdrawEvent()` | Withdraw and erase | Permanent erasure for sensitivity, at any time, from the event page, after confirmation; calendar-derived events included. | DSN-26–DSN-29, CL-DSN-09 |
 | effacement définitif | permanent erasure | — | — | What a withdrawal does. | DSN-26, DSN-27 |
 | limites du retrait | withdrawal limits | — | — | Telegram messages not deletable, backups, exports, offline devices, re-collection, re-import. | DSN-28 |
-| compteur global des événements retirés | withdrawn-events counter | `withdrawnEventCount` | Withdrawn events | Only trace of a withdrawal; no player, type or date. | DSN-29 |
-| empreinte (de retrait) | withdrawal fingerprint | `WithdrawalFingerprint` | — | Keyed hash of player, type and date, kept eight weeks, so detection cannot recreate the event (decision Q-DSN-01). | Q-DSN-01 |
+| compteur global des événements retirés | withdrawn-events counter | `withdrawnEventCount` | Withdrawn events | Only trace of a withdrawal; counts decisions, never decreases; with the sentence of section 7.2. | DSN-29, CL-DSN-04 |
+| empreinte (de retrait) | withdrawal fingerprint | `WithdrawalFingerprint` | — | Keyed hash of player, type and day of a withdrawn event, kept for the fingerprint horizon (eight weeks by default), so detection, derivation and restores do not recreate the event and an import flags it (section 10). | Q-DSN-01, CL-DSN-06, CL-DSN-07 |
 | données gardées sur l'appareil | device-kept data | `DeviceCache` | — | Only what screens show; erased at logout; a withdrawal reaches it at next refresh. | DSN-33 |
 | RGPD | GDPR | — | — | European data-protection regulation; would apply in full outside personal use. | 13 limits |
 
@@ -1030,11 +1050,12 @@ Decisions:
 | passage | pass | `TaskPass` | Pass | One run of a task plus everything chained to it; groups messages. | TRV-26, TEL-19 |
 | exécution | run | `TaskRun` | Run | One execution of a task, with start, end and result. | TRV-26, TRV-28 |
 | exécution planifiée, à la demande | scheduled run, on-demand run | `TaskRunTrigger` | Scheduled; On demand | A manual run is marked on demand and keeps the next scheduled one. | TRV-33 |
-| report (d'une exécution) | postponement | `postponed` | Postponed | A run waits for the previous one to finish; journaled. | TRV-28 |
+| résultat (d'une exécution) | run result | `TaskRunResult` | Result | succeeded, failed, interrupted or source late (section 4). | TRV-26, CL-TRV-07, CL-TRV-23 |
+| report (d'une exécution) | postponement | — (journal entry) | Postponed | A run waits for the previous one to finish; journaled, never a run result. | TRV-28 |
 | exécution interrompue, reprise | interrupted run, resumption | `interrupted` | Interrupted | Resumes where it stopped at the next run. | TRV-30 |
 | portion | chunk | — | — | Long work is cut into chunks that fit the host's limits. | TRV-30 |
-| exécution manquée | missed run | `missed` | Missed | Last success older than its interval plus a margin; opens an incident and runs at once. | TRV-31 |
-| contrôle des exécutions | run check | task `run_check` | — | Detects missed runs at the end of each pass and at each app opening. | TRV-25, TRV-31 |
+| exécution manquée | missed run | — (journal entry) | Missed | An occurrence with no successful run by its time plus the margin: one journal entry per occurrence, one "task not run" incident per task, one catch-up run at once; never a run result. | TRV-31, CL-TRV-08 |
+| contrôle des exécutions | run check | — (not a task) | — | Detects missed runs at the end of every database pass and at each app opening. | TRV-25, TRV-31, CL-TRV-08 |
 | changement d'heure, heure d'hiver | clock change, winter time | — | — | One execution on a day when a time is missing or doubled. | TRV-27 |
 | réglage, réglages, écran de réglages | setting, settings, settings screen | — | Settings | Anything the owner adjusts in the app. | TRV-34, IHM-37 |
 | paramètre | parameter | `Parameter`; key `parameterKey` | — | Registry entry: name, purpose, unit, current and default value, allowed values, owner, origin. | TRV-34 |
@@ -1051,13 +1072,13 @@ Decisions:
 | niveau | level | `JournalLevel` | Level | info, warning or incident. | TRV-43 |
 | désignation d'un événement | event reference | `playerEventRef` | — | Player, type and reference date: the only way an entry names an event; erased on withdrawal. | TRV-41 |
 | détails techniques, réponse brute, réponses brutes des services | technical details, raw response | `technicalDetails` | Technical details | Stored apart, hidden by default, no secret and no event text. | TRV-44, DSN-11 |
-| incident | incident | `Incident` | Incident | A function no longer does its job; opened once per cause, closed when it disappears or by the owner. | TRV-45 |
-| incident ouvert, clos, clore | open, closed, close | `IncidentStatus` | Open; Closed | — | TRV-45 |
+| incident | incident | `Incident` | Incident | A function no longer does its job; opened once per cause, closed automatically when the cause disappears; the owner can only hide it. | TRV-45, CL-TRV-11, CL-IHM-20 |
+| incident ouvert, clos, clore | open, closed, close | `IncidentStatus` | Open; Closed | Closing is never an owner action. | TRV-45, CL-TRV-11 |
 | écran d'état | status screen | route `/status` | App status | See section 3.13. | TRV-46, IHM-70 |
 | état (d'un service) | service status | `ServiceStatus` | — | normal, degraded or unavailable. | TRV-46 |
 | éléments en attente | pending items | — | Pending | Classification queue, requests to do. | TRV-46 |
 | vérification de l'installation | installation check | `InstallationCheck`; `runInstallationCheck()` | Check installation | Per service: success, or failure with probable cause and steps. | TRV-47 |
-| durée de conservation (des journaux) | journal retention | `journalRetentionDays` | — | 90 days; open incidents kept until closed. | TRV-48, H-TRV-08 |
+| durée de conservation (des journaux) | journal retention | `journal.retentionDays` | — | 90 days; open incidents kept until closed. | TRV-48, H-TRV-08 |
 | export du journal | journal export | — | Export journal | Text file of a period for a helper. | TRV-49 |
 | sauvegarde, renouvellement (des sauvegardes) | backup, backup renewal | `Backup` | Backup | Full, automatic, weekly, encrypted, kept outside the database; 8 kept, the oldest replaced (renewal). | TRV-50, Q-TRV-01 |
 | espace de sauvegarde | backup storage | — | — | Private storage receiving the encrypted backups. | TRV-50, TRV-75 |
@@ -1072,14 +1093,14 @@ Decisions:
 | empreinte non lisible (du mot de passe initial) | initial-password fingerprint | — | — | Non-readable hash kept to detect a reset. | TRV-63 |
 | réinitialisation du mot de passe | password reset | — | — | Through the deployment configuration, no email. | TRV-63 |
 | blocage (de la connexion), « connexions refusées » | lockout, logins refused | `logins_refused` | Logins refused | Security incident after repeated failures; closed at the next successful login. | TRV-61 |
-| durée de session sans utilisation | idle session duration | `sessionIdleDays` | — | 30 days. | TRV-62 |
+| durée de session sans utilisation | idle session duration | `auth.sessionIdleDays` | — | 30 days. | TRV-62 |
 | connexion chiffrée | encrypted connection | — | — | HTTPS only. | TRV-59, IHM-10 |
 | moteurs de recherche, référencer | search engines, index | — | — | The app asks search engines not to index it; nothing is public. | TRV-58 |
 | ordres de grandeur | orders of magnitude | — | — | Estimated daily volumes used for sizing, then measured. | TRV-08, H-TRV-04 |
 | instant absolu | absolute instant | — | — | Moment independent of time zones; epoch milliseconds in code. | TRV-68, STA-29 |
 | fuseau d'origine | original time zone | — | — | Kept when it helps understanding. | TRV-68 |
-| heure locale (du match) | local time | — | — | Venue time of a game. | TRV-71 |
-| jour d'une tâche, jour d'un match | task day, game day | — | — | A task's day is in the owner's zone; a game's day is its US date. | TRV-72 |
+| heure locale (du match) | local time | — | — | Never shown: TRV-71's "and its local time" reads as the recall of the game's US date (section 2). | TRV-71, CL-TRV-02 |
+| jour d'une tâche, jour d'un match | task day, game day | — | — | A task's day is in the owner's zone; a game's day is its US date. | TRV-72, CL-TRV-03 |
 | guide de déploiement, d'utilisation, d'exploitation | deployment guide, user guide, operations guide | — | — | Delivered documentation. | TRV-74, TRV-75, TRV-79 |
 | aide-mémoire de dépannage, notes de version | troubleshooting sheet, release notes | — | — | Delivered documentation. | TRV-79 |
 | état de réalisation des exigences | requirement status | `RequirementStatus` | — | done, partial or not done, per requirement ID. | TRV-79 |
@@ -1189,6 +1210,13 @@ Every set is a string-literal union in code and a text column in the database. V
 | constaté | `observed` | Observed |
 | saisi | `entered` | Entered |
 
+`TeamChangeConfirmation` — CL-JOU-03 (entered changes only)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| — (CL-JOU-03) | `unconfirmed` | Unconfirmed |
+| — (CL-JOU-03) | `confirmed` | Confirmed by the game of {date} |
+
 `NameVariantKind` — JOU-08
 
 | French | Code value | UI label |
@@ -1211,6 +1239,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | demande à faire | `request_to_do` | Request to do |
 | importé le … | `imported` | Imported on {date} |
 | demande complémentaire à faire | `supplementary_request_to_do` | Supplementary request to do |
+| — (CL-JOU-14) | `full_redo_to_do` | Full redo to do |
 
 #### Event types
 
@@ -1302,6 +1331,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | --- | --- | --- |
 | détecté | `detected` | Detected |
 | historique | `historical` | Historical |
+| — (record 0015) | `calendar` | Derived from the calendar |
 
 `DetectedEventStatus` — DET-43, DET-45, VUE-08
 
@@ -1321,12 +1351,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | doublon d'un événement historique | `duplicate_of_historical_event` | Duplicate of a historical event |
 | autre (avec commentaire) | `other` | Other |
 
-`DismissalTiming` — DET-46
-
-| French | Code value | UI label |
-| --- | --- | --- |
-| avant le coup d'envoi du match mesuré | `before_tip_off` | Before tip-off |
-| après le coup d'envoi | `after_tip_off` | After tip-off |
+Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the labels "Before tip-off" (« avant le coup d'envoi du match mesuré ») and "After tip-off" are derived from it and the measured game's scheduled start.
 
 `EventMark` — DET-21, DET-32, DET-33, DET-58
 
@@ -1448,6 +1473,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | référence insuffisante | `insufficient_baseline` | Insufficient baseline | not measurable |
 | saison non couverte par la source | `season_not_covered` | Season not covered by the source | not measurable |
 | antériorité non établie | `precedence_not_established` | Precedence not established | not measurable |
+| — (CL-SEN-03) | `derived_game_missed` | Did not play the derived game | not measurable |
 
 `DoubtfulCaseCriterion` — SEN-11–SEN-17
 
@@ -1473,6 +1499,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | --- | --- | --- |
 | premier match avec une nouvelle équipe | `first_game_with_new_team` | First game with a new team |
 | expulsion pendant le match mesuré | `ejection` | Ejected during the game |
+| — (CL-SEN-12) | `manual_decision_to_review` | Manual decision to review: the measured game changed |
 
 `ManualDecisionKind` — SEN-17
 
@@ -1507,6 +1534,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | supprimé à la main | `deleted` | Deleted |
 | remplacé à l'import | `replaced_at_import` | Replaced at import |
 | effacé lors d'une requalification ou d'une répartition | `erased` | Erased by requalification |
+| — (CL-SEN-25) | `no_longer_derived` | No longer derived from the calendar |
 
 #### Backtest requests
 
@@ -1585,6 +1613,92 @@ Every set is a string-literal union in code and a text column in the database. V
 | ignoré | `ignored` | Ignored |
 | refusé | `refused` | Refused |
 | non enregistré pour donnée sensible | `not_recorded_sensitive_data` | Not recorded: sensitive data |
+
+`BlockingErrorKind` — IMP-02, IMP-04–IMP-07, IMP-09, CL-IMP-27, CL-IMP-32 (whole result refused, nothing saved; the journal entry keeps this kind and the pasted size only, CL-IMP-33)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| texte trop volumineux | `text_too_large` | Text too large |
+| texte vide ou sans objet JSON | `no_result_found` | No recognizable result |
+| plusieurs objets (format « egoscope-backtest ») | `several_results` | Several results pasted |
+| erreur de syntaxe | `syntax_error` | JSON syntax error |
+| résultat coupé, rien n'est récupéré | `cut_not_recoverable` | Result cut |
+| version inconnue | `unknown_version` | Unknown format version |
+| un JSON d'un autre format | `not_a_backtest_result` | Not a backtest result |
+| le résultat désigne une autre demande | `other_request` | Result for another request |
+| joueur non trouvé | `player_not_found` | Player not found |
+| `types_couverts` manque, est vide ou ne contient aucun type de la demande | `covered_types_invalid` | Covered types missing or not requested |
+| `periode_couverte` manque, porte une date invalide ou un début postérieur à sa fin | `covered_period_invalid` | Covered period invalid |
+| `evenements` manque ou n'est pas une liste | `events_missing` | Events list missing |
+
+`ImportRefusalReason` — IMP-11–IMP-14, H-IMP-01 (the only refusals; each has its expected correction in section 7.3)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| son type manque | `type_missing` | Type missing |
+| ne correspond à aucun type de la taxonomie | `type_unknown` | Unknown type |
+| sa date publique manque | `public_date_missing` | Public date missing |
+| n'est pas dans l'un des deux formats admis | `public_date_malformed` | Public date not in an accepted form |
+| n'existe pas au calendrier | `public_date_nonexistent` | Public date does not exist |
+| sa description manque, est vide | `description_missing` | Description missing |
+| dépasse la longueur maximale d'une description | `description_too_long` | Description too long |
+| contient des guillemets | `description_quotation_mark` | Quotation mark in the description |
+| aucune source exploitable ne reste | `no_valid_source` | No valid source left |
+| une source est publiée plus d'un jour avant sa date publique | `source_before_public_date` | Source too far before the public date |
+
+`ImportIgnoreReason` — IMP-11, IMP-12, CL-IMP-09, CL-IMP-29 (never a refusal: not in the remaining refusals nor the correction message)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| type non validé à ce jour | `type_not_validated` | Type not validated to date |
+| ne fait pas partie de la demande | `type_not_requested` | Not part of the request |
+| hors de la période demandée | `outside_requested_period` | Outside the requested period |
+| avant le premier match NBA du joueur | `before_first_nba_game` | Before the player's first NBA game |
+| — (CL-IMP-29) | `calendar_derived_type` | Type derived from the calendar |
+| l'ignorer (type scindé) | `split_type_ignored` | Ignored by you (split type) |
+
+`ImportWarningKind` — IMP-06–IMP-17, CL-IMP-03, CL-IMP-05–CL-IMP-08, CL-IMP-19, CL-IMP-23 (event warnings stay on the saved event; whole-result warnings on the import trace)
+
+| French | Code value | UI label | Scope |
+| --- | --- | --- | --- |
+| rattaché au type subsistant | `attached_to_surviving_type` | Attached to the surviving type {type} | event |
+| type demandé mais absent de `types_couverts` | `type_not_declared_covered` | Type not declared as covered | event |
+| hors de la période déclarée | `outside_declared_period` | Outside the declared period | event |
+| semble contenir des statistiques ou des scores | `possible_statistics` | May contain statistics or a score | event |
+| une source n'est pas retenue | `source_dropped` | Source {n} dropped: {cause} | event |
+| un média ou un titre manquant | `source_outlet_or_title_missing` | Outlet or title missing in source {n} | event |
+| confiance de la recherche absente ou hors des valeurs permises | `confidence_defaulted` | Research confidence set to low | event |
+| contexte absent, ou valeur de contexte hors liste | `context_defaulted` | Context set to unknown | event |
+| précision ou réserve trop longue | `text_too_long_ignored` | {field} too long, ignored | event |
+| — (CL-IMP-05) | `text_quotation_mark_ignored` | Quotation mark in {field}, ignored | event |
+| même lien cité pour plusieurs événements différents | `shared_link` | Same link as event {n} | event |
+| — (CL-IMP-08) | `non_standard_date` | Date written in a non-standard form | event |
+| — (CL-IMP-08) | `time_ignored` | Time ignored | event |
+| — (CL-IMP-07) | `possible_citation_marker` | Possible citation marker in {field} | event |
+| un nom différent | `player_name_differs` | Player name differs from the request's | result |
+| le champ `format` ou le champ `version_format` manque | `format_or_version_missing` | Format or version missing: version 1.0 assumed | result |
+| — (CL-IMP-06) | `version_normalized` | Format version read as 1.0 | result |
+| listes `pistes_non_verifiees` et `limites` absentes | `lists_missing` | Leads or limitations missing, taken as empty | result |
+| types déclarés couverts qui ne figurent pas dans la demande | `declared_type_not_requested` | Declared type not in the request, ignored | result |
+| période couverte qui déborde la période demandée | `covered_period_clamped` | Covered period brought back to the requested period | result |
+| — (CL-IMP-08) | `covered_period_time_ignored` | Time ignored in the covered period | result |
+| — (CL-IMP-23) | `covered_type_repeated` | Covered type listed more than once | result |
+| champ que le format ne définit pas | `unknown_fields` | Unknown fields ignored | result |
+| événements non triés | `events_not_sorted` | Events not sorted from event {n} | result |
+| piste incomplète ou trop longue | `lead_ignored` | Lead {n} ignored | result |
+| limite trop longue | `limitation_ignored` | Limitation {n} ignored | result |
+| — (CL-IMP-07) | `limitation_citation_marker` | Possible citation marker in limitation {n} | result |
+
+`SourceDropCause` — IMP-14, CL-IMP-07, CL-IMP-10, CL-IMP-15
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| son lien n'est pas une adresse complète | `incomplete_address` | Not a complete article address |
+| page d'accueil | `home_page` | Home page |
+| domaines non admis | `disallowed_domain` | Disallowed domain |
+| sa date de publication manque | `publication_date_missing` | Publication date missing |
+| est mal formée | `publication_date_malformed` | Publication date malformed |
+| postérieure au jour de l'import | `publication_date_in_future` | Published after the import day |
 
 `PossibleDuplicateAnswer` — IMP-25, IMP-26
 
@@ -1773,7 +1887,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | verdict fragile | `fragile_verdict` | Fragile verdict |
 | un joueur apporte plus de la moitié des cas (tendance) | `dominant_player` | One player brings most cases |
 
-`VerdictChangeCause` — SEN-37, SEN-48
+`VerdictChangeCause` — SEN-37, SEN-48, CL-SEN-17 (exactly one per entry)
 
 | French | Code value | UI label |
 | --- | --- | --- |
@@ -1784,6 +1898,9 @@ Every set is a string-literal union in code and a text column in the database. V
 | événement écarté | `event_dismissed` | Event dismissed |
 | changement de paramètre | `parameter_change` | Parameter change |
 | recalcul | `recalculation` | Recalculation |
+| — (CL-SEN-17) | `event_corrected_or_removed` | Event corrected or removed |
+| — (CL-SEN-17) | `event_reinstated` | Event reinstated |
+| — (CL-SEN-17) | `taxonomy_changed` | Taxonomy changed |
 
 `ProfileNotice` — SEN-19, SEN-31, SEN-36, IHM-23, 12 edge cases
 
@@ -1837,13 +1954,12 @@ Every set is a string-literal union in code and a text column in the database. V
 | anglais | `en` | English |
 | français | `fr` | French |
 
-`CollectionRunOrigin` — COL-48
+`CollectionRunOrigin` — COL-48, CL-COL-07 (a run after a missed run is scheduled; « avec rattrapage » is the separate mark `withCatchUp`, "With catch-up")
 
 | French | Code value | UI label |
 | --- | --- | --- |
 | planifiée | `scheduled` | Scheduled |
 | à la demande | `on_demand` | On demand |
-| avec rattrapage | `with_catch_up` | With catch-up |
 
 `SourceReadOutcome` — COL-48
 
@@ -1854,7 +1970,7 @@ Every set is a string-literal union in code and a text column in the database. V
 
 #### Detection
 
-`NotRelevantReason` — DET-06, DET-16, DET-20, DET-24, DET-34, DET-36, DET-58
+`NotRelevantReason` — DET-06, DET-16, DET-20, DET-24, DET-34, DET-36, DET-58, CL-DET-12, CL-DET-27 (one per part)
 
 | French | Code value | UI label |
 | --- | --- | --- |
@@ -1865,6 +1981,8 @@ Every set is a string-literal union in code and a text column in the database. V
 | déjà rapporté par un backtest | `already_reported_by_backtest` | Already reported by a backtest |
 | type rejeté ou retiré | `type_rejected_or_withdrawn` | Type rejected or withdrawn |
 | proposition rejetée | `proposal_rejected` | Proposal rejected |
+| détaché par l'utilisateur | `detached_by_user` | Detached by you |
+| sous le seuil de couverture | `below_coverage_threshold` | Below the coverage threshold |
 
 `ClassificationOrigin` — DET-13, DET-49
 
@@ -1898,12 +2016,13 @@ Every set is a string-literal union in code and a text column in the database. V
 | produite avant le coup d'envoi | `produced_before_tip_off` | Produced before tip-off |
 | tardive | `late` | Late |
 
-`AlertSheetCancellationReason` — ALE-22, ALE-31
+`AlertSheetCancellationReason` — ALE-22, ALE-31, CL-ALE-13
 
 | French | Code value | UI label |
 | --- | --- | --- |
 | tous ses événements écartés | `all_events_dismissed` | All events dismissed |
 | rattachement corrigé | `attachment_corrected` | Attachment corrected |
+| — (CL-ALE-13) | `event_no_longer_applies` | Event no longer applies |
 
 `CaveatKind` — ALE-16
 
@@ -1918,6 +2037,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | profil incomplet ou version antérieure | `incomplete_or_earlier_version` | Incomplete profile or earlier sheet version |
 | fiche tardive | `late_sheet` | Late sheet |
 | type non couvert | `type_not_covered` | Type not covered |
+| — (record 0016) | `confounder_not_separable` | Criterion switched off for this type |
 
 `ProfileStatusNotice` — ALE-05, ALE edge cases
 
@@ -2105,7 +2225,7 @@ Every set is a string-literal union in code and a text column in the database. V
 
 #### Interface and access
 
-`NavigationEntry` — IHM-16
+`NavigationEntry` — IHM-16 (routes `/`, `/players`, `/alerts`, `/types`, `/more`, module map 3.2)
 
 | French | Code value | UI label |
 | --- | --- | --- |
@@ -2120,6 +2240,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | French | Code value | UI label |
 | --- | --- | --- |
 | Demandes de backtest | `backtest_requests` | Backtest requests |
+| liste des profils (SEN-41) | `profiles` | Profiles |
 | Réglages | `settings` | Settings |
 | État de l'application | `app_status` | App status |
 | Journal d'activité | `activity_journal` | Activity journal |
@@ -2129,7 +2250,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | Tableau de validation (lot 2) | `validation_table` | Validation table |
 | Collecte et détection (lot 2) | `collection_and_detection` | Collection and detection |
 
-`SettingsSection` — IHM-37
+`SettingsSection` — IHM-37 (routes `/settings/account`, `/settings/display`, `/settings/parameters`, `/settings/notifications`; Help is `/help`)
 
 | French | Code value | UI label |
 | --- | --- | --- |
@@ -2157,6 +2278,13 @@ Every set is a string-literal union in code and a text column in the database. V
 | en ligne | `online` | — |
 | hors connexion | `offline` | Offline |
 
+`DraftKind` — IHM-42, DSN-32
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| résultat de recherche | `research_result` | Research result |
+| retour d'exploration | `exploration_response` | Exploration response |
+
 `SessionEndReason` — IHM-08, TRV-60, TRV-62, TRV-63
 
 | French | Code value | UI label |
@@ -2175,7 +2303,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | écarter | `dismiss` | Dismiss |
 | supprimer | `delete` | Delete |
 | exclure | `exclude` | Exclude |
-| retirer | `withdraw` | Withdraw |
+| retirer | `withdraw` | Withdraw and erase |
 
 `PersonRole` — DSN-17, BKT prompt rule 2.6
 
@@ -2279,16 +2407,14 @@ Every set is a string-literal union in code and a text column in the database. V
 | planifiée | `scheduled` | Scheduled |
 | à la demande | `on_demand` | On demand |
 
-`TaskRunStatus` — TRV-26, TRV-28, TRV-30, TRV-31
+`TaskRunResult` — TRV-26, TRV-30, CL-TRV-07, CL-TRV-23 (a run without a result is running; a postponement and a missed run are journal entries)
 
 | French | Code value | UI label |
 | --- | --- | --- |
-| report | `postponed` | Postponed |
-| en cours | `running` | Running |
 | réussite | `succeeded` | Succeeded |
 | échec | `failed` | Failed |
 | exécution interrompue | `interrupted` | Interrupted |
-| exécution manquée | `missed` | Missed |
+| — (CL-TRV-23) | `source_late` | Source late |
 
 `ParameterOrigin` — TRV-34
 
@@ -2320,6 +2446,20 @@ Every set is a string-literal union in code and a text column in the database. V
 | partielle | `partial` | Partial |
 | non réalisée | `not_done` | Not done |
 
+`OutboxFactKind` — TEL-02, TEL-09–TEL-15 (one notifiable fact recorded in the app; the module map writes them dotted)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| demande de backtest à faire | `backtest_request_to_do` | — |
+| échéance modifiée | `backtest_request_deadline_changed` | — |
+| fiche d'alerte produite | `alert_sheet_produced` | — |
+| mise à jour d'une alerte | `alert_sheet_updated` | — |
+| résultat d'un match suivi | `tracked_result_ready` | — |
+| proposition de nouveau type à valider | `type_proposal_new` | — |
+| incident (début) | `incident_opened` | — |
+| fin d'incident | `incident_closed` | — |
+| rappel d'export | `export_reminder_due` | — (provisional, section 11) |
+
 ### 4.2 Near-synonyms that must stay distinct
 
 **Ways out of the calculations and other endings.** The first four are the four ways of DSN-26; the others look alike in English and are not the same.
@@ -2329,7 +2469,7 @@ Every set is a string-literal union in code and a text column in the database. V
 | écarté | dismissed | detected event wrongly detected | yes (reinstate) | everything; the case keeps its status and gap, outside all calculations | DET-43–DET-46, SEN-48 |
 | exclu | excluded | case (doubtful) | yes (reinstate) | everything; the gap is still computed for the control | SEN-11, SEN-17 |
 | supprimé | deleted | historical event (error), article (purge), player data | no | a deletion trace or a dedup trace; for player data, the counter | IMP-33, COL-34, JOU-24 |
-| retiré (événement) | withdrawn (event withdrawal) | any event, for sensitivity | no | only the withdrawn-events counter (and, for 8 weeks, the keyed fingerprint) | DSN-26–DSN-29, Q-DSN-01 |
+| retiré (événement) | event withdrawal ("Withdraw and erase") | any event, for sensitivity, calendar-derived ones included | no | only the withdrawn-events counter (and, for the fingerprint horizon, the keyed fingerprint) | DSN-26–DSN-29, Q-DSN-01, CL-DSN-07, CL-DSN-09 |
 | retiré (joueur, type, source) | withdrawn (status) | player, event type, press source | player and type: yes (reactivate); source: no | everything; profiles archived | JOU-19, TAX-31, COL-10 |
 | effacé | erased | event judged non-conforming or left out of a split; articles of a withdrawn event | no | a count on the type sheet (requalification) or nothing (withdrawal) | TAX-25, TAX-29, COL-37 |
 | désactivé | deactivated | press source | yes | everything; the period is never caught up | COL-09 |
@@ -2339,10 +2479,10 @@ Every set is a string-literal union in code and a text column in the database. V
 | refusé | refused | event of a research result; whole result; login; Telegram code | — | nothing of the content beyond position, type, date and reason | IMP-19, IMP-31, TRV-61, TEL-31 |
 | ignoré | ignored | research-result event outside the request's scope | — | position, type, date and reason | IMP-19 |
 | abandonné | discarded | Telegram message become moot; import preview or draft | — | the fact in the app | TEL-23, IMP-03 |
-| masqué | hidden | incident on Home | yes | the incident, still open and journaled | IHM-20 |
-| clos | closed | incident; alert sheet (« close ») | incident: no; sheet: no | everything | TRV-45, ALE-26 |
+| masqué | hidden | incident on Home: the owner's only action on an incident | yes | the incident, still open and journaled | IHM-20, CL-IHM-20 |
+| clos | closed | incident (only automatically, when its cause disappears); alert sheet (« close ») | incident: no; sheet: no | everything | TRV-45, ALE-26, CL-TRV-11 |
 
-How to tell the two « retiré » apart: an event has no "withdrawn" status. "Withdraw" applied to an event always means erasing it; applied to a player, a type or a source it is a status change that erases nothing. Code never stores `withdrawn` on an event; `withdrawEvent()` lives in the sensitive-data module and the UI button of the withdrawal screen reads "Withdraw and erase".
+How to tell the two « retiré » apart: « retiré » stays one verb in French and in English. An event never has a "Withdrawn" status: the event action is always labeled "Withdraw and erase" and named "event withdrawal" (`withdrawEvent()`, in the module map's `withdrawal` module). The bare "Withdraw" and the "Withdrawn" status belong to players, types and sources only, where they erase nothing. Code never stores `withdrawn` on an event.
 
 **One French word, several things.**
 
@@ -2362,7 +2502,7 @@ How to tell the two « retiré » apart: an event has no "withdrawn" status. "Wi
 | reprise | full redo (request kind); resumption (queue, run); reactivation (player); recurrence (incident); retry (message) | « reprise complète » is the only request kind; the rest are operations words. | BKT-09, DET-10, TRV-30, JOU-18, TEL-15, TEL-35 |
 | report, reporté, différé | postponement (task run); postponed (game); uncertain-precedence shift (case); deferred (message) | Four objects, four words. | TRV-28, STA-05, SEN-44, TEL-20 |
 | indice | performance index; corroborating clue | A number from the box score, versus a hint that disambiguates a name. | STA-12, DET-04 |
-| exploitable | usable (game); malformed (model response) | "Usable" is reserved for games. | STA-14, DET-22 |
+| exploitable | usable (game); malformed (model response); valid (source left after the import checks) | "Usable" is reserved for games. | STA-14, DET-22, IMP-14 |
 | antériorité | precedence (historical event); timing hint (« indication d'antériorité », classifier output) | Precedence compares sources with tip-off; the timing hint says a fact predates its article. | IMP-18, DET-16 |
 | doublon | duplicate article (dedup); possible duplicate type (exploration); possible duplicate (import); possible duplicate of a historical event (detection mark); duplicate (deletion and dismissal reasons) | Always qualify the object. | COL-30, TAX-17, IMP-25, DET-58, IMP-33 |
 | à faire | to do (request status); to-do list; to-do item | `to_do` is a status value; `TodoList` and `TodoItem` are the screen and its entries. | BKT-13, IHM-20 |
@@ -2379,7 +2519,7 @@ How to tell the two « retiré » apart: an event has no "withdrawn" status. "Wi
 | liaison, lien | Telegram link; link (URL) | The pairing with a chat versus an address. | TEL-28, DSN-08 |
 | écart | normalized gap; mean gap; control mean gap; announced gap; gap in forecast direction; coverage gap (« manque ») | Always qualified; « trou de collecte » is a "collection gap". | SEN-08, SEN-20, SEN-27, SUI-22, IMP-10, COL-46 |
 
-**Dates and instants.** « date de référence » (reference date, stored, with precision) ≠ « instant de référence » (reference instant, derived for the measured-game search) ≠ « date publique » (public date: a historical event's reference date as reported) ≠ « date de publication » (publication date of a source) ≠ « instant de publication retenu » (retained publication instant of an article) ≠ « instant de première collecte » (first-collection instant) ≠ « instant de création » (creation instant of a tracked case) ≠ « instant prévu de début » (scheduled start of a game) ≠ « coup d'envoi » (tip-off, the actual start; SEN-03 and SUI-06 compare with the scheduled start).
+**Dates and instants.** « date de référence » (reference date, stored) ≠ « instant de référence » (reference instant, derived for the measured-game search) ≠ « date publique » (public date: a historical event's reference date as reported) ≠ « date de publication » (publication date of a source) ≠ « instant de publication retenu » (retained publication instant of an article) ≠ « instant de première collecte » (first-collection instant) ≠ « instant de création » (creation instant of a tracked case) ≠ « date américaine » (US date of a game, its US Eastern date). One instant has two names: « instant prévu de début » (scheduled start) and « coup d'envoi » (tip-off) are the same instant, the game's scheduled start as last known; the actual start is never fetched nor used (CL-SEN-23, CL-SUI-13).
 
 **Games around an event.** « prochain match » (next game: next scheduled game of the current team, whoever plays) ≠ « match attendu » (expected game: first team game after the reference instant, shown before it is played) ≠ « match mesuré » (measured game: first game the player actually plays, established afterwards).
 
@@ -2387,7 +2527,7 @@ How to tell the two « retiré » apart: an event has no "withdrawn" status. "Wi
 
 ## 5. The nine candidate event types
 
-Seeded at first start-up as proposals of origin `scoping` with their starter sheets (TAX-15, annex of `docs/02-taxonomie-des-evenements.md`). The English identifier is the immutable slug: it replaces the French slug everywhere, prompts, JSON and examples included, and is never reused (TAX-02). The owner may rename a type before validating; the slug never changes.
+Seeded at first start-up as proposals of origin `scoping` with their starter sheets (TAX-15, annex of `docs/02-taxonomie-des-evenements.md`; English text in 5.1). The English identifier is the immutable slug: it replaces the French slug everywhere, prompts, JSON and examples included; the French slugs are never stored, shown or used, and an identifier is never reused (TAX-02, CL-TAX-02). The owner may rename a type before validating; the slug never changes.
 
 | French identifier | English identifier | English name | French name | Known in advance | Intimate subject | Documentation difficulty |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -2405,12 +2545,107 @@ Decisions:
 
 - `racist-abuse` / "Racist abuse": the usual English for racist remarks, gestures or messages aimed at a player; "racism suffered" is not idiomatic.
 - `bereavement`: short and discreet for an intimate subject, while the display name keeps the spec's wording, "Death of a loved one".
-- `birthday` and `former-team` are created by the app from the schedule (owner's decision on Q-TAX-01), not found in the press; they leave the research prompt and the backtest coverage. Their slugs exist all the same, because the sheets exist.
+- `birthday` and `former-team` are derived from the calendar (calendar-derived events, record 0015, CL-TAX-18), not found in the press; they never enter a request, a prompt or the backtest coverage (CL-BKT-03). Their slugs exist all the same, because the sheets exist, and their dating rule carries the fixed mark "derived from the calendar" (CL-TAX-20).
 - `record-approach` follows the French slug's structure; the name says "historic" rather than "all-time" because a franchise record or a career milestone qualifies.
+
+### 5.1 English starter sheets
+
+The English text of the annex drafts, seeded as written; the owner can change everything but the identifier before validating. Spec cross-references are left out, since the sheet is shown to the owner and sent to the research and detection AIs. The rulings change three drafts: the birthday drops its press-article criterion (CL-TAX-12), the former team keeps only the first meeting and loses its « Statut particulier » line (CL-TAX-15), both being derived from the calendar (record 0015); the media storm carries the coverage threshold 3 outlets within 2 days, whose sentence (section 7.2) is appended to the dating rule wherever the sheet is sent (CL-TAX-14). The French « Points de vigilance » are the "Caution notes".
+
+#### Public humiliation (`public-humiliation`)
+
+- **Documentation difficulty:** medium.
+- **Definition:** a public act or remark, by an identifiable author, that belittles or ridicules the followed player by name.
+- **Inclusion criteria:** the act or remark targets the player by name; it belittles him (mockery, contempt, doubt cast on his worth or status, a derisive gesture); its author is identifiable by role (opponent, coach, his own included, executive, media outlet, commentator); it is reported by at least one dated press article.
+- **Exclusion criteria:** criticism of a specific play in an ordinary game analysis; an anonymous social-media message the press does not pick up; a play suffered on the court, unless an identified author then mocks it publicly; racist remarks (type "Racist abuse"); a hostile exchange between the player and another player (type "Conflict between players"); a wave of criticism from several outlets with no single triggering remark (type "Media storm").
+- **Dating rule:** the moment the remark or act becomes public (live broadcast, publication), established by the first dated article that reports it.
+- **Example:** the day before a game, the coach of team X says at a press conference that player A is not at the level of a top player; a national outlet reports it that evening; the measured game is player A's game the next day.
+- **Caution notes:** the line between this and ordinary criticism is the most delicate of the list; the criterion "targets the player's worth, not a specific play" must be tried on a few real articles before validation.
+
+#### Racist abuse (`racist-abuse`)
+
+- **Documentation difficulty:** medium. **Intimate subject.**
+- **Definition:** the followed player is the target of racist remarks, gestures or messages reported by the press.
+- **Inclusion criteria:** the press reports that the player was personally targeted; the author is designated by role (spectator, opponent, public figure, author of online messages); the incident is dated.
+- **Exclusion criteria:** a general racist climate with no incident targeting the player; the player speaking about racism in general, with no incident targeting him; an incident targeting another player.
+- **Dating rule:** if the incident happened during a game, it is public from that moment, and the measured game is the next game; otherwise the date is that of the first dated article that reports it.
+- **Example:** during an away game, a spectator shouts racist insults at player A; a national outlet reports it the next day; the measured game is player A's next game.
+- **Caution notes:** intimate-subject mark; the description follows the sensitive-data rules (never the terms used, the author designated by role); only incidents the press reported can be found.
+
+#### Player's birthday (`birthday`)
+
+- **Documentation difficulty:** easy.
+- **Definition:** the followed player plays a game on his birthday.
+- **Inclusion criteria:** an official NBA game of his team falls on his birthday.
+- **Exclusion criteria:** a birthday with no game that day; the birthday of a loved one; the anniversary of another event (title, death, record).
+- **Dating rule:** known in advance and derived from the calendar: the reference date is the birthday itself, before tip-off, and the measured game is that day's game.
+- **Example:** player A turns thirty on the day of a game against team X; several outlets mention it that morning.
+- **Caution notes:** clean and datable by nature; its fact is read from the schedule rather than the press, which sets it apart from the other types.
+
+#### Approaching a positive historic record (`record-approach`)
+
+- **Documentation difficulty:** easy.
+- **Definition:** the press presents the followed player as able to equal or break a notable record in his next game.
+- **Inclusion criteria:** a dated article, published before the game, presents the record as within reach in that game; the record is individual (a league record, a record of his team's history, or a career milestone the press presents as historic).
+- **Exclusion criteria:** a team record; a record already broken; a statistical curiosity no outlet presents before the game; the following games, when the record is not broken in the first game presented as decisive, because a record gives only one event.
+- **Dating rule:** the first publication that presents the record as within reach in the next game.
+- **Example:** the day before a game, a national outlet writes that player A is only a few points short of the scoring record of team X's history.
+- **Caution notes:** the team may steer play toward the player to help him break the record, which inflates his performance index for reasons unrelated to ego; the event is defined by the approach, known before the game, never by the record being broken.
+
+#### Negative record to avoid (`negative-record`)
+
+- **Documentation difficulty:** easy.
+- **Definition:** the press presents the followed player as exposed, in his next game, to a notable negative outcome or record that he can still avoid.
+- **Inclusion criteria:** a dated article, published before the game, presents that game as the one where the negative outcome can happen, for example elimination by a sweep after trailing 3-0 in a series, a record losing streak or a negative personal record; the article names the player, not only his team.
+- **Exclusion criteria:** a situation presented as the team's without the player being named; a negative record already suffered; a threat mentioned only after the game.
+- **Dating rule:** the first publication that presents the next game as the one where the negative outcome can happen.
+- **Example:** player A's team X trails 3-0 in a playoff series; before game 4, a national outlet headlines the risk that player A suffers his first series sweep.
+- **Caution notes:** this type overlaps by construction with a high-stakes game, a known confounder; if elimination stakes are enough to exclude a case, almost all its cases will be excluded, unless the unusual-stakes criterion is switched off for the type; the line with a team event rests entirely on the criterion "the player is named".
+
+#### Death of a loved one (`bereavement`)
+
+- **Documentation difficulty:** medium. **Intimate subject.**
+- **Definition:** the death of a loved one of the followed player is made public.
+- **Inclusion criteria:** the press reports the death of a member of the player's family or of a person it presents as close to him; the news is dated.
+- **Exclusion criteria:** the death of a public figure with no personal tie to the player established by the press; the anniversary of a death; a loved one's illness.
+- **Dating rule:** the moment the death becomes public, that is its announcement, not the date of death if earlier.
+- **Example:** a national outlet announces the death of a loved one of player A two days before a game; player A plays that game.
+- **Caution notes:** intimate-subject mark; the description gives no name, family relationship or cause; the player may miss games, and his measured game is then the game of his return.
+
+#### Conflict between players (`player-conflict`)
+
+- **Documentation difficulty:** easy.
+- **Definition:** a public clash, verbal or physical, between the followed player and another player, opponent or teammate.
+- **Inclusion criteria:** the player is one of the parties; the clash is public (an altercation during a game, an exchange of statements, a dispute made public); it is reported by a dated article.
+- **Exclusion criteria:** a one-sided attack the player suffers without answering (type "Public humiliation"); the ordinary verbal exchanges of a game, which the press does not present as a conflict; a dispute with a coach or an executive (type "Public humiliation" if it belittles the player, no type otherwise).
+- **Dating rule:** the moment the conflict becomes public: during the game where it breaks out, the measured game then being the next one; otherwise, the first publication.
+- **Example:** at the end of a game, player A and a player of team X shout at each other; several outlets report the exchange; the measured game is player A's next game, whoever the opponent.
+- **Caution notes:** a suspension may follow a physical conflict, and the measured game is then the game of his return; if both players are followed, the conflict gives one event for each.
+
+#### Media storm (`media-storm`)
+
+- **Documentation difficulty:** hard.
+- **Definition:** a wave of negative coverage centered on the followed player, triggered by an identifiable public fact: a statement, a behavior, a controversy about his commitment.
+- **Inclusion criteria:** a public, dated triggering fact; critical articles from at least three distinct outlets within two days (the sheet's coverage threshold); the player is at the center of the coverage.
+- **Exclusion criteria:** an isolated critical remark (type "Public humiliation"); a conflict with another player (type "Conflict between players"); a racist incident (type "Racist abuse"); a controversy touching the player's private life or health.
+- **Dating rule:** the moment the coverage threshold is reached, that is the publication of the article that crosses it; one triggering fact gives only one event.
+- **Coverage threshold:** 3 distinct outlets within 2 days.
+- **Example:** after a statement by player A judged offhand, three national outlets publish critical articles about his commitment within two days; the measured game is player A's first game after the third article.
+- **Caution notes:** the least clean type of the list, whose dating depends on a threshold; it is hard to reconstruct afterwards, so a backtest will mostly find the storms that stayed famous, often because a striking answer on the court followed.
+
+#### Game against a former team (`former-team`)
+
+- **Documentation difficulty:** easy.
+- **Definition:** the followed player faces, for the first time since leaving it, an NBA team he played for.
+- **Inclusion criteria:** an official NBA game; the player played at least one official game for the opposing team; it is their first meeting since his departure.
+- **Exclusion criteria:** preseason or exhibition games; former teams outside the NBA; a team for which he played no official game.
+- **Dating rule:** known in advance and derived from the calendar: the reference date is the game's day, before tip-off, so that the measured game is that game itself.
+- **Example:** traded by team X during the summer, player A faces it for the first time in November; several outlets present the game as his reunion with team X.
+- **Caution notes:** like the birthday, this type is known in advance and read from the schedule rather than the press; its measured game is the event itself.
 
 ## 6. Exchange formats
 
-English keys and English allowed values, format version `1.0` (orchestrator ruling: no French-format data ever existed, so the import reads only these keys). Keys are fixed here; shapes, types and validation belong to the domain model and to 05 and 06. Unchanged from the specs: dates are `YYYY-MM-DD`, or `YYYY-MM-DDTHH:MM±HH:MM` when the time is known; enumerated values are lowercase; an optional field without content is omitted; `null` is never used; free texts follow the wording rules of 13 and the maximum description length, and are written in English (titles stay as published).
+English keys and English allowed values, format version `1.0` (CL-BKT-02: the French-keyed form is never implemented, and a French key is an unknown field, IMP-16). Keys are fixed here; shapes, types and validation belong to the domain model and to 05 and 06. Unchanged from the specs: dates are `YYYY-MM-DD`, or `YYYY-MM-DDTHH:MM±HH:MM` when the time is known; enumerated values are lowercase; an optional field without content is omitted; `null` is never used; free texts follow the wording rules of 13 and the maximum description length, and are written in English (titles stay as published).
 
 ### 6.1 Research result (`docs/05`, `docs/06`)
 
@@ -2440,7 +2675,7 @@ English keys and English allowed values, format version `1.0` (orchestrator ruli
 | `evenements[].contexte.enjeu_du_match` | `events[].context.game_stakes` | `high`, `normal`, `unknown`. |
 | `evenements[].contexte.precision` | `events[].context.detail` | Optional; shown in the preview, never stored. |
 | `evenements[].confiance` | `events[].confidence` | Research confidence: `high`, `medium`, `low`. |
-| `evenements[].non_verifie` | `events[].unverified_note` | Optional. |
+| `evenements[].non_verifie` | `events[].unverified_note` | Optional; the spec's « réserve », stored (CL-IMP-03). |
 | `pistes_non_verifiees` | `unverified_leads` | List, possibly empty. |
 | `pistes_non_verifiees[].type_evenement` | `unverified_leads[].event_type` | Optional. |
 | `pistes_non_verifiees[].periode_approximative` | `unverified_leads[].approximate_period` | Optional, e.g. "2020-21 season". |
@@ -2488,15 +2723,15 @@ Prompt placeholders (BKT-22; « Parties variables du prompt »):
 | `{{SOURCES_MAX}}` | `{{MAX_SOURCES}}` |
 | `{{VERSION_FORMAT}}` | `{{FORMAT_VERSION}}` |
 
-Section titles of the reference prompt (BKT-21): « MISSION » → "MISSION"; « RÈGLES IMPÉRATIVES » → "MANDATORY RULES"; « TYPES D'ÉVÉNEMENTS À RECHERCHER » → "EVENT TYPES TO RESEARCH"; « FORMAT DE LA RÉPONSE » → "ANSWER FORMAT"; « SI TU NE TROUVES RIEN » → "IF YOU FIND NOTHING"; « AVANT DE RÉPONDRE, VÉRIFIE » → "BEFORE ANSWERING, CHECK". The rule names 2.1 to 2.11: Exhaustiveness, No statistics, Sources, Nothing invented, Public date, Discretion, Context, Confidence, One fact, one event, Out of scope, Length.
+The English research prompt, with its section titles and rule names, is in 6.3.
 
 ### 6.2 Exploration response (`docs/02`, TAX-16, TAX-17)
 
-The spec describes the elements in plain language only; these keys are their names. The return follows the general rules of 6.1.
+The spec describes the elements in plain language only; these keys are their names, which CL-TAX-04 takes as they are. The response follows the general rules of 6.1: `proposed_types` is required and may be empty, and in each item only `name` is required (CL-TAX-04).
 
 | French element | English key | Notes |
 | --- | --- | --- |
-| nom du format | `format` | Fixed value `egoscope-exploration` (unchanged); any other value is refused by the exploration screen, and this one by the import. |
+| nom du format | `format` | Fixed value `egoscope-exploration` (unchanged); any other value, `egoscope-backtest` included, is refused by the exploration screen with "This text is not an exploration response." (CA-TAX-17), and this one by the import. |
 | version du format | `format_version` | `1.0`. |
 | liste des types proposés | `proposed_types` | List. |
 | nom | `proposed_types[].name` | — |
@@ -2504,14 +2739,109 @@ The spec describes the elements in plain language only; these keys are their nam
 | critères d'inclusion | `proposed_types[].inclusion_criteria` | — |
 | critères d'exclusion | `proposed_types[].exclusion_criteria` | — |
 | règle de datation | `proposed_types[].dating_rule` | — |
-| indication « connu à l'avance » | `proposed_types[].known_in_advance` | Part of the dating rule (TAX-01). |
+| indication « connu à l'avance » | `proposed_types[].known_in_advance` | Boolean, part of the dating rule (TAX-01); sets only the "known in advance" mark, never "derived from the calendar" (CL-TAX-20). |
 | exemple générique sans personne réelle | `proposed_types[].generic_example` | — |
 | difficulté de documentation | `proposed_types[].documentation_difficulty` | `easy`, `medium`, `hard` (French: facile, moyenne, difficile). |
-| recouvrements possibles avec les types existants | `proposed_types[].possible_overlaps` | — |
-| sources d'illustration publiques et datées | `proposed_types[].illustration_sources` | List. |
+| recouvrements possibles avec les types existants | `proposed_types[].possible_overlaps` | List of strings, one sentence per possible overlap with an existing type (CL-TAX-04). |
+| sources d'illustration publiques et datées | `proposed_types[].illustration_sources` | List of source objects exactly as `events[].sources[]`; one failing the IMP-14 checks is dropped with a warning (CL-TAX-04). |
 | lien, média, titre, date de publication | `illustration_sources[].url`, `.outlet`, `.title`, `.publication_date` | Same keys as a research-result source. |
 
 The exploration prompt itself (TAX-16) has no fixed placeholders in the specs; it sends validated types (name, definition) and the do-not-repropose list (name, definition, rejection reason).
+
+### 6.3 The research prompt in English (BKT-21, CL-BKT-02)
+
+The one fixed English template: the reference text of `docs/05` translated rule by rule, with only the changes of CL-BKT-02 — free texts asked in English, article titles kept as published, no calendar-derived type ever listed (CL-BKT-03), rule 2.5 without its birthday example — and the English keys of 6.1. Every date it shows is `YYYY-MM-DD`. The placeholders are those of 6.1, all replaced before display; an empty sheet element becomes "not provided" (BKT-22). A sheet with a coverage threshold gets the sentence of section 7.2 at the end of its dating rule (CL-TAX-14).
+
+```text
+DEEP RESEARCH — EVENT HISTORY OF AN NBA PLAYER
+Request issued by Egoscope, a personal app.
+Request reference: {{REFERENCE}}
+Today's date: {{TODAY}}
+Player: {{PLAYER_NAME}} (ID {{PLAYER_ID}}), {{PLAYER_MARKER}}
+
+1. MISSION
+Draw up the exhaustive list of the events that may have affected this player's ego and that became public {{PERIOD}}, for each of the types defined in point 3, over the period given for each type. This list will feed a statistical study: does this player play better, worse, or neither after this kind of event? The study is worth something only if the list is complete and true.
+
+2. MANDATORY RULES
+2.1 Exhaustiveness. Report every event that meets the criteria of a type, whether the player then played well, played badly or did not play. Never leave out an event because of the game that followed, and do not limit yourself to striking stories: a sorted history would distort the study.
+2.2 No statistics. Do not look for, use or cite game statistics or scores. They will be fetched elsewhere, and knowing them could steer your sorting.
+2.3 Sources. Only public, dated press articles: sports press, general press, news archives, in every useful language, English in particular. No social networks, forums, collaborative encyclopedias, or videos without an article. Each event you keep must have at least one source published before the first NBA game the player played after the event: keep the oldest sources possible. Give the exact address of the article, never that of a home page or a search page. For each source, give its publication date, with the time and the UTC offset when the article shows them.
+2.4 Nothing invented. Never invent a fact, a date, an address, a title or an outlet, and cite only articles whose existence you have checked. A fact you cannot support this way, or whose sources all postdate the game that followed, goes in "unverified_leads", never in "events". What remains doubtful about a kept event goes in its "unverified_note" field. The seasons, types or sources you could not explore properly go in "limitations". A shorter but true list is better than a list completed with guesses.
+2.5 Public date. It is the moment the fact became public, according to the dating rule of the type (point 3): usually the date of the first source that reports it; for a fact known in advance, the day it happens. Add the time and the UTC offset when a source gives them.
+2.6 Discretion. Describe each event in one factual, neutral sentence, in English, of at most {{MAX_TEXT_LENGTH}} characters: who, designated by role, did what to the player, and what kind of outlet reported it. Designate every person other than the player by role (an opponent, a teammate, a coach, an executive, a spectator, a loved one), never by name. Summarize what was said: no quotation between quotation marks, no insult copied. No value judgment, no interpretation of the player's feelings, no forecast. No intimate detail: for a bereavement, say only that a loved one died, with no name, family relationship, cause, circumstances or funeral; for racist remarks, neither the terms used nor the player's origin, skin color, nationality or religion; no health information (diagnosis, nature of an injury or illness, treatment, mental health); nothing about family, love life, home, finances, opinions or beliefs; for a legal matter, say only that the player is publicly implicated, without the alleged facts or the other parties. These rules also apply to the "detail" and "unverified_note" fields, the leads and the limitations; article titles, however, are copied as published.
+2.7 Context. For the first NBA game the player played after the event, say whether he was returning from injury, that is whether the press presents this game as his return, or as one of his first games, after an absence due to an injury, without ever specifying the injury; and whether the stakes were high, that is whether the outcome of this game directly decided a qualification, an elimination, a title or a final ranking. Answer "unknown" when you cannot establish it, or when this game has not been played yet. No statistics, no score.
+2.8 Confidence. "high": at least two sources from different outlets, a certain public date, the criteria of the type clearly met. "medium": a single source, or a slight doubt about the date or a criterion. "low": a fact established by a source, but its type or its public date uncertain.
+2.9 One fact, one event. A fact reported by several articles is one event, with at most {{MAX_SOURCES}} sources, oldest first. A fact that seems to belong to two types goes under the one type whose sheet fits it best.
+2.10 Out of scope. Ignore the facts that became public outside the requested period, those that target the whole team rather than the player (unless the sheet of the type provides for it) and any type not defined in point 3.
+2.11 Length. Never shorten the list: no ellipsis, no "etc.", no summary. If everything does not fit in one answer, process the period in chronological order, stop at the end of a complete season and give in "covered_period" the end date actually covered: the rest will be requested separately.
+
+3. EVENT TYPES TO RESEARCH
+{{TYPE_BLOCK_START}}
+Type "{{TYPE_ID}}": {{TYPE_NAME}}
+Period to cover: {{TYPE_PERIOD}}
+Definition: {{TYPE_DEFINITION}}
+Inclusion criteria: {{TYPE_INCLUSION}}
+Exclusion criteria: {{TYPE_EXCLUSION}}
+Dating rule: {{TYPE_DATING_RULE}}
+Example: {{TYPE_EXAMPLE}}
+{{TYPE_BLOCK_END}}
+
+4. ANSWER FORMAT
+Your answer consists only of one valid JSON object: no text before or after it, no formatting tags, no footnote calls or citation markers. If your tool still adds a report, the complete JSON must appear in one piece at the very end. Expected structure, where each value describes what to put there:
+{
+  "format": "egoscope-backtest",
+  "format_version": "{{FORMAT_VERSION}}",
+  "request_reference": "{{REFERENCE}}",
+  "player": { "id": "{{PLAYER_ID}}", "name": "{{PLAYER_NAME}}" },
+  "covered_types": {{TYPE_LIST}},
+  "covered_period": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+  "events": [
+    {
+      "event_type": "ID of a type of point 3",
+      "public_date": "YYYY-MM-DD, or YYYY-MM-DDTHH:MM±HH:MM if the time is known",
+      "description": "one factual sentence in English",
+      "sources": [
+        {
+          "url": "full address of the article, starting with https:// or http://",
+          "outlet": "name of the outlet",
+          "title": "exact title of the article, in its own language",
+          "publication_date": "same format as public_date"
+        }
+      ],
+      "context": {
+        "injury_return": "yes, no or unknown",
+        "game_stakes": "high, normal or unknown",
+        "detail": "optional: one sentence, with no statistic, score or health detail"
+      },
+      "confidence": "high, medium or low",
+      "unverified_note": "optional: what you could not verify"
+    }
+  ],
+  "unverified_leads": [
+    {
+      "event_type": "optional: ID of a type of point 3",
+      "approximate_period": "optional: for example the 2020-21 season",
+      "description": "one factual sentence in English",
+      "reason": "why this fact could not be supported"
+    }
+  ],
+  "limitations": ["one sentence per limitation of your research"]
+}
+Format rules: keep in "covered_types" only the types actually researched; "covered_period" gives the period actually processed; sort the events by ascending public date, all types mixed; write [] for a list without content; omit an optional field rather than leave it empty; add no other field; use straight quotation marks only.
+
+5. IF YOU FIND NOTHING
+If no fact meets the criteria, send back the same object with "events": []. It is a valid and useful answer: invent nothing to fill it.
+
+6. BEFORE ANSWERING, CHECK
+- that your answer contains only the JSON, complete and valid;
+- that the reference {{REFERENCE}} and the ID {{PLAYER_ID}} are copied exactly;
+- that each event has at least one source published before the NBA game that followed it;
+- that no field contains a statistic, a score or an intimate detail;
+- that no person other than the player is named and that no description, detail, unverified note, lead or limitation contains quotation marks;
+- that you left out no event because of the game that followed.
+```
+
+The placeholder texts, in English: `{{PLAYER_MARKER}}` is "first NBA game on YYYY-MM-DD" or "first NBA game date to be established"; `{{PERIOD}}` and `{{TYPE_PERIOD}}` are "from YYYY-MM-DD to YYYY-MM-DD inclusive" or "from his first NBA game to YYYY-MM-DD inclusive"; `{{TYPE_LIST}}` is the JSON list of the requested IDs in the block order, for example `["public-humiliation", "record-approach"]` (the blocks follow the alphabetical order of the IDs).
 
 ## 7. Fixed sentences and labels
 
@@ -2528,9 +2858,8 @@ Wording the specs quote and require as written. The English is the approved text
 | connue après le coup d'envoi : cette fiche n'a pas pu être lue avant le match | known after tip-off: this sheet could not be read before the game | ALE-24 |
 | les cas passés ne permettent pas de dire que le joueur A réagit à ce type d'événement | past cases do not show that player A reacts to this type of event | ALE-13 |
 | par le passé, après ce type d'événement, le joueur A a joué en moyenne en dessous de sa moyenne de saison | in the past, after this type of event, player A played on average below his season average | ALE-10 |
-| le joueur a tendance à jouer moins bien après ce type d'événement | the player has tended to play worse after this type of event | ALE-16 |
-| un effet inverse reste possible et serait compté au même titre | an opposite effect remains possible and would count the same way | ALE-16 |
-| l'effet, s'il existe, peut aller dans les deux sens | the effect, if any, can go either way | ALE-16 |
+| un effet inverse reste possible ; il serait mesuré et compté au même titre | an opposite effect remains possible and would be measured and counted the same way | ALE-16, CL-ALE-03 (one sentence for an increase and a decrease) |
+| l'effet, s'il existe, peut aller dans les deux sens | the effect, if any, can go either way | ALE-16, CL-ALE-03 (below the threshold or inconclusive) |
 
 ### 7.2 Labels and mentions on profiles, cases and sheets
 
@@ -2590,6 +2919,30 @@ Wording the specs quote and require as written. The English is the approved text
 | correspondance à établir | mapping to establish | JOU-10 |
 | période non collectée (source désactivée) | uncollected period (source deactivated) | COL-09 |
 | en panne depuis…, muette depuis… | down since…, silent since… | COL-40, IHM-36 |
+| le type se reconnaît à un fait public et observable | The type is recognized by a public, observable fact. | TAX-12 |
+| les critères permettent de trancher par oui ou par non | The criteria allow a yes-or-no decision. | TAX-12 |
+| aucun fait ne relève à la fois de ce type et d'un autre type validé | No fact belongs both to this type and to another validated type. | TAX-12 |
+| le fait vise nommément un joueur | The fact targets a player by name. | TAX-12 |
+| aucun critère ne dépend du match mesuré | No criterion depends on the measured game. | TAX-12 |
+| la règle de datation donne une date de référence unique, établie par une source de presse datée | The dating rule gives a single reference date, established by a dated press source. (Calendar-derived types: "established by the schedule".) | TAX-12, CL-TAX-20 |
+| la difficulté de documentation est indiquée | The documentation difficulty is given. | TAX-12 |
+| l'exemple ne nomme aucune personne réelle | The example names no real person. | TAX-12 |
+| — (CL-JOU-04) | already followed as {name} | CL-JOU-04 |
+| — (CL-JOU-20) | without team | CL-JOU-20 |
+| — (CL-JOU-03) | unconfirmed / confirmed by the game of {date} | CL-JOU-03 |
+| — (CL-JOU-16) | birthday not recorded: no birthday events | CL-JOU-16, CL-STA-24 |
+| — (CL-STA-24) | Birthday games are counted from the {season} season on. | CL-STA-24 |
+| — (CL-JOU-18) | Team history starts with the {season} season. | CL-JOU-18, CL-STA-24 |
+| — (CL-TAX-14) | Coverage threshold: {N} distinct outlets within {D} days. | CL-TAX-14 |
+| — (record 0016) | Criterion switched off for this type: {criterion}. The effect cannot be separated from it. | record 0016, CL-SEN-13 |
+| — (CL-STA-06) | The source rounds minutes to the nearest minute. | CL-STA-06 |
+| — (CL-SEN-11) | The stats source does not report ejections, so an ejection is flagged only if you notice it. | CL-SEN-11 |
+| — (record 0015) | derived from the calendar | CL-ALE-13, CL-IHM-21 |
+| — (CL-DSN-04) | Events withdrawn or declined for sensitivity, deleted players' events included; one fact can count more than once. | CL-DSN-04 |
+| même si l'effet est réel, l'écart des cas suivis sera en général plus faible que l'écart annoncé, car les profils retenus sont en partie ceux que le hasard a favorisés | Even if the effect is real, the gap of tracked cases will usually be smaller than the announced gap, because the profiles kept are partly those chance favored. | SUI-28 |
+| avec de nombreuses lignes, certaines paraîtront confirmées par hasard | With many rows, some will look confirmed by chance. | SUI-28 |
+| la ligne d'ensemble est la première à réunir assez de cas pour dire quelque chose | The overall row is the first to gather enough cases to say anything. | SUI-28 |
+| sortie / entrée / changement de match mesuré (décisions après le coup d'envoi) | left the counts / entered the counts / measured game changed | SUI-17, CL-SUI-10 |
 
 ### 7.3 Backtest requests, the prompt and the import
 
@@ -2630,21 +2983,53 @@ Wording the specs quote and require as written. The English is the approved text
 | ce texte n'est pas un résultat de backtest | This text is not a backtest result. | IMP-06 |
 | (retour d'exploration refusé) ce texte n'est pas un retour d'exploration | This text is not an exploration response. | TAX-17 |
 | cette demande a été annulée le … : importer quand même ? | This request was canceled on …: import anyway? | IMP-08 |
-| Le texte s'arrête avant la fin du résultat : il manque la fin du 38e événement. Recopiez toute la réponse, ou demandez à l'IA une réponse plus courte. | The text stops before the end of the result: the end of the 38th event is missing. Copy the whole answer again, or ask the AI for a shorter one. | IMP-20 |
-| 4e événement (humiliation-publique, 2021-02-30) : cette date n'existe pas. Indiquez la date publique au format AAAA-MM-JJ. | 4th event (public-humiliation, 2021-02-30): this date does not exist. Give the public date as YYYY-MM-DD. | IMP-20 |
-| 7e événement : "www.media-national.example" n'est pas l'adresse complète d'un article. Donnez l'adresse complète, qui commence par https://. | 7th event: "www.national-outlet.example" is not the full address of an article. Give the full address, starting with https://. | IMP-20 |
-| 9e événement : la source est datée du 2020-03-02, avant la date publique du 2020-03-05. Corrigez la date publique ou retirez cette source. | 9th event: the source is dated 2020-03-02, before the public date of 2020-03-05. Correct the public date or remove this source. | IMP-20 |
+| (endroit) le résultat entier, ou l'événement désigné par son rang, son type et sa date | the whole result / Event {n} ({type as read}, {date as read}) / Event {n} ({type}, {date}), source {k} / Lead {k} / Limitation {k} | IMP-20, CL-IMP-02 |
+| (type ou date manquant ou illisible) | (no type) / (no date) | CL-IMP-02 |
+| Le texte s'arrête avant la fin du résultat : il manque la fin du 38e événement. Recopiez toute la réponse, ou demandez à l'IA une réponse plus courte. | The text stops before the end of the result: event 38 is cut off. Copy the whole answer again, or ask the AI for a shorter one. | IMP-20, CL-IMP-02 |
+| 4e événement (humiliation-publique, 2021-02-30) : cette date n'existe pas. Indiquez la date publique au format AAAA-MM-JJ. | Event 4 (public-humiliation, 2021-02-30): this date does not exist. Give the public date as YYYY-MM-DD. | IMP-20, CL-IMP-02 |
+| 7e événement : "www.media-national.example" n'est pas l'adresse complète d'un article. Donnez l'adresse complète, qui commence par https://. | Event 7 ({type}, {date}), source {k}: "www.national-outlet.example" is not the full address of an article. Give the full address, starting with https://. | IMP-20, CL-IMP-02 |
+| 9e événement : la source est datée du 2020-03-02, avant la date publique du 2020-03-05. Corrigez la date publique ou retirez cette source. | Event 9 ({type}, 2020-03-05), source {k}: the source is dated 2020-03-02, more than one day before the public date. Correct the public date or remove this source. | IMP-20, CL-IMP-02, CL-IMP-11 |
 | Ce résultat concerne le joueur B, alors que cette demande concerne le joueur A. | This result is about player B, but this request is about player A. | IMP-20 |
 | Aucun résultat reconnaissable : vérifiez que vous avez copié toute la réponse de l'IA. | No recognizable result: check that you copied the AI's whole answer. | 06 edge cases |
 | N événements refusés manqueront au backtest tant qu'ils n'auront pas été corrigés et réimportés | N refused events will be missing from the backtest until they are corrected and imported again | IMP-24 |
 | aucun événement nouveau | no new event | 06 edge cases |
-| vers le 12e événement | around the 12th event | IMP-06 |
+| vers le 12e événement | around event 12 | IMP-04 |
+| (texte trop volumineux) | The pasted text is {size} MB, over the {limit} MB limit. | IMP-02, CL-IMP-27 |
+| (contrôle des guillemets) | {field} contains a quotation mark ({character}). Quotations are not allowed: summarize what was said instead. | DSN-21, CL-DSN-03, CL-IMP-05 |
+| ne pas enregistrer (pour le seul motif « donnée sensible ») | Don't record — sensitive data | IMP-37, CL-IMP-28 |
+| — (CL-IMP-28) | Matches an event you withdrew | CL-IMP-28 |
+| — (CL-IMP-28) | {n} of the events to record match an event you withdrew. Recording them takes those withdrawals back. | CL-IMP-28 |
 | type non validé à ce jour | type not validated to date | TAX-31, IMP-11 |
 | introuvable | not found | IMP-17 |
 | conforme / non conforme / inaccessible | consistent / inconsistent / inaccessible | IMP-23 |
 | même fait / faits distincts / événements distincts | same fact / distinct facts / distinct events | IMP-25, IMP-26 |
 | non enregistré pour donnée sensible / donnée sensible | not recorded: sensitive data / sensitive data | IMP-19, IMP-37 |
 | le texte collé n'est pas conservé | the pasted text is not kept | 13 acceptance criteria |
+
+Correction message for the research AI (CL-IMP-04): composed only when the result is refused, cut or holds refused events; English, never stored; it quotes no description or other free text. Its parts, in this order:
+
+| Part | English | IDs |
+| --- | --- | --- |
+| 1. Title | Correction request for an Egoscope backtest result | CL-IMP-04 |
+| 2. Reference | Request reference: {reference}. Format version: 1.0. | CL-IMP-04 |
+| 3. Instruction | The result you returned cannot be imported as it is. Correct the problems listed below and send back the complete corrected result: one JSON object in one piece, with no text before or after it, no code fence and no citation marker. Keep the other events unchanged. Invent nothing: a fact you cannot support with a dated public press article published before the next NBA game the player played goes in "unverified_leads", never in "events". | CL-IMP-04, IMP-21 |
+| 4. Cut result only | Your answer stopped before the end of the JSON object{, during event {n}}. Send the whole result again. If it does not fit in one answer, process the period in chronological order, stop at the end of a complete season and set "covered_period.end" to the last day you actually covered; the rest will be requested separately. | CL-IMP-04, IMP-21 |
+| 5. List | Problems to correct: then one numbered line per problem, whole-result problems first, then refused events by position and, within an event, by field in the order of the format: "{n}. {location} — {key}: {what is wrong}. {expected correction}" | CL-IMP-04, CL-IMP-02 |
+
+Expected correction per refusal reason (`ImportRefusalReason`, section 4):
+
+| Reason | Expected correction |
+| --- | --- |
+| `type_missing` | Give in "event_type" the ID of one of the requested types. |
+| `type_unknown` | Use the ID of one of the requested types, exactly as given in point 3 of the prompt. |
+| `public_date_missing` | Give the public date as YYYY-MM-DD, or YYYY-MM-DDTHH:MM±HH:MM if the time is known. |
+| `public_date_malformed` | Write the public date as YYYY-MM-DD, or YYYY-MM-DDTHH:MM±HH:MM if the time is known. |
+| `public_date_nonexistent` | Give a date that exists, as YYYY-MM-DD. |
+| `description_missing` | Write one factual sentence in English, following rule 2.6. |
+| `description_too_long` | Shorten the description to {max} characters at most, following rule 2.6. |
+| `description_quotation_mark` | Remove the quotation mark ({character}): summarize what was said instead of quoting it (rule 2.6). |
+| `no_valid_source` | Give at least one source: the full address of a dated public press article, with its outlet, title and publication date (rule 2.3). |
+| `source_before_public_date` | Correct the public date, or remove the sources published more than {n} day before it. |
 
 ### 7.4 Interface
 
@@ -2665,16 +3050,23 @@ Wording the specs quote and require as written. The English is the approved text
 | aucun événement de ce type trouvé par le backtest du … | no event of this type found by the backtest of … | IHM-56 |
 | une alerte naît quand un joueur profilé vit un nouvel événement | an alert is produced when a profiled player has a new event | IHM-56 |
 | Écarter / Réintégrer | Dismiss / Reinstate | IHM-32 |
-| Retirer | Withdraw | IHM-67, IHM-68 |
-| (bouton de confirmation de l'écran de retrait) | Withdraw and erase | IHM-68 |
+| Retirer (un joueur, un type, une source) | Withdraw | JOU-19, TAX-31, COL-10 |
+| Retirer (un événement) ; bouton de l'écran de retrait | Withdraw and erase | IHM-67, IHM-68, CL-VUE-04 |
 | Rétablir la valeur par défaut | Restore default | IHM-37 |
 | tous les profils seront recalculés | all profiles will be recalculated | IHM-37 |
 | tout afficher | show all | IHM-27 |
 | Choisir votre mot de passe | Choose your password | IHM-06 |
 | Hors connexion — données du … à … | Offline — data from … at … | IHM-57 |
-| mer. 18 nov. à 1 h 30 — mardi soir aux États-Unis | Wed 18 Nov at 01:30 — Tuesday evening in the US | IHM-14 |
-| mercredi 11 novembre 2026 à 5 h 10, heure de Paris | Wednesday 11 November 2026 at 05:10, Paris time | CA-COL-06, TRV-71 |
+| mer. 18 nov. à 1 h 30 — mardi soir aux États-Unis | Wed 18 Nov 2026, 01:30 — Tuesday evening in the US | IHM-14, CL-IHM-07 |
+| mercredi 11 novembre 2026 à 5 h 10, heure de Paris | Wednesday 11 November 2026, 05:10 Paris time | CA-COL-06, CL-COL-22, record 0010 |
+| mercredi 11 novembre 2026 à 4 h 30, heure de Paris (CA-TRV-36) | Wednesday 11 November 2026, 04:30 Paris time — Tuesday evening in the US | CA-TRV-36, CL-TRV-02 |
 | heure de Paris | Paris time | TEL-04, IHM-14 |
+| — (CL-IHM-04) | Times in Paris time | CL-IHM-04 |
+| — (CL-IHM-07) | morning / afternoon / evening (the part of day of the US Eastern start: before 12:00, 12:00 to 16:59, from 17:00) | CL-IHM-07 |
+| — (CL-IHM-19) | This item no longer exists | CL-IHM-19, CL-DSN-05 |
+| — (CL-TRV-23) | Statistics: waiting for the source's daily refresh (last refresh {instant}); next check at {time}; cut-off at {time} | CL-TRV-23 |
+| — (CL-TRV-23) | Last night's games not yet published by the source (last refresh {instant}); next attempt tomorrow at {start} | CL-TRV-23 |
+| — (CL-TRV-10) | an event was withdrawn / an item that no longer exists / a deleted player | CL-TRV-10, CL-JOU-24 |
 | dernière collecte il y a 3 jours | last collection 3 days ago | TRV-32 |
 | modèle de langage : 412 appels sur 1 000 aujourd'hui, remise à zéro à 1 h | Language model: 412 of 1,000 calls today, resets at 01:00 | TRV-46 |
 | Le flux du média national n'a pas répondu ce soir, pour la deuxième fois de suite. Ses articles ne sont plus collectés depuis le 9 novembre. Que faire : ouvrez la liste des sources et vérifiez son adresse ; si le média en a changé, remplacez-la. | The national outlet's feed did not answer tonight, for the second time in a row. Its articles have not been collected since 9 November. What to do: open the list of sources and check its address; if the outlet changed it, replace it. | TRV-42 |
@@ -2683,6 +3075,26 @@ Wording the specs quote and require as written. The English is the approved text
 | tâche non exécutée / connexions refusées / sauvegarde en échec | task not run / logins refused / backup failed | TRV-31, TRV-61, TRV-50 |
 | normal / dégradé / indisponible | normal / degraded / unavailable | TRV-46 |
 | réalisée / partielle / non réalisée | done / partial / not done | TRV-79 |
+
+Limits recalled before a withdrawal (CL-DSN-19), in this order, after "A withdrawal answers a sensitivity reason and never depends on the game that followed.":
+
+| Limit | English | IDs |
+| --- | --- | --- |
+| Telegram (Lot 2) | {n} messages already sent mention this event. Telegram may refuse to delete the older ones; they then stay in the chat for you to delete. | CL-DSN-19, CL-TEL-09 |
+| Backups | Backups keep this event until they rotate out, at most {horizon}. A restore made before then withdraws it again, except a restore into a new database without the old one. | CL-DSN-19, CL-TRV-06 |
+| Exports | Exports you already downloaded keep it; deleting them is up to you. | CL-DSN-19 |
+| Devices | A device left offline shows it until its next refresh. | CL-DSN-19 |
+| Return | Until {horizon end}, detection will not recreate it and a later import will flag it; after that, collection or a later backtest can bring it back, to decline or withdraw again. | CL-DSN-19 |
+| Calendar-derived event | A later full derivation can bring it back once {horizon} have passed; excluding its case is the permanent alternative. | CL-DSN-19, CL-DSN-09 |
+
+Restore summary warnings (CL-TRV-06):
+
+| When | English | IDs |
+| --- | --- | --- |
+| Always | Changes made after {backup date} — imports, corrections, dismissals, requalifications, settings — are lost. | CL-TRV-06 |
+| The ledger was not carried over | The withdrawal ledger could not be carried over: events withdrawn after {backup date} may be back and must be withdrawn again. | CL-TRV-06 |
+| The file is older than the fingerprint horizon | This file is older than the fingerprint horizon: events withdrawn between {file date} and {horizon start} may be back. | CL-TRV-06 |
+| Events to check | Events to check: several events, or none on the day but some close to it, match a withdrawal. | CL-TRV-06 |
 
 ### 7.5 Telegram
 
@@ -2703,7 +3115,7 @@ Wording the specs quote and require as written. The English is the approved text
 | Egoscope · Nouveau type proposé | Egoscope · New type proposed | TEL-14 |
 | proposition de nouveau type à valider | new type proposal to validate | TAX-18, TEL-14 |
 | Egoscope · Incident — {nature} / Egoscope · Incident résolu — {nature} | Egoscope · Incident — {nature} / Egoscope · Incident resolved — {nature} | TEL-15 |
-| source de presse en panne / collecte impossible / source muette / quota de classification atteint / statistiques indisponibles | press source down / collection impossible / silent press source / classification quota reached / statistics unavailable | TEL-15 |
+| source de presse en panne / collecte impossible / source muette / quota de classification atteint / statistiques indisponibles | press source down / collection impossible / silent press source / classification quota reached / stats source unavailable | TEL-15 |
 | Pendant la plage de silence | During quiet hours | TEL-20 |
 | Egoscope est relié à cette conversation. | Egoscope is linked to this chat. | TEL-16 |
 | Vous recevrez ici les notifications activées dans les réglages. Rien ne se fait depuis Telegram : chaque message contient un lien vers l'application. | You will receive here the notifications turned on in settings. Nothing is done from Telegram: each message links to the app. | TEL-16 |
@@ -2713,6 +3125,16 @@ Wording the specs quote and require as written. The English is the approved text
 | plafond atteint | daily cap reached | TEL-22 |
 | après le coup d'envoi | after tip-off | TEL-23 |
 | urgent | urgent | TEL-21 |
+| Egoscope · Backtest à faire — le joueur B (échéance modifiée) | Egoscope · Backtest to do — player B, deadline changed | TEL-09, CL-TEL-18 |
+| — (CL-TEL-11) | Egoscope · Digest — {task name}, {date}, {time} Paris time | CL-TEL-11 |
+| message d'essai | Egoscope · Test message | TEL-29, CL-TEL-19 |
+| — (CL-TEL-19) | This is a test: notifications reach this chat. Sent {date}, {time} Paris time. | CL-TEL-19 |
+| message de rattrapage | Egoscope · Catch-up | TEL-36, CL-TEL-12 |
+| — (CL-TEL-12) | Not received between {start} and {end}: | CL-TEL-12 |
+| plafond atteint | Egoscope · Daily cap reached | TEL-22, CL-TEL-07 |
+| — (CL-TEL-07) | {n} messages sent today. Nothing more will be sent before 00:00 Paris time tomorrow; everything stays in the app. | CL-TEL-07 |
+| — (CL-TEL-21) | From the calendar | CL-TEL-21 |
+| — (CL-TEL-21) | This event no longer applies: {reason}. | CL-TEL-21 |
 | Telegram non relié | Telegram not linked | TEL-28 |
 | Relier Telegram / Ouvrir Telegram / Démarrer / Délier | Link Telegram / Open Telegram / Start / Unlink | TEL-29, TEL-30 |
 | non reliée / en attente de confirmation / reliée depuis le… / rompue | not linked / awaiting confirmation / linked since… / broken | TEL-32 |
@@ -2728,6 +3150,13 @@ The specs require these texts but do not quote them; the English below is the pr
 | Count of chance verdicts with the profile list | Verdicts chance alone would produce: {n} at least possible, {m} probable. | SEN-41 |
 | Reminder before deleting a historical event or dismissing a detected one | An event is never removed because of the game that followed. | IMP-33, DET-46 |
 | Reminder in the import preview | These checks do not prove that an article exists or says what the result claims. | IMP-17 |
+| Explanation when no request can be created | To request a backtest, first validate an event type that research can look for. Types derived from the calendar need no backtest. | BKT-02, CL-BKT-03 |
+| "Fill gaps" when every research type is covered | Coverage is complete up to today. Redo the backtest instead? | CL-BKT-05 |
+| Reduction refused | This reduction would leave no type to research. Choose a later season or keep at least one type. | CL-BKT-09 |
+| Request whose prompt uses an earlier sheet version | This prompt uses an earlier version of a type sheet. Update the request before copying it. | TAX-23 |
+| Example of a compliant description (DSN-19) | An opponent publicly says that player A is overrated; a national outlet reports it the day before the game against team X. | DSN-19 |
+| Description of a birthday event (template) | {player} plays on his birthday. | CL-DSN-20 |
+| Description of a former-team event (template) | {player} faces his former team {team} for the first time since leaving it. | CL-DSN-20 |
 | Reminder with a case's category | One case alone proves nothing. | ALE-27 |
 | Detection confidence label | Model self-assessment, not a probability. | DET-25 |
 | Home presentation at first launch | Egoscope measures how followed players played after public events. It does not predict games or give betting advice. | IHM-53 |
@@ -2740,7 +3169,7 @@ The specs require these texts but do not quote them; the English below is the pr
 - **Alert sheets** contain no odds, bookmaker line, stake, forecast about the coming game, betting advice, future-tense sentence about the expected performance (« devrait briller », "should shine"), nor any superlative. The confidence shown is the profile confidence, never a confidence to bet (ALE-18). Every sheet ends with the standing notice (ALE-17).
 - **Telegram messages** contain no odds, stake, forecast about a coming game, betting advice, nor future-tense sentence about the expected performance (TEL-05).
 - **Verdicts** are written exactly "probable", "possible", "inconclusive" and are never called proven, confirmed or guaranteed; "confirmed" and "refuted" are used only in the validation-table sense (IHM-50). A verdict describes an observed association, never a proven cause; no label presents it as a certainty or a betting hint (SEN-42).
-- **The word « pronostic »**, rendered "forecast", appears only in: the closing line of alert messages, "A measure of the past, not a forecast." (TEL-05); the terms of file 10 — frozen forecast, late forecast, no forecast — and the labels derived from them (forecast source, gap in forecast direction), on validation screens, in tracked game results and in the outcome of an alert sheet, after the game (ALE-18, IHM-50, TEL-05). Never to announce a coming game.
+- **The word « pronostic »**, rendered "forecast", appears only in: the closing line of alert messages, "A measure of the past, not a forecast." (TEL-05); the terms of file 10 — frozen forecast, late forecast, no forecast — and the labels derived from them (forecast source, gap in forecast direction), on validation screens, in tracked game results and in the outcome of an alert sheet, after the game (ALE-18, IHM-50, TEL-05); and the prohibitions that forbid one, "no forecast" in prompt rule 2.6 and the wording rules (DSN-22). Never to announce a coming game, and never "prognosis".
 - **Descriptions** of events contain no value judgment ("shameful", "scandalous", "magnificent"), no psychological interpretation ("his pride was hurt", "he will want revenge"), and no forecast about the game (DSN-22, prompt rule 2.6).
 - **Disclaimers** may name what the app does not do: the standing notice of alert sheets (ALE-17), the short notice of profile and validation screens (IHM-50), and the first-launch presentation, which says it does not predict games or give betting advice (IHM-53).
 - **Neighboring restrictions.** Messages name no service provider, only functions (TEL-08); no person other than the player is named, only roles (DSN-17).
@@ -2752,7 +3181,7 @@ Scope: every UI string, Telegram message, alert sheet, event description, classi
 | Group | Banned | Only exception |
 | --- | --- | --- |
 | Betting | bet, bets, betting, wager, gamble, gambling, odds, betting line, bookmaker line, line (in the betting sense), spread, point spread, moneyline, over/under, prop, parlay, stake (an amount wagered), bankroll, bookmaker, bookie, sportsbook, pick, picks, tip (betting advice), tips, tipster, lock (a sure bet), sure thing, value bet, edge (betting advantage), cover the spread, handicap, favorite and underdog (in the odds sense), payout, winnings, profit, return on investment, cash out, hedge, units | "betting" in the three fixed disclaimers of 7.1 (ALE-17, IHM-50) and in the IHM-53 presentation |
-| Forecasting | prediction, predict, predicted, projection, projected, outlook, expected to (about a performance), should (about a performance), will (about a performance), likely to, due for, bounce back, forecast | "predict" in the two disclaimers (ALE-17, IHM-53); "forecast" in the places of 8.1 |
+| Forecasting | prediction, predict, predicted, projection, projected, outlook, expected to (about a performance), should (about a performance), will (about a performance), likely to, due for, bounce back, forecast, prognosis | "predict" in the two disclaimers (ALE-17, IHM-53); "forecast" in the places of 8.1 |
 | Certainty | proven, prove, guaranteed, certain, certainly, sure, definitely, confirmed (outside the validation table), refuted (outside the validation table) | "proves nothing" in "One case alone proves nothing." (7.6) |
 | Hype and superlatives (alert sheets) | best, worst, biggest, huge, incredible, amazing, explosive, monster, unstoppable, elite, clutch | none |
 | Judgment and psychology (descriptions) | shameful, scandalous, magnificent, disgraceful, brilliant, humiliating (as a judgment), hurt pride, revenge, fired up, motivated, angry, wants to prove | none |
@@ -2778,7 +3207,7 @@ Scope: every UI string, Telegram message, alert sheet, event description, classi
 
 | Instead of | Write |
 | --- | --- |
-| "Player A should shine tonight" | Nothing about the coming game beyond its date, time, opponent and venue: "Expected game: Wed 18 Nov at 01:30, Paris time, against team X, away." |
+| "Player A should shine tonight" | Nothing about the coming game beyond its date, time, opponent and venue: "Expected game: Wednesday 18 November 2026, 01:30 Paris time, against team X, away." |
 | "prediction", "pick", "projection" | "A measure of the past": "In past games after this type of event, player A played on average above his season average." |
 | "confidence to bet", "confidence" alone | "Profile confidence: low" (or detection confidence, or research confidence, always qualified) |
 | "proven effect", "confirmed sensitivity" | "Verdict: probable, increase, on 9 valid cases" |
@@ -2790,159 +3219,192 @@ Scope: every UI string, Telegram message, alert sheet, event description, classi
 
 ### 9.1 Scheduled tasks
 
-TRV-26 asks for a plain-language name per task: the English name below is that name, shown on the status screen and in the journal. The key is the `TaskKey` value and the trigger route segment (`/api/tasks/news-collection` uses the kebab-case form of the key).
+The keys are the module map's (`docs/engineering/module-map.md`, section 4); this table adds the French term, the English name and the default schedule. TRV-26 asks for a plain-language name per task: the English name is the one shown on the status screen and in the journal.
 
-| Key | English name | French (TRV-25) | Lot | Default schedule | Owner |
+| Key (module map) | English name | French (TRV-25) | Lot | Default schedule | Owner |
 | --- | --- | --- | --- | --- | --- |
-| `news_collection` | News collection | collecte des actualités | 2 | Every day at the collection times: 16:30 and 23:00 Paris time (owner's decision on Q-SUI-02; the specs said 22:00) | 03, COL-12 |
-| `event_detection` | Event detection | détection | 2 | Chained after each collection, in the same pass | 04, COL-16 |
-| `classification_queue_resumption` | Classification queue resumption | reprise de la file de classification | 2 | Every 6 h while the queue is not empty, at the latest with the next collection | 04, DET-10 |
-| `stats_update` | Schedule and statistics update | mise à jour du calendrier et des statistiques | 1 | Once a day, 12:00, never earlier than 3 h after the last tip-off of the past game day | 07, STA-32 |
-| `game_tracking` | Game tracking | suivi des matchs des événements détectés | 2 | Chained after each statistics update | 10, SUI-12 |
-| `stats_fetch_resumption` | Pending statistics fetch resumption | reprise des récupérations de statistiques en attente | 1 | At the retry delays (1 h, then every 4 h) and at quota renewal | 07, STA-36, STA-39 |
-| `notification_sending` | Notification sending | envoi des notifications différées, des rappels avant échéance et des nouvelles tentatives d'envoi | 2 | Often enough for TEL-10, TEL-20 and TEL-35 (technical design) | 11 |
-| `data_purge` | Data purge | purge des données à durée de conservation limitée | 1 (journals), 2 (articles) | Every day at 04:00 | 14, COL-39, TRV-48 |
-| `backup` | Backup | sauvegarde | 1 | Every Monday at 05:00 | 14, TRV-50 |
-| `run_check` | Run check | contrôle des exécutions | 1 | At the end of every pass and at every app opening | 14, TRV-31 |
+| `statistics-update` | Schedule and statistics update | mise à jour du calendrier et des statistiques | 1 | Daily from 15:00 Paris time; probes the source every 60 minutes until it has refreshed after the last tip-off of the past competition day plus 3 hours; at the 20:00 cut-off fetches what is published and ends "source late" (CL-TRV-23, CL-STA-10). | 07, STA-32 |
+| `statistics-fetch` | Pending statistics fetch resumption | reprise des récupérations de statistiques en attente | 1 | While fetches are pending: at the retry delays and at quota renewal. | 07, STA-36, STA-39 |
+| `calendar-derivation` | Calendar derivation | — (record 0015) | 1 | At the end of every statistics update and every collection pass, and when a calendar-derived type is validated, reactivated or substantially changed, or a player's birthday or team history changes (CL-TAX-19). | 02, record 0015 |
+| `recalculation` | Full recalculation | recalcul complet | 1 | While a full recalculation is queued. | 08, SEN-34 |
+| `link-check` | Link check | vérification de l'accessibilité des liens | 1 | While saved sources wait for their check, if the link check is on. | 06, IMP-17 |
+| `purge` | Data purge | purge des données à durée de conservation limitée | 1 (journals), 2 (articles) | Every day at 04:00. | 14, COL-39, TRV-48 |
+| `backup` | Backup | sauvegarde | 1 | Every Monday at 05:00. | 14, TRV-50 |
+| `news-collection` | News collection | collecte des actualités | 2 | Every day at 16:30 and 23:00 Paris time (record 0019, CL-TRV-09); on demand. | 03, COL-12 |
+| `detection` | Event detection | détection | 2 | Chained after each collection, in the same pass. | 04, COL-16 |
+| `classification-resume` | Classification queue resumption | reprise de la file de classification | 2 | 6 hours after the last run that processed the queue, while an item is eligible (CL-DET-04). | 04, DET-10 |
+| `game-tracking` | Game tracking | suivi des matchs des événements détectés | 2 | Chained after each statistics update; forecasts frozen at tip-off. | 10, SUI-12 |
+| `notification-dispatch` | Notification sending | envoi des notifications différées, des rappels avant échéance et des nouvelles tentatives d'envoi | 2 | At the end of each pass and at every wake-up. | 11 |
+
+A run's result is one of `TaskRunResult` (section 4); "running" is a run without a result yet. A postponement (TRV-28) and a missed run (TRV-31) are journal entries, not results. The run check (« contrôle des exécutions », TRV-31) is not a task: it runs at the end of every database pass and at each app opening (CL-TRV-08; module map section 4).
 
 ### 9.2 Incident kinds
 
-Incidents and the warnings that are notified like incidents. The key is the `IncidentKind` value; the English name is the incident's title on Home, in the to-do list, in the journal and after "Incident —" in Telegram.
+Incidents, and the warnings and reminders handled like them. The key is the `IncidentKind` value; the English name is the title on Home, in the to-do list, in the journal, on the status screen and after "Incident —" in Telegram. Incidents close only automatically, when their cause disappears; the owner can only hide one (CL-TRV-11, CL-IHM-20).
 
 | Key | English name | French | Level | Opens when | Closes when | IDs |
 | --- | --- | --- | --- | --- | --- | --- |
-| `press_source_down` | Press source down | « flux en panne », source de presse en panne | incident | A source goes down (2 consecutive failed runs) | A read brings articles again | COL-41, COL-43, TEL-15 |
-| `collection_impossible` | Collection impossible | « collecte impossible » | incident | Every active source fails in the same run | Not stated by the specs (section 11) | COL-44 |
-| `press_source_silent` | Silent press source | source muette (avertissement) | warning | No new article for the source's silence period | A read brings articles again | COL-42, COL-43, H-TEL-07 |
-| `feed_too_short` | Feed keeps too few items | avertissement (trou de collecte sans exécution manquée) | warning | A collection gap appears although no run was missed | Not stated by the specs | COL-46 |
-| `quota_reached` | Quota reached — {service function} | « quota atteint », quota de classification atteint | incident | A service's quota stops work (classification, stats source, any limit) | The quota renews; for classification, the queue is empty | DET-11, STA-39, TRV-05, TRV-06 |
-| `quota_warning` | Quota warning — {service function} | avertissement de quota | warning | 80 % of a limit is used | The period renews | TRV-05 |
-| `database_volume_warning` | Database volume warning | avertissement de volume | warning | 80 % of the free capacity is used | Usage falls below the share | TRV-07 |
-| `stats_source_unavailable` | Stats source unavailable | « source de statistiques indisponible », statistiques indisponibles | incident | 12 h of continuous failures | The source answers again | STA-37 |
-| `task_not_run` | Task not run | « tâche non exécutée » | incident | A task's last success is older than its interval plus the margin | The task succeeds | TRV-31 |
-| `backup_failed` | Backup failed | sauvegarde en échec | incident | A backup fails | A backup succeeds | TRV-50 |
-| `logins_refused` | Logins refused | « connexions refusées », blocage de la connexion | incident | Login is locked after repeated failures | The next successful login | TRV-61, H-TEL-06 |
-| `telegram_link_broken` | Telegram link broken | liaison Telegram rompue | incident | A permanent send failure | The chat is linked again | TEL-37 |
-| `export_reminder` | Export reminder | rappel d'export | reminder | 30 days without an export | An export is downloaded | TRV-54, TEL-15 |
+| `press_source_down` | Press source down | « flux en panne », source de presse en panne | incident | A source has 2 consecutive failed runs, not counting a "collection impossible" run. | A read brings articles again. | COL-41, COL-43, CL-COL-05 |
+| `collection_impossible` | Collection impossible | « collecte impossible » | incident | Every active source failed in the same run, at least two being active. | At the end of the first later run in which at least one active source is read successfully. | COL-44, CL-COL-05 |
+| `press_source_silent` | Silent press source | source muette (avertissement) | warning, notified | No new article for the source's silence delay. | A read brings articles again. | COL-42, COL-43, CL-TEL-17 |
+| `feed_too_short` | Add a collection time | avertissement (trou de collecte sans exécution manquée) | warning, not notified | A collection gap is recorded although the previous run read the source. | Not stated by the specs (section 11). | COL-46, CL-COL-13, CL-TEL-17 |
+| `quota_reached` | Quota reached — {service function} | « quota atteint », quota de classification atteint | incident | A service stops work for one of the causes below. | Classification: no queue item is eligible; stats source: requests resume; other services: the owner saves a new limit, or a full period passes without refusal. | DET-11, STA-39, TRV-05, TRV-06, CL-TRV-11, CL-DET-04 |
+| `quota_warning` | Quota warning — {service function} | avertissement de quota | warning, not notified | 80 % of a limit is used. | The period renews. | TRV-05, CL-TEL-17 |
+| `database_volume_warning` | Database volume warning | avertissement de volume | warning, not notified | 80 % of the free capacity is used. | Usage falls below the share. | TRV-07, CL-TEL-17 |
+| `stats_source_unavailable` | Stats source unavailable | « source de statistiques indisponible », statistiques indisponibles | incident | 12 hours of continuous failures; or the source late on 2 consecutive competition days, with the cause "not refreshed since {instant}". | The source answers again; a refresh lands. | STA-37, CL-STA-15, CL-TRV-23 |
+| `stats_source_schema_changed` | Stats source format changed | — (statistics-source service sheet) | incident | A current-season file is missing or its columns changed; nothing is ingested. | The file reads again. | CL-STA-15 |
+| `task_not_run` | Task not run | « tâche non exécutée » | incident | An occurrence of the task is missed; one incident per task. | A run of the task succeeds. | TRV-31, CL-TRV-08 |
+| `backup_failed` | Backup failed | sauvegarde en échec | incident | A backup fails, missing storage configuration included. | A backup succeeds. | TRV-50 |
+| `logins_refused` | Logins refused | « connexions refusées », blocage de la connexion | incident | Login locks after repeated failures. | The next successful login. | TRV-61, H-TEL-06 |
+| `telegram_link_broken` | Telegram link broken | liaison Telegram rompue | incident | A permanent send failure. | The chat is linked again. | TEL-37 |
+| `export_reminder` | Export reminder | rappel d'export | reminder, notified | 30 days without a full export, counted from the first start when none was made. | A full export is downloaded. | TRV-54, CL-TRV-22 |
 
-`telegram_link_broken` appears only on Home and in the to-do list, since Telegram cannot carry it (TEL-37).
+Causes of `quota_reached` (`QuotaIncidentCause`), named in its message:
 
-### 9.3 Parameter families
+| French | Code value | Message part |
+| --- | --- | --- |
+| quota atteint | `limit_reached` | quota reached |
+| refus avant la limite déclarée (TRV-06) | `refused_before_limit` | refused before the declared limit: check the service's terms and update the limit |
+| service qui ne répond pas (classification, CL-DET-04) | `not_answering` | service not answering |
 
-The registry groups parameters by owning document (TRV-38). Keys are camelCase properties of the typed parameter registry. Values and defaults stay in the owning requirements; nothing is copied here.
+The failed-messages banner of TEL-36 ("Messages failed") is a banner, not an incident.
 
-| Family | Key | English name | French | IDs |
+### 9.3 Parameters
+
+The keys are the module map's (section 6). Defaults and bounds are those of CL-TRV-16 and stay in the owning requirements. A key marked "not in the module map" is a parameter the rulings define that the map does not list yet; the architect adds its key.
+
+| Family | Key (module map) | English name | French | IDs |
 | --- | --- | --- | --- | --- |
-| 01 Followed players | `maxActivePlayers` | Maximum active players | nombre maximal de joueurs actifs | JOU-04 |
-| 01 Followed players | `indicativeMinimumPlayers` | Indicative minimum of players | nombre indicatif minimal | JOU-04 |
-| 01 Followed players | `exposureWindowDays` | Exposure indicator period | période de l'indicateur d'exposition | JOU-03 |
-| 01 Followed players | `prolongedAbsenceThreshold` | Prolonged-absence threshold | seuil d'absence prolongée | JOU-22 |
-| 03 News collection | `sourceIndicatorWindowDays` | Source indicator period | période des indicateurs de source | COL-11 |
-| 03 News collection | `collectionTimes` | Collection times | heure ou heures de collecte | COL-12 |
-| 03 News collection | `readAttemptsPerRun` | Read attempts per run | nombre de tentatives de lecture | COL-13 |
-| 03 News collection | `maxArticleAgeDays` | Maximum article age | ancienneté maximale d'un article | COL-24 |
-| 03 News collection | `excerptMaxLength` | Excerpt length | longueur de l'extrait | COL-27 |
-| 03 News collection | `titleDedupWindowHours` | Title dedup window | fenêtre de dédoublonnage par titre | COL-30 |
-| 03 News collection | `dedupTraceRetentionDays` | Dedup trace retention | durée de conservation des traces de dédoublonnage | COL-34 |
-| 03 News collection | `notRelevantRetentionDays` | Not-relevant article retention | durée de conservation des articles non pertinents | COL-36 |
-| 03 News collection | `failedRunsBeforeDown` | Failed runs before "down" | nombre d'exécutions en échec avant l'état « en panne » | COL-41 |
-| 03 News collection | `silencePeriodDays` | Silence period (per source) | délai de silence, propre à chaque source | COL-42 |
-| 04 Detection | `queuePriorityHorizon` | Queue priority horizon | horizon de priorité de la file | DET-09 |
-| 04 Detection | `queueResumptionIntervalHours` | Queue resumption interval | intervalle de reprise de la file | DET-10 |
-| 04 Detection | `classificationAttempts` | Classification attempts | nombre de tentatives de classification | DET-22 |
-| 04 Detection | `detectionThreshold` | Detection threshold | seuil de détection | DET-24 |
-| 04 Detection | `groupingWindowHours` | Grouping window | fenêtre de regroupement | DET-29 |
-| 05 Backtest request | `maxSourcesPerEvent` | Maximum sources per event | nombre maximal de sources par événement | H-BKT-09 |
-| 06 Import | `maxPastedSize` | Maximum pasted size | taille maximale du texte collé | IMP-02 |
-| 06 Import | `toleratedSourceLeadDays` | Tolerated source lead | avance tolérée d'une source sur la date publique | IMP-14 |
-| 06 Import | `disallowedDomains` | Disallowed source domains | liste des domaines non admis comme sources | IMP-14, H-IMP-13 |
-| 06 Import | `linkCheckEnabled` | Link check | vérification de l'accessibilité des liens | IMP-17 |
-| 06 Import | `spotCheckSourceCount` | Sources offered for the spot check | nombre de sources proposées au sondage | IMP-23 |
-| 06 Import | `correspondenceWindowDays` | Correspondence window | écart maximal entre les dates publiques de deux événements correspondants | IMP-25 |
-| 07 Game statistics | `playingTimeFloorMinutes` | Playing-time floor | plancher de temps de jeu | STA-14 |
-| 07 Game statistics | `playingTimeAverageShare` | Share of average minutes | fraction de la moyenne de minutes | STA-14 |
-| 07 Game statistics | `postseasonBaseline` | Baseline for play-in and playoff games | référence des matchs du tournoi de qualification et des phases finales | STA-18 |
-| 07 Game statistics | `minBaselineGames` | Minimum baseline size | taille minimale d'une référence | STA-19 |
-| 07 Game statistics | `partialBaselineShare` | Partial baseline threshold | seuil de référence partielle | STA-24 |
-| 07 Game statistics | `statsUpdateDelayHours` | Delay after the last tip-off | délai minimal de la mise à jour quotidienne après le dernier coup d'envoi | STA-32 |
-| 07 Game statistics | `correctionWindowDays` | Correction window | fenêtre de correction | STA-33 |
-| 07 Game statistics | `boxScoreUnavailableAfterDays` | Delay before a box score is unavailable | délai avant feuille indisponible | STA-35 |
-| 07 Game statistics | `fetchRetryDelaysHours` | Retry delays | délais de nouvelle tentative | STA-36 |
-| 07 Game statistics | `statsIncidentAfterHours` | Delay before an incident | délai avant incident | STA-37 |
-| 07 Game statistics | `quotaReservePercent` | Quota reserve | réserve de quota | STA-39 |
-| 08 Sensitivity and verdict | `attachmentWindowDays` | Attachment window | délai maximal de rattachement | SEN-04 |
-| 08 Sensitivity and verdict | `coOccurringAsDoubtful` | Treat co-occurring cases as doubtful | traitement des cas concomitants comme douteux | SEN-06 |
-| 08 Sensitivity and verdict | `injuryReturnFirstGames` | Games after an absence (return from injury) | nombre de premiers matchs (critère calculé de retour de blessure) | SEN-13 |
-| 08 Sensitivity and verdict | `injuryReturnAbsenceGames` | Absence length (return from injury) | durée d'absence (critère calculé de retour de blessure) | SEN-13 |
-| 08 Sensitivity and verdict | `allPlayoffGamesUnusualStakes` | Treat every playoff game as unusual stakes | traitement de tout match de phases finales comme enjeu inhabituel | SEN-14 |
-| 08 Sensitivity and verdict | `opponentWinShareLow`, `opponentWinShareHigh` | Opponent strength bounds | bornes du niveau de l'adversaire | SEN-15 |
-| 08 Sensitivity and verdict | `opponentMinGames` | Opponent minimum games | nombre minimal de matchs de l'adversaire | SEN-15 |
-| 08 Sensitivity and verdict | `validCaseThreshold` | Valid cases per player | seuil de cas valides par joueur | SEN-23, H-03 |
-| 08 Sensitivity and verdict | `possibleSnrThreshold`, `possibleMeanGapThreshold`, `probableSnrThreshold`, `probableMeanGapThreshold` | Verdict thresholds | seuils du verdict | SEN-23, Q-04 |
-| 08 Sensitivity and verdict | `confidenceMediumFromCases`, `confidenceHighFromCases`, `confidenceDispersionLimit`, `confidenceDoubtfulShareLimit` | Profile confidence thresholds | seuils de la confiance du profil | SEN-25 |
-| 08 Sensitivity and verdict | `trendMinPlayers` | Minimum players for a trend | nombre minimal de joueurs (tendance générale) | SEN-29 |
-| 08 Sensitivity and verdict | `trendMaxPlayerShare` | Maximum share of one player in a trend | part maximale d'un joueur (tendance générale) | SEN-29 |
-| 08 Sensitivity and verdict | `countsBelowCaseCount` | Counts instead of percentages below | nombre de cas sous lequel les proportions s'affichent en nombres | SEN-39 |
-| 09 Alert sheet | `vigilanceMarginPoints` | Vigilance margin | marge de vigilance sur la confiance de détection | ALE-16, H-ALE-06 |
-| 10 Tracking and validation | `categoryThreshold` | Category threshold | seuil de catégorie d'un cas suivi | SUI-22 |
-| 10 Tracking and validation | `minTrackedCasesForAssessment` | Minimum tracked cases for an assessment | nombre minimal de cas suivis pour un bilan | SUI-26 |
-| 11 Telegram notifications | `reminderLeadHours` | Reminder before the deadline | délai du rappel avant échéance | TEL-10 |
-| 11 Telegram notifications | `incidentReminderIntervalDays` | Incident reminder frequency | fréquence du rappel d'incident | TEL-15 |
-| 11 Telegram notifications | `incidentRecurrenceWindowHours` | Incident recurrence window | délai de reprise d'un incident | TEL-15 |
-| 11 Telegram notifications | `alertGroupingThreshold` | Alert grouping threshold | seuil de regroupement des alertes | TEL-19 |
-| 11 Telegram notifications | `maxFactsPerDigest` | Facts detailed per digest | nombre de faits détaillés par message groupé | TEL-19 |
-| 11 Telegram notifications | `quietHours` | Quiet hours | plage de silence | TEL-20 |
-| 11 Telegram notifications | `urgentExceptionEnabled` | Urgent exception | exception d'urgence | TEL-21 |
-| 11 Telegram notifications | `dailyCap` | Daily cap | plafond quotidien | TEL-22 |
-| 11 Telegram notifications | `notificationCategories` | Categories and sub-options | activation des catégories et sous-options | TEL-24 |
-| 11 Telegram notifications | `linkCodeValidityMinutes` | Link code validity | durée de validité du code de liaison | TEL-29 |
-| 11 Telegram notifications | `retryIntervalsMinutes` | Retry intervals | intervalles de nouvelle tentative | TEL-35 |
-| 12 Interface and access | `timeZone` | Time zone | fuseau horaire de l'utilisateur | IHM-14 |
-| 12 Interface and access | `listPageSize` | List page size | taille des tranches de liste | IHM-18 |
-| 12 Interface and access | `deadlineSoonHours` | "Deadline soon" delay | délai de la mention « échéance proche » | IHM-20 |
-| 12 Interface and access | `draftRetentionDays` | Draft retention | durée de conservation d'un brouillon | IHM-42 |
-| 12 Interface and access | `researchToolUrl` | Research tool address | adresse de l'outil de recherche | IHM-44 |
-| 13 Sensitive data | `maxDescriptionLength` | Maximum description length | longueur maximale d'une description | DSN-20 |
-| 14 Cross-cutting | `quotaLimits` | Quota limits per service | limites de quota de chaque service | TRV-03 |
-| 14 Cross-cutting | `quotaWarningShare` | Quota warning share | part de la limite qui déclenche l'avertissement de quota | TRV-05 |
-| 14 Cross-cutting | `volumeWarningShare` | Database volume warning share | part de la capacité de la base qui déclenche l'avertissement de volume | TRV-07 |
-| 14 Cross-cutting | `taskSchedule` | Task times | horaires des tâches planifiées | TRV-25 |
-| 14 Cross-cutting | `missedRunMarginHours` | Margin before "task not run" | marge avant l'incident « tâche non exécutée » | TRV-31 |
-| 14 Cross-cutting | `journalRetentionDays` | Journal retention | durée de conservation des journaux | TRV-48 |
-| 14 Cross-cutting | `backupFrequency`, `backupsKept` | Backup frequency, backups kept | fréquence des sauvegardes, nombre de sauvegardes conservées | TRV-50 |
-| 14 Cross-cutting | `exportReminderDays` | Export reminder delay | délai du rappel d'export | TRV-54 |
-| 14 Cross-cutting | `minPasswordLength` | Minimum password length | longueur minimale du mot de passe | TRV-60 |
-| 14 Cross-cutting | `loginFailureLimit`, `loginObservationMinutes`, `lockoutMinutes` | Login failures, observation period, lockout duration | nombre d'échecs, période d'observation, durée du blocage de connexion | TRV-61 |
-| 14 Cross-cutting | `sessionIdleDays` | Idle session duration | durée de session sans utilisation | TRV-62 |
+| 01 Followed players | `players.maxActive` | Maximum active players | nombre maximal de joueurs actifs | JOU-04 |
+| 01 Followed players | `players.indicativeMin` | Indicative minimum of players | nombre indicatif minimal | JOU-04 |
+| 01 Followed players | `players.exposureWindowDays` | Exposure indicator period | période de l'indicateur d'exposition | JOU-03 |
+| 01 Followed players | `players.prolongedAbsenceGames` | Prolonged-absence threshold | seuil d'absence prolongée | JOU-22 |
+| 03 News collection | `collection.indicatorWindowDays` | Source indicator period | période des indicateurs de source | COL-11 |
+| 03 News collection | `collection.times` | Collection times | heure ou heures de collecte | COL-12, CL-TRV-09 |
+| 03 News collection | `collection.readAttempts` | Read attempts per run | nombre de tentatives de lecture | COL-13 |
+| 03 News collection | `collection.maxArticleAgeDays` | Maximum article age | ancienneté maximale d'un article | COL-24 |
+| 03 News collection | `collection.excerptMaxLength` | Excerpt length | longueur de l'extrait | COL-27 |
+| 03 News collection | `collection.titleDedupWindowHours` | Title dedup window | fenêtre de dédoublonnage par titre | COL-30 |
+| 03 News collection | `collection.dedupTraceRetentionDays` | Dedup trace retention | durée de conservation des traces de dédoublonnage | COL-34 |
+| 03 News collection | `collection.notRelevantRetentionDays` | Not-relevant article retention | durée de conservation des articles non pertinents | COL-36 |
+| 03 News collection | `collection.failedRunsBeforeDown` | Failed runs before "down" | nombre d'exécutions en échec avant l'état « en panne » | COL-41 |
+| 03 News collection | `collection.silenceDelayDays` | Silence period (default for each source) | délai de silence, propre à chaque source | COL-42 |
+| 04 Detection | `detection.priorityHorizonHours` | Queue priority horizon | horizon de priorité de la file | DET-09 |
+| 04 Detection | `detection.queueResumeIntervalHours` | Queue resumption interval | intervalle de reprise de la file | DET-10 |
+| 04 Detection | `detection.classificationAttempts` | Classification attempts | nombre de tentatives de classification | DET-22 |
+| 04 Detection | `detection.threshold` | Detection threshold | seuil de détection | DET-24 |
+| 04 Detection | `detection.groupingWindowHours` | Grouping window | fenêtre de regroupement | DET-29 |
+| 04 Detection | not in the module map | Confidence band width | — (CL-DET-24) | DET-25, CL-DET-24 |
+| 04 Detection | `languageModel.primaryModel` | Primary language model | — (detection-model service sheet) | DET-08 |
+| 04 Detection | `languageModel.fallbackModel` | Fallback language model | — (detection-model service sheet) | DET-08 |
+| 05 Backtest request | `backtests.maxSourcesPerEvent` | Maximum sources per event | nombre maximal de sources par événement | H-BKT-09 |
+| 06 Import | `imports.maxPastedTextMegabytes` | Maximum pasted size | taille maximale du texte collé | IMP-02 |
+| 06 Import | `imports.maxSourceLeadDays` | Tolerated source lead | avance tolérée d'une source sur la date publique | IMP-14 |
+| 06 Import | `imports.disallowedSourceDomains` | Disallowed source domains | liste des domaines non admis comme sources | IMP-14, H-IMP-13 |
+| 06 Import | `imports.linkCheckEnabled` | Link check | vérification de l'accessibilité des liens | IMP-17 |
+| 06 Import | not in the module map | Link-check timeout | — (CL-IMP-25) | IMP-17, CL-IMP-25 |
+| 06 Import | `imports.spotCheckSources` | Sources offered for the spot check | nombre de sources proposées au sondage | IMP-23 |
+| 06 Import | `imports.duplicateMaxDateGapDays` | Correspondence window | écart maximal entre dates publiques de deux événements correspondants | IMP-25, H-IMP-02, CL-IMP-34 |
+| 07 Game statistics | `games.minutesFloor` | Playing-time floor | plancher de temps de jeu | STA-14 |
+| 07 Game statistics | `games.minutesAverageShare` | Share of average minutes | fraction de la moyenne de minutes | STA-14 |
+| 07 Game statistics | `games.postseasonBaseline` | Baseline for play-in and playoff games | référence des matchs du tournoi de qualification et des phases finales | STA-18 |
+| 07 Game statistics | `games.minBaselineGames` | Minimum baseline size | taille minimale d'une référence | STA-19 |
+| 07 Game statistics | `games.partialBaselineShare` | Partial baseline threshold | seuil de référence partielle | STA-24 |
+| 07 Game statistics | `games.dailyUpdateDelayHours` | Delay after the last tip-off | délai minimal de la mise à jour quotidienne après le dernier coup d'envoi | STA-32 |
+| 07 Game statistics | `games.correctionWindowDays` | Correction window | fenêtre de correction | STA-33 |
+| 07 Game statistics | `games.sheetUnavailableAfterDays` | Delay before a box score is unavailable | délai avant feuille indisponible | STA-35 |
+| 07 Game statistics | `games.retryFirstDelayHours`, `games.retryIntervalHours` | Retry delays | délais de nouvelle tentative | STA-36 |
+| 07 Game statistics | `games.incidentAfterHours` | Delay before an incident | délai avant incident | STA-37 |
+| 07 Game statistics | `games.quotaReserveShare` | Quota reserve | réserve de quota | STA-39 |
+| 08 Sensitivity and verdict | `sensitivity.maxAttachmentDays` | Attachment window | délai maximal de rattachement | SEN-04 |
+| 08 Sensitivity and verdict | `sensitivity.concurrentCasesDoubtful` | Treat co-occurring cases as doubtful | traitement des cas concomitants comme douteux | SEN-06 |
+| 08 Sensitivity and verdict | `sensitivity.injuryReturnFirstGames` | Games after an absence (return from injury) | nombre de premiers matchs (critère calculé de retour de blessure) | SEN-13 |
+| 08 Sensitivity and verdict | `sensitivity.injuryReturnMinGamesMissed` | Absence length (return from injury) | durée d'absence (critère calculé de retour de blessure) | SEN-13 |
+| 08 Sensitivity and verdict | `sensitivity.allPlayoffGamesUnusualStakes` | Treat every playoff game as unusual stakes | traitement de tout match de phases finales comme enjeu inhabituel | SEN-14 |
+| 08 Sensitivity and verdict | `sensitivity.opponentWinShareLow`, `sensitivity.opponentWinShareHigh` | Opponent strength bounds | bornes du niveau de l'adversaire | SEN-15 |
+| 08 Sensitivity and verdict | `sensitivity.opponentMinGames` | Opponent minimum games | nombre minimal de matchs de l'adversaire | SEN-15 |
+| 08 Sensitivity and verdict | `sensitivity.minValidCases` | Valid cases for a player verdict | seuil de cas valides par joueur | SEN-23, H-03 |
+| 08 Sensitivity and verdict | `sensitivity.possibleSignalToNoise`, `sensitivity.possibleMeanGap`, `sensitivity.probableSignalToNoise`, `sensitivity.probableMeanGap` | Verdict thresholds | seuils du verdict | SEN-23, Q-04 |
+| 08 Sensitivity and verdict | `sensitivity.confidenceMediumFromCases`, `sensitivity.confidenceHighFromCases`, `sensitivity.confidenceDispersionDrop`, `sensitivity.confidenceDoubtfulShareDrop` | Profile confidence thresholds | seuils de la confiance du profil | SEN-25 |
+| 08 Sensitivity and verdict | `sensitivity.trendMinPlayers` | Minimum players for a trend | nombre minimal de joueurs (tendance générale) | SEN-29 |
+| 08 Sensitivity and verdict | `sensitivity.trendMaxTopShare` | Maximum share of one player in a trend | part maximale d'un joueur (tendance générale) | SEN-29 |
+| 08 Sensitivity and verdict | `sensitivity.countsBelowCases` | Counts instead of percentages below | nombre de cas sous lequel les proportions s'affichent en nombres | SEN-39 |
+| 09 Alert sheet | `alerts.confidenceVigilanceMargin` | Vigilance margin | marge de vigilance sur la confiance de détection | ALE-16, H-ALE-06 |
+| 10 Tracking and validation | `tracking.categoryThreshold` | Category threshold | seuil de catégorie d'un cas suivi | SUI-22 |
+| 10 Tracking and validation | `tracking.minTrackedCasesForAssessment` | Minimum tracked cases for an assessment | nombre minimal de cas suivis pour un bilan | SUI-26 |
+| 11 Telegram notifications | `notifications.enabled` | Send notifications (master switch) | interrupteur général | TEL-25 |
+| 11 Telegram notifications | `notifications.category.backtestRequests`, `.alerts`, `.trackedResults`, `.typeProposals`, `.incidents` | Notification categories | activation des catégories | TEL-24 |
+| 11 Telegram notifications | `notifications.reminderEnabled`, `notifications.inconclusiveAlerts`, `notifications.incidentEnd` | Sub-options | sous-options | TEL-24 |
+| 11 Telegram notifications | `notifications.reminderLeadHours` | Reminder before the deadline | délai du rappel avant échéance | TEL-10 |
+| 11 Telegram notifications | `notifications.incidentReminderDays` | Incident reminder frequency | fréquence du rappel d'incident | TEL-15 |
+| 11 Telegram notifications | `notifications.incidentRecurrenceGraceHours` | Incident recurrence window | délai de reprise d'un incident | TEL-15, CL-TEL-08 |
+| 11 Telegram notifications | `notifications.alertGroupingThreshold` | Alert grouping threshold | seuil de regroupement des alertes | TEL-19 |
+| 11 Telegram notifications | `notifications.maxDetailedFacts` | Facts detailed per digest | nombre de faits détaillés par message groupé | TEL-19 |
+| 11 Telegram notifications | `notifications.quietHours` | Quiet hours | plage de silence | TEL-20 |
+| 11 Telegram notifications | `notifications.urgentException` | Urgent exception | exception d'urgence | TEL-21 |
+| 11 Telegram notifications | `notifications.dailyCap` | Daily cap | plafond quotidien | TEL-22, CL-TEL-07 |
+| 11 Telegram notifications | `notifications.linkCodeValidityMinutes` | Link code validity | durée de validité du code de liaison | TEL-29 |
+| 11 Telegram notifications | `notifications.retryIntervalsMinutes` | Retry intervals | intervalles de nouvelle tentative | TEL-35 |
+| 11 Telegram notifications | not in the module map | Catch-up interval | — (CL-TEL-12) | TEL-36, CL-TEL-12 |
+| 12 Interface and access | `display.timeZone` | Time zone | fuseau horaire de l'utilisateur | IHM-14, CL-IHM-05 |
+| 12 Interface and access | `display.listPageSize` | List page size | taille des tranches de liste | IHM-18 |
+| 12 Interface and access | `display.deadlineNearHours` | "Deadline soon" delay | délai de la mention « échéance proche » | IHM-20 |
+| 12 Interface and access | `display.draftRetentionDays` | Draft retention | durée de conservation d'un brouillon | IHM-42, CL-IHM-11 |
+| 12 Interface and access | `display.researchToolUrl` | Research tool address | adresse de l'outil de recherche | IHM-44 |
+| 13 Sensitive data | `events.maxDescriptionLength` | Maximum description length | longueur maximale d'une description | DSN-20 |
+| 14 Cross-cutting | `quotas.statsSource.requestsPerDay`, `.megabytesPerDay`; `quotas.workersAi.neuronsPerDay`, `.requestsPerMinute`; `quotas.groq.requestsPerMinute`, `.requestsPerDay`, `.tokensPerMinute`, `.tokensPerDay`; `quotas.database.capacityMegabytes`, `.computeHoursPerMonth`, `.transferMegabytesPerMonth`; `quotas.hosting.functionMaxDurationSeconds`, `.invocationsPerMonth`, `.activeCpuHoursPerMonth`, `.memoryGbHoursPerMonth`, `.runtimeCacheReadsPerMonth`, `.runtimeCacheWritesPerMonth`, `.schedulesRunsPerMonth`; `quotas.telegram.messagesPerSecond`, `.maxMessageLength`; `quotas.backupStorage.maxFileMegabytes`, `.requestsPerHour` | Quota limits per service | limites de quota de chaque service | TRV-03, CL-TRV-12 |
+| 14 Cross-cutting | `quotas.warningShare` | Quota warning share | part de la limite qui déclenche l'avertissement de quota | TRV-05 |
+| 14 Cross-cutting | `quotas.databaseWarningShare` | Database volume warning share | part de la capacité de la base qui déclenche l'avertissement de volume | TRV-07 |
+| 14 Cross-cutting | `scheduler.statsUpdateTime` | Statistics update start | horaire de la mise à jour des statistiques | TRV-25, CL-TRV-23 |
+| 14 Cross-cutting | `scheduler.statsUpdateCutoff` | Statistics update cut-off | — (CL-TRV-23) | CL-TRV-23 |
+| 14 Cross-cutting | `scheduler.statsProbeIntervalMinutes` | Probe interval while waiting for the source | — (CL-TRV-23) | CL-TRV-23 |
+| 14 Cross-cutting | `scheduler.statsLateDaysBeforeIncident` | Late days before the incident | — (CL-TRV-23) | STA-37, CL-TRV-23 |
+| 14 Cross-cutting | `scheduler.purgeTime` | Purge time | horaire de la purge | TRV-25 |
+| 14 Cross-cutting | `scheduler.missedRunMarginHours` | Margin before "task not run" | marge avant l'incident « tâche non exécutée » | TRV-31 |
+| 14 Cross-cutting | `scheduler.expectedTickIntervalMinutes` | Expected trigger interval | — (scheduler service sheet) | TRV-03 |
+| 14 Cross-cutting | `journal.retentionDays` | Journal retention | durée de conservation des journaux | TRV-48 |
+| 14 Cross-cutting | `backups.weekday`, `backups.time` | Backup day and time | fréquence des sauvegardes | TRV-50 |
+| 14 Cross-cutting | `backups.kept` | Backups kept | nombre de sauvegardes conservées | TRV-50, CL-DSN-07 |
+| 14 Cross-cutting | `backups.exportReminderDays` | Export reminder delay | délai du rappel d'export | TRV-54 |
+| 14 Cross-cutting | `auth.passwordMinLength` | Minimum password length | longueur minimale du mot de passe | TRV-60 |
+| 14 Cross-cutting | `auth.loginFailureThreshold`, `auth.loginFailureWindowMinutes`, `auth.lockoutMinutes` | Login failures, observation period, lockout duration | nombre d'échecs, période d'observation, durée du blocage de connexion | TRV-61 |
+| 14 Cross-cutting | `auth.sessionIdleDays` | Idle session duration | durée de session sans utilisation | TRV-62 |
 
-File 02 has no application parameter: values such as the media-storm coverage threshold live in the type sheet (TRV-38). Not parameters, because the journal fixes them: the processed languages (English and French), the daily frequency of collection and detection (only the times are set), and the historical depth of a backtest (the whole NBA career).
+Settings kept on an object, not in the registry: on a type sheet, the coverage threshold (CL-TAX-14, "Coverage threshold") and the switched-off criterion (CL-TAX-17, "Criterion switched off"); on a press source, its silence period and outlet time zone. Not parameters (TRV-38): the press languages, the daily frequency of collection and detection, the historical depth of a backtest. The fingerprint horizon is derived, backups kept times the backup interval (CL-DSN-07).
 
-## 10. Terms introduced by the owner's decisions
+## 10. Terms from decisions and rulings with no French source
 
-The decisions of 2026-11-11 add concepts the French specs do not name. Their English names are fixed here; the domain model decides their shape.
+The owner's decisions and the rulings add concepts the French specs do not name. Their English names are fixed here.
 
-| Concept | English term | Code | UI label | Decision |
+| Concept | English term | Code | UI label | IDs |
 | --- | --- | --- | --- | --- |
-| Event the app creates from the schedule (birthday game, first game against a former team) | schedule-derived event | `EventOrigin` value `schedule` | From the schedule | Q-TAX-01, Q-SEN-04 |
-| Case of a schedule-derived event whose game the player misses | not measurable: player missed that game | `CaseStatusReason` value `scheduled_game_missed` | Player did not play that game | Q-SEN-04 |
-| Doubtful-case criterion switched off on one type sheet | switched-off criterion | `TypeSheet.switchedOffCriterion` (a `DoubtfulCaseCriterion`) | Criterion switched off for this type | Q-SEN-01 |
-| Permanent warning on the profiles of such a type | confounder warning | `confounder_not_separable` | The effect of this type cannot be separated from {criterion}. | Q-SEN-01 |
-| Keyed hash of player, type and date of a withdrawn event, kept eight weeks | withdrawal fingerprint | `WithdrawalFingerprint` | — | Q-DSN-01 |
-| Event found again by detection or import that matches a fingerprint | fingerprint match | `matchesWithdrawalFingerprint` | Previously withdrawn | Q-DSN-01 |
-| Key that encrypts backups, from the deployment configuration | backup encryption key | — | — | Q-TRV-01 |
-| Count of verdicts chance alone would produce | chance verdict count | `ExpectedFalseSignals` | Verdicts chance alone would produce | Q-04, SEN-41 |
-| Stats source combined from two sources | combined stats source | — | — | Q-STA-01 |
+| Event the app derives from the schedule: a game on the player's birthday, or his first game against a former team | calendar-derived event | `EventOrigin` value `calendar` | Derived from the calendar; in Telegram, From the calendar | record 0015, CL-VUE-12, CL-ALE-13, CL-TEL-21 |
+| Creating those events from the stored games | calendar derivation | task `calendar-derivation` | — | CL-TAX-18, CL-TAX-19 |
+| Mark of the dating rule of the two seeded calendar-derived types, fixed at seeding | derived from the calendar | `isCalendarDerived` | Derived from the calendar | CL-TAX-20 |
+| List of those types sent to the classifier, whose facts are not reported | calendar-handled types | `calendarHandledTypes` | — | CL-DET-22 |
+| A validated type whose dating rule is not "derived from the calendar": the only kind of type a backtest researches | research type | `isResearchType` | — | CL-BKT-03 |
+| Case of a calendar-derived event: tracked when the event was created before the game's scheduled start, historical otherwise | calendar-derived case | `CaseOrigin` `tracked` or `historical` | — | CL-VUE-13, CL-SUI-14 |
+| A calendar-derived case whose player did not play the derived game | did not play the derived game | `CaseStatusReason` `derived_game_missed` | Did not play the derived game | record 0015, CL-SEN-03 |
+| A calendar-derived event deleted after its game started | no longer derived from the calendar | `TallyExitReason` `no_longer_derived` | No longer derived from the calendar | CL-SEN-25 |
+| Doubtful-case criterion switched off on one type sheet | switched-off criterion | `TypeSheet.switchedOffCriterion` (a `DoubtfulCaseCriterion`) | Criterion switched off | record 0016, CL-TAX-17 |
+| Permanent warning on the profiles and trend of such a type | confounder warning | `confounder_not_separable` | (section 7.2) | record 0016, CL-SEN-13 |
+| Keyed hash of player, type and day of a withdrawn event | withdrawal fingerprint | `WithdrawalFingerprint` | — | record 0017, CL-DSN-06 |
+| Fingerprints, deleted-player entries and the counter, kept outside backups and exports | withdrawal ledger | `WithdrawalLedger` | — | CL-DSN-08 |
+| Entry that makes a restore delete a deleted player again | deleted-player entry | `DeletedPlayerEntry` | — | CL-JOU-24 |
+| Event of a research result that matches a fingerprint | flagged event | `matchesWithdrawalFingerprint` | Matches an event you withdrew | CL-IMP-28 |
+| Period during which fingerprints are kept: backups kept times the backup interval | fingerprint horizon | — | — | CL-DSN-07 |
+| Key that encrypts backups | backup key | — | — | record 0018 |
+| Record of the backups stored, and its "in doubt" state | backup register | `BackupRegister` | — | CL-DSN-07, CL-TRV-04 |
+| Article and recognized player of a classification | part | `ClassificationPart` | — | CL-DET-01 |
+| Count of verdicts chance alone would produce | chance verdict count | `ExpectedFalseSignals` | Verdicts chance alone would produce | SEN-41, CL-SEN-20 |
+| Result of a statistics update that waited until the cut-off | source late | `TaskRunResult` `source_late` | Source late | CL-TRV-23 |
+| Interval between two catch-up attempts | catch-up interval | not in the module map | Catch-up interval | CL-TEL-12 |
+| Width of the bands of detection confidence | confidence band width | not in the module map | Confidence band width | CL-DET-24 |
+| Time the link check waits for a page | link-check timeout | not in the module map | Link-check timeout | CL-IMP-25 |
 
 ## 11. Not settled
 
-Points this glossary could not settle because the specs or decisions leave the concept itself open. Each needs an owner's or a domain-model ruling; until then, use the provisional name given.
+Points the specs, the decisions and the rulings leave open; each keeps the provisional name given.
 
-1. **Origin of schedule-derived events.** Decision Q-TAX-01 makes the app create birthday and former-team events from the schedule. The specs know only two origins (detected, historical) and two case origins (historical, tracked). Provisional: event origin `schedule`; whether such a case is historical or tracked (it can be past or upcoming) is for the domain model.
-2. **Reason of a detached article.** DET-47 says a detached article "becomes not relevant" but gives no reason among the not-relevant reasons. Provisional value: `detached`, label "Detached from its event".
-3. **When "collection impossible" closes.** COL-44 does not say. Provisional: when a later run reads at least one source successfully.
-4. **When "feed keeps too few items" closes**, and its name: COL-46 only describes the warning. The English name is a proposal.
-5. **Precision of a historical event's date.** COL-20 defines exact, approximate and none for collected articles; a research result gives a date or a date and time. Whether `DatePrecision` also covers historical events (date only = `approximate`?) is for the domain model.
-6. **One quota incident or several.** The French uses « quota atteint » for the classification quota (DET-11), the stats-source quota (STA-39) and any service limit (TRV-05). This glossary makes it one kind, `quota_reached`, with the service function; separate kinds would need new names.
-7. **The decrease caveat (ALE-16).** « le joueur a tendance à jouer moins bien » is a present-tense claim close to what ALE-18 and SEN-42 forbid (12-oddities). The English uses the present perfect, "has tended to play worse", to keep it about past games; the owner may prefer the ALE-10 wording instead.
-8. **Route segments.** The routes in 3.13 follow the conventions but are proposals for the interface module.
-9. **The owner as actor in labels.** Origins « utilisateur » are labeled "You" (single-user app). If screens are ever shared, "Owner" would replace it everywhere.
+1. **When "Add a collection time" closes.** COL-46 and CL-COL-13 say when the warning is raised, not when it ends. Provisional: when a later read of the source records no gap.
+2. **Outbox fact of the export reminder.** TEL-15 and TRV-54 notify the reminder in Lot 2; the module map's list of fact kinds lacks it. Provisional: `export_reminder_due` (section 4).
