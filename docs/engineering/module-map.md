@@ -566,3 +566,117 @@ Rules for every port: interface and types in the port folder; the accessor retur
 - **Errors:** temporary — `rate_limited` with the delay Telegram asks (TEL-35), `unreachable`, `timeout`; definitive — `blocked`, `chat_not_found`, `bot_deactivated`, `unauthorized` (link broken, TEL-37); `too_long`; `delete_refused` (TEL-38).
 - **Fake must simulate:** an inbox per chat, inbound updates from a private chat, a group or a stranger, expired and reused codes, temporary and definitive failures, slow-down answers, deletion refused after Telegram's delay.
 - **Spec:** TEL-01, TEL-03, TEL-07, TEL-28–TEL-31, TEL-35, TEL-37, TEL-38, TRV-18, TRV-67, DSN-31.
+
+## 6. Parameter registry
+
+F-params creates the registry complete, one file per family, from this table (TRV-38–TRV-40). Defaults are the specs' values (the hypothesis that carries each is in the Spec column), as changed by the decision records. "Bounds" lists only what the specs give; F-params adds technical bounds to every other entry (positive integers, shares from 0 to 100 %, times of day, positive durations) and marks them "engineering", so the settings screen can show allowed values (TRV-34). **Calc** marks a parameter whose change triggers a full recalculation and moves the date of the last calculation change shown with profiles and the validation table (TRV-35, SEN-37, SUI-25, IHM-51): the parameters that change a case, a profile, a trend, a forecast or a validation result. Code never hard-codes any of these values.
+
+| Key | Default | Unit | Bounds (specs) | Module | Calc | Spec |
+|---|---|---|---|---|---|---|
+| `players.maxActive` | 30 | active players | — | players | | JOU-04, JOU-05, H-JOU-01 |
+| `players.indicativeMin` | 20 | active players | — | todo | | JOU-04, H-JOU-01 |
+| `players.prolongedAbsenceGames` | 10 | consecutive team games missed | — | games, todo | | JOU-22, H-JOU-05 |
+| `players.exposureWindowDays` | 30 | days | — | detection (L2) | | JOU-03, H-JOU-08 |
+| `collection.times` | 16:30 and 23:00 | local times | one or more a day | tasks (L2) | | COL-12, H-COL-01, ADR 0019 |
+| `collection.readAttempts` | 3 | attempts per run | — | collection | | COL-13, H-COL-04 |
+| `collection.maxArticleAgeDays` | 3 | days | — | collection, detection | | COL-24, DET-07, H-COL-02 |
+| `collection.titleDedupWindowHours` | 6 | hours | — | collection | | COL-30, H-COL-02 |
+| `collection.excerptMaxLength` | 500 | characters | — | collection | | COL-27, H-COL-03 |
+| `collection.notRelevantRetentionDays` | 30 | days (also the excerpt erasure term) | — | collection | | COL-36, COL-37, H-COL-04 |
+| `collection.dedupTraceRetentionDays` | 180 | days | — | collection | | COL-34, H-COL-04 |
+| `collection.failedRunsBeforeDown` | 2 | consecutive failed runs | — | collection | | COL-41, H-COL-04 |
+| `collection.silenceDelayDays` | 3 | days, overridable per source | — | collection | | COL-42, H-COL-04 |
+| `collection.indicatorWindowDays` | 30 | days, rolling | — | collection | | COL-11, H-COL-04 |
+| `detection.threshold` | 70 | points | 0–100 scale; never retroactive | detection | | DET-24, DET-26, TRV-36, H-DET-03 |
+| `detection.classificationAttempts` | 2 | attempts | — | detection | | DET-22, H-DET-03 |
+| `detection.groupingWindowHours` | 72 | hours before the article's retained instant | — | detection | | DET-29, H-DET-04 |
+| `detection.priorityHorizonHours` | 48 | hours before tip-off | — | detection | | DET-09, H-DET-05 |
+| `detection.queueResumeIntervalHours` | 6 | hours | — | tasks (L2) | | DET-10, H-DET-05 |
+| `backtests.maxSourcesPerEvent` | 3 | sources | at least 1 | backtests, imports, ai-exchange callers | | H-BKT-09, BKT-21, IMP-14 |
+| `imports.maxPastedTextMegabytes` | 2 | MB | — | imports, drafts | | IMP-02, H-IMP-02 |
+| `imports.duplicateMaxDateGapDays` | 2 | days | — | imports, detection | | IMP-25, DET-58, H-IMP-02 |
+| `imports.maxSourceLeadDays` | 1 | days | — | imports | | IMP-14, H-IMP-02 |
+| `imports.spotCheckSources` | 3 | sources | — | imports | | IMP-23, H-IMP-02 |
+| `imports.linkCheckEnabled` | on | on / off | on / off | imports, tasks | | IMP-17, H-IMP-02, H-IMP-08 |
+| `imports.disallowedSourceDomains` | the list in `data/seed/disallowed-source-domains.json` (social networks, forums, collaborative encyclopedias, video platforms) | domains | — | imports | | IMP-14, H-IMP-13, ADR 0005 |
+| `games.minutesFloor` | 15 | minutes | — | games (engine input) | ✓ | STA-14, H-STA-03 |
+| `games.minutesAverageShare` | 50 | % of the season's average minutes per regular-season game played | — | games | ✓ | STA-14, H-STA-03 |
+| `games.minBaselineGames` | 10 | usable games, measured game excluded | — | games | ✓ | STA-19, H-STA-07 |
+| `games.postseasonBaseline` | postseason | choice | postseason / regular season | games | ✓ | STA-18, H-STA-06 |
+| `games.partialBaselineShare` | 20 | % of played games without an index | — | games | ✓ | STA-24, H-STA-10 |
+| `games.dailyUpdateDelayHours` | 3 | hours after the last scheduled tip-off of the past competition day | — | tasks | | STA-32, H-STA-12 |
+| `games.publicationProbeIntervalMinutes` | 60 | minutes | — | tasks | | statistics-source service sheet (ruling pending) |
+| `games.correctionWindowDays` | 7 | days after the game | — | games | | STA-33, H-STA-13 |
+| `games.sheetUnavailableAfterDays` | 30 | days after the game, outage days excluded | — | games | | STA-35, H-STA-13 |
+| `games.retryFirstDelayHours` | 1 | hours | — | games | | STA-36, H-STA-14 |
+| `games.retryIntervalHours` | 4 | hours | — | games | | STA-36, H-STA-14 |
+| `games.incidentAfterHours` | 12 | hours of continuous failure | — | games | | STA-37, H-STA-14 |
+| `games.quotaReserveShare` | 10 | % of each limit kept for STA-40 levels 1 and 2 | — | games, quotas | | STA-39, STA-40, H-STA-15 |
+| `sensitivity.maxAttachmentDays` | 10 | days after the reference instant | — | sensitivity | ✓ | SEN-04, H-SEN-03 |
+| `sensitivity.concurrentCasesDoubtful` | off | on / off | on / off | sensitivity | ✓ | SEN-06, H-SEN-04 |
+| `sensitivity.injuryReturnMinGamesMissed` | 4 | consecutive team games missed | — | sensitivity | ✓ | SEN-13, H-SEN-05 |
+| `sensitivity.injuryReturnFirstGames` | 2 | games played after the absence | — | sensitivity | ✓ | SEN-13, H-SEN-05 |
+| `sensitivity.allPlayoffGamesUnusualStakes` | off | on / off | on / off | sensitivity | ✓ | SEN-14, H-SEN-06 |
+| `sensitivity.opponentWinShareLow` | 25 | %, strictly below | — | sensitivity | ✓ | SEN-15, H-SEN-07 |
+| `sensitivity.opponentWinShareHigh` | 75 | %, strictly above | — | sensitivity | ✓ | SEN-15, H-SEN-07 |
+| `sensitivity.opponentMinGames` | 10 | games, measured game excluded | — | sensitivity | ✓ | SEN-15, H-SEN-07 |
+| `sensitivity.minValidCases` | 5 | valid cases | — | sensitivity, tracking | ✓ | SEN-23, SEN-31, SUI-08, H-03, ADR 0021 |
+| `sensitivity.possibleSignalToNoise` | 2 | multiples of the expected noise | "probable" stricter than "possible" | sensitivity, tracking | ✓ | SEN-23, SUI-27, H-SEN-10, ADR 0021 |
+| `sensitivity.possibleMeanGap` | 0.25 | normalized gap | as above | sensitivity | ✓ | SEN-23, H-SEN-10, ADR 0021 |
+| `sensitivity.probableSignalToNoise` | 3 | multiples of the expected noise | as above | sensitivity | ✓ | SEN-23, H-SEN-10, ADR 0021 |
+| `sensitivity.probableMeanGap` | 0.40 | normalized gap | as above | sensitivity | ✓ | SEN-23, H-SEN-10, ADR 0021 |
+| `sensitivity.confidenceMediumFromCases` | 8 | valid cases | — | sensitivity | ✓ | SEN-25, H-SEN-11 |
+| `sensitivity.confidenceHighFromCases` | 15 | valid cases | — | sensitivity | ✓ | SEN-25, H-SEN-11 |
+| `sensitivity.confidenceDispersionDrop` | 1.5 | observed dispersion | — | sensitivity | ✓ | SEN-25, H-SEN-11 |
+| `sensitivity.confidenceDoubtfulShareDrop` | 30 | % excluded ÷ (valid + excluded) | — | sensitivity | ✓ | SEN-25, H-SEN-11 |
+| `sensitivity.trendMinPlayers` | 3 | distinct players | — | sensitivity | ✓ | SEN-29, H-SEN-13 |
+| `sensitivity.trendMaxTopShare` | 50 | % of the valid cases from one player | — | sensitivity | ✓ | SEN-29, H-SEN-13 |
+| `sensitivity.countsBelowCases` | 20 | cases | — | ui, sensitivity | | SEN-39, H-SEN-14 |
+| `alerts.confidenceVigilanceMargin` | 10 | points above the detection threshold | 0–100 scale | alerts (L2) | | ALE-16, H-ALE-06 |
+| `tracking.categoryThreshold` | 0.25 | normalized gap in the forecast direction | — | tracking (L2) | ✓ | SUI-22, H-SUI-05 |
+| `tracking.minTrackedCasesForAssessment` | 10 | tracked cases with a forecast | — | tracking (L2) | ✓ | SUI-26, H-SUI-06 |
+| `notifications.enabled` | on | on / off | — | notifications (L2) | | TEL-25 |
+| `notifications.quietHours` | 23:00 to 08:00 | local time range | start = end means none; may span midnight | notifications | | TEL-20, H-TEL-03 |
+| `notifications.urgentException` | on | on / off | on / off | notifications | | TEL-21, H-TEL-03 |
+| `notifications.category.backtestRequests`, `.alerts`, `.trackedResults`, `.typeProposals`, `.incidents` | on | on / off each | on / off | notifications | | TEL-24, H-TEL-03 |
+| `notifications.inconclusiveAlerts` | on | on / off | on / off | notifications | | TEL-11, TEL-24 |
+| `notifications.incidentEnd` | on | on / off | on / off | notifications | | TEL-24 |
+| `notifications.reminderEnabled` | on | on / off | on / off | notifications | | TEL-10, TEL-24 |
+| `notifications.reminderLeadHours` | 6 | hours before tip-off | — | notifications | | TEL-10, H-TEL-03 |
+| `notifications.alertGroupingThreshold` | 3 | alerts per pass | — | notifications | | TEL-19, H-TEL-03 |
+| `notifications.maxDetailedFacts` | 10 | facts per grouped message | — | notifications | | TEL-19, H-TEL-03 |
+| `notifications.dailyCap` | 20 | messages per day of the owner's zone | — | notifications | | TEL-22, H-TEL-03 |
+| `notifications.retryIntervalsMinutes` | 1, 5, 15, 30, 60 | minutes | — | notifications | | TEL-35, H-TEL-03 |
+| `notifications.incidentReminderDays` | 3 | days | — | notifications | | TEL-15, H-TEL-03 |
+| `notifications.incidentRecurrenceGraceHours` | 6 | hours | — | notifications | | TEL-15, H-TEL-03 |
+| `notifications.linkCodeValidityMinutes` | 15 | minutes | — | notifications | | TEL-29, H-TEL-03 |
+| `display.timeZone` | Europe/Paris | IANA time zone | any zone | time, tasks, notifications | | IHM-14, TRV-27, H-IHM-02, ADR 0010 |
+| `display.listPageSize` | 50 | items | — | ui | | IHM-18, H-IHM-03 |
+| `display.deadlineNearHours` | 24 | hours | — | todo | | IHM-20, H-IHM-03 |
+| `display.draftRetentionDays` | 7 | days, at most | — | drafts | | IHM-42, H-IHM-03 |
+| `display.researchToolUrl` | none | address, optional | — | backtests screens | | IHM-44, H-IHM-04 |
+| `events.maxDescriptionLength` | 200 | characters | — | events, imports, detection, backtests (prompt) | | DSN-20, H-DSN-01, H-BKT-09 |
+| `quotas.statsSource.requestsPerDay` | 200 | file downloads | — | quotas | | TRV-03, TRV-39, statistics-source service sheet |
+| `quotas.statsSource.megabytesPerDay` | 2,048 | MB downloaded | — | quotas | | TRV-03, statistics-source service sheet |
+| `quotas.languageModel.requestsPerMinute`, `.requestsPerDay`, `.requestsPerMonth` | none until its service sheet | calls | — | quotas (L2) | | TRV-03, TRV-39, Q-02 |
+| `quotas.database.capacityMegabytes` | from the database service sheet | MB | — | quotas | | TRV-03, TRV-07 |
+| `quotas.warningShare` | 80 | % of a limit | — | quotas | | TRV-05, H-TRV-02 |
+| `quotas.databaseWarningShare` | 80 | % of the capacity | — | quotas | | TRV-07, H-TRV-03 |
+| `scheduler.statsUpdateTime` | 15:00 (spec default 12:00; ruling pending) | local time | — | tasks | | TRV-25, H-TRV-07, statistics-source service sheet |
+| `scheduler.statsUpdateCutoff` | 20:00 (ruling pending) | local time | — | tasks | | statistics-source service sheet |
+| `scheduler.purgeTime` | 04:00 | local time | — | tasks | | TRV-25, H-TRV-07 |
+| `scheduler.missedRunMarginHours` | 2 | hours | — | scheduler | | TRV-31, H-TRV-07 |
+| `journal.retentionDays` | 90 | days | — | journal | | TRV-48, H-TRV-08 |
+| `backups.weekday` | Monday | weekday | — | tasks | | TRV-50, H-TRV-09 |
+| `backups.time` | 05:00 | local time | — | tasks | | TRV-50, H-TRV-09 |
+| `backups.kept` | 8 | backups | — | backups | | TRV-50, H-TRV-09 |
+| `backups.exportReminderDays` | 30 | days without an export | — | backups | | TRV-54, H-TRV-09 |
+| `auth.passwordMinLength` | 12 | characters | — | auth | | TRV-60, H-TRV-10 |
+| `auth.loginFailureThreshold` | 5 | failures | — | auth | | TRV-61, H-TRV-10 |
+| `auth.loginFailureWindowMinutes` | 15 | minutes | — | auth | | TRV-61, H-TRV-10 |
+| `auth.lockoutMinutes` | 15 | minutes | — | auth | | TRV-61, H-TRV-10 |
+| `auth.sessionIdleDays` | 30 | days without use | — | auth | | TRV-62, H-TRV-10 |
+
+**Not parameters.** Fixed by the journal (TRV-38): the press languages (H-11, COL-05), the daily frequency of collection and detection (only the hours are set), the backtest depth of a whole NBA career (H-06, BKT-08). Fixed by a spec rule: the Game Score coefficients (STA-11), the minutes ceiling of 48 plus 5 per overtime (STA-09), 3 decimals for the index and 2 for gaps (STA-12, SEN-09), the dispersion floor of 1 and the range of twice the expected noise (SEN-22), the false-signal shares derived from the signal-to-noise thresholds (SEN-41), the Pacific end-of-day convention (SEN-01). Fixed by a decision: the eight-week fingerprint lifetime (ADR 0017; whether it follows `backups.kept` is open point 5). Engineering constants, documented where they are defined: the trigger cadence, lease timeouts, the tick budget, the 10-point confidence bands of DET-25, one statistics download at a time.
+
+**Settings that live on an object, not in the registry:** on a type sheet, the dating rule (known in advance, calendar-derived), the intimate-subject mark, the switched-off doubtful criterion (ADR 0016) and the sheet's own thresholds (for example the media-storm outlet count); on a source, its silence delay and media time zone (COL-04, COL-42).
