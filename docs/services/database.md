@@ -58,7 +58,7 @@ replaceable (TRV-12). The connection strings are then copied into Vercel by hand
 | ----------------------- | -------------------------------------------------------------------------------- | -------------------------- | --------- |
 | Storage                 | About 100 MB after several seasons (H-TRV-04)                                    | 1 GB                       | ~90%      |
 | Public network transfer | Weekly backup reads of at most 100 MB, plus one user's pages: under 1 GB a month | 5 GB a month               | >80%      |
-| Compute                 | 11 to 48 CU-hours a month at 0.25 CU (table below)                               | 100 CU-hours               | 52 to 89% |
+| Compute                 | Lot 1: about 18 to 30 CU-hours a month; Lot 2: about 20 to 45 (estimate below)   | 100 CU-hours               | 55 to 82% |
 | Connections             | A few at a time                                                                  | 105 direct / 10,000 pooled | >95%      |
 | Branches                | 1 (plus a temporary one to test a restore)                                       | 10                         | 80%       |
 
@@ -71,29 +71,57 @@ a query, the compute would never sleep**: 0.25 CU × 730 hours = 182.5 CU-hours 
 100 CU-hour allowance, and Neon would then suspend the database until the next month. Ticks every
 15 minutes would still use about a third of every hour, around 60 CU-hours, before any real work.
 
-The rule for the implementation: **an idle tick decides from a cached wake plan, without opening a
-database connection.** After every pass that touches the database, the application writes the next
-due instants (tasks, retries, reminders, queue resumption) to the Vercel Runtime Cache
-([hosting.md](hosting.md)); an idle tick reads it and opens the database only when something is due,
-when the entry is missing, or for a safety check at most once an hour. Any change that moves a due
-instant (a setting, a new queue item, a failed send) rewrites the entry. The interface must not poll
-the server either while it is open.
+The design therefore decides each tick from a **wake plan** kept in the Vercel Runtime Cache
+([hosting.md](hosting.md); [module map](../engineering/module-map.md), sections 1.6 and 1.9): a tick
+opens the database only when the plan is missing, older than an hour, written by another deployment,
+or due. Every database pass rewrites the plan, any change that moves a due instant (a setting, a new
+queue item, a failed send) updates it, and probes that need no database (the statistics source's
+hourly refresh check, Telegram polling while a link code is pending) run from the plan alone.
+Nothing connects at import or start-up, the health route reads no table, and the interface never
+polls the server on a timer.
 
-| Activity                                      | Wakes a day | Active minutes per wake (work + 5-minute tail) | Minutes a day       |
-| --------------------------------------------- | ----------- | ---------------------------------------------- | ------------------- |
-| Collection and detection, 16:30 and 23:00     | 2           | 20 to 40                                       | 40 to 80            |
-| Statistics at 12:00 and match follow-up       | 1           | 15 to 25                                       | 15 to 25            |
-| Purge at 04:00                                | 1           | 6                                              | 6                   |
-| Weekly backup, Monday 05:00                   | 1/7         | 10                                             | about 1.5           |
-| Classification queue resumption, if not empty | 0 to 4      | 6 to 10                                        | 0 to 40             |
-| Telegram deferred messages and reminders      | 1 to 3      | 6                                              | 6 to 18             |
-| Owner's visits                                | 2 to 5      | 10 to 15                                       | 20 to 75            |
-| Safety checks by idle ticks, at most hourly   | 0 to 24     | 5.5                                            | 0 to 132            |
-| **Total**                                     |             |                                                | **about 90 to 380** |
+### Compute estimate
 
-That is 45 to 190 active hours a month, so 11 to 48 CU-hours at 0.25 CU. Fix the compute at 0.25 CU
-(minimum and maximum) so that a heavy query cannot autoscale and multiply the cost; 1 GB of RAM is
-plenty for a 100 MB database.
+Assumptions, all to be replaced by the measured figures of the first weeks (TRV-08):
+
+- The compute is fixed at 0.25 CU and stays active from a pass's first query to 5 minutes after its
+  last; a pass's own queries take seconds.
+- Since every pass rewrites the plan and a plan older than an hour triggers a pass, there is a pass
+  every 60 to 65 minutes, day and night, whenever nothing else is due: about 24 a day.
+- Scheduled starts are the defaults of the [module map](../engineering/module-map.md), sections 4 and
+  4.1, in Paris time: purge at 04:00; backup on Monday at 05:00; the daily statistics update probes
+  the source every hour from 15:00 without the database, then makes one pass once the source has
+  refreshed, at 20:00 at the latest (ruling CL-TRV-23); collection and detection at 16:30 and 23:00
+  (Lot 2); notifications at the end of quiet hours (08:00) and when a reminder or a retry is due
+  (Lot 2); the classification queue every 6 hours while it is not empty (Lot 2).
+- Work durations are estimates: 1 to 3 minutes for the purge, 5 to 7 for the backup, 10 to 25 for the
+  statistics pass (the current season ingested, the touched cases recalculated), 10 to 40 for each
+  collection and detection.
+- The owner opens the application 2 to 5 times a day, each visit active for 7 to 15 minutes with the
+  tail, outside any pass.
+
+| Activity                                | When                                                      | Active minutes a day | Notes                                                |
+| --------------------------------------- | --------------------------------------------------------- | -------------------- | ---------------------------------------------------- |
+| Hourly passes when nothing else is due  | About 24 a day                                            | 110 to 130           | Seconds of queries plus the 5-minute tail each       |
+| Purge                                   | 04:00                                                     | 1 to 3               | Work time inside that hour's pass                    |
+| Weekly backup                           | Monday 05:00                                              | about 1              | 5 to 7 minutes a week, through the direct connection |
+| Statistics update                       | Probes from 15:00 without the database; one pass by 20:00 | 10 to 25             | Shorter after a day without games                    |
+| Collection and detection (Lot 2)        | 16:30 and 23:00                                           | 20 to 80             | 10 to 40 minutes each                                |
+| Classification-queue resumption (Lot 2) | Every 6 hours while the queue is not empty                | 0 to 20              | Usually empty                                        |
+| Notifications (Lot 2)                   | 08:00, reminders, retries                                 | 0 to 15              | Most fall inside an hourly pass                      |
+| Owner's visits                          | 2 to 5 a day                                              | 15 to 75             | 7 to 15 minutes each                                 |
+| **Total, Lot 1**                        |                                                           | **about 140 to 235** |                                                      |
+| **Total, Lot 2**                        |                                                           | **about 160 to 350** |                                                      |
+
+Over a month of 30.4 days that is 70 to 120 active hours in Lot 1 and 80 to 180 in Lot 2, so **about
+18 to 30 CU-hours in Lot 1 and 20 to 45 in Lot 2** at 0.25 CU, against 100: a margin of 55% or more,
+well below the 80% warning share (TRV-05). The hourly passes alone cost 14 to 17 CU-hours a month. If
+the Runtime Cache fails or is paused, the design allows one pass an hour per function instance; each
+instance beyond the first would add about the same 14 to 17 CU-hours, and Vercel does not publish how
+many instances it keeps for such light traffic (not verified).
+
+Fix the compute at 0.25 CU (minimum and maximum) so that a heavy query cannot autoscale and multiply
+the cost; 1 GB of RAM is plenty for a 100 MB database.
 
 ## Terms on personal use and automated access
 

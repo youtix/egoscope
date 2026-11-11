@@ -3,7 +3,7 @@
 | Item         | Value                                                                                     |
 | ------------ | ----------------------------------------------------------------------------------------- |
 | Role         | Runs the whole Next.js application (interface, server code, tick endpoint, Telegram hook) |
-| Decision     | Vercel Hobby, functions in Frankfurt (`fra1`), Node.js runtime (not Bun)                  |
+| Decision     | Vercel Hobby, functions in Frankfurt (`fra1`, in `vercel.json`), Node.js 22 (not Bun)     |
 | Status       | Pre-selected by the owner; verified, passes every rule                                    |
 | Date checked | 2026-11-11                                                                                |
 
@@ -74,7 +74,7 @@ the fallback. The application measures the real figures during the first weeks (
 | Provisioned memory   | 2 GB × wall time; idle ticks of a fraction of a second, two detection runs of a few minutes a day, statistics, interface: about 20 to 40 GB-h | 360 GB-h  | ~90%      |
 | Function duration    | Every task works in resumable chunks of less than 300 s (TRV-30)                                                                              | 300 s     | by design |
 | Data transfer        | One user's pages and a weekly backup upload of at most 50 MB                                                                                  | 100 GB    | >99%      |
-| Runtime Cache        | About 12,000 reads and 12,000 writes: one of each per tick (wake plan, last tick), plus wake-plan updates                                     | 1M / 200K | >90%      |
+| Runtime Cache        | About 35,000 reads and 12,000 writes: two or three reads and one write per tick, plus a plan rewrite per database pass                        | 1M / 200K | >90%      |
 | Deployments          | A few per week                                                                                                                                | 100 a day | >95%      |
 
 The wall-time figure assumes a detection run does not sleep inside a function while waiting for a
@@ -138,11 +138,13 @@ goes in `vercel.json` as `"regions": ["fra1"]`.
   rule is Bun in production only if stable, so production runs on Node.js. Vercel offers Node.js
   26.x (default), 24.x and 22.x and follows `engines.node` in `package.json`
   ([Node.js versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions)). The
-  toolchain pins Node.js 22, which Vercel deploys as the latest 22.x. Node.js 22 reaches end of life
-  on 2027-04-30 and 24 on 2028-04-30 ([Node.js release schedule](https://github.com/nodejs/Release)).
-  Vercel disabled Node.js 20 for new deployments on 2026-10-01, five months after its end of life
-  ([Node.js 20 deprecation](https://vercel.com/changelog/node-js-20-is-being-deprecated)): plan the
-  move to 24.x before April 2027. Bun stays the package manager and script runner.
+  whole build uses **Node.js 22**, locally, in CI and in production, which Vercel deploys as the
+  latest 22.x; Bun stays the package manager, script runner and test runner. A hardening task at the
+  end of the build moves CI and production to the newest Node.js LTS that passes the gate. It matters
+  because Node.js 22 reaches end of life on 2027-04-30, 24 on 2028-04-30 and 26 on 2029-04-30
+  ([Node.js release schedule](https://github.com/nodejs/Release)), and Vercel disabled Node.js 20 for
+  new deployments on 2026-10-01, five months after its end of life
+  ([Node.js 20 deprecation](https://vercel.com/changelog/node-js-20-is-being-deprecated)).
 - **Fluid compute helpers** from `@vercel/functions`: `attachDatabasePool` for the database pool
   (see [database.md](database.md)), `getCache` for the Runtime Cache, and `waitUntil` (or Next.js
   `after()`) to finish a chunk after answering the tick quickly.
@@ -164,17 +166,22 @@ goes in `vercel.json` as `"regions": ["fra1"]`.
 
 ### Environment variables
 
-All are set in Vercel, Project Settings, Environment Variables, for Production only. The full list
-with where each value comes from is in [accounts-and-keys.md](accounts-and-keys.md).
+All are set in Vercel, Project Settings, Environment Variables, for Production only; preview
+deployments carry no database variables. `GROQ_API_KEY` is optional. The application also reads two
+system environment variables, `VERCEL_ENV` and `VERCEL_DEPLOYMENT_ID`, which exist only while the
+project setting "Enable access to System Environment Variables" stays on
+([System environment variables](https://vercel.com/docs/environment-variables/system-environment-variables)).
+The full list with where each value comes from is in [accounts-and-keys.md](accounts-and-keys.md).
 
-| Variable                                                                   | Used by                                  |
-| -------------------------------------------------------------------------- | ---------------------------------------- |
-| `DATABASE_URL`, `DATABASE_URL_UNPOOLED`                                    | [database.md](database.md)               |
-| `CRON_SECRET`                                                              | [scheduler.md](scheduler.md)             |
-| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AI_API_TOKEN`, `GROQ_API_KEY`         | [detection-model.md](detection-model.md) |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`                            | [telegram.md](telegram.md)               |
-| `BACKUP_GITHUB_REPOSITORY`, `BACKUP_GITHUB_TOKEN`, `BACKUP_ENCRYPTION_KEY` | [backup-storage.md](backup-storage.md)   |
-| `APP_BASE_URL`, `INITIAL_PASSWORD`, `FINGERPRINT_KEY`                      | The application itself                   |
+| Variable                                                                      | Used by                                  |
+| ----------------------------------------------------------------------------- | ---------------------------------------- |
+| `DATABASE_URL`, `DATABASE_URL_UNPOOLED`                                       | [database.md](database.md)               |
+| `CRON_SECRET`                                                                 | [scheduler.md](scheduler.md)             |
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AI_API_TOKEN`, `GROQ_API_KEY`            | [detection-model.md](detection-model.md) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`                               | [telegram.md](telegram.md)               |
+| `BACKUP_GITHUB_REPOSITORY`, `BACKUP_GITHUB_TOKEN`, `BACKUP_ENCRYPTION_KEY`    | [backup-storage.md](backup-storage.md)   |
+| `APP_BASE_URL`, `INITIAL_PASSWORD`, `FINGERPRINT_KEY`, `LOG_LEVEL` (optional) | The application itself                   |
+| `STATS_SOURCE_BASE_URL` (optional)                                            | The statistics source                    |
 
 ## When a quota is hit
 
@@ -239,7 +246,8 @@ opt-out setting in the dashboard.
 - **Fair use wording on scrapers**: the feed collection reads public syndication feeds only, but the
   final judgment is Vercel's.
 - **Runtime logs last 1 hour**: diagnosis relies on the application's own journal (TRV-41).
-- **Node.js 22 end of life on 2027-04-30**: upgrade to 24.x before Vercel blocks new deployments.
+- **Node.js 22 end of life on 2027-04-30**: the final hardening task must move production to a newer
+  LTS before Vercel blocks new Node.js 22 deployments.
 - **Outbound IPs are not fixed on Hobby**: static egress addresses are a Pro and Enterprise feature
   ([Static IPs](https://vercel.com/docs/connectivity/static-ips)), so any service limiting by IP
   address sees requests from addresses shared with other Vercel customers.

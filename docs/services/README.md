@@ -13,27 +13,30 @@ limit (TRV-06).
 
 ## Services at a glance
 
-| Role                      | Service and plan                                                   | Key limits against our expected use (margin)                                                                                                      | Account                      | Replaceable by                                      | Sheet                                    |
-| ------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------- | ---------------------------------------- |
-| Hosting                   | Vercel Hobby; functions in `fra1`; Node.js 22 runtime              | 1,000,000 invocations a month vs about 20,000 (98%); 360 GB-hours of memory vs 20 to 40 (89% or more); 300 s per function, so work runs in chunks | Vercel, new (GitHub sign-in) | Any Next.js host with an outside scheduler          | [hosting.md](hosting.md)                 |
-| Database                  | Neon Free; AWS Frankfurt; compute fixed at 0.25 CU                 | 1 GB vs about 100 MB (90%); 100 CU-hours a month vs 11 to 48 (52 to 89%) provided idle ticks never wake it; 5 GB transfer vs under 1 GB (80%)     | Neon, new (GitHub sign-in)   | Any Postgres over TLS, by export and restore        | [database.md](database.md)               |
-| Scheduler, primary        | Cloudflare Workers Free, one Cron Trigger every 5 minutes          | 100,000 requests a day vs 288 (99%); 1 of 5 cron triggers                                                                                         | Cloudflare, new              | cron-job.org                                        | [scheduler.md](scheduler.md)             |
-| Scheduler, fallback       | Vercel Schedules on Hobby (public beta), every 15 minutes          | 5,000 runs a month vs at most 2,976 (40%)                                                                                                         | Vercel, same account         | Vercel Cron Jobs, once a day                        | [scheduler.md](scheduler.md)             |
-| Detection model, primary  | Cloudflare Workers AI, `@cf/zai-org/glm-4.7-flash`                 | 10,000 neurons a day vs about 2,870 on a typical day (71%) and 7,810 at 150 calls (22%)                                                           | Cloudflare, same account     | `@cf/google/gemma-4-26b-a4b-it` on the same account | [detection-model.md](detection-model.md) |
-| Detection model, fallback | Groq Free, `openai/gpt-oss-120b`                                   | 1,000 requests and 200,000 tokens a day; used for overflow and second attempts only                                                               | Groq, new                    | `openai/gpt-oss-20b` on the same account            | [detection-model.md](detection-model.md) |
-| Notifications             | Telegram Bot API, one bot created with BotFather                   | 1 message a second per chat vs at most 20 a day (99%)                                                                                             | Telegram, existing           | None (D-30)                                         | [telegram.md](telegram.md)               |
-| Backups                   | Release assets of one draft release in a private GitHub repository | Files under 2 GiB, no total or bandwidth cap, vs 8 files of at most 50 MB                                                                         | GitHub, existing             | A private Vercel Blob store, Backblaze B2           | [backup-storage.md](backup-storage.md)   |
-| Statistics source         | Chosen by separate research                                        | See its sheet                                                                                                                                     | See its sheet                | See its sheet                                       | Its own sheet                            |
-| Press feeds               | Chosen by the owner inside the application (TRV-17)                | Read twice a day                                                                                                                                  | None                         | Any public feed                                     | Document 03                              |
-| Application address       | The free `https://<project>.vercel.app` (TRV-01)                   | No domain is bought                                                                                                                               | Vercel                       | The next host's free address                        | [hosting.md](hosting.md)                 |
+| Role                                      | Service and plan                                                     | Key limits against our expected use (margin)                                                                                                                                         | Account                      | Replaceable by                                      | Sheet                                        |
+| ----------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- | --------------------------------------------------- | -------------------------------------------- |
+| Hosting                                   | Vercel Hobby; functions in `fra1`; Node.js 22 runtime                | 1,000,000 invocations a month vs about 20,000 (98%); 360 GB-hours of memory vs 20 to 40 (89% or more); 300 s per function, so work runs in chunks                                    | Vercel, new (GitHub sign-in) | Any Next.js host with an outside scheduler          | [hosting.md](hosting.md)                     |
+| Database                                  | Neon Free; AWS Frankfurt; compute fixed at 0.25 CU                   | 1 GB vs about 100 MB (90%); 100 CU-hours a month vs about 18 to 30 in Lot 1 and 20 to 45 in Lot 2 (55% or more), because idle ticks never wake it; 5 GB transfer vs under 1 GB (80%) | Neon, new (GitHub sign-in)   | Any Postgres over TLS, by export and restore        | [database.md](database.md)                   |
+| Scheduler, primary                        | Cloudflare Workers Free, one Cron Trigger every 5 minutes            | 100,000 requests a day vs 288 (99%); 1 of 5 cron triggers                                                                                                                            | Cloudflare, new              | cron-job.org                                        | [scheduler.md](scheduler.md)                 |
+| Scheduler, fallback                       | Vercel Schedules on Hobby (public beta), every 15 minutes            | 5,000 runs a month vs at most 2,976 (40%)                                                                                                                                            | Vercel, same account         | Vercel Cron Jobs, once a day                        | [scheduler.md](scheduler.md)                 |
+| Detection model                           | Cloudflare Workers AI, `@cf/zai-org/glm-4.7-flash`, alone by default | 10,000 neurons a day vs about 2,870 on a typical day (71%) and 7,810 at 150 calls (22%)                                                                                              | Cloudflare, same account     | `@cf/google/gemma-4-26b-a4b-it` on the same account | [detection-model.md](detection-model.md)     |
+| Detection model, optional second provider | Groq Free, `openai/gpt-oss-120b`, only when `GROQ_API_KEY` is set    | 1,000 requests and 200,000 tokens a day; takes the overflow and the further attempts                                                                                                 | Groq, new, optional          | `openai/gpt-oss-20b` on the same account            | [detection-model.md](detection-model.md)     |
+| Notifications                             | Telegram Bot API, one bot created with BotFather                     | 1 message a second per chat vs at most 20 a day (99%)                                                                                                                                | Telegram, existing           | None (D-30)                                         | [telegram.md](telegram.md)                   |
+| Backups                                   | Release assets of one draft release in a private GitHub repository   | Files under 2 GiB, no total or bandwidth cap, vs 8 files of at most 50 MB                                                                                                            | GitHub, existing             | A private Vercel Blob store, Backblaze B2           | [backup-storage.md](backup-storage.md)       |
+| Statistics source                         | Chosen by separate research                                          | See its sheet                                                                                                                                                                        | None                         | See its sheet                                       | [statistics-source.md](statistics-source.md) |
+| Press feeds                               | Chosen by the owner inside the application (TRV-17)                  | Read twice a day                                                                                                                                                                     | None                         | Any public feed                                     | Document 03                                  |
+| Application address                       | The free `https://<project>.vercel.app` (TRV-01)                     | No domain is bought                                                                                                                                                                  | Vercel                       | The next host's free address                        | [hosting.md](hosting.md)                     |
 
 ## Accounts
 
-- **New**: Vercel, Neon, Cloudflare, Groq. Vercel and Neon accept a GitHub sign-in, so they add no
-  password; Cloudflare carries two roles (scheduler and model).
+- **New and required**: Vercel, Neon, Cloudflare. Vercel and Neon accept a GitHub sign-in, so they
+  add no password; Cloudflare carries two roles (scheduler and model).
+- **New and optional**: Groq, the second detection provider; without `GROQ_API_KEY` the detection
+  runs on Workers AI alone.
 - **Existing**: GitHub (code and backups) and Telegram (the bot is created from the owner's account,
   not a new account).
-- **Possibly**: the statistics source, per its own sheet.
+- **None for the statistics source**: its files are public downloads
+  ([statistics-source.md](statistics-source.md)).
 - **None of them needs a payment card**, and none is a trial.
 
 The step-by-step list of accounts, tokens, permissions and environment variables is in
@@ -51,17 +54,20 @@ replaceable behind an interface; fewest accounts first; usable from France, regi
 1. **Idle ticks must not touch the database.** A query every 5 minutes keeps Neon's compute awake
    all month, 182.5 CU-hours against an allowance of 100, after which Neon suspends the database
    until the next month. The tick decides from a wake plan in the Vercel Runtime Cache and opens the
-   database only when something is due ([database.md](database.md)).
+   database only when the plan is missing, older than an hour, written by another deployment, or due
+   ([database.md](database.md)).
 2. **One region**: Vercel functions in `fra1` next to Neon's `aws-eu-central-1` (both Frankfurt).
-3. **Node.js in production, not Bun**: Vercel's Bun runtime is still beta; the toolchain's Node.js 22
-   reaches end of life on 2027-04-30, so plan the move to Node.js 24 before then
-   ([hosting.md](hosting.md)).
+3. **Node.js in production, not Bun**: Vercel's Bun runtime is still beta. The whole build uses
+   Node.js 22, and a hardening task at the end moves CI and production to the newest LTS that passes
+   the gate, before Node.js 22's end of life on 2027-04-30 ([hosting.md](hosting.md)).
 4. **Outside callers use the production address**: Vercel's default protection blocks the other
    deployment URLs, so the tick and the Telegram webhook point at `https://<project>.vercel.app`.
 5. **Large downloads are streamed**: function bodies are capped at 4.5 MB unless streamed, which
    matters for the full export (TRV-52).
-6. **Detection uses two providers through one interface**, validates every answer and records which
-   model produced each classification ([detection-model.md](detection-model.md)).
+6. **Detection runs a provider chain**: Workers AI alone by default, Groq appended when its key is
+   set; every answer is validated, an unusable one gets one further attempt (on the next provider,
+   or on the same one when it is alone), and the model of each classification is recorded
+   ([detection-model.md](detection-model.md)).
 7. **Every quota is a setting** (TRV-03): each sheet lists the values to enter.
 8. **Opt out of Vercel's model training** on Hobby content ([hosting.md](hosting.md)).
 
@@ -95,9 +101,9 @@ Supabase's free plan pauses projects after a week of inactivity ([Supabase prici
 
 ### Detection model
 
-No single free provider met every rule with margin. Cloudflare Workers AI has the cleanest terms and
-the largest published allocation but does not guarantee schema adherence; Groq guarantees the schema
-but its free token allowance does not cover a typical day on its own. Together they do.
+Cloudflare Workers AI has the cleanest terms and the largest published allocation, and covers the
+realistic volume alone, but does not guarantee schema adherence. Groq guarantees the schema but its
+free token allowance does not cover a typical day on its own; it is an optional second provider.
 
 | Candidate                        | Why it lost                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -107,8 +113,7 @@ but its free token allowance does not cover a typical day on its own. Together t
 | Cerebras                         | No permanent free tier: $5 of credits, expiring after 30 days, after adding a payment method ([Rate limits](https://inference-docs.cerebras.ai/support/rate-limits)).                                                                                                                                                                                                                                                             |
 | OpenRouter `:free` models        | 50 requests a day for accounts that bought fewer than 10 credits ([Limits](https://openrouter.ai/docs/api_reference/limits)).                                                                                                                                                                                                                                                                                                     |
 | SambaNova Cloud                  | 20 requests a day on the free tier ([Rate limits](https://docs.sambanova.ai/docs/en/models/rate-limits)).                                                                                                                                                                                                                                                                                                                         |
-| Cloudflare Workers AI only       | Enough on most days but not at the ceiling size of 8,000 tokens in and 1,000 out, and no guaranteed schema; hence the Groq fallback.                                                                                                                                                                                                                                                                                              |
-| Groq only                        | 200,000 tokens a day is about 32 uncached calls; it relies on prompt caching to cover a typical day; hence fallback only.                                                                                                                                                                                                                                                                                                         |
+| Groq as the primary              | 200,000 tokens a day is about 32 uncached calls; it relies on prompt caching to cover a typical day; hence optional second provider only.                                                                                                                                                                                                                                                                                         |
 | OVHcloud AI Endpoints, anonymous | 2 requests a minute per IP and per model with no daily cap ([capabilities](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-capabilities)), but presented for testing before production ([catalog](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog/)), with no contract and an IP shared with other Vercel customers.                                                              |
 | Hugging Face Inference Providers | Free users get no monthly credits ([pricing](https://huggingface.co/docs/inference-providers/pricing)).                                                                                                                                                                                                                                                                                                                           |
 | Cohere                           | Trial keys are limited to 1,000 calls a month ([rate limits](https://docs.cohere.com/docs/rate-limits)).                                                                                                                                                                                                                                                                                                                          |
@@ -133,9 +138,11 @@ Telegram is named by the specifications (D-30); no alternative was considered.
 
 ## What failed a rule or could not be verified
 
-- **Detection model**: no single free provider passes every rule; the two-provider design is the
-  answer. Groq's agreement says its services are not for consumer use, which leaves some ambiguity
-  for a personal project. Gemini is excluded for its EEA clause.
+- **Detection model**: Workers AI alone covers about 190 realistic calls a day (150 use 78%), but at
+  the ceiling size of 8,000 tokens in and 1,000 out only about 124 fit and the rest wait for the
+  renewal at 00:00 UTC and the queue's next resumption; it does not guarantee schema-valid answers, so every answer is validated. Groq, if
+  added, has a consumer-use clause that leaves some ambiguity for a personal project, and publishes
+  no daily reset time. Gemini is excluded for its EEA clause.
 - **Scheduler fallback**: Vercel Schedules is in public beta; its Hobby limits may change.
 - **Not verified**: Vercel's cold-start time and the exact name of its model-training opt-out;
   whether Neon bills its occasional availability checks; how punctual Cloudflare cron runs are and

@@ -6,22 +6,23 @@ goes into and where it is entered. It holds **no real value**, and none must eve
 repository, a commit, an issue, a GitHub Actions secret of the public repository or a chat message
 (TRV-64). Keep a copy of every secret in a password manager (TRV-75 step 1).
 
-The variable names are proposals that the implementation adopts in `.env.example`; if a name changes
-there, `.env.example` wins.
+The variable names are those of the application's environment schema and of `.env.example`; if a
+name changes there, `.env.example` wins.
 
 ## Accounts
 
-| Account    | New or existing | Sign-in                                            | Used for                                                                                                                            | Needed from |
-| ---------- | --------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| Vercel     | New             | "Continue with GitHub"                             | Hosting, fallback scheduler ([hosting.md](hosting.md))                                                                              | Lot 1       |
-| Neon       | New             | "Sign up with GitHub"                              | Database ([database.md](database.md))                                                                                               | Lot 1       |
-| Cloudflare | New             | Email and password, with two-factor authentication | Primary scheduler (lot 1), primary detection model (lot 2) ([scheduler.md](scheduler.md), [detection-model.md](detection-model.md)) | Lot 1       |
-| Groq       | New             | GroqCloud console sign-up                          | Fallback detection model ([detection-model.md](detection-model.md))                                                                 | Lot 2       |
-| GitHub     | Existing        | -                                                  | Code (public), backups (private repository) ([backup-storage.md](backup-storage.md))                                                | Lot 1       |
-| Telegram   | Existing        | -                                                  | Notifications through a bot ([telegram.md](telegram.md))                                                                            | Lot 2       |
+| Account    | New or existing | Sign-in                                            | Used for                                                                                                                    | Needed from |
+| ---------- | --------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Vercel     | New             | "Continue with GitHub"                             | Hosting, fallback scheduler ([hosting.md](hosting.md))                                                                      | Lot 1       |
+| Neon       | New             | "Sign up with GitHub"                              | Database ([database.md](database.md))                                                                                       | Lot 1       |
+| Cloudflare | New             | Email and password, with two-factor authentication | Primary scheduler (lot 1), detection model (lot 2) ([scheduler.md](scheduler.md), [detection-model.md](detection-model.md)) | Lot 1       |
+| Groq       | New, optional   | GroqCloud console sign-up                          | Second detection provider, used only when `GROQ_API_KEY` is set ([detection-model.md](detection-model.md))                  | Lot 2       |
+| GitHub     | Existing        | -                                                  | Code (public), backups (private repository) ([backup-storage.md](backup-storage.md))                                        | Lot 1       |
+| Telegram   | Existing        | -                                                  | Notifications through a bot ([telegram.md](telegram.md))                                                                    | Lot 2       |
 
-The statistics source may add an account; its own sheet says so. No account anywhere needs a
-payment card: never enter one, never start a trial (TRV-01, TRV-02).
+**Three new accounts are required: Vercel, Neon and Cloudflare.** Groq is optional. The statistics
+source needs no account and no key ([statistics-source.md](statistics-source.md)). No account anywhere needs a payment card: never
+enter one, never start a trial (TRV-01, TRV-02).
 
 ## 1. Vercel
 
@@ -31,9 +32,14 @@ payment card: never enter one, never start a trial (TRV-01, TRV-02).
 3. Team settings: **opt out of model training** (Hobby content can otherwise be used to train AI
    models, see [hosting.md](hosting.md); the exact label of the setting was not verified).
 4. Project settings, Deployment Protection: keep **Standard Protection**.
-5. Project settings, Environment Variables: enter the Vercel variables listed at the end of this
-   page, for the **Production** environment only.
-6. Note the production address `https://<project>.vercel.app`: it is `APP_BASE_URL` and the base of
+5. Project settings, Environment Variables: keep **Enable access to System Environment Variables**
+   checked. The application reads `VERCEL_ENV` and `VERCEL_DEPLOYMENT_ID` from it, and Vercel makes
+   no deployment ID available when the setting is off
+   ([System environment variables](https://vercel.com/docs/environment-variables/system-environment-variables)).
+6. Project settings, Environment Variables: enter the Vercel variables listed below for the
+   **Production** environment only. Preview deployments carry no database variables, so they never
+   reach the single production database (TRV-78); the application reports them as not configured.
+7. Note the production address `https://<project>.vercel.app`: it is `APP_BASE_URL` and the base of
    `TICK_URL`.
 
 ## 2. Neon
@@ -58,7 +64,13 @@ payment card: never enter one, never start a trial (TRV-01, TRV-02).
    token into `CLOUDFLARE_AI_API_TOKEN` and the account ID shown on the same page into
    `CLOUDFLARE_ACCOUNT_ID`.
 
-## 4. Groq
+## 4. Groq (optional)
+
+Without a Groq key the detection runs on Workers AI alone, which the application fully supports:
+an unusable answer gets its further attempt on Workers AI itself, and once Workers AI's daily
+allocation is used up the remaining articles wait in the queue, in priority order and without loss,
+until it renews at 00:00 UTC (DET-08). With a key, Groq becomes the second provider of the chain
+and takes that overflow and those further attempts ([detection-model.md](detection-model.md)).
 
 1. Sign up at the GroqCloud console and stay on the **Free** tier: upgrading to the Developer tier
    requires a payment method, which must never be added.
@@ -106,26 +118,49 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'
 | `FINGERPRINT_KEY`         | The command above; keys the temporary fingerprint of a withdrawn event (owner decision on Q-DSN-01)                                            | Vercel                                                                           |
 | `INITIAL_PASSWORD`        | Chosen by the owner, at least 12 characters (TRV-60); replaced at first sign-in (TRV-57) and used again to reset a forgotten password (TRV-63) | Vercel                                                                           |
 
+There is **no session secret**: sessions are random tokens stored hashed in the database, so nothing
+signs them.
+
 ## Environment variables
 
-### Vercel, Production environment
+### Vercel, Production environment, set by the owner
 
-| Variable                   | Value comes from               | Secret | Lot | Sheet                                    |
-| -------------------------- | ------------------------------ | ------ | --- | ---------------------------------------- |
-| `APP_BASE_URL`             | `https://<project>.vercel.app` | No     | 1   | [hosting.md](hosting.md)                 |
-| `DATABASE_URL`             | Neon, pooled connection string | Yes    | 1   | [database.md](database.md)               |
-| `DATABASE_URL_UNPOOLED`    | Neon, direct connection string | Yes    | 1   | [database.md](database.md)               |
-| `CRON_SECRET`              | Generated                      | Yes    | 1   | [scheduler.md](scheduler.md)             |
-| `INITIAL_PASSWORD`         | Chosen by the owner            | Yes    | 1   | [hosting.md](hosting.md)                 |
-| `FINGERPRINT_KEY`          | Generated                      | Yes    | 1   | This page                                |
-| `BACKUP_GITHUB_REPOSITORY` | `owner/egoscope-backups`       | No     | 1   | [backup-storage.md](backup-storage.md)   |
-| `BACKUP_GITHUB_TOKEN`      | GitHub fine-grained token      | Yes    | 1   | [backup-storage.md](backup-storage.md)   |
-| `BACKUP_ENCRYPTION_KEY`    | Generated                      | Yes    | 1   | [backup-storage.md](backup-storage.md)   |
-| `CLOUDFLARE_ACCOUNT_ID`    | Cloudflare, Workers AI page    | No     | 2   | [detection-model.md](detection-model.md) |
-| `CLOUDFLARE_AI_API_TOKEN`  | Cloudflare, Workers AI token   | Yes    | 2   | [detection-model.md](detection-model.md) |
-| `GROQ_API_KEY`             | GroqCloud console              | Yes    | 2   | [detection-model.md](detection-model.md) |
-| `TELEGRAM_BOT_TOKEN`       | BotFather                      | Yes    | 2   | [telegram.md](telegram.md)               |
-| `TELEGRAM_WEBHOOK_SECRET`  | Generated                      | Yes    | 2   | [telegram.md](telegram.md)               |
+| Variable                   | Value comes from                                                                         | Required | Secret | Lot | Sheet                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------- | -------- | ------ | --- | -------------------------------------------- |
+| `APP_BASE_URL`             | `https://<project>.vercel.app`                                                           | Yes      | No     | 1   | [hosting.md](hosting.md)                     |
+| `DATABASE_URL`             | Neon, pooled connection string                                                           | Yes      | Yes    | 1   | [database.md](database.md)                   |
+| `DATABASE_URL_UNPOOLED`    | Neon, direct connection string                                                           | Yes      | Yes    | 1   | [database.md](database.md)                   |
+| `CRON_SECRET`              | Generated                                                                                | Yes      | Yes    | 1   | [scheduler.md](scheduler.md)                 |
+| `INITIAL_PASSWORD`         | Chosen by the owner                                                                      | Yes      | Yes    | 1   | [hosting.md](hosting.md)                     |
+| `FINGERPRINT_KEY`          | Generated                                                                                | Yes      | Yes    | 1   | This page                                    |
+| `BACKUP_GITHUB_REPOSITORY` | `owner/egoscope-backups`                                                                 | Yes      | No     | 1   | [backup-storage.md](backup-storage.md)       |
+| `BACKUP_GITHUB_TOKEN`      | GitHub fine-grained token                                                                | Yes      | Yes    | 1   | [backup-storage.md](backup-storage.md)       |
+| `BACKUP_ENCRYPTION_KEY`    | Generated                                                                                | Yes      | Yes    | 1   | [backup-storage.md](backup-storage.md)       |
+| `LOG_LEVEL`                | `debug`, `info`, `warn` or `error`; default `info`                                       | No       | No     | 1   | The application itself                       |
+| `STATS_SOURCE_BASE_URL`    | A mirror or test address of the statistics files; by default the source's public address | No       | No     | 1   | [statistics-source.md](statistics-source.md) |
+| `CLOUDFLARE_ACCOUNT_ID`    | Cloudflare, Workers AI page                                                              | Yes      | No     | 2   | [detection-model.md](detection-model.md)     |
+| `CLOUDFLARE_AI_API_TOKEN`  | Cloudflare, Workers AI token                                                             | Yes      | Yes    | 2   | [detection-model.md](detection-model.md)     |
+| `GROQ_API_KEY`             | GroqCloud console; without it the model chain is Workers AI alone                        | No       | Yes    | 2   | [detection-model.md](detection-model.md)     |
+| `TELEGRAM_BOT_TOKEN`       | BotFather                                                                                | Yes      | Yes    | 2   | [telegram.md](telegram.md)                   |
+| `TELEGRAM_WEBHOOK_SECRET`  | Generated                                                                                | Yes      | Yes    | 2   | [telegram.md](telegram.md)                   |
+
+### Set by the repository, never by the owner
+
+| Variable         | What it does                                                                                                                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EGOSCOPE_LOT`   | Build-time lot switch: 1 until the Lot 2 milestone, then 2. The build configuration sets it.                                                                                        |
+| `EGOSCOPE_FAKES` | Replaces outside services with fakes (a comma-separated list of ports, or `all`), for development and the hermetic end-to-end tests only; the application refuses it in production. |
+
+### Read from Vercel, never set
+
+| Variable               | What it is                                                                       |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `VERCEL_ENV`           | `production`, `preview` or `development`, available at build time and at runtime |
+| `VERCEL_DEPLOYMENT_ID` | The deployment's unique identifier, available at build time and at runtime       |
+
+Both are system environment variables
+([System environment variables](https://vercel.com/docs/environment-variables/system-environment-variables)),
+present only while the project setting of step 5 above stays enabled.
 
 ### Cloudflare tick Worker
 
@@ -146,7 +181,7 @@ redeploy together.
 | `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Reset the database role's password in Neon, copy both new strings, redeploy                                                           |
 | `CRON_SECRET`                           | Generate a new value, update Vercel and the Worker, redeploy                                                                          |
 | `CLOUDFLARE_AI_API_TOKEN`               | Roll or delete the token in Cloudflare and create a new one                                                                           |
-| `GROQ_API_KEY`                          | Delete the key in the GroqCloud console and create a new one                                                                          |
+| `GROQ_API_KEY`                          | Delete the key in the GroqCloud console and create a new one, or remove the variable to run on Workers AI alone                       |
 | `TELEGRAM_BOT_TOKEN`                    | Send `/token` to BotFather, update the variable, redeploy                                                                             |
 | `TELEGRAM_WEBHOOK_SECRET`               | Generate a new value, redeploy; the installation check registers it again                                                             |
 | `BACKUP_GITHUB_TOKEN`                   | Revoke it in GitHub's token settings and generate a new one with the same scope                                                       |

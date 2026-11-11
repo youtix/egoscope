@@ -1,13 +1,13 @@
-# Detection model: Cloudflare Workers AI, with Groq as fallback
+# Detection model: Cloudflare Workers AI, with Groq as an optional second provider
 
-| Item                | Value                                                                              |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| Role                | Classifies each pre-filtered press article into structured JSON (DET-14 to DET-24) |
-| Primary             | Cloudflare Workers AI, model `@cf/zai-org/glm-4.7-flash`, free daily allocation    |
-| Fallback            | Groq, model `openai/gpt-oss-120b`, free plan                                       |
-| Same-account spares | `@cf/google/gemma-4-26b-a4b-it` (Workers AI), `openai/gpt-oss-20b` (Groq)          |
-| Excluded            | Google Gemini free tier: its terms reserve EEA use to paid services (below)        |
-| Date checked        | 2026-11-11                                                                         |
+| Item                | Value                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| Role                | Classifies each pre-filtered press article into structured JSON (DET-14 to DET-24)                |
+| Primary             | Cloudflare Workers AI, model `@cf/zai-org/glm-4.7-flash`, free daily allocation; alone by default |
+| Optional second     | Groq, model `openai/gpt-oss-120b`, free plan, used only when `GROQ_API_KEY` is set                |
+| Same-account spares | `@cf/google/gemma-4-26b-a4b-it` (Workers AI), `openai/gpt-oss-20b` (Groq)                         |
+| Excluded            | Google Gemini free tier: its terms reserve EEA use to paid services (below)                       |
+| Date checked        | 2026-11-11                                                                                        |
 
 ## Role
 
@@ -19,9 +19,12 @@ justification and closed context values (DET-14, DET-16, DET-21). The model must
 French press and answer in English (owner decision on language), and must return valid structured
 output reliably (TRV-16).
 
-No single free provider meets every rule with margin on its own (see [README.md](README.md)), so the
-application uses two: the primary carries the volume, the fallback takes over when the primary's
-daily allocation is used up, when it fails, and for the second attempt after an unusable answer.
+The application calls the model through a **provider chain** ([module map](../engineering/module-map.md),
+port `language-model`). By default the chain is Workers AI alone, and the application works fully
+with it. When the owner sets `GROQ_API_KEY`, Groq is added as the second provider: it takes over when
+Workers AI's daily allocation is used up or Workers AI fails, and it makes the further attempt after
+an unusable answer. Without Groq, that further attempt runs on Workers AI itself and the overflow
+waits in the queue (DET-08).
 
 ## Plan and cost
 
@@ -30,7 +33,7 @@ daily allocation is used up, when it fails, and for the second attempt after an 
   ([Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)). Workers
   Free is the default plan and needs no credit card
   ([Cloudflare Workers](https://www.cloudflare.com/product/workers/)). Permanent, renewed daily.
-- **Groq**: the Free plan; a payment method is needed only to upgrade to the Developer tier
+- **Groq, optional**: the Free plan; a payment method is needed only to upgrade to the Developer tier
   ([Groq billing FAQ](https://console.groq.com/docs/billing-faqs)). Never upgrade.
 
 ## Account needed
@@ -39,7 +42,8 @@ daily allocation is used up, when it fails, and for the second attempt after an 
   Workers AI API token from the Workers AI page with the "Workers AI" template, or a custom token
   with Workers AI Read and Workers AI Edit, and note the account ID
   ([Workers AI REST API](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)).
-- **Groq**: one GroqCloud account and one API key from the console.
+- **Groq, optional**: one GroqCloud account and one API key from the console, only if the owner
+  wants the second provider.
 
 ## Limits
 
@@ -64,36 +68,65 @@ do-not-repropose list, the article title and its 500-character excerpt from COL-
 players and their recent events) and 600 output tokens; **ceiling** given for this research, 8,000
 input and 1,000 output.
 
-| Case                                         | Workers AI `glm-4.7-flash`                                   | Groq `gpt-oss-120b`                                                                                                |
-| -------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| Cost of one realistic call                   | 52 neurons                                                   | 6,100 tokens, or about 1,600 counted when the 4,500-token prefix is cached                                         |
-| Realistic calls a day within the free limits | about 190                                                    | about 32 uncached, about 125 cached (1,000 requests a day)                                                         |
-| Typical day, 55 realistic calls              | about 2,870 neurons, 29% of the allocation                   | not needed                                                                                                         |
-| 150 realistic calls                          | about 7,810 neurons, 78%                                     | not needed                                                                                                         |
-| 150 calls at the ceiling                     | about 12,060 neurons, 121%: about 124 fit, the rest overflow | a 9,000-token request exceeds the 8,000-token minute limit, so the overflow waits for the 00:00 UTC reset (DET-08) |
+### Daily budget per provider
 
-Together the two providers handle about 220 to 315 realistic calls a day, against at most 150: a
-margin of 50% or more. A typical day uses under a third of the primary alone. Figures are computed
-from the published rates; the application measures the real sizes in its first weeks (TRV-08).
+| Provider                             | Daily budget                                                  | Daily reset                                                                | Per-minute limits         | One realistic call                                                      | Realistic calls a day         |
+| ------------------------------------ | ------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------- | ----------------------------- |
+| Workers AI `glm-4.7-flash`           | 10,000 neurons                                                | 00:00 UTC                                                                  | 300 requests              | 52 neurons                                                              | about 190                     |
+| Groq `openai/gpt-oss-120b`, optional | 1,000 requests and 200,000 tokens (cached tokens not counted) | Not published; the `x-ratelimit-reset-requests` header gives the time left | 30 requests, 8,000 tokens | 6,100 tokens, about 1,600 counted when the 4,500-token prefix is cached | about 32 uncached, 125 cached |
 
-### What the implementation must do
+Sources: [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/),
+[Workers AI limits](https://developers.cloudflare.com/workers-ai/platform/limits/),
+[Groq rate limits](https://console.groq.com/docs/rate-limits). The application counts each provider
+against its own budget (TRV-03), on Workers AI's UTC day; for Groq it follows the reset times the
+response headers report, since Groq publishes no daily boundary.
 
-1. **One interface, an ordered list of providers**: primary, then fallback, each with its own
-   counters and declared limits (TRV-03), reset at its own boundary.
-2. **One prompt, one JSON schema, written for strict mode**: Groq's strict structured outputs need
+### Workers AI alone, the default
+
+| Case                            | Use of the 10,000 neurons                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Typical day, 55 realistic calls | about 2,870 neurons, 29%                                                                          |
+| 150 realistic calls             | about 7,810 neurons, 78%: covered, with a margin of 22%                                           |
+| 150 calls at the ceiling        | about 12,060 neurons, 121%: about 124 calls fit, the rest wait for the 00:00 UTC renewal (DET-08) |
+
+With Workers AI alone, the realistic volume is covered with margin. Only days of 150 articles at the
+ceiling size overflow. The overflow is classified at the queue's next resumption once the allocation
+has renewed at 00:00 UTC; by default the queue resumes 6 hours after the previous run (DET-10), so
+after the 23:00 run that is around 05:00 Paris time, after most evening tip-offs in North America.
+Articles about players with the nearest games go first (DET-09), and an event created after its
+game's tip-off is marked as such (DET-33).
+
+### With Groq added
+
+Groq takes the overflow while each request stays within its 8,000-token minute limit: at realistic
+sizes the two providers handle about 220 to 315 calls a day, a margin of 50% or more over 150. A
+ceiling-size request (9,000 tokens) never fits Groq's minute limit, so at that size the overflow
+still waits for 00:00 UTC. Figures are computed from the published rates; the application measures
+the real sizes in its first weeks (TRV-08).
+
+### The provider chain as designed
+
+The [module map](../engineering/module-map.md), port `language-model`, specifies the chain:
+
+1. **An ordered chain**: Workers AI with `languageModel.primaryModel`, then, only when `GROQ_API_KEY`
+   is set, Groq with `languageModel.fallbackModel`. Each provider is called through its own quota
+   guard and skipped when its budget defers the call or it fails.
+2. **Attempts** (DET-22, `detection.classificationAttempts`, 2 by default): every answer goes through
+   the validator (the strict schema and the DET-21 and DET-22 checks); an unusable answer gets one
+   further attempt on the next provider, or on the same one when it is alone. After the last
+   attempt the article is marked "classification failed" and stays in the queue.
+3. **One prompt, one JSON schema, written for strict mode**: Groq's strict structured outputs need
    every property listed in `required` and `additionalProperties: false`, and do not combine with
    streaming or tool use ([Groq structured outputs](https://console.groq.com/docs/structured-outputs)).
    The same schema goes to Workers AI.
-3. **Validate every answer** against the schema and the rules of DET-21 and DET-22. When the
-   primary's answer is unusable, make the second attempt on the fallback, whose strict mode uses
-   constrained decoding.
-4. **Put the static part first** (instructions, type sheets, do-not-repropose list), byte for byte
+4. **The static part first** (instructions, type sheets, do-not-repropose list), byte for byte
    identical across calls, so Groq's automatic prompt caching applies.
-5. **Keep each Groq request under about 7,000 tokens** including the maximum output, since a
-   request larger than the 8,000-token minute limit can never pass on the free plan. If the type
-   sheets grow beyond that, the overflow simply stays with the primary or waits.
-6. **Record the provider and model ID** with each classification result, next to the instructions
-   version (DET-53), so the quality indicators can be compared by model (DET-56).
+5. **Each Groq request under about 7,000 tokens** including the maximum output, since a request
+   larger than the 8,000-token minute limit can never pass on the free plan.
+6. **No waiting inside a function**: when a minute limit is hit, the chunk stops and a later tick
+   resumes it.
+7. **The provider and model ID** are recorded with each classification result, next to the
+   instructions version (DET-53), so the quality indicators can be compared by model (DET-56).
 
 ## Terms on personal use and automated access
 
@@ -108,7 +141,7 @@ from the published rates; the application measures the real sizes in its first w
   modified 2026-06-22, covers services provided for developers, businesses or enterprises and states
   that they are not for consumer use. A developer calling the API from a personal application is the
   developer use the agreement describes; the clause still leaves some ambiguity for a purely
-  personal project, which is one reason Groq is the fallback rather than the primary. Customers in
+  personal project, which is one reason Groq is optional rather than the primary. Customers in
   the European Economic Area contract with Groq UK Limited. Preview models are for evaluation only
   ([Groq models](https://console.groq.com/docs/models)); `openai/gpt-oss-120b` is a production model.
 
@@ -138,8 +171,8 @@ prompts are not used to improve Google's products ([Gemini API Additional Terms]
 ## Inactivity policy
 
 - **Cloudflare**: no inactivity clause in the Self-Serve Subscription Agreement.
-- **Groq**: no inactivity clause in the Services Agreement. The fallback is exercised whenever the
-  primary fails and by the installation check (TRV-47), so its key does not sit unused.
+- **Groq**: no inactivity clause in the Services Agreement. When configured, it is exercised
+  whenever the primary fails and by the installation check (TRV-47), so its key does not sit unused.
 
 ## Data we send
 
@@ -176,7 +209,7 @@ Both over plain HTTPS with `fetch`; no SDK is required.
   model's input schema accepts ([glm-4.7-flash input schema](https://developers.cloudflare.com/workers-ai/models/glm-4.7-flash/sync-input.json)).
   Cloudflare does not guarantee that an answer matches the schema and returns the error
   "JSON Mode couldn't be met" when it cannot ([JSON mode](https://developers.cloudflare.com/workers-ai/features/json-mode/)),
-  hence the validation and the strict fallback.
+  hence the validation and the further attempt.
 - **Groq**: OpenAI-compatible, base URL `https://api.groq.com/openai/v1`
   ([OpenAI compatibility](https://console.groq.com/docs/openai)); `POST /chat/completions` with
   `Authorization: Bearer {GROQ_API_KEY}`, `model: "openai/gpt-oss-120b"`,
@@ -187,33 +220,34 @@ Both over plain HTTPS with `fetch`; no SDK is required.
 
 ### Environment variables
 
-| Variable                  | Value                                                   | Secret |
-| ------------------------- | ------------------------------------------------------- | ------ |
-| `CLOUDFLARE_ACCOUNT_ID`   | The Cloudflare account ID shown on the Workers AI page  | No     |
-| `CLOUDFLARE_AI_API_TOKEN` | API token with Workers AI Read and Workers AI Edit only | Yes    |
-| `GROQ_API_KEY`            | GroqCloud API key                                       | Yes    |
+| Variable                  | Value                                                                 | Secret |
+| ------------------------- | --------------------------------------------------------------------- | ------ |
+| `CLOUDFLARE_ACCOUNT_ID`   | The Cloudflare account ID shown on the Workers AI page                | No     |
+| `CLOUDFLARE_AI_API_TOKEN` | API token with Workers AI Read and Workers AI Edit only               | Yes    |
+| `GROQ_API_KEY`            | GroqCloud API key; optional, without it the chain is Workers AI alone | Yes    |
 
 ## When a quota is hit
 
 - **Workers AI**: beyond 10,000 neurons in a day, further operations fail with an error until
   00:00 UTC ([Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)).
   The application stops at its own counter first (TRV-04), and treats an unexpected refusal as the
-  limit being reached for the day (TRV-06); either way it switches to the fallback.
+  limit being reached for the day (TRV-06); either way it moves to Groq when Groq is configured, and
+  otherwise leaves the remaining articles queued until the renewal.
 - **Groq**: `429 Too Many Requests` with a `retry-after` header in seconds
   ([Groq rate limits](https://console.groq.com/docs/rate-limits)). A per-minute limit means wait and
-  retry; the daily limits mean the fallback is done for the day.
-- **Both exhausted or failing**: articles stay "en attente de classification" without loss, in the
-  priority order of DET-09; the "quota atteint" incident opens with the number waiting and the next
-  resumption (DET-08, DET-11); the owner can classify an article himself (DET-13).
+  retry from a later tick; the daily limits mean Groq is done until the reset its headers report.
+- **Every provider exhausted or failing**: articles stay "awaiting classification" without loss, in
+  the priority order of DET-09; the "quota reached" incident opens with the number waiting and the
+  next resumption (DET-08, DET-11); the owner can classify an article himself (DET-13).
 
 ## Quota parameters to enter (TRV-03)
 
-| Service and parameter                                 | Value to enter           |
-| ----------------------------------------------------- | ------------------------ |
-| Workers AI, neurons a day                             | 10,000 (reset 00:00 UTC) |
-| Workers AI, requests a minute                         | 300                      |
-| Groq `openai/gpt-oss-120b`, requests a minute / a day | 30 / 1,000               |
-| Groq `openai/gpt-oss-120b`, tokens a minute / a day   | 8,000 / 200,000          |
+| Service and parameter                                                           | Value to enter           |
+| ------------------------------------------------------------------------------- | ------------------------ |
+| Workers AI, neurons a day                                                       | 10,000 (reset 00:00 UTC) |
+| Workers AI, requests a minute                                                   | 300                      |
+| Groq `openai/gpt-oss-120b`, requests a minute / a day, only with `GROQ_API_KEY` | 30 / 1,000               |
+| Groq `openai/gpt-oss-120b`, tokens a minute / a day, only with `GROQ_API_KEY`   | 8,000 / 200,000          |
 
 ## Replaceable by
 
@@ -249,8 +283,9 @@ state no plan restriction), and real output sizes.
 
 ## Risks
 
-- **Schema adherence on Workers AI is not guaranteed**: validation and the strict fallback absorb
-  failures, at the cost of quota.
+- **Schema adherence on Workers AI is not guaranteed**: validation and the further attempt absorb
+  failures, at the cost of quota; without Groq, the further attempt runs on the same model, which
+  is less likely to succeed than Groq's constrained decoding.
 - **Model churn**: Cloudflare retires models on short schedules (for example
   `@cf/qwen/qwen3-30b-a3b-fp8`, planned deprecation 2026-11-20 on its
   [model page](https://developers.cloudflare.com/workers-ai/models/qwen3-30b-a3b-fp8/)); keep the
@@ -259,4 +294,6 @@ state no plan restriction), and real output sizes.
   comparable; the recorded model ID makes this visible.
 - **Free allocations can shrink without notice**: TRV-06 handles a refusal below the declared limit.
 - **Groq's consumer-use wording**, described above.
-- **The 8,000-token minute limit on Groq** caps the size of the prompt the fallback can take.
+- **The 8,000-token minute limit on Groq** caps the size of the prompt Groq can take.
+- **Workers AI alone at the ceiling size** classifies about 124 articles a day; the rest wait for
+  00:00 UTC.

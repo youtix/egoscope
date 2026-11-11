@@ -10,15 +10,25 @@
 
 ## Role
 
-The application exposes one secret-protected HTTPS endpoint, `POST /api/tick`. Something outside
-must call it often; the application itself decides which tasks are due (collection and detection
-at 16:30 and 23:00, statistics at 12:00, purge at 04:00, backup on Monday at 05:00, Paris time by
-default; retries and reminders in between) and works in resumable chunks (TRV-26 to TRV-31). The
-need: a call at least every 15 minutes, ideally every 5 to 10, reliable and free.
+The application exposes one secret-protected HTTPS endpoint, `/api/tick`, which accepts `GET` and
+`POST` alike, so either caller may use either method. Something outside must call it often; the
+application itself decides which tasks are due and works in resumable chunks (TRV-26 to TRV-31). By
+default, in Paris time: the purge at 04:00, the backup on Monday at 05:00, the daily statistics
+update from 15:00 (an hourly probe of the source that needs no database, then the update once the
+source has refreshed, at 20:00 at the latest, ruling CL-TRV-23), collection and detection at 16:30
+and 23:00; retries and reminders in between. The need: a call at least every 15 minutes, ideally
+every 5 to 10, reliable and free.
 
 Two callers run at the same time. The primary calls every 5 minutes; the fallback calls every 15
 minutes, needs no new account, and keeps the application alive if the primary stops. The tick is
 idempotent and single-flight, so a duplicate call does nothing (TRV-28, TRV-29).
+
+**What the fallback alone means.** If only the fallback runs, up to about 30 minutes can pass between
+two ticks: its schedule allows a run every 15 minutes and each run lands somewhere in a 15-minute
+jitter window. Every scheduled start, Telegram retry and reminder can then be up to about 30 minutes
+late, since work waits for the first tick after its due instant; no rule counts ticks, so nothing
+else changes ([module map](../engineering/module-map.md), section 4.1). With the primary, the delay is
+at most about 5 minutes.
 
 ## Plan and cost
 
@@ -65,8 +75,8 @@ allowance ([hosting.md](hosting.md)).
 
 **Constraint on the tick handler**: an idle tick must not open a database connection, or the Neon
 compute never sleeps and exhausts its 100 CU-hours a month. The handler reads a wake plan from the
-Vercel Runtime Cache and touches the database only when something is due, when the entry is
-missing, or at most once an hour; see [database.md](database.md) for the figures.
+Vercel Runtime Cache and opens the database only when the plan is missing, older than an hour,
+written by another deployment, or due; see [database.md](database.md) for the figures.
 
 ## Terms on personal use and automated access
 
@@ -107,6 +117,7 @@ In the Cloudflare dashboard: create a Worker from the "Hello World" template, re
 the snippet below, add the variable `TICK_URL` and the secret `CRON_SECRET` (Settings, Variables and
 Secrets), then add the Cron Trigger `*/5 * * * *` (Settings, Triggers). The scheduled handler may
 call an external URL with `fetch` ([Scheduled handler](https://developers.cloudflare.com/workers/runtime-apis/handlers/scheduled/)).
+The snippet sends `POST`; `GET` would work as well.
 
 ```js
 // Calls the application's tick endpoint. Cron Trigger: */5 * * * * (UTC).
@@ -129,7 +140,8 @@ version control.
 
 ### Fallback: a Vercel static schedule
 
-In `vercel.json`, with the `CRON_SECRET` environment variable set for Production:
+In `vercel.json`, with the `CRON_SECRET` environment variable set for Production. `POST` is the
+default method of a path schedule; `"requestMethod": "GET"` would work as well:
 
 ```json
 {
@@ -148,18 +160,25 @@ same secret.
 
 ### What the tick endpoint does
 
-1. Reject any request without `Authorization: Bearer <CRON_SECRET>` with `401`, comparing in constant
-   time, and record the refusal (TRV-65, CA-TRV-21).
-2. Answer `202` within a second or two, then continue with `waitUntil` or `after()` inside the
+The flow is the design's ([module map](../engineering/module-map.md), section 1.6):
+
+1. **Authenticate without the database**: compare `Authorization: Bearer <CRON_SECRET>` in constant
+   time; a refusal answers `401` and is counted in the Runtime Cache, then journaled at the next
+   database pass (TRV-65, CA-TRV-21).
+2. **Answer at once**: `202` within a second or two, then continue with `after()` inside the
    300-second function limit.
-3. Read the wake plan and the time of the last accepted tick from the Runtime Cache, without opening
-   the database; stop there when nothing is due or when the last accepted tick is less than about a
-   minute old.
-4. When something is due, open the database, take a lease so that two runs of a task never overlap
-   (TRV-28), work in resumable chunks (TRV-30), then write the new wake plan.
-5. Record in the Runtime Cache which caller sent the tick (`x-tick-source` or the Vercel user
-   agent), about 11,500 writes a month out of 200,000, so the status screen can show that the
-   primary has gone quiet (TRV-46).
+3. **Suppress duplicates**: a tick less than a minute after the last accepted one stops there;
+   otherwise the tick and its caller (`x-tick-source`, or the Vercel user agent) are recorded in the
+   Runtime Cache, so the status screen can show a caller that has gone quiet (TRV-46).
+4. **Decide from the wake plan, still without the database**: stop when nothing is due; run a
+   database-free probe when the plan asks for one; go on only when the plan is missing, older than an
+   hour, written by another deployment, or due.
+5. **Open the database**: take the tick lease (a lease row, or `pg_advisory_xact_lock` inside a
+   transaction, never a session-level lock, see [database.md](database.md)), run the due tasks in
+   resumable chunks (TRV-28, TRV-30), run the execution check (TRV-31), then rewrite the wake plan.
+
+An idle tick costs a few cache reads and one cache write: about 35,000 reads and 12,000 writes a
+month for both callers, against 1,000,000 and 200,000 ([hosting.md](hosting.md)).
 
 Use the production domain: Vercel's Standard Protection blocks the generated deployment URLs
 ([Deployment Protection](https://vercel.com/docs/deployment-protection)).
@@ -180,16 +199,16 @@ Use the production domain: Vercel's Standard Protection blocks the generated dep
 - **Vercel Schedules**: above 5,000 runs a month, scheduled runs are skipped until the next period
   ([Schedules limits](https://vercel.com/docs/schedules/limits)).
 - **Either way**, a missed tick only delays work: at the next pass or visit the application finds
-  any task whose last success is older than its interval plus the margin, records it, opens the
-  "tâche non exécutée" incident and runs the task (TRV-31). If both callers stop, the status screen
-  shows how long ago each task last succeeded (TRV-32).
+  any occurrence not run by its due instant plus the margin, records it, opens the "task not run"
+  incident and runs the task (TRV-31). If both callers stop, the status screen shows how long ago
+  each task last succeeded and each caller last called (TRV-32).
 
 ## Quota parameters to enter (TRV-03)
 
-| Parameter              | Value to enter  |
-| ---------------------- | --------------- |
-| Vercel Schedules runs  | 5,000 per month |
-| Expected tick interval | 5 minutes       |
+| Parameter                                     | Value to enter                              |
+| --------------------------------------------- | ------------------------------------------- |
+| Vercel Schedules runs                         | 5,000 per month                             |
+| Expected interval of the primary (monitoring) | 5 minutes; the fallback's is 15 plus jitter |
 
 ## Replaceable by
 
