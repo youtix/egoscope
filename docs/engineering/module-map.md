@@ -825,7 +825,7 @@ flowchart TB
   subgraph base["Foundation"]
     pure["pure core: stats-engine, ai-exchange"]
     ports["ports: stats-source, link-check, backup-storage, language-model, press-feeds, telegram"]
-    machinery["machinery: env, result, time, wording, ui, db, journal, params, outbox, incidents, quotas, scheduler, auth, drafts, offline, navigation, backups"]
+    machinery["machinery: env, log, result, time, wording, ui, db, journal, params, outbox, incidents, quotas, scheduler, auth, drafts, offline, navigation, backups"]
   end
   composition --> lot2
   composition --> lot1
