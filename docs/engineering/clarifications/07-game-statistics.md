@@ -244,7 +244,7 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
   - Missed by construction: games in uncovered seasons; first games against a team the player played for only in uncovered seasons, even when that game falls in a covered season; first games against a team for which all his games lack box scores.
   - What the owner sees: when the player's career may start before the first covered season — his first NBA game is earlier than that season, or unknown (STA-47, CL-STA-12) — the profiles of the two calendar-derived types carry a permanent mention: "Derived from {first covered season} on: earlier games are not counted, and teams the player left before then are unknown, so first games against them are missing." The general trend of each of these types shows how many players carry it. It is a profile warning (SEN-46) and never changes a verdict. With the chosen source, from 1993-94, no current player carries it (evaluation, test T20).
 - **Why:** H-01 cannot be met for these games; saying where the count stops keeps the profile from looking complete.
-- **Owner review:** yes
+- **Owner review:** yes — the birthday and former-team profiles can miss games the app cannot see, and say so instead of looking complete.
 
 ### CL-STA-25 — Calendar-derived events and the schedule
 
@@ -255,7 +255,7 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
   - Lot 2: an upcoming event is also derived when its game becomes the player's next game (STA-26), and derived again at each recomputation of STA-28; one whose game no longer qualifies before tip-off (trade, game moved off the birthday, game canceled, no longer the first meeting) is dropped. What follows for an upcoming event (tracked case, prognosis, alert sheet, message) is ADR 0015's open point 1, ruled with files 09 to 11.
   - A derived event that a new derivation no longer produces, in either lot, leaves the count with the reason "no longer derived from the calendar" (CL-SEN-25); an event that qualifies again later is a new event.
 - **Why:** lot 1 has no use for the event of an unplayed game; deriving from stored data keeps the derivation reproducible; lot 2 follows ADR 0015's recommended handling.
-- **Owner review:** yes
+- **Owner review:** yes — in lot 1 a birthday or former-team game appears in its profile only once played, and a derived event can later leave the count when new data no longer support it.
 
 ### CL-STA-26 — Two correction histories
 
