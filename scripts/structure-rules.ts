@@ -1,6 +1,7 @@
 /**
  * Layout rules that ESLint cannot see, checked over every file of the
- * repository: module rules 5 and 6 of CLAUDE.md, and the code/data split.
+ * repository: module rules 2, 5 and 6 of CLAUDE.md, the code/data split, and
+ * the TypeScript extensions that every tool understands.
  */
 
 export type StructureViolation = Readonly<{ path: string; problem: string }>;
@@ -26,7 +27,9 @@ const NEXT_ROOT_FILES: ReadonlySet<string> = new Set([
   'src/proxy.ts',
 ]);
 const CODE_EXTENSION = /\.[cm]?[jt]sx?$/u;
-const JAVASCRIPT_EXTENSION = /\.[cm]?jsx?$/u;
+const TS_OR_TSX = /\.tsx?$/u;
+const TS_ONLY_TREES = ['src/', 'scripts/'];
+const PURE_CORES = ['src/lib/stats-engine/', 'src/lib/ai-exchange/'];
 const RAW_DATA_EXTENSION = /\.(?:csv|tsv|jsonl?|ndjson|xlsx?|parquet|sqlite|db)$/u;
 const APP_MANIFEST = /^src\/app\/manifest\.(?:json|webmanifest)$/u;
 const TEST_FILE = /^(?<base>.+)\.test\.tsx?$/u;
@@ -94,19 +97,39 @@ const checkCodeAndData: Check = (path) => {
   if (path.endsWith('.d.ts')) {
     return ['No hand-written .d.ts in src/: declarations escape type-checking (skipLibCheck).'];
   }
-  if (JAVASCRIPT_EXTENSION.test(path)) {
-    return ['src/ is TypeScript only.'];
-  }
   return RAW_DATA_EXTENSION.test(path) && !APP_MANIFEST.test(path)
     ? ['Raw data, seeds and fixtures belong in data/, not src/.']
     : [];
 };
 
+// Code is .ts or .tsx: the module rules, the type check and coverage are tuned
+// to them, and the pure core is plain .ts with nothing else beside it.
+const checkLanguage: Check = (path) => {
+  if (PURE_CORES.some((core) => path.startsWith(core))) {
+    return path.endsWith('.ts') && !path.endsWith('.d.ts')
+      ? []
+      : ['The pure core holds .ts files only (module rule 2).'];
+  }
+  return TS_ONLY_TREES.some((tree) => path.startsWith(tree)) &&
+    CODE_EXTENSION.test(path) &&
+    !TS_OR_TSX.test(path)
+    ? [
+        'Code in src/ and scripts/ is .ts or .tsx: .mts, .cts and JavaScript files escape the checks.',
+      ]
+    : [];
+};
+
+// A test sits beside its subject, whatever the subject's extension: tsconfig.x.test.ts
+// beside tsconfig.x.json works as well as foo.test.ts beside foo.ts.
 const checkTestColocation: Check = (path, files) => {
   const base = TEST_FILE.exec(path)?.groups?.['base'];
-  return base === undefined || files.has(`${base}.ts`) || files.has(`${base}.tsx`)
-    ? []
-    : ['A test sits next to the file it tests: foo.test.ts beside foo.ts.'];
+  if (base === undefined) {
+    return [];
+  }
+  const hasSubject = [...files].some(
+    (file) => file.startsWith(`${base}.`) && !TEST_FILE.test(file),
+  );
+  return hasSubject ? [] : ['A test sits next to the file it tests: foo.test.ts beside foo.ts.'];
 };
 
 const CHECKS: readonly Check[] = [
@@ -115,6 +138,7 @@ const CHECKS: readonly Check[] = [
   checkRouteFolders,
   checkNames,
   checkCodeAndData,
+  checkLanguage,
   checkTestColocation,
 ];
 

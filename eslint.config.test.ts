@@ -1,106 +1,72 @@
-// Proves that the lint policy bites: each module rule of CLAUDE.md, and the
-// other guarantees of eslint.config.ts, must reject a deliberate violation.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+// Proves that the lint policy bites: each module rule of CLAUDE.md, and the other
+// guarantees of eslint.config.ts, must reject a deliberate violation. The probes
+// run in the temporary project of scripts/lint-probes.ts; the rules of the
+// project's own plugin have theirs in scripts/eslint-plugin.test.ts.
 import path from 'node:path';
 
-import eslintReact from '@eslint-react/eslint-plugin';
-import { ESLint } from 'eslint';
-import tseslint from 'typescript-eslint';
-import { describe, expect, it, onTestFinished } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
-import config from './eslint.config';
+import { createProbes } from './scripts/lint-probes';
 
-import type { Linter } from 'eslint';
+const { project, eslint, lint, ruleIds, remove } = createProbes();
 
-const ROOT = import.meta.dirname;
-const CONFIG_FILE = path.join(ROOT, 'eslint.config.ts');
-const TIMEOUT = { timeout: 60_000 };
+describe('eslint.config.ts', { timeout: 120_000 }, () => {
+  afterAll(remove);
 
-// Probes are linted from memory, without type information, so every rule that
-// needs types is switched off: those whose metadata says so, whichever plugin
-// they come from, and those of eslint-react and Vitest, which do not say so.
-// The rules under test read import paths, names and syntax, never types.
-const typeAwareRules = config.flatMap((block) =>
-  Object.entries(block.plugins ?? {}).flatMap(([prefix, plugin]) =>
-    Object.entries(plugin.rules ?? {})
-      .filter(([, rule]) => {
-        const docs: object = rule.meta?.docs ?? {};
-        return 'requiresTypeChecking' in docs && docs.requiresTypeChecking === true;
-      })
-      .map(([name]) => `${prefix}/${name}`),
-  ),
-);
-const WITHOUT_TYPES: Linter.Config[] = [
-  { files: ['**/*.{ts,tsx,mts}'], ...tseslint.configs.disableTypeChecked },
-  eslintReact.configs['disable-type-checked'],
-  {
-    rules: {
-      ...Object.fromEntries(typeAwareRules.map((rule) => [rule, 'off'])),
-      'vitest/unbound-method': 'off',
-    },
-  },
-];
-
-const eslint = new ESLint({
-  cwd: ROOT,
-  overrideConfigFile: CONFIG_FILE,
-  overrideConfig: WITHOUT_TYPES,
-});
-
-async function lint(file: string, code: string): Promise<readonly Linter.LintMessage[]> {
-  const [result] = await eslint.lintText(code, { filePath: path.join(ROOT, file) });
-  const messages = result?.messages ?? [];
-  const fatal = messages.find((message) => message.fatal === true);
-  if (fatal !== undefined) {
-    // A probe that does not parse would make "not reported" assertions pass vacuously.
-    throw new Error(`Probe ${file} does not parse: ${fatal.message}`);
-  }
-  return messages;
-}
-
-async function ruleIds(file: string, code: string): Promise<readonly (string | null)[]> {
-  const messages = await lint(file, code);
-  return messages.map((message) => message.ruleId);
-}
-
-/** Writes `files` under a fresh temporary directory, removed when the test ends. */
-function temporaryProject(files: Readonly<Record<string, string>>): string {
-  const root = mkdtempSync(path.join(tmpdir(), 'egoscope-lint-'));
-  onTestFinished(() => {
-    rmSync(root, { recursive: true, force: true });
-  });
-  for (const [file, content] of Object.entries(files)) {
-    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
-    writeFileSync(path.join(root, file), content);
-  }
-  return root;
-}
-
-describe('eslint.config.ts', TIMEOUT, () => {
   describe('module rule 1: src/lib never imports src/app', () => {
-    it('rejects an alias import', async () => {
-      const code = "export { GET } from '@/app/api/health/route';\n";
-
-      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain('no-restricted-imports');
-    });
-
-    it('rejects a relative import, after resolving it', async () => {
-      const code = "export { GET } from '../../app/api/health/route';\n";
-
-      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(
+    it.each([
+      [
+        'a static import',
+        "export { GET } from '@/app/api/health/route';\n",
+        'no-restricted-imports',
+      ],
+      [
+        'a type-only import',
+        "import type { GET } from '@/app/api/health/route';\n\nexport type Handler = typeof GET;\n",
+        'no-restricted-imports',
+      ],
+      [
+        'a dynamic import',
+        "export const load = async (): Promise<unknown> => import('@/app/api/health/route');\n",
+        'no-restricted-syntax',
+      ],
+      [
+        'an import type',
+        "export type Handler = typeof import('@/app/api/health/route');\n",
+        'no-restricted-syntax',
+      ],
+      [
+        'a require call',
+        "export const route: unknown = require('@/app/api/health/route');\n",
+        'no-restricted-syntax',
+      ],
+      [
+        'a relative import, after resolving it',
+        "export { GET } from '../../app/api/health/route';\n",
         'import-x/no-restricted-paths',
-      );
+      ],
+    ])('rejects %s', async (_form, code, rule) => {
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(rule);
     });
   });
 
-  describe('module rule 2: the statistics core is pure', () => {
+  describe('module rule 2: the pure core', () => {
     it.each([
       ['a package', "export { z } from 'zod';\n"],
       ['a Node API', "export { readFileSync } from 'node:fs';\n"],
       ['another module', "export { readServerEnv } from '@/lib/env';\n"],
-    ])('rejects importing %s', async (_kind, code) => {
+    ])('keeps the statistics core from importing %s', async (_kind, code) => {
       expect(await ruleIds('src/lib/stats-engine/probe.ts', code)).toContain(
+        'no-restricted-imports',
+      );
+    });
+
+    it.each([
+      'src/lib/stats-engine/view-probe.tsx',
+      'src/lib/stats-engine/probe.mts',
+      'src/lib/stats-engine/probe.cts',
+    ])('applies to %s like to a .ts file', async (file) => {
+      expect(await ruleIds(file, "export { readFileSync } from 'node:fs';\n")).toContain(
         'no-restricted-imports',
       );
     });
@@ -113,6 +79,21 @@ describe('eslint.config.ts', TIMEOUT, () => {
         'no-restricted-syntax',
       ],
       [
+        'the date as a string',
+        'export const today = (): string => Date();\n',
+        'no-restricted-syntax',
+      ],
+      [
+        'a parsed date',
+        "export const at = (): number => Date.parse('2025-03-14');\n",
+        'no-restricted-properties',
+      ],
+      [
+        'Intl',
+        "export const format = (): string => new Intl.NumberFormat('en').format(1);\n",
+        'no-restricted-globals',
+      ],
+      [
         'randomness',
         'export const roll = (): number => Math.random();\n',
         'no-restricted-properties',
@@ -122,6 +103,8 @@ describe('eslint.config.ts', TIMEOUT, () => {
         "export const level = (): unknown => process.env['LOG_LEVEL'];\n",
         'no-restricted-globals',
       ],
+      ['globalThis', 'export const scope = (): unknown => globalThis;\n', 'no-restricted-globals'],
+      ['global', 'export const scope = (): unknown => global;\n', 'no-restricted-globals'],
       [
         'the network',
         "export const load = (): unknown => fetch('https://example.com');\n",
@@ -132,28 +115,33 @@ describe('eslint.config.ts', TIMEOUT, () => {
         'export async function load(): Promise<number> {\n  return 1;\n}\n',
         'no-restricted-syntax',
       ],
-    ])('rejects reading %s', async (_kind, code, rule) => {
+    ])('keeps the statistics core from reading %s', async (_kind, code, rule) => {
       expect(await ruleIds('src/lib/stats-engine/probe.ts', code)).toContain(rule);
     });
 
-    it('accepts an instant passed in as an argument', async () => {
-      const code = 'export const at = (milliseconds: number): Date => new Date(milliseconds);\n';
-      const rules = await ruleIds('src/lib/stats-engine/probe.ts', code);
-
-      expect(rules).not.toContain('no-restricted-syntax');
-      expect(rules).not.toContain('no-restricted-imports');
-    });
-
-    it('lets its tests import vitest, fast-check and fixtures, and nothing else', async () => {
+    it('lets the core tests import vitest, fast-check and fixtures, and nothing else', async () => {
       const allowed =
         "export { expect } from 'vitest';\nexport { default as fc } from 'fast-check';\nexport { default as season } from '@data/fixtures/season.json';\n";
-      const forbidden = "export { z } from 'zod';\n";
 
       expect(await ruleIds('src/lib/stats-engine/probe.test.ts', allowed)).not.toContain(
         'no-restricted-imports',
       );
-      expect(await ruleIds('src/lib/stats-engine/probe.test.ts', forbidden)).toContain(
+      expect(
+        await ruleIds('src/lib/stats-engine/probe.test.ts', "export { z } from 'zod';\n"),
+      ).toContain('no-restricted-imports');
+    });
+
+    it('lets src/lib/ai-exchange use packages, but no other module and no clock', async () => {
+      const file = 'src/lib/ai-exchange/probe.ts';
+
+      expect(await ruleIds(file, "export { z } from 'zod';\n")).not.toContain(
         'no-restricted-imports',
+      );
+      expect(await ruleIds(file, "export { readServerEnv } from '@/lib/env';\n")).toContain(
+        'no-restricted-imports',
+      );
+      expect(await ruleIds(file, 'export const now = (): number => Date.now();\n')).toContain(
+        'no-restricted-properties',
       );
     });
   });
@@ -175,8 +163,26 @@ describe('eslint.config.ts', TIMEOUT, () => {
         'src/app/players/page.tsx',
         "export { card } from './[playerId]/player-card';\n",
       ],
-    ])('rejects importing from %s', async (_kind, file, code) => {
+    ])('rejects a static import from %s', async (_kind, file, code) => {
       expect(await ruleIds(file, code)).toContain('no-restricted-imports');
+    });
+
+    it.each([
+      [
+        'another route by alias',
+        "export const load = async (): Promise<unknown> => import('@/app/api/health/route');\n",
+      ],
+      [
+        'a parent route folder',
+        "export const load = async (): Promise<unknown> => import('../api/health/route');\n",
+      ],
+      [
+        'a computed path',
+        "const name = 'health';\nexport const load = async (): Promise<unknown> => import(`@/app/api/${name}/route`);\n",
+      ],
+      ['a require call', "export const route: unknown = require('../api/health/route');\n"],
+    ])('rejects a dynamic reference to %s', async (_kind, code) => {
+      expect(await ruleIds('src/app/probe/helper.ts', code)).toContain('no-restricted-syntax');
     });
 
     it('accepts a file colocated in the same route folder', async () => {
@@ -189,10 +195,24 @@ describe('eslint.config.ts', TIMEOUT, () => {
   });
 
   describe('module rule 4: modules are used through their index.ts only', () => {
-    it('rejects a deep import into another module', async () => {
-      const code = "export { gameScore } from '@/lib/stats-engine/game-score';\n";
-
-      expect(await ruleIds('src/app/page-helper.ts', code)).toContain('no-restricted-imports');
+    it.each([
+      [
+        'a static',
+        "export { gameScore } from '@/lib/stats-engine/game-score';\n",
+        'no-restricted-imports',
+      ],
+      [
+        'a type-only',
+        "import type { GameScoreInput } from '@/lib/stats-engine/game-score';\n\nexport type Input = GameScoreInput;\n",
+        'no-restricted-imports',
+      ],
+      [
+        'a dynamic',
+        "export const load = async (): Promise<unknown> => import('@/lib/stats-engine/game-score');\n",
+        'no-restricted-syntax',
+      ],
+    ])('rejects %s deep import into another module', async (_form, code, rule) => {
+      expect(await ruleIds('src/app/page-helper.ts', code)).toContain(rule);
     });
 
     it.each([
@@ -218,21 +238,7 @@ describe('eslint.config.ts', TIMEOUT, () => {
     });
 
     it('rejects two files that import each other', async () => {
-      // A cycle needs real files on disk, so this probe is a small throwaway project.
-      const project = temporaryProject({
-        'src/lib/alpha/index.ts': "export { first } from './first';\n",
-        'src/lib/alpha/first.ts':
-          "import { second } from './second';\n\nexport const first = (): number => second() + 1;\n",
-        'src/lib/alpha/second.ts':
-          "import { first } from './first';\n\nexport const second = (): number => first() - 1;\n",
-      });
-      const linter = new ESLint({
-        cwd: project,
-        overrideConfigFile: CONFIG_FILE,
-        overrideConfig: WITHOUT_TYPES,
-      });
-
-      const [result] = await linter.lintFiles(['src/lib/alpha/first.ts']);
+      const [result] = await eslint.lintFiles([path.join(project, 'src/lib/alpha/first.ts')]);
 
       expect(result?.messages.map((message) => message.ruleId)).toContain('import-x/no-cycle');
     });
@@ -264,18 +270,103 @@ describe('eslint.config.ts', TIMEOUT, () => {
     });
   });
 
-  describe('route shells stay thin', () => {
+  describe('route shells hold no logic', () => {
+    const page = 'export default function Page(): null {\n  return null;\n}\n';
+
     it.each([
       [
         'a loop',
         'export default function Page(): null {\n  for (const item of [1]) {\n    void item;\n  }\n  return null;\n}\n',
       ],
       [
-        'a helper',
+        'a top-level helper',
         "const helper = (): string => 'x';\n\nexport default function Page(): string {\n  return helper();\n}\n",
       ],
+      [
+        'an exported helper function',
+        `export function label(): string {\n  return 'x';\n}\n\n${page}`,
+      ],
+      ['an exported helper arrow', `export const label = (): string => 'x';\n\n${page}`],
+      ['a class', `export class Store {}\n\n${page}`],
+      ['an export list', `const label = 'x';\nexport { label };\n\n${page}`],
+      ['a default export that is not a function declaration', 'export default (): null => null;\n'],
     ])('rejects %s in page.tsx', async (_kind, code) => {
       expect(await ruleIds('src/app/probe/page.tsx', code)).toContain('no-restricted-syntax');
+    });
+
+    it('accepts the exports that Next.js reads from page.tsx', async () => {
+      const code = [
+        "import type { Metadata } from 'next';",
+        '',
+        "export const metadata: Metadata = { title: 'Probe' };",
+        '',
+        'export function generateStaticParams(): { id: string }[] {',
+        "  return [{ id: 'one' }];",
+        '}',
+        '',
+        page,
+      ].join('\n');
+
+      expect(await ruleIds('src/app/probe/page.tsx', code)).not.toContain('no-restricted-syntax');
+    });
+
+    it.each([
+      [
+        'not-found.tsx',
+        'src/app/probe/not-found.tsx',
+        "export const viewport = { colorScheme: 'dark' };\n",
+      ],
+      ['loading.tsx', 'src/app/probe/loading.tsx', "export const metadata = { title: 'Probe' };\n"],
+    ])('rejects an export that Next.js does not read from %s', async (_kind, file, code) => {
+      expect(await ruleIds(file, `${code}\n${page}`)).toContain('no-restricted-syntax');
+    });
+
+    it('caps the complexity of every function in the file', async () => {
+      const code = [
+        'export default function Page({ a, b }: Readonly<{ a: boolean; b: boolean }>): string {',
+        "  const pick = (): string => (a ? (b ? 'ab' : 'a') : b ? 'b' : 'none');",
+        '  return pick();',
+        '}',
+        '',
+      ].join('\n');
+
+      expect(await ruleIds('src/app/probe/page.tsx', code)).toContain('complexity');
+    });
+  });
+
+  describe('type-aware rules', () => {
+    it.each([
+      [
+        'a floating promise',
+        'async function save(): Promise<void> {\n  await Promise.resolve();\n}\n\nexport function run(): void {\n  save();\n}\n',
+        '@typescript-eslint/no-floating-promises',
+      ],
+      [
+        'an unsafe any',
+        'export const parsed: { count: number } = JSON.parse(\'{"count":1}\');\n',
+        '@typescript-eslint/no-unsafe-assignment',
+      ],
+      [
+        'a number used as a condition',
+        "export const label = (count: number): string => (count ? 'some' : 'none');\n",
+        '@typescript-eslint/strict-boolean-expressions',
+      ],
+      [
+        'a switch that misses a case',
+        "type Verdict = 'probable' | 'possible' | 'inconclusive';\n\nexport function rank(verdict: Verdict): number {\n  switch (verdict) {\n    case 'probable': {\n      return 2;\n    }\n    case 'possible': {\n      return 1;\n    }\n  }\n}\n",
+        '@typescript-eslint/switch-exhaustiveness-check',
+      ],
+    ])('reject %s', async (_kind, code, rule) => {
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(rule);
+    });
+
+    it('apply the React hooks rules to .ts files', async () => {
+      const code =
+        "import { useEffect } from 'react';\n\nexport function useProbe(enabled: boolean): void {\n  if (enabled) {\n    useEffect(() => undefined, []);\n  }\n}\n";
+
+      expect(await ruleIds('src/lib/probe/use-probe.ts', code)).toContain(
+        'react-hooks/rules-of-hooks',
+      );
     });
   });
 
@@ -310,11 +401,23 @@ describe('eslint.config.ts', TIMEOUT, () => {
       );
     });
 
-    it('refuses disable comments for architecture rules, even with a reason', async () => {
-      const code =
-        "// eslint-disable-next-line no-restricted-imports -- trying to bypass\nexport { GET } from '@/app/api/health/route';\n";
+    it.each([
+      [
+        'an architecture rule',
+        "// eslint-disable-next-line no-restricted-imports -- trying\nexport { GET } from '@/app/api/health/route';\n",
+      ],
+      [
+        'the coverage-hint rule',
+        '// eslint-disable-next-line egoscope/no-coverage-hints -- trying\n/* v8 ignore next */\nexport const probe = 1;\n',
+      ],
+      [
+        'a chain of disable comments',
+        "// eslint-disable-next-line @eslint-community/eslint-comments/no-restricted-disable -- trying\n// eslint-disable-next-line no-restricted-imports, import-x/no-restricted-paths -- trying\nexport { GET } from '@/app/api/health/route';\n",
+      ],
+    ])('refuses a disable comment for %s, even with a reason', async (_kind, code) => {
+      const messages = await lint('src/lib/probe/probe.ts', code);
 
-      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(
+      expect(messages.map((message) => message.ruleId)).toContain(
         '@eslint-community/eslint-comments/no-restricted-disable',
       );
     });

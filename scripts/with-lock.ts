@@ -6,31 +6,57 @@
  *
  * - The lock is `egoscope-heavy.lock` in the shared git directory
  *   (`git rev-parse --git-common-dir`); `egoscope-heavy.lock.json` says who holds it.
+ * - The command holds the lock itself, on a file descriptor it inherits, so the
+ *   lock lasts as long as the command (and anything it leaves running), even when
+ *   this wrapper is killed. SIGINT, SIGTERM and SIGHUP sent to the wrapper are
+ *   passed on to the command, and the wrapper waits for the command to end.
+ * - The command's exit code is passed on untouched: whether the lock was free
+ *   travels on a pipe of its own, so no exit code makes the command run again.
  * - CI never locks, and neither does a command started by a run that already holds
  *   the lock: `bun run gate` takes it once for all its steps.
  * - A waiter says whom it waits for and for how long, and gives up as soon as one
  *   run has held the lock for more than 30 minutes.
+ * - Watch, UI and dev-server modes are refused: they would hold the lock until stopped.
  *
  * Tests override the lock folder and the limit with EGOSCOPE_LOCK_DIR and
  * EGOSCOPE_LOCK_LIMIT_SECONDS.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { constants } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
+import type { ChildProcess } from 'node:child_process';
+
 export type Holder = Readonly<{ pid: number; startedAt: number; command: string; cwd: string }>;
 
 type Env = Readonly<Record<string, string | undefined>>;
+type Ended = Readonly<{ code: number; received: NodeJS.Signals | undefined }>;
+type Attempt = Readonly<{ state: 'held' | 'busy' | 'unlockable'; ended: Ended }>;
 
 const HELD = 'EGOSCOPE_LOCK_HELD';
 const LOCK_NAME = 'egoscope-heavy.lock';
-const HOLDING_FLAG = '--holding';
 const CI_OFF_VALUES: ReadonlySet<string> = new Set(['', '0', 'false']);
-// flock exits with this code, which no tool here uses, when the lock is taken.
-const BUSY = 197;
+// `-w` is the short form of `--watch` for Vitest and tsc.
+const WATCH_FLAGS: ReadonlySet<string> = new Set(['--watch', '-w', '--ui', '--hot']);
+const VITEST_ONE_SHOT: ReadonlySet<string> = new Set(['run', 'list']);
+const FORWARDED_SIGNALS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+// The shell that becomes the command. It opens the lock file on descriptor 9 and
+// tries once to lock it (flock exits with 1 when another run holds it). It then
+// reports "busy" on descriptor 3, or records the holder, reports "held" and becomes
+// the command, which keeps descriptor 9 and so holds the lock itself.
+const HOLD_SCRIPT = [
+  'exec 9>>"$1" || exit 1',
+  'flock --nonblock 9',
+  'case $? in 0) ;; 1) printf busy >&3; exit 0 ;; *) exit 1 ;; esac',
+  'printf \'{"pid":%s,%s\' "$$" "$3" > "$2"',
+  'printf held >&3 || exit 1',
+  'exec 3>&-',
+  'shift 3',
+  'exec "$@"',
+].join('\n');
 const POLL_MS = 1000;
 // A waiter reports on its first poll, then about every 30 seconds.
 const POLLS_PER_REPORT = 30;
@@ -39,11 +65,35 @@ const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
 const EXIT_SIGNAL_BASE = 128;
 const EXIT_NOT_FOUND = 127;
+const EXIT_USAGE = 2;
 
 /** Says whether a run with this environment takes the lock: never in CI, never twice. */
 export function shouldLock(env: Env): boolean {
   const isCi = !CI_OFF_VALUES.has(env['CI'] ?? '');
   return !isCi && env[HELD] === undefined;
+}
+
+/** Says whether the words from `index` on start Vitest in watch mode. */
+const isVitestWatch = (words: readonly string[], index: number): boolean =>
+  path.basename(words[index] ?? '') === 'vitest' &&
+  !VITEST_ONE_SHOT.has(words[index + 1] ?? '') &&
+  !words.includes('--run');
+
+/** Names the watch, UI or dev-server mode that `command` would start, if any. */
+export function watchMode(command: readonly string[]): string | undefined {
+  // Splitting on spaces also reads the tools that `sh -c '…'` starts.
+  const words = command.flatMap((argument) => argument.split(/\s+/u));
+  const flag = words.find((word) => WATCH_FLAGS.has(word));
+  if (flag !== undefined) {
+    return `the ${flag} flag`;
+  }
+  if (words.some((_word, index) => isVitestWatch(words, index))) {
+    return '`vitest` without `run`';
+  }
+  const isDevServer = words.some(
+    (word, index) => path.basename(word) === 'next' && words[index + 1] === 'dev',
+  );
+  return isDevServer ? '`next dev`' : undefined;
 }
 
 /** Formats a duration as minutes and seconds, such as "2m 05s" or "45s". */
@@ -102,27 +152,58 @@ function isAlive(pid: number): boolean {
   }
 }
 
-function readHolder(infoPath: string): Holder | undefined {
+function readRecord(infoPath: string): Holder | undefined {
   try {
-    const holder = parseHolder(readFileSync(infoPath, 'utf8'));
-    return holder !== undefined && isAlive(holder.pid) ? holder : undefined;
+    return parseHolder(readFileSync(infoPath, 'utf8'));
   } catch {
     return undefined;
   }
 }
 
-async function run(command: readonly string[], env: NodeJS.ProcessEnv): Promise<number> {
+/** The holder of the lock, if its record is readable and its process still runs. */
+function readHolder(infoPath: string): Holder | undefined {
+  const holder = readRecord(infoPath);
+  return holder !== undefined && isAlive(holder.pid) ? holder : undefined;
+}
+
+const exitCodeFor = (signal: NodeJS.Signals): number =>
+  EXIT_SIGNAL_BASE + constants.signals[signal];
+
+/**
+ * Waits for `child` to end, passing on to it the termination signals the wrapper
+ * receives meanwhile; resolves to its exit code and the first signal received.
+ */
+async function endOf(child: ChildProcess, program: string): Promise<Ended> {
+  let received: NodeJS.Signals | undefined;
+  const forward = (signal: NodeJS.Signals): void => {
+    received ??= signal;
+    child.kill(signal);
+  };
+  for (const signal of FORWARDED_SIGNALS) {
+    process.on(signal, forward);
+  }
+  try {
+    const code = await new Promise<number>((resolve) => {
+      child.on('error', (error) => {
+        console.error(`[lock] Cannot run ${program}: ${error.message}`);
+        resolve(EXIT_NOT_FOUND);
+      });
+      child.on('close', (exitCode, signal) => {
+        resolve(exitCode ?? (typeof signal === 'string' ? exitCodeFor(signal) : 1));
+      });
+    });
+    return { code, received };
+  } finally {
+    for (const signal of FORWARDED_SIGNALS) {
+      process.off(signal, forward);
+    }
+  }
+}
+
+async function runUnlocked(command: readonly string[]): Promise<number> {
   const [program = 'true', ...args] = command;
-  return new Promise((resolve) => {
-    const child = spawn(program, args, { stdio: 'inherit', env });
-    child.on('error', (error) => {
-      console.error(`[lock] Cannot run ${program}: ${error.message}`);
-      resolve(EXIT_NOT_FOUND);
-    });
-    child.on('exit', (code, signal) => {
-      resolve(code ?? EXIT_SIGNAL_BASE + (signal === null ? 0 : constants.signals[signal]));
-    });
-  });
+  const ended = await endOf(spawn(program, args, { stdio: 'inherit' }), program);
+  return ended.code;
 }
 
 function lockFolder(env: Env): string | undefined {
@@ -136,30 +217,52 @@ function lockFolder(env: Env): string | undefined {
   return git.status === 0 ? git.stdout.trim() : undefined;
 }
 
-/** Holding mode: flock has the lock; record who holds it, then run the command. */
-async function holdAndRun(
+/**
+ * Tries once to take the lock and, if it is free, runs the command under it.
+ * The state comes from the lock pipe alone, never from an exit code.
+ */
+async function attempt(
   command: readonly string[],
-  lock: Readonly<{ infoPath: string; waitStart: number }>,
-): Promise<number> {
-  const holder: Holder = {
-    pid: process.pid,
+  lock: Readonly<{ lockPath: string; waitStart: number }>,
+): Promise<Attempt> {
+  const infoPath = `${lock.lockPath}.json`;
+  const record = JSON.stringify({
     startedAt: Date.now(),
     command: command.join(' '),
     cwd: process.cwd(),
-  };
-  writeFileSync(lock.infoPath, JSON.stringify(holder));
-  const waited = holder.startedAt - lock.waitStart;
-  if (waited >= POLL_MS) {
-    console.error(`[lock] Got the lock after waiting ${formatDuration(waited)}.`);
+  });
+  const holdArgs = ['-c', HOLD_SCRIPT, 'sh', lock.lockPath, infoPath, record.slice(1)];
+  const child = spawn('sh', [...holdArgs, ...command], {
+    stdio: ['inherit', 'inherit', 'inherit', 'pipe'],
+    env: { ...process.env, [HELD]: '1' },
+  });
+  const pipe = child.stdio[3];
+  let reply = '';
+  pipe?.on('data', (chunk: Buffer) => {
+    reply += chunk.toString();
+    const waited = Date.now() - lock.waitStart;
+    if (reply === 'held' && waited >= POLL_MS) {
+      console.error(`[lock] Got the lock after waiting ${formatDuration(waited)}.`);
+    }
+  });
+  // Bun can report the exit before the message on the pipe, so the reply counts
+  // once the pipe has closed. When sh cannot start, Bun gives no pipe at all.
+  const pipeClosed = new Promise((resolve) => {
+    if (pipe) {
+      pipe.on('close', resolve);
+    } else {
+      resolve(undefined);
+    }
+  });
+  const ended = await endOf(child, command[0] ?? 'the command');
+  await pipeClosed;
+  if (reply === 'held' && child.pid !== undefined && readRecord(infoPath)?.pid === child.pid) {
+    rmSync(infoPath, { force: true });
   }
-  try {
-    return await run(command, { ...process.env, [HELD]: '1' });
-  } finally {
-    rmSync(lock.infoPath, { force: true });
-  }
+  return { state: reply === 'held' || reply === 'busy' ? reply : 'unlockable', ended };
 }
 
-/** Returns why a waiter must give up now, or what it should report, if anything. */
+/** Returns what to tell a waiter now, and whether it must give up. */
 function checkWait(
   lockPath: string,
   timing: Readonly<{ now: number; waitStart: number; limitMs: number }>,
@@ -178,33 +281,39 @@ function checkWait(
       };
 }
 
-/** The flock call that runs this script again, in holding mode, if the lock is free. */
-function flockAttempt(lockPath: string, waitStart: number, command: readonly string[]): string[] {
-  return [
-    'flock',
-    '--nonblock',
-    '--conflict-exit-code',
-    String(BUSY),
-    lockPath,
-    process.execPath,
-    fileURLToPath(import.meta.url),
-    HOLDING_FLAG,
-    `${lockPath}.json`,
-    String(waitStart),
-    ...command,
-  ];
+/**
+ * Settles a run after an attempt: the command's exit code if it ran, or if it never
+ * will under the lock (the wrapper was told to stop, or the lock is unusable).
+ * Undefined means that another run holds the lock, so the waiter waits.
+ */
+async function settle(
+  command: readonly string[],
+  { state, ended }: Attempt,
+  lockPath: string,
+): Promise<number | undefined> {
+  if (state === 'held') {
+    return ended.code;
+  }
+  if (ended.received !== undefined) {
+    return exitCodeFor(ended.received);
+  }
+  if (state === 'unlockable') {
+    console.error(`[lock] Cannot lock ${lockPath}: running without the shared lock.`);
+    return runUnlocked(command);
+  }
+  return undefined;
 }
 
 async function waitAndRun(command: readonly string[], folder: string): Promise<number> {
   const lockPath = path.join(folder, LOCK_NAME);
   const waitStart = Date.now();
-  const attempt = flockAttempt(lockPath, waitStart, command);
   const limitSeconds = Number(process.env['EGOSCOPE_LOCK_LIMIT_SECONDS'] ?? DEFAULT_LIMIT_SECONDS);
   const timing = { waitStart, limitMs: limitSeconds * MS_PER_SECOND };
   for (let poll = 0; ; poll += 1) {
-    const status = await run(attempt, process.env);
-    if (status !== BUSY) {
-      return status;
+    const tried = await attempt(command, { lockPath, waitStart });
+    const settled = await settle(command, tried, lockPath);
+    if (settled !== undefined) {
+      return settled;
     }
     const verdict = checkWait(lockPath, { ...timing, now: Date.now() });
     if (verdict.giveUp || poll % POLLS_PER_REPORT === 0) {
@@ -213,23 +322,31 @@ async function waitAndRun(command: readonly string[], folder: string): Promise<n
     if (verdict.giveUp) {
       return 1;
     }
+    // A termination signal during this pause ends the wrapper: no command runs yet.
     await sleep(POLL_MS);
   }
 }
 
 async function main(argv: readonly string[]): Promise<number> {
-  if (argv[0] === HOLDING_FLAG) {
-    const [, infoPath = '', waitStart = '0', ...command] = argv;
-    return holdAndRun(command, { infoPath, waitStart: Number(waitStart) });
+  if (argv.length === 0) {
+    console.error('[lock] Usage: bun scripts/with-lock.ts <command> [arguments...]');
+    return EXIT_USAGE;
+  }
+  const watching = watchMode(argv);
+  if (watching !== undefined) {
+    console.error(
+      `[lock] Refusing ${watching}: a watch, UI or dev-server mode runs until stopped, so it would hold the shared lock and stall every other worktree. Run it without this wrapper (for example \`bun x vitest\`), or as a single run (\`vitest run\`).`,
+    );
+    return EXIT_USAGE;
   }
   if (!shouldLock(process.env)) {
-    return run(argv, process.env);
+    return runUnlocked(argv);
   }
   const folder = lockFolder(process.env);
   const hasFlock = spawnSync('flock', ['--version']).status === 0;
   if (folder === undefined || !hasFlock) {
     console.error('[lock] No git directory or no flock here: running without the shared lock.');
-    return run(argv, process.env);
+    return runUnlocked(argv);
   }
   return waitAndRun(argv, folder);
 }

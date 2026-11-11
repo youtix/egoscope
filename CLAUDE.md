@@ -5,12 +5,18 @@ These rules hold for every change. README.md has the overview, the stack and the
 ## Reference and language
 
 - The French functional specifications in `docs/*.md` are the authoritative reference. Never edit,
-  move or reformat them. When they disagree, `docs/90-journal-des-decisions.md` wins.
+  move or reformat them. When they disagree, `docs/90-journal-des-decisions.md` wins. They are
+  checksummed in `docs/frozen-specs.sha256`: a deliberate change updates that manifest in the same
+  PR, where the reviewer sees it.
 - Cite requirement IDs exactly as the specs write them: requirements `JOU-04`, acceptance criteria
   `CA-TRV-12`, journal entries `D-07`, `H-13`, `Q-04`, local hypotheses `H-STA-03`.
 - Owner decisions override the specs where they conflict. Above all, everything is in English,
   including the UI (overriding H-11): code, comments, UI text, docs, commits and PRs, in American
-  spelling. Translate spec terms with `docs/engineering/glossary.md`.
+  spelling.
+- The English reference documents arrive by their own pull requests: the glossary of spec terms,
+  the module map, the clarifications and the domain model in `docs/engineering/`, and the decision
+  records in `docs/adr/`. When one is missing from your checkout, your task brief says what to use
+  instead.
 - No real NBA player names anywhere, fixtures included: invent players. No personal names or email
   addresses.
 
@@ -22,9 +28,13 @@ Page-specific code sits flat in `src/app/<route>/`. Shared code, and code that b
 never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enforce these rules:
 
 1. `src/lib/**` never imports from `src/app/**`.
-2. `src/lib/stats-engine/**` is pure. It imports nothing outside itself and uses no I/O, no Node or
-   browser API, no clock (`Date.now()`, argument-less `new Date()`), no randomness, no environment
-   and no async code. Pass such values in as arguments.
+2. The pure core is plain `.ts` and type-checks against the ECMAScript library alone
+   (`tsconfig.pure-core.json`). `src/lib/stats-engine/**` imports nothing outside itself and uses
+   no I/O, no Node or browser API, no clock (`Date.now()`, argument-less `new Date()`), no local
+   time (local getters and setters, `toLocale*`, date strings), no randomness, no environment and
+   no async code: pass such values in as arguments, and use UTC methods on instants.
+   `src/lib/ai-exchange/**` obeys the same rules, except that it may import npm packages and run
+   async code; it imports nothing from `src/`.
 3. A route never imports from another route. Inside `src/app`, relative imports are `./name` only;
    code that two routes need moves to `src/lib/<module>`.
 4. Other code imports a module only as `@/lib/<module>`. Its `index.ts` only re-exports, by name
@@ -73,7 +83,7 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
 - Heavy scripts (`typecheck`, `lint`, `lint:fix`, `test`, `test:coverage`, `build`, `knip`,
   `check:changed`, `gate`) queue behind each other across worktrees on one lock,
   `egoscope-heavy.lock` in the shared git directory, so run the narrowest command that answers your
-  question.
+  question. The lock refuses watch, UI and dev-server modes; for watch mode, run `bun x vitest`.
 - While developing, run `bun run check:changed` (format, lint and tests for what differs from
   `origin/main`, plus the whole-project type check) and targeted tests: `bun run test <path>`.
 - The coverage of one module, without the per-file thresholds of other files failing the run:
@@ -86,15 +96,25 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
 
 Never weaken a lint rule, a TypeScript option, a coverage threshold or a test to get green. Every
 `eslint-disable-next-line` needs a `-- reason`, and the architecture and size rules cannot be
-disabled at all. Fix the code; if a rule is wrong, say so in the PR instead.
+disabled at all, nor can the ban on coverage ignore hints (`v8 ignore`, `c8 ignore`, `istanbul
+ignore`). Fix the code; if a rule is wrong, say so in the PR instead.
 
 ## Definition of done
 
 `bun run check:changed` passes locally (and `bun run gate` after a tooling, CI or dependency
-change), CI is green (`ci-ok`) on the last push, and the PR template is filled in. New CI jobs go in
-`.github/workflows/ci.yml` (reuse `./.github/actions/setup-project`) and in the `needs` of `ci-ok`;
-their local counterpart goes into the `gate:ci` script, in the same order. A new heavy script, such
-as `e2e` or `test:mutation`, runs through `bun scripts/with-lock.ts`.
+change), every required check is green on the last push, and the PR template is filled in. A new
+heavy script, such as `e2e` or `test:mutation`, runs through `bun scripts/with-lock.ts`.
+
+CI checks come in two kinds:
+
+- An ordinary check is a job of `.github/workflows/ci.yml` (reuse
+  `./.github/actions/setup-project`) listed in the `needs` of `ci-ok`; its local counterpart goes
+  into the `gate:ci` script, in the same order.
+- A concern with its own triggers, permissions or runtime gets its own workflow file instead, which
+  ends in one final job named after it: the planned ones are `e2e`, `mutation`, `trace` and
+  `security`. That job always starts and always reports a result: it may finish at once when
+  nothing relevant changed, but no path filter or condition ever skips it. It is a required check of
+  `main`, like `ci-ok`.
 
 ## Dependencies
 
@@ -115,4 +135,5 @@ urgent security fix that is younger gets an exact `name@version` entry in
   and it ends with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - `bun install` installs the git hooks: pre-commit formats and lints the staged files, commit-msg
   runs commitlint. Never bypass them with `--no-verify`. Run `bun install` again after every rebase
-  or checkout, so that dependencies and hooks match the lockfile.
+  or checkout, so that dependencies and hooks match the lockfile, and when a commit stops with
+  "Can't find lefthook in PATH".

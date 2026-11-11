@@ -10,6 +10,7 @@
     // The pull request template starts below the title GitHub already shows.
     "MD041": false,
   },
-  "ignores": ["docs/*.md"],
+  // .claude/ holds the other agents' worktrees (scripts/ignored-folders.ts).
+  "ignores": ["docs/*.md", ".claude/**"],
   "gitignore": true,
 }

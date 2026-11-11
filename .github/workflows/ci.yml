@@ -1,6 +1,8 @@
-# The quality gate. Every job below must succeed for `ci-ok` to pass, and branch
-# protection requires `ci-ok` alone: a new job joins the gate by being added to
-# the `needs` list of `ci-ok`. The same steps run locally with `bun run gate`.
+# The quality gate's ordinary checks. Every job below must succeed for `ci-ok` to
+# pass (see scripts/ci-ok.sh), and `ci-ok` is the one job of this workflow that
+# `main` requires: a new job joins the gate by being added to the `needs` list of
+# `ci-ok`, which the structure check enforces. The same steps run locally with
+# `bun run gate`.
 name: CI
 
 on:
@@ -126,15 +128,16 @@ jobs:
     needs: [lint, actionlint, typecheck, test, build, pr-title]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    permissions: {}
+    permissions:
+      contents: read
     steps:
-      - name: Require every job to succeed
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci-ok.sh
+          sparse-checkout-cone-mode: false
+      - name: Require every job to succeed (pr-title may be skipped on a push only)
         env:
           NEEDS: ${{ toJSON(needs) }}
-        run: |
-          echo "$NEEDS" | jq --raw-output 'to_entries[] | "\(.key): \(.value.result)"'
-          failed="$(echo "$NEEDS" | jq --raw-output '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key] | join(", ")')"
-          if [ -n "$failed" ]; then
-            echo "::error::These jobs failed or were canceled: $failed"
-            exit 1
-          fi
+          EVENT: ${{ github.event_name }}
+        run: sh scripts/ci-ok.sh

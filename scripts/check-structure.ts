@@ -1,19 +1,62 @@
 /**
- * Checks the layout of every file that git tracks or would track, and fails
- * when one breaks a rule of structure-rules.ts. Run with `bun run lint:structure`.
+ * Checks every file that git tracks or would track against the layout rules of
+ * structure-rules.ts and the content rules of content-rules.ts, and fails on the
+ * first broken rule it reports. Run with `bun run lint:structure`.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 
+import {
+  brokenLinks,
+  checkFrozenSpecs,
+  FROZEN_MANIFEST,
+  isFrozenSpec,
+  unguardedJobs,
+} from './content-rules';
+import { isIgnoredPath } from './ignored-folders';
 import { findStructureViolations } from './structure-rules';
+
+import type { StructureViolation } from './structure-rules';
+
+const WORKFLOW = '.github/workflows/ci.yml';
 
 const listing = execFileSync(
   'git',
   ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
   { encoding: 'utf8' },
 );
-const paths = listing.split('\0').filter((path) => path !== '' && existsSync(path));
-const violations = findStructureViolations(paths);
+const paths = listing
+  .split('\0')
+  .filter((path) => path !== '' && !isIgnoredPath(path) && existsSync(path));
+const files: ReadonlySet<string> = new Set(paths);
+const read = (path: string): string => readFileSync(path, 'utf8');
+
+function frozenSpecViolations(): readonly StructureViolation[] {
+  if (!files.has(FROZEN_MANIFEST)) {
+    return [
+      {
+        path: FROZEN_MANIFEST,
+        problem: 'The checksum manifest of the French specifications is missing.',
+      },
+    ];
+  }
+  const hashes = new Map(
+    paths
+      .filter((path) => isFrozenSpec(path))
+      .map((path) => [path, createHash('sha256').update(readFileSync(path)).digest('hex')]),
+  );
+  return checkFrozenSpecs(read(FROZEN_MANIFEST), hashes);
+}
+
+const violations = [
+  ...findStructureViolations(paths),
+  ...frozenSpecViolations(),
+  ...paths
+    .filter((path) => path.endsWith('.md') && !isFrozenSpec(path))
+    .flatMap((path) => brokenLinks(path, read(path), files)),
+  ...(files.has(WORKFLOW) ? unguardedJobs(WORKFLOW, read(WORKFLOW)) : []),
+];
 
 for (const { path, problem } of violations) {
   console.error(`${path}: ${problem}`);

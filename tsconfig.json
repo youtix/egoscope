@@ -49,8 +49,11 @@
     "**/*.ts",
     "**/*.tsx",
     "**/*.mts",
+    "**/*.cts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  // .claude/ holds the other agents' worktrees: see scripts/ignored-folders.ts. The
+  // `**` of `include` never enters a dot folder anyway; this says so explicitly.
+  "exclude": ["node_modules", ".claude"]
 }

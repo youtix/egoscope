@@ -10,8 +10,9 @@ and the application is built to test it, which includes showing clearly when the
 
 The functional reference is the French specification in [`docs/`](docs/README.md); start with
 [`docs/00-vue-d-ensemble.md`](docs/00-vue-d-ensemble.md). Code is tied to it by requirement IDs
-such as `STA-11`. The English glossary of its terms is
-[`docs/engineering/glossary.md`](docs/engineering/glossary.md).
+such as `STA-11`. English reference documents (a glossary of the specification's terms, the module
+map, the clarifications and the domain model in `docs/engineering/`, decision records in
+`docs/adr/`) arrive by their own pull requests.
 
 ## Stack
 
@@ -49,7 +50,7 @@ bun run dev                  # http://localhost:3000
 | `bun run lint`           | ESLint, markdownlint and the structure check.                    |
 | `bun run lint:fix`       | ESLint and markdownlint, fixing what they can.                   |
 | `bun run format`         | Formats every file with Prettier (`format:check` only checks).   |
-| `bun run typecheck`      | TypeScript over the whole repository.                            |
+| `bun run typecheck`      | TypeScript, whole repository; the pure core with ES types only.  |
 | `bun run knip`           | Unused files, exports and dependencies.                          |
 | `bun run check`          | Every static check: formatting, linters, knip, workflows, types. |
 | `bun run check:changed`  | The fast local check of what differs from `origin/main`.         |
@@ -58,15 +59,20 @@ bun run dev                  # http://localhost:3000
 | `bun run lint:workflows` | actionlint on the workflows, when actionlint is installed.       |
 
 `check:changed` runs Prettier, ESLint, markdownlint and the structure check on the files that
-differ from `origin/main` (committed, staged, unstaged or untracked), type-checks the whole project
-incrementally, then runs the tests related to the changed files, or all of them when tooling
-changed. It stops at the first failing step. CI runs the full gate on every push.
+differ from `origin/main` (committed, staged, unstaged or untracked; deletions and renames count),
+type-checks the whole project incrementally, then runs the tests related to the changed files, or
+all of them when tooling changed or a source file was deleted or renamed. It refuses a change to a
+frozen French specification unless `docs/frozen-specs.sha256` changes with it, and it stops at the
+first failing step. CI runs the full gate on every push.
 
 Several agents may share one machine, so the heavy scripts (`build`, `typecheck`, `lint`,
 `lint:fix`, `test`, `test:coverage`, `knip`, `check:changed` and `gate`) take turns on one lock that
 every worktree of the clone shares: `egoscope-heavy.lock` in the git directory, managed by
-[`scripts/with-lock.ts`](scripts/with-lock.ts). A waiting script says whom it waits for and for how
-long, and gives up when one run has held the lock for more than 30 minutes. CI never locks.
+[`scripts/with-lock.ts`](scripts/with-lock.ts). The command holds the lock itself, so the lock lasts
+as long as the command, even if the script that started it is killed, and SIGINT, SIGTERM and SIGHUP
+reach the command. Watch, UI and dev-server modes are refused under the lock. A waiting script says
+whom it waits for and for how long, and gives up when one run has held the lock for more than 30
+minutes. CI never locks.
 
 ## Layout
 
@@ -78,8 +84,8 @@ src/lib/stats-engine/    The pure statistics core, covered at 100%.
 src/lib/env/             The validated server environment, the only reader of process.env.
 src/lib/log/             The server logger, the only writer to the console.
 data/                    Seeds, fixtures and raw data. Never code.
-docs/                    French functional specifications (frozen); English docs in docs/engineering/.
-scripts/                 Repository tooling: the shared lock, the structure check.
+docs/                    French functional specifications, frozen and checksummed in docs/frozen-specs.sha256.
+scripts/                 Tooling: the shared lock, the structure and fast checks, the ci-ok verdict.
 .github/                 CI workflow, its shared setup action, the pull request template.
 ```
 
@@ -93,11 +99,16 @@ scripts/                 Repository tooling: the shared lock, the structure chec
 
 ## Quality gate
 
-Every pull request runs the CI workflow. Its jobs (lint, actionlint, typecheck, test, build and
-pr-title) all feed one final check, `ci-ok`, which branch protection requires. Lint rules have no
-warnings, coverage is enforced per file (100% on the statistics core, 90% elsewhere), and pull
-requests are squash-merged with a Conventional Commits title. The rules that every contributor,
-human or agent, must follow are in [`CLAUDE.md`](CLAUDE.md).
+Every pull request runs the CI workflow, whose ordinary checks (lint, actionlint, typecheck, test,
+build and pr-title) all feed one final job, `ci-ok`, which passes only when each of them succeeded.
+A concern with its own triggers, permissions or runtime gets its own workflow instead: end-to-end
+tests, mutation testing, requirement traceability and security scanning are planned that way, with
+the final jobs `e2e`, `mutation`, `trace` and `security`. Such a final job always starts and always
+reports a result, even when nothing relevant changed: no path filter ever skips it. `ci-ok` and
+those final jobs are the required checks of `main`. Lint rules have no warnings, coverage is
+enforced per file (100% on the statistics core, 90% elsewhere), and pull requests are squash-merged
+with a Conventional Commits title. The rules that every contributor, human or agent, must follow
+are in [`CLAUDE.md`](CLAUDE.md).
 
 ## Security
 

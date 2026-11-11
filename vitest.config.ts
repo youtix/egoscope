@@ -1,18 +1,23 @@
 import path from 'node:path';
 
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 import type { ViteUserConfig } from 'vitest/config';
 
-// Files that Next.js renders itself. Lint keeps them thin (see the route-shell
-// rules in eslint.config.ts), so no logic can hide in them, and they are left
-// out of unit coverage. Route handlers (route.ts) are not shells: they are covered.
+// Files that Next.js renders itself. Lint keeps them unable to hold logic (see the
+// route-shell rules in eslint.config.ts), and they are left out of unit coverage.
+// Route handlers (route.ts) are not shells: they are covered.
 const ROUTE_SHELLS =
-  'src/app/**/{page,layout,template,loading,error,global-error,not-found,forbidden,unauthorized,default}.tsx';
+  'src/app/**/{page,layout,template,loading,error,global-error,not-found,global-not-found,forbidden,unauthorized,default}.{ts,tsx}';
 
 // Several agents share one small machine: locally, tests use at most half the
 // cores. CI runners are dedicated, so CI keeps Vitest's default.
 const isCi = process.env['CI'] === 'true';
+
+// The other agents' worktrees (the folders of scripts/ignored-folders.ts, repeated
+// here because Vite's native config loader takes no extensionless imports). The
+// include globs below never enter a dot folder anyway; this says so explicitly.
+const exclude = [...configDefaults.exclude, '.claude/**'];
 
 const config: ViteUserConfig = defineConfig({
   resolve: {
@@ -34,6 +39,7 @@ const config: ViteUserConfig = defineConfig({
           name: 'node',
           environment: 'node',
           include: ['src/**/*.test.ts', 'scripts/**/*.test.ts', '*.test.ts'],
+          exclude,
         },
       },
       {
@@ -41,6 +47,7 @@ const config: ViteUserConfig = defineConfig({
           name: 'dom',
           environment: 'jsdom',
           include: ['src/**/*.test.tsx'],
+          exclude,
           setupFiles: ['./vitest.dom-setup.ts'],
         },
       },
@@ -48,7 +55,7 @@ const config: ViteUserConfig = defineConfig({
     coverage: {
       provider: 'v8',
       // Listing every source file makes untested files count as uncovered.
-      include: ['src/**/*.{ts,tsx}'],
+      include: ['src/**/*.{ts,tsx,mts,cts}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.d.ts', ROUTE_SHELLS],
       reporter: ['text', 'html', 'json-summary'],
       thresholds: {

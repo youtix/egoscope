@@ -1,5 +1,8 @@
 # Prettier also skips everything in .gitignore.
 
+# The other agents' worktrees and local assistant settings (scripts/ignored-folders.ts).
+/.claude/
+
 # The French functional specifications are frozen: never reformat them.
 /docs/*.md
 

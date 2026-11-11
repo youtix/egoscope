@@ -1,3 +1,5 @@
+import { IGNORED_FOLDERS } from './scripts/ignored-folders';
+
 import type { KnipConfig } from 'knip';
 
 // Finds unused files, exports and dependencies. Next.js routes, tests, configs and
@@ -12,7 +14,8 @@ const config: KnipConfig = {
     // Started through scripts/with-lock.ts, where Knip does not look for entries.
     'scripts/check-changed.ts',
   ],
-  project: ['**/*.{ts,tsx,mts,css}'],
+  // The other agents' worktrees are not part of this project.
+  project: ['**/*.{ts,tsx,mts,cts,css}', ...IGNORED_FOLDERS.map((folder) => `!${folder}**`)],
   // A system tool from util-linux, not an npm package.
   ignoreBinaries: ['flock'],
 };

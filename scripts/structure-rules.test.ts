@@ -6,6 +6,8 @@ const VALID_LAYOUT = [
   'README.md',
   'eslint.config.ts',
   'eslint.config.test.ts',
+  'tsconfig.pure-core.json',
+  'tsconfig.pure-core.test.ts',
   'data/README.md',
   'data/fixtures/box-scores.json',
   'scripts/with-lock.ts',
@@ -80,9 +82,31 @@ describe('findStructureViolations', () => {
     ['src/lib/env/players.csv', 'belong in data/'],
     ['src/lib/env/fixture.json', 'belong in data/'],
     ['src/lib/env/globals.d.ts', 'No hand-written .d.ts'],
-    ['src/lib/env/legacy.js', 'TypeScript only'],
   ])('keeps code and data apart: rejects %s', (path, problem) => {
     expect(problemsFor([...VALID_LAYOUT, path]).join('\n')).toContain(problem);
+  });
+
+  it.each([
+    'src/lib/env/legacy.js',
+    'src/lib/env/module.mts',
+    'src/lib/env/common.cts',
+    'src/app/players/view.jsx',
+    'scripts/tool.mjs',
+  ])('accepts only .ts and .tsx code in src/ and scripts/: rejects %s', (path) => {
+    expect(problemsFor([...VALID_LAYOUT, path])).toStrictEqual([
+      `${path}: Code in src/ and scripts/ is .ts or .tsx: .mts, .cts and JavaScript files escape the checks.`,
+    ]);
+  });
+
+  it.each([
+    'src/lib/stats-engine/chart.tsx',
+    'src/lib/stats-engine/clock.mts',
+    'src/lib/stats-engine/weights.json',
+    'src/lib/ai-exchange/prompt.tsx',
+  ])('module rule 2: keeps the pure core to .ts files: rejects %s', (path) => {
+    expect(problemsFor([...VALID_LAYOUT, path]).join('\n')).toContain(
+      `${path}: The pure core holds .ts files only (module rule 2).`,
+    );
   });
 
   it('rejects a test that does not sit next to the file it tests', () => {

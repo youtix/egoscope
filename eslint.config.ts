@@ -4,11 +4,14 @@
  * - Every enabled rule is an error: presets that ship warnings are escalated at
  *   the end of this file, and the scripts run ESLint with `--max-warnings 0`.
  * - Each rule switched off from a preset carries its reason on the line above.
- * - The six module rules of CLAUDE.md are enforced in "Module rules" below, and
- *   eslint.config.test.ts proves that each of them rejects a violation.
+ * - The six module rules of CLAUDE.md are enforced in "Module rules" below, for
+ *   every way of naming a module (import, import type, export … from, import(),
+ *   import types), and eslint.config.test.ts proves that each of them bites.
  *
  * Never weaken a rule to get green: fix the code, or raise the problem in the PR.
  */
+import path from 'node:path';
+
 import eslintJs from '@eslint/js';
 import eslintComments from '@eslint-community/eslint-plugin-eslint-comments/configs';
 import eslintReact from '@eslint-react/eslint-plugin';
@@ -30,22 +33,55 @@ import testingLibrary from 'eslint-plugin-testing-library';
 import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 
+import { egoscopePlugin } from './scripts/eslint-plugin';
+import { IGNORED_FOLDERS } from './scripts/ignored-folders';
+
 import type { Linter } from 'eslint';
 
 // ---------------------------------------------------------------------------
-// File sets
+// File sets. Every TypeScript extension is covered; the structure check then
+// allows only .ts and .tsx in src/ and scripts/, and only .ts in the pure core.
 // ---------------------------------------------------------------------------
 
-const TS_FILES = ['**/*.{ts,tsx,mts}'];
-const TEST_FILES = ['**/*.test.{ts,tsx}'];
+const TS = '{ts,tsx,mts,cts}';
+const TS_FILES = [`**/*.${TS}`];
+const TEST_FILES = [`**/*.test.${TS}`];
 const COMPONENT_TEST_FILES = ['**/*.test.tsx'];
 const CONFIG_FILES = ['*.config.ts', 'vitest.dom-setup.ts'];
-const SCRIPT_FILES = ['scripts/**/*.ts'];
+const SCRIPT_FILES = [`scripts/**/*.${TS}`];
+const SRC_FILES = [`src/**/*.${TS}`];
+const PURE_CORE_FILES = [`src/lib/{stats-engine,ai-exchange}/**/*.${TS}`];
 
-// Next.js special files under src/app.
-const ROUTE_SHELLS = [
-  'src/app/**/{page,layout,template,loading,error,global-error,not-found,forbidden,unauthorized,default}.tsx',
-];
+// Next.js special files that coverage leaves out (vitest.config.ts): lint keeps
+// them unable to hold logic. Each kind may export only what Next.js reads from it.
+const SHELL_KINDS = [
+  {
+    glob: 'src/app/**/{page,layout}.{ts,tsx}',
+    exports: [
+      'metadata',
+      'generateMetadata',
+      'viewport',
+      'generateViewport',
+      'generateStaticParams',
+      'dynamicParams',
+      'runtime',
+      'preferredRegion',
+      'maxDuration',
+      'ensureStatic',
+      'prefetch',
+      'instant',
+    ],
+  },
+  {
+    glob: 'src/app/**/{not-found,global-not-found}.{ts,tsx}',
+    exports: ['metadata', 'generateMetadata'],
+  },
+  {
+    glob: 'src/app/**/{template,loading,error,global-error,forbidden,unauthorized,default}.{ts,tsx}',
+    exports: [],
+  },
+] as const;
+const ROUTE_SHELLS = SHELL_KINDS.map((kind) => kind.glob);
 const NEXT_DEFAULT_EXPORT_FILES = [
   ...ROUTE_SHELLS,
   'src/app/**/{opengraph-image,twitter-image,icon,apple-icon,sitemap,robots,manifest}.{ts,tsx}',
@@ -56,8 +92,8 @@ const NEXT_DEFAULT_EXPORT_FILES = [
 const TEST_TITLE = String.raw`^(?:\[[A-Z]+(?:-[A-Z]+)*-\d+\] )*[^\s[]`;
 
 // ---------------------------------------------------------------------------
-// Module rules (CLAUDE.md). Each list is composed per area below, because ESLint
-// replaces a rule's options instead of merging them across config objects.
+// Module rules (CLAUDE.md). ESLint replaces a rule's options instead of merging
+// them across config objects, so each area below gets complete, composed lists.
 // ---------------------------------------------------------------------------
 
 type ImportPattern = Readonly<{ regex: string; message: string }>;
@@ -97,20 +133,34 @@ const NO_RELATIVE_EXIT_FROM_SUBFOLDER: ImportPattern = {
   regex: String.raw`^\.\./\.\./`,
   message: NO_RELATIVE_EXIT_FROM_MODULE.message,
 };
-const PURE_CORE_MESSAGE =
-  'The statistics core is pure: it imports nothing outside itself, does no I/O and reads no clock, randomness or environment; pass such values in as arguments (module rule 2).';
-const NO_IMPORT_OUTSIDE_PURE_CORE: ImportPattern = {
+const PURE_MESSAGE =
+  'The pure core (src/lib/stats-engine, src/lib/ai-exchange) does no I/O and reads no clock, local time, randomness or environment: pass such values in as arguments (module rule 2).';
+const NO_IMPORT_OUTSIDE_STATS_ENGINE: ImportPattern = {
   regex: String.raw`^(?!\.\.?/)`,
-  message: PURE_CORE_MESSAGE,
+  message: 'The statistics core imports nothing outside itself (module rule 2).',
 };
-const NO_IMPORT_OUTSIDE_PURE_CORE_TESTS: ImportPattern = {
+const NO_IMPORT_OUTSIDE_STATS_ENGINE_TESTS: ImportPattern = {
   regex: String.raw`^(?!\.\.?/|vitest$|fast-check$|@data/)`,
-  message: `${PURE_CORE_MESSAGE} Its tests may also import vitest, fast-check and fixtures from @data/.`,
+  message:
+    'The statistics core imports nothing outside itself; its tests may also import vitest, fast-check and fixtures from @data/ (module rule 2).',
+};
+const NO_SRC_FROM_AI_EXCHANGE: ImportPattern = {
+  regex: '^@/',
+  message: 'src/lib/ai-exchange imports nothing from src/; packages only (module rule 2).',
 };
 
-const restrictImports = (...patterns: readonly ImportPattern[]): Linter.RuleEntry => [
-  'error',
-  { patterns },
+const escapeSlashes = (regex: string): string => regex.replaceAll('/', String.raw`\/`);
+
+/** The same import pattern, for `import()` and for import types. */
+const otherReferences = (pattern: ImportPattern): SyntaxRestriction[] => [
+  {
+    selector: `ImportExpression[source.value=/${escapeSlashes(pattern.regex)}/]`,
+    message: pattern.message,
+  },
+  {
+    selector: `TSImportType[source.value=/${escapeSlashes(pattern.regex)}/]`,
+    message: pattern.message,
+  },
 ];
 
 const EVERYWHERE_SYNTAX: readonly SyntaxRestriction[] = [
@@ -123,6 +173,18 @@ const EVERYWHERE_SYNTAX: readonly SyntaxRestriction[] = [
     message: 'Re-export names explicitly, so that the public API stays readable (module rule 4).',
   },
 ];
+// Every module reference in src/ is a literal that the module rules can check.
+const SRC_SYNTAX: readonly SyntaxRestriction[] = [
+  {
+    selector: "CallExpression[callee.name='require'], TSImportEqualsDeclaration",
+    message: 'Use `import`, not `require`: the module rules check imports (module rules 1 to 4).',
+  },
+  {
+    selector: "ImportExpression[source.type!='Literal']",
+    message:
+      'Give `import()` a literal path, so that the module rules can check it (module rules 1 to 4).',
+  },
+];
 const BARREL_SYNTAX: readonly SyntaxRestriction[] = [
   {
     selector: 'Program > :not(ExportNamedDeclaration[source])',
@@ -130,31 +192,54 @@ const BARREL_SYNTAX: readonly SyntaxRestriction[] = [
       "A module's index.ts only re-exports its public API: `export { name } from './file'` (module rule 4).",
   },
 ];
-const ROUTE_SHELL_SYNTAX: readonly SyntaxRestriction[] = [
+const SHELL_MESSAGE =
+  'Route shells hold no logic: coverage leaves them out. Move code to a colocated module or to src/lib/<module>, where it is unit-tested.';
+const SHELL_SYNTAX: readonly SyntaxRestriction[] = [
   {
     selector:
       ':matches(ForStatement, ForInStatement, ForOfStatement, WhileStatement, DoWhileStatement, SwitchStatement, TryStatement)',
-    message:
-      'Route files stay thin: move logic to a colocated module or to src/lib/<module>, where it is unit-tested.',
+    message: SHELL_MESSAGE,
   },
   {
     selector:
-      'Program > FunctionDeclaration, Program > VariableDeclaration > VariableDeclarator > :matches(ArrowFunctionExpression, FunctionExpression)',
-    message:
-      'Route files stay thin: move helpers and sub-components to a colocated module, where they are unit-tested.',
+      'Program > :matches(FunctionDeclaration, ClassDeclaration), Program > VariableDeclaration > VariableDeclarator > :matches(ArrowFunctionExpression, FunctionExpression, ClassExpression)',
+    message: SHELL_MESSAGE,
+  },
+  {
+    selector: 'ExportDefaultDeclaration > :not(FunctionDeclaration)',
+    message: `A route shell exports its component as \`export default function Name()\`. ${SHELL_MESSAGE}`,
+  },
+  {
+    selector:
+      'ExportNamedDeclaration:not([declaration]), ExportNamedDeclaration > :matches(ClassDeclaration, TSTypeAliasDeclaration, TSInterfaceDeclaration, TSModuleDeclaration, TSDeclareFunction)',
+    message: `A route shell exports only what Next.js reads from it. ${SHELL_MESSAGE}`,
   },
 ];
-const PURE_CORE_SYNTAX: readonly SyntaxRestriction[] = [
-  { selector: "NewExpression[callee.name='Date'][arguments.length=0]", message: PURE_CORE_MESSAGE },
-  { selector: "CallExpression[callee.name='Date']", message: PURE_CORE_MESSAGE },
-  { selector: "MetaProperty[meta.name='import']", message: PURE_CORE_MESSAGE },
-  { selector: 'ImportExpression', message: PURE_CORE_MESSAGE },
-  { selector: ':function[async=true], AwaitExpression', message: PURE_CORE_MESSAGE },
+/** Only the named exports that Next.js reads from this kind of route shell. */
+function shellExports(names: readonly string[]): SyntaxRestriction[] {
+  const allowed = names.length === 0 ? '^$' : `^(?:${names.join('|')})$`;
+  const others = names.length === 0 ? '' : ' and '.concat(names.join(', '));
+  const message = `This route shell may export only its default component${others}. ${SHELL_MESSAGE}`;
+  return [
+    { selector: `ExportNamedDeclaration > FunctionDeclaration[id.name!=/${allowed}/]`, message },
+    {
+      selector: `ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name!=/${allowed}/]`,
+      message,
+    },
+  ];
+}
+// Reading the clock or the time zone, I/O and environment access in the pure core.
+// UTC arithmetic stays allowed: Date.UTC(…), new Date(ms) and the getUTC* methods.
+const PURE_SYNTAX: readonly SyntaxRestriction[] = [
+  { selector: "NewExpression[callee.name='Date'][arguments.length=0]", message: PURE_MESSAGE },
+  { selector: "CallExpression[callee.name='Date']", message: PURE_MESSAGE },
+  { selector: "MetaProperty[meta.name='import']", message: PURE_MESSAGE },
 ];
-
-const restrictSyntax = (...lists: readonly (readonly SyntaxRestriction[])[]): Linter.RuleEntry => [
-  'error',
-  ...lists.flat(),
+// The statistics core is also synchronous and loads nothing at run time.
+const STATS_ENGINE_SYNTAX: readonly SyntaxRestriction[] = [
+  ...PURE_SYNTAX,
+  { selector: 'ImportExpression', message: PURE_MESSAGE },
+  { selector: ':function[async=true], AwaitExpression', message: PURE_MESSAGE },
 ];
 
 const NO_PROCESS_ENV: PropertyRestriction = {
@@ -162,12 +247,13 @@ const NO_PROCESS_ENV: PropertyRestriction = {
   property: 'env',
   message: 'Read configuration through `@/lib/env`, which validates it once (secrets rule).',
 };
-const PURE_CORE_PROPERTIES: readonly PropertyRestriction[] = [
-  { object: 'Date', property: 'now', message: PURE_CORE_MESSAGE },
-  { object: 'Math', property: 'random', message: PURE_CORE_MESSAGE },
-  { object: 'Temporal', property: 'Now', message: PURE_CORE_MESSAGE },
+const PURE_PROPERTIES: readonly PropertyRestriction[] = [
+  { object: 'Date', property: 'now', message: PURE_MESSAGE },
+  { object: 'Date', property: 'parse', message: PURE_MESSAGE },
+  { object: 'Math', property: 'random', message: PURE_MESSAGE },
+  { object: 'Temporal', property: 'Now', message: PURE_MESSAGE },
 ];
-const PURE_CORE_GLOBALS = [
+const PURE_GLOBALS = [
   'Buffer',
   'EventSource',
   'Intl',
@@ -185,6 +271,7 @@ const PURE_CORE_GLOBALS = [
   'document',
   'exports',
   'fetch',
+  'global',
   'globalThis',
   'history',
   'indexedDB',
@@ -204,13 +291,150 @@ const PURE_CORE_GLOBALS = [
   'setInterval',
   'setTimeout',
   'window',
-].map((name) => ({ name, message: PURE_CORE_MESSAGE }));
+].map((name) => ({ name, message: PURE_MESSAGE }));
 
-// Rules that no inline comment may switch off: change this file in a reviewed PR instead.
+/**
+ * The layer zones of module rules 1 and 2, resolved against `basePath`. Exported
+ * so that eslint.config.test.ts can lint its probes in a temporary project.
+ */
+export function layerZones(basePath: string): Linter.RuleEntry {
+  return [
+    'error',
+    {
+      basePath,
+      zones: [
+        { target: './src/lib', from: './src/app', message: NO_APP_FROM_LIB.message },
+        {
+          target: './src/lib/stats-engine',
+          from: './src',
+          except: ['./lib/stats-engine'],
+          message: NO_IMPORT_OUTSIDE_STATS_ENGINE.message,
+        },
+        {
+          target: './src/lib/ai-exchange',
+          from: './src',
+          except: ['./lib/ai-exchange'],
+          message: NO_SRC_FROM_AI_EXCHANGE.message,
+        },
+      ],
+    },
+  ];
+}
+
+type Area = Readonly<{
+  name: string;
+  files: readonly string[];
+  imports: readonly ImportPattern[];
+  syntax?: readonly SyntaxRestriction[];
+}>;
+
+/** The import and syntax restrictions of one area of src/, composed in full. */
+function moduleArea(area: Area): Linter.Config {
+  return {
+    name: `egoscope/module-rules/${area.name}`,
+    files: [...area.files],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [...area.imports] }],
+      'no-restricted-syntax': [
+        'error',
+        ...EVERYWHERE_SYNTAX,
+        ...SRC_SYNTAX,
+        ...area.imports.flatMap((pattern) => otherReferences(pattern)),
+        ...(area.syntax ?? []),
+      ],
+    },
+  };
+}
+
+const APP_IMPORTS = [
+  NO_DEEP_LIB_IMPORT,
+  NO_ROUTE_FROM_ROUTE,
+  NO_RELATIVE_EXIT_FROM_ROUTE,
+  NO_RELATIVE_ENTRY_INTO_ROUTE,
+];
+const LIB_ROOT_IMPORTS = [NO_DEEP_LIB_IMPORT, NO_APP_FROM_LIB, NO_RELATIVE_EXIT_FROM_MODULE];
+const LIB_SUBFOLDER_IMPORTS = [
+  NO_DEEP_LIB_IMPORT,
+  NO_APP_FROM_LIB,
+  NO_RELATIVE_EXIT_FROM_SUBFOLDER,
+];
+
+// Later areas override earlier ones on the files they share.
+const MODULE_AREAS: readonly Area[] = [
+  { name: 'app', files: [`src/app/**/*.${TS}`], imports: APP_IMPORTS },
+  ...SHELL_KINDS.map((kind, index) => ({
+    name: `route-shells-${String(index + 1)}`,
+    files: [kind.glob],
+    imports: APP_IMPORTS,
+    syntax: [...SHELL_SYNTAX, ...shellExports(kind.exports)],
+  })),
+  { name: 'lib-module-root', files: [`src/lib/*/*.${TS}`], imports: LIB_ROOT_IMPORTS },
+  { name: 'lib-module-subfolder', files: [`src/lib/*/*/*.${TS}`], imports: LIB_SUBFOLDER_IMPORTS },
+  {
+    name: 'barrels',
+    files: [`src/lib/*/index.${TS}`],
+    imports: LIB_ROOT_IMPORTS,
+    syntax: BARREL_SYNTAX,
+  },
+  {
+    name: 'ai-exchange',
+    files: [`src/lib/ai-exchange/*.${TS}`],
+    imports: [NO_SRC_FROM_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_MODULE],
+    syntax: PURE_SYNTAX,
+  },
+  {
+    name: 'ai-exchange-subfolder',
+    files: [`src/lib/ai-exchange/*/*.${TS}`],
+    imports: [NO_SRC_FROM_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
+    syntax: PURE_SYNTAX,
+  },
+  {
+    name: 'ai-exchange-index',
+    files: [`src/lib/ai-exchange/index.${TS}`],
+    imports: [NO_SRC_FROM_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_MODULE],
+    syntax: [...BARREL_SYNTAX, ...PURE_SYNTAX],
+  },
+  {
+    name: 'stats-engine',
+    files: [`src/lib/stats-engine/*.${TS}`],
+    imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE, NO_RELATIVE_EXIT_FROM_MODULE],
+    syntax: STATS_ENGINE_SYNTAX,
+  },
+  {
+    name: 'stats-engine-subfolder',
+    files: [`src/lib/stats-engine/*/*.${TS}`],
+    imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
+    syntax: STATS_ENGINE_SYNTAX,
+  },
+  {
+    name: 'stats-engine-tests',
+    files: [`src/lib/stats-engine/*.test.${TS}`],
+    imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE_TESTS, NO_RELATIVE_EXIT_FROM_MODULE],
+    syntax: STATS_ENGINE_SYNTAX,
+  },
+  {
+    name: 'stats-engine-subfolder-tests',
+    files: [`src/lib/stats-engine/*/*.test.${TS}`],
+    imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE_TESTS, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
+    syntax: STATS_ENGINE_SYNTAX,
+  },
+  {
+    name: 'stats-engine-index',
+    files: [`src/lib/stats-engine/index.${TS}`],
+    imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE, NO_RELATIVE_EXIT_FROM_MODULE],
+    syntax: [...BARREL_SYNTAX, ...STATS_ENGINE_SYNTAX],
+  },
+];
+
+// Rules that no inline comment may switch off, not even through a chain of
+// disable comments: change this file in a reviewed PR instead.
 const UNDISABLEABLE_RULES = [
+  '@eslint-community/eslint-comments/*',
   '@typescript-eslint/ban-ts-comment',
+  '@typescript-eslint/max-params',
   'check-file/*',
   'complexity',
+  'egoscope/*',
   'import-x/no-cycle',
   'import-x/no-default-export',
   'import-x/no-restricted-paths',
@@ -219,7 +443,6 @@ const UNDISABLEABLE_RULES = [
   'max-lines-per-function',
   'max-nested-callbacks',
   'max-statements',
-  '@typescript-eslint/max-params',
   'no-console',
   'no-restricted-globals',
   'no-restricted-imports',
@@ -233,7 +456,15 @@ const UNDISABLEABLE_RULES = [
 // ---------------------------------------------------------------------------
 
 const composed = defineConfig(
-  globalIgnores(['.next/', '.vitest/', 'coverage/', 'out/', 'reports/', 'next-env.d.ts']),
+  globalIgnores([
+    ...IGNORED_FOLDERS,
+    '.next/',
+    '.vitest/',
+    'coverage/',
+    'out/',
+    'reports/',
+    'next-env.d.ts',
+  ]),
 
   {
     name: 'egoscope/linter-options',
@@ -261,7 +492,7 @@ const composed = defineConfig(
       promise.configs['flat/recommended'],
       eslintComments.recommended,
     ],
-    plugins: { 'check-file': checkFile },
+    plugins: { 'check-file': checkFile, egoscope: egoscopePlugin },
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -269,11 +500,14 @@ const composed = defineConfig(
       },
     },
     settings: {
-      'import-x/extensions': ['.ts', '.tsx', '.mts', '.js', '.mjs'],
+      'import-x/extensions': ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs'],
       'import-x/external-module-folders': ['node_modules', 'node_modules/@types'],
-      'import-x/parsers': { '@typescript-eslint/parser': ['.ts', '.tsx', '.mts'] },
+      'import-x/parsers': { '@typescript-eslint/parser': ['.ts', '.tsx', '.mts', '.cts'] },
       'import-x/resolver-next': [
-        createTypeScriptImportResolver({ alwaysTryTypes: true, project: 'tsconfig.json' }),
+        createTypeScriptImportResolver({
+          alwaysTryTypes: true,
+          project: path.join(import.meta.dirname, 'tsconfig.json'),
+        }),
       ],
     },
     rules: {
@@ -284,13 +518,14 @@ const composed = defineConfig(
       'no-else-return': ['error', { allowElseIf: false }],
       'no-implicit-coercion': 'error',
       'no-param-reassign': ['error', { props: true }],
-      'no-restricted-syntax': restrictSyntax(EVERYWHERE_SYNTAX),
+      'no-restricted-syntax': ['error', ...EVERYWHERE_SYNTAX],
       'no-useless-rename': 'error',
       'no-void': ['error', { allowAsStatement: true }],
       'object-shorthand': ['error', 'always'],
       'prefer-arrow-callback': 'error',
       'prefer-template': 'error',
       'sort-imports': ['error', { ignoreCase: true, ignoreDeclarationSort: true }],
+      'egoscope/no-coverage-hints': 'error',
 
       // --- Size and complexity limits --------------------------------------
       complexity: ['error', { max: 10 }],
@@ -377,6 +612,8 @@ const composed = defineConfig(
           selector: 'objectLiteralProperty',
           format: ['camelCase', 'PascalCase', 'UPPER_CASE'],
         },
+        // ESLint rule visitors are named after AST node types.
+        { selector: 'objectLiteralMethod', format: ['camelCase', 'PascalCase'] },
         // Header names, globs and the like need quotes and keep their own spelling.
         {
           selector: ['objectLiteralProperty', 'objectLiteralMethod', 'typeProperty', 'typeMethod'],
@@ -418,7 +655,7 @@ const composed = defineConfig(
       // --- Naming of files and folders (module rule 6) ----------------------
       'check-file/filename-naming-convention': [
         'error',
-        { '**/*.{ts,tsx,mts}': 'KEBAB_CASE' },
+        { [`**/*.${TS}`]: 'KEBAB_CASE' },
         { ignoreMiddleExtensions: true },
       ],
       'check-file/folder-naming-convention': [
@@ -444,11 +681,20 @@ const composed = defineConfig(
       'unicorn/no-useless-undefined': ['error', { checkArrowFunctionBody: false }],
 
       // --- Opt-outs from presets, each with its reason ------------------------
+      // TypeScript checks default imports, named imports and namespace members
+      // exactly, as import-x's own TypeScript preset says; these were among the
+      // costliest rules.
+      'import-x/default': 'off',
+      'import-x/named': 'off',
+      'import-x/namespace': 'off',
       // TypeScript checks default and named imports exactly; these heuristics flag
       // the documented default-import style of typescript-eslint, fast-check and
       // most ESLint plugins.
       'import-x/no-named-as-default': 'off',
       'import-x/no-named-as-default-member': 'off',
+      // @typescript-eslint/no-deprecated (strict-type-checked) reports every use
+      // of a deprecated API; this duplicate was the second costliest rule.
+      'sonarjs/deprecation': 'off',
       // Declared return types already say what a function returns, and union
       // results are this codebase's way of reporting expected failures.
       'sonarjs/function-return-type': 'off',
@@ -465,12 +711,8 @@ const composed = defineConfig(
 
   {
     name: 'egoscope/react',
-    files: ['src/**/*.tsx'],
-    extends: [
-      eslintReact.configs['strict-type-checked'],
-      reactHooks.configs.flat['recommended-latest'],
-      jsxA11y.configs.strict,
-    ],
+    files: [`src/**/*.tsx`],
+    extends: [eslintReact.configs['strict-type-checked'], jsxA11y.configs.strict],
     rules: {
       // JSX is markup: components may be longer than plain functions.
       'max-lines-per-function': [
@@ -481,8 +723,15 @@ const composed = defineConfig(
   },
 
   {
+    // Custom hooks live in .ts files too.
+    name: 'egoscope/react-hooks',
+    files: SRC_FILES,
+    extends: [reactHooks.configs.flat['recommended-latest']],
+  },
+
+  {
     name: 'egoscope/next',
-    files: ['src/**/*.{ts,tsx}'],
+    files: SRC_FILES,
     extends: [nextPlugin.configs['core-web-vitals']],
     rules: {
       // Pages Router rule; this project only has the App Router.
@@ -494,7 +743,7 @@ const composed = defineConfig(
     // Exported functions of src/lib explain what they do and cite the requirement
     // IDs they implement; types already document parameters and return values.
     name: 'egoscope/jsdoc',
-    files: ['src/lib/**/*.{ts,tsx}'],
+    files: [`src/lib/**/*.${TS}`],
     ignores: TEST_FILES,
     extends: [jsdoc.configs['flat/recommended-typescript-error']],
     rules: {
@@ -522,70 +771,16 @@ const composed = defineConfig(
   // --- Module rules -----------------------------------------------------------
   {
     name: 'egoscope/module-rules/src',
-    files: ['src/**/*.{ts,tsx}'],
+    files: SRC_FILES,
     rules: {
       'no-restricted-properties': ['error', NO_PROCESS_ENV],
-      'import-x/no-restricted-paths': [
-        'error',
-        {
-          basePath: import.meta.dirname,
-          zones: [
-            { target: './src/lib', from: './src/app', message: NO_APP_FROM_LIB.message },
-            {
-              target: './src/lib/stats-engine',
-              from: './src',
-              except: ['./lib/stats-engine'],
-              message: PURE_CORE_MESSAGE,
-            },
-          ],
-        },
-      ],
+      'import-x/no-restricted-paths': layerZones(import.meta.dirname),
     },
   },
-  {
-    name: 'egoscope/module-rules/app',
-    files: ['src/app/**/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-imports': restrictImports(
-        NO_DEEP_LIB_IMPORT,
-        NO_ROUTE_FROM_ROUTE,
-        NO_RELATIVE_EXIT_FROM_ROUTE,
-        NO_RELATIVE_ENTRY_INTO_ROUTE,
-      ),
-    },
-  },
-  {
-    name: 'egoscope/module-rules/lib-module-root',
-    files: ['src/lib/*/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-imports': restrictImports(
-        NO_DEEP_LIB_IMPORT,
-        NO_APP_FROM_LIB,
-        NO_RELATIVE_EXIT_FROM_MODULE,
-      ),
-    },
-  },
-  {
-    name: 'egoscope/module-rules/lib-module-subfolder',
-    files: ['src/lib/*/*/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-imports': restrictImports(
-        NO_DEEP_LIB_IMPORT,
-        NO_APP_FROM_LIB,
-        NO_RELATIVE_EXIT_FROM_SUBFOLDER,
-      ),
-    },
-  },
-  {
-    name: 'egoscope/module-rules/barrels',
-    files: ['src/lib/*/index.ts'],
-    rules: {
-      'no-restricted-syntax': restrictSyntax(EVERYWHERE_SYNTAX, BARREL_SYNTAX),
-    },
-  },
+  ...MODULE_AREAS.map((area) => moduleArea(area)),
   {
     name: 'egoscope/module-rules/env',
-    files: ['src/lib/env/**/*.ts'],
+    files: [`src/lib/env/**/*.${TS}`],
     rules: {
       // The env module is the one place that reads process.env.
       'no-restricted-properties': 'off',
@@ -600,63 +795,27 @@ const composed = defineConfig(
     },
   },
   {
-    name: 'egoscope/module-rules/stats-engine',
-    files: ['src/lib/stats-engine/**/*.ts'],
+    name: 'egoscope/module-rules/pure-core',
+    files: PURE_CORE_FILES,
     rules: {
-      'no-restricted-globals': ['error', ...PURE_CORE_GLOBALS],
-      'no-restricted-properties': ['error', NO_PROCESS_ENV, ...PURE_CORE_PROPERTIES],
-      'no-restricted-syntax': restrictSyntax(EVERYWHERE_SYNTAX, PURE_CORE_SYNTAX),
-    },
-  },
-  {
-    name: 'egoscope/module-rules/stats-engine-module-root',
-    files: ['src/lib/stats-engine/*.ts'],
-    rules: {
-      'no-restricted-imports': restrictImports(
-        NO_IMPORT_OUTSIDE_PURE_CORE,
-        NO_RELATIVE_EXIT_FROM_MODULE,
-      ),
-    },
-  },
-  {
-    name: 'egoscope/module-rules/stats-engine-subfolder',
-    files: ['src/lib/stats-engine/*/*.ts'],
-    rules: {
-      'no-restricted-imports': restrictImports(
-        NO_IMPORT_OUTSIDE_PURE_CORE,
-        NO_RELATIVE_EXIT_FROM_SUBFOLDER,
-      ),
-    },
-  },
-  {
-    name: 'egoscope/module-rules/stats-engine-tests',
-    files: ['src/lib/stats-engine/*.test.ts'],
-    rules: {
-      'no-restricted-imports': restrictImports(
-        NO_IMPORT_OUTSIDE_PURE_CORE_TESTS,
-        NO_RELATIVE_EXIT_FROM_MODULE,
-      ),
-    },
-  },
-  {
-    name: 'egoscope/module-rules/stats-engine-index',
-    files: ['src/lib/stats-engine/index.ts'],
-    rules: {
-      'no-restricted-syntax': restrictSyntax(EVERYWHERE_SYNTAX, BARREL_SYNTAX, PURE_CORE_SYNTAX),
+      'no-restricted-globals': ['error', ...PURE_GLOBALS],
+      'no-restricted-properties': ['error', NO_PROCESS_ENV, ...PURE_PROPERTIES],
+      'egoscope/no-local-time': 'error',
     },
   },
 
   {
     // Route shells are excluded from unit coverage (vitest.config.ts), so these
-    // caps keep them thin enough that no logic can hide in them.
+    // caps keep every function in them too small to hide logic.
     name: 'egoscope/route-shells',
     files: ROUTE_SHELLS,
     rules: {
       complexity: ['error', { max: 3 }],
       'max-depth': ['error', { max: 1 }],
       'max-lines': ['error', { max: 60, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 40, skipBlankLines: true, skipComments: true }],
+      'max-nested-callbacks': ['error', { max: 2 }],
       'max-statements': ['error', { max: 6 }],
-      'no-restricted-syntax': restrictSyntax(EVERYWHERE_SYNTAX, ROUTE_SHELL_SYNTAX),
       'sonarjs/cognitive-complexity': ['error', 2],
     },
   },
@@ -681,8 +840,6 @@ const composed = defineConfig(
       'max-statements': 'off',
       'max-nested-callbacks': ['error', { max: 4 }],
       'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
-      // Repeated literals keep each test readable on its own.
-      'sonarjs/no-duplicate-string': 'off',
       // Tests feed fake credentials to prove that they never leak.
       'sonarjs/no-hardcoded-passwords': 'off',
       // Vitest's version understands `expect(mock.method)`.
