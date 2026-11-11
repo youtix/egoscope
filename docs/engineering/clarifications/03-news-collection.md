@@ -69,9 +69,9 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** COL-40, COL-41, COL-42, COL-43, variant A step 4
 - **Problem:** the text never says how a source leaves « jamais lue », nor what a successful read that brings no new article does to a source « en panne ».
 - **Ruling:** after each read the health state is the first that applies:
-  1. « en panne » when the source's reads failed in the last N consecutive runs (COL-41, default 2);
+  1. « en panne » when the source's reads failed in its last N counted runs (COL-41, default 2; runs in which every source failed do not count, CL-COL-05);
   2. « jamais lue » when the source has had no successful read yet;
-  3. « muette » when it has brought no new article during its silence delay, counted from its last new article or, if it never brought one, from its first successful read;
+  3. « muette » when it has brought no new article during its silence delay, counted from the latest of its last new article, its first successful read and its last reactivation;
   4. « fonctionnelle » otherwise.
   - A successful read therefore ends « en panne » even without a new article: the « flux en panne » incident closes and the journal records the interruption, from the first failed run of the streak to that read. If rule 3 then applies, the source goes straight to « muette » and the silent-source warning opens; that warning closes when the state leaves « muette ».
   - Each change of state is dated (COL-40).
@@ -160,12 +160,13 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 ### CL-COL-16 — A collected article that matches a withdrawal fingerprint
 
-- **Affects:** COL-34, COL-37, DSN-34, DET-58; open point 4 of ADR 0017
-- **Problem:** with the keyed fingerprint of ADR 0017, detection creates no event for a fact that matches a withdrawn event, but nothing says what becomes of the article, which may not leave a deduplication trace.
+- **Affects:** COL-34, COL-37, DSN-34, DET-58, edge case « Retrait d'un événement récent »; open point 4 of ADR 0017
+- **Problem:** with no deduplication trace, an article still in a feed can bring a withdrawn event back (the edge case); with the keyed fingerprint of ADR 0017 detection now creates no event for such a fact, but nothing says what becomes of the article, which may not leave a deduplication trace.
 - **Ruling:**
   - The classification result of the matching part (CL-DET-21) is erased at once, with no deduplication trace and no mention in the collection or detection journal beyond the run's generic counts (received, classified, quota used).
   - If the article has no other role — no other attachment, no pending proposal, no other pending part — it is erased at once like an article of a withdrawn event (COL-37, DSN-34); otherwise it keeps its other roles.
   - An erased article still offered by a feed within the admitted age is collected again as new at a later run and classified again; the app accepts that quota cost.
+  - Once the fingerprint has expired (eight weeks), the edge case applies as written: the event can come back and must be withdrawn again.
 - **Why:** keeping the article or its link would designate the withdrawn event beyond the keyed fingerprint, the only exception DSN-29 now allows; this is the handling ADR 0017 recommends.
 - **Owner review:** yes
 
@@ -214,6 +215,14 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
   - Per source and per day of first collection, in the owner's time zone, the app keeps three counters set at collection and prefilter time: new articles, articles kept by the prefilter, exactly dated articles. They are numbers only and survive the purge.
   - The daily average, the prefilter share and the exact-dating share come from these counters over the window; the attached share is the number of the source's articles first collected in the window that are attached now, divided by the window's new articles.
 - **Why:** the owner judges a source by what it brought; counting each article once keeps the indicators additive across sources.
+- **Owner review:** no
+
+### CL-COL-22 — Labels and date display in English
+
+- **Affects:** CA-COL-06, COL-48, COL-49, H-11; ADR 0010
+- **Problem:** the labels quoted in file 03 (« à analyser », « en panne »…) and the expected display of CA-COL-06 (« mercredi 11 novembre 2026 à 5 h 10, heure de Paris ») are French, while the product is English.
+- **Ruling:** As written in ADR 0010 and the register row CA-COL-06: labels take their glossary terms, and CA-COL-06 expects "Wednesday 11 November 2026, 05:10 Paris time" with the precision « exacte » in its English form. Collection still reads English and French feeds (COL-05, COL-17).
+- **Why:** the owner's decision overrides H-11 for the interface, not for the press.
 - **Owner review:** no
 
 ## Passed to the glossary

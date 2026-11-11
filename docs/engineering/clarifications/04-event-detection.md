@@ -24,7 +24,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:** the domain model names the fields; their contents are:
   - per submitted article, one result naming the article it answers (DET-12 batching); per result, one part per submitted player, naming that player by the identifier sent;
   - per part, a list of facts, possibly empty, each of exactly one kind:
-    - validated-type fact: a type identifier among the validated types sent; a detection confidence, a number from 0 to 100 rounded half up to an integer; a description; either "new fact" or the identifier of one event sent for that player (DET-14); a precedence date or none (CL-DET-06); the two context indications with the closed values of the research format, in English (injury return: yes, no, unknown; game stakes: high, normal, unknown); a justification;
+    - validated-type fact: a type identifier among the validated types sent; a detection confidence, a number from 0 to 100 rounded half up to an integer; a description; either "new fact" or the identifier of one event sent for that player (DET-14); a precedence date or none (CL-DET-06); the two context indications with the closed values of the research format, in their English form (register row DET-16; the glossary renders « oui, non, inconnu » for the injury return and « fort, normal, inconnu » for the game stakes); a justification;
     - known-entry fact: the identifier of a do-not-repropose entry sent, and a justification;
     - new-type fact: a suggested type name, a suggested one-sentence definition and a justification, which is also the proposal's "reason why no validated type fits" (CL-DET-19);
     - calendar-handled fact: the identifier of an entry of the calendar list of CL-DET-22; such a fact is dropped.
@@ -44,7 +44,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
   - A resubmission sends the same input as the first submission (all recognized players, events and lists, refreshed to their current state); only the parts that were unusable take the new answer, and usable parts keep their result.
   - When the cycle ends with a part still unusable, the queue item is marked « classification en échec » for that part; usable parts are applied.
   - A call refused for quota or not answered is no attempt (DET-08): it consumes none and the item keeps waiting.
-  - The owner's "new attempt" (DET-22) and "new classification" (DET-50) are one action: a new cycle with the full number of attempts, at the head of the queue (CL-DET-13). Its result replaces the outcome of parts that had a non-relevance outcome and may add attachments; it never removes an existing attachment, which only a detachment by the owner does (DET-47). Earlier results stay in the article's history (DET-54).
+  - The owner's "new attempt" (DET-22) and "new classification" (DET-50) are one action: a new cycle with the full number of attempts, at the head of the queue (CL-DET-13). Its result replaces the outcome of the parts that were pending or had a non-relevance outcome, and may add attachments; existing attachments and proposal links stay until the owner detaches the article (DET-47) or decides the proposal (DET-36). Earlier results stay in the article's history (DET-54).
 - **Why:** CA-DET-09 (« soumis de nouveau, puis marqué … après la dernière tentative ») fits two submissions; resending the full context keeps the player designation of DET-17 stable, and no automatic path may undo an event (DET-26).
 - **Owner review:** no
 
