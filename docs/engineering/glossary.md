@@ -72,8 +72,8 @@ The functional specifications in `docs/` are written in French and stay the refe
 | libération | release | — | Release | Player released by his team. | STA-25 |
 | anciennes équipes | former teams | `formerTeamIds` | Former teams | Teams the player played at least one official game for, from team history and box scores (decision Q-TAX-01). | Q-TAX-01, JOU-11 |
 | jour anniversaire | birthday | `birthday` (`{ month, day }`) | Birthday | Day and month only, no year: agreed exception to JOU-11 (decision Q-TAX-01). | JOU-11, Q-TAX-01 |
-| correspondance statistique, correspondance avec la source de statistiques | stats-source mapping | `StatsSourceMapping` | Stats-source mapping | User-confirmed link between a followed player and his record in the stats source; one per player. | JOU-10, STA-03 |
-| « correspondance à établir » | mapping to establish | `StatsSourceMappingStatus` `to_establish` | Mapping to establish | Mention while no candidate is confirmed; no statistics are fetched meanwhile. | JOU-10, IHM-66 |
+| correspondance statistique, correspondance avec la source de statistiques | stats-source mapping | `StatsSourceMapping` | Stats-source mapping | User-confirmed mapping of a followed player to his record in the stats source; one per player. | JOU-10, STA-03 |
+| « correspondance à établir » | mapping to establish | `StatsSourceMappingStatus` `to_establish` | Mapping to establish | Notice shown while no candidate is confirmed; no statistics are fetched meanwhile. | JOU-10, IHM-66 |
 | candidat (de correspondance) | mapping candidate | `MappingCandidate` | Candidates | Stats-source identity offered for confirmation. | JOU-10, STA-03 |
 | état (du joueur) | player status | `PlayerStatus` | Status | active, paused or withdrawn; changed only by the owner. | JOU-15, JOU-22 |
 | actif | active | `active` | Active | Counts toward the maximum; detected, alerted, tracked. | JOU-16 |
@@ -228,7 +228,8 @@ Decisions:
 | date de publication | publication date | `publicationDate`; JSON `publication_date` | Published | Date, or date and time, of the article. | DSN-08 |
 | article de référence | reference article | `referenceArticleId` | Reference article | Article that gives a detected event its reference date. | DET-30, DSN-06 |
 | description courte et neutre, description | description | `description` | Description | One factual, neutral sentence under the wording rules of 13 (max 200 characters). | DSN-19–DSN-23 |
-| indications de contexte, champs de contexte, partage des rôles | context indications, division of roles | `ContextIndications`; JSON `context` | Context | Return from injury and game stakes, closed values, never a narrative. | H-09, D-19, DSN-07 |
+| indications de contexte, champs de contexte | context indications | `ContextIndications`; JSON `context` | Context | Return from injury and game stakes, closed values, never a narrative. | H-09, D-19, DSN-07 |
+| partage des rôles (contexte) | division of roles | — | — | Playing time and opponent strength are computed; return from injury and game stakes are flagged by research or classification, then corrected by the owner. | H-09 |
 | retour de blessure | return from injury | `injuryReturn`; JSON `injury_return` | Return from injury | yes, no or unknown: the press presents the game as a return from an injury absence. | SEN-13, DSN-07 |
 | enjeu du match | game stakes | `gameStakes`; JSON `game_stakes` | Game stakes | high, normal or unknown: the outcome decides a qualification, elimination, title or final ranking. | SEN-14 |
 | provenance, origine (d'une indication de contexte) | indication origin | `ContextIndicationOrigin` | Origin | research, classification, user or calculation. | SEN-18, H-09, ALE-08 |
@@ -236,7 +237,7 @@ Decisions:
 | confiance de la recherche | research confidence | `researchConfidence`; JSON `confidence` | Research confidence | high, medium or low, set by the research AI per prompt rule 2.8. | BKT prompt 2.8, IMP-15 |
 | version de fiche (de l'événement) | sheet version | `sheetVersion` | Sheet version | Version of the type sheet the event was qualified under. | TAX-23, DET-53, IMP-30 |
 | qualifier, qualifié (sous une version) | qualify, qualified | — | — | Recognize a fact as an event of a type under one sheet version. | TAX-23 |
-| marque | mark | `EventMark` | — | Flag set on an event and later lifted or confirmed (section 4). | DET-32, DET-33, DET-58 |
+| marque | mark | `EventMark` | — | Flag set on an event, later lifted or upheld (section 4). | DET-32, DET-33, DET-58 |
 | « datation à vérifier » | dating to verify | `dating_to_verify` | Dating to verify | The article places the fact before its own publication and a game may have been played in between. | DET-32, SEN-45 |
 | « détecté après le coup d'envoi » | detected after tip-off | `detected_after_tip_off` | Detected after tip-off | The expected game's tip-off had passed when the event was created. | DET-33 |
 | antériorité | precedence | `Precedence` | Precedence | Of a historical event: its oldest source compared with the measured game's tip-off. | IMP-18, SEN-44 |
@@ -264,7 +265,7 @@ Decisions:
 | critère (de cas douteux) | doubtful-case criterion | `DoubtfulCaseCriterion` | Criterion | Condition that makes a case doubtful (section 4). | SEN-11–SEN-15 |
 | critère retenu | triggered criterion | `triggeredCriteria` | Criteria met | Criterion that applies to the case, listed with its triggering values. | SEN-11 |
 | signalée, calculée (condition) | flagged, calculated | `CriterionCondition` | Flagged; Calculated | Whether a criterion fired from a context indication or from statistics. | SEN-13, SEN-14 |
-| non évaluable | not evaluable | `opponentStrengthNotEvaluable` | Not evaluable | Opponent criterion that cannot be computed; not triggered, mentioned on the case. | SEN-15 |
+| non évaluable | not evaluable | `opponentStrengthNotEvaluable` | Not evaluable | Opponent criterion that cannot be computed; not triggered, noted on the case. | SEN-15 |
 | signalé pour revue, cas signalé pour revue, signalement, signalement pour revue | flagged for review, review flag | `ReviewFlag` | Flagged for review | Situation shown to the owner without automatic exclusion. | SEN-16 |
 | décision manuelle | manual decision | `ManualDecision` | Manual decision | Owner excludes a measured case or reinstates an excluded one, with a closed-list reason. | SEN-17 |
 | commentaire (d'une décision), commentaire d'une décision | comment | `comment` | Comment | Free text under the wording rules; required for "other" reasons. | SEN-17, DET-43, DSN-10 |
@@ -341,7 +342,7 @@ Decisions:
 | limites, limites déclarées, limites déclarées par l'IA | declared limitations | `declaredLimitations`; JSON `limitations` | Limitations | Seasons, types or sources the research could not explore properly. | BKT format, H-IMP-10 |
 | réserve (`non_verifie`), réserve sur ce qui n'a pas pu être vérifié | unverified note | `unverifiedNote`; JSON `unverified_note` | Not verified | What the AI could not verify for one event. | BKT format, DSN-06 |
 | précision (`contexte.precision`), précision facultative | context detail | JSON `context.detail` | Detail | One optional sentence to help check the context; shown in the preview, never stored. | BKT format, DSN-07 |
-| contexte (du match suivant) | next-game context | `ContextIndications` | Context | Context of the first NBA game after the event; « inconnu » until it is played. | BKT prompt 2.7, H-BKT-08 |
+| contexte (du match suivant) | next-game context | `ContextIndications` | Context | Context of the first NBA game after the event; `unknown` until it is played. | BKT prompt 2.7, H-BKT-08 |
 | un fait, un événement | one fact, one event | — | — | A fact reported by several articles is one event with up to N sources. | BKT prompt 2.9, H-BKT-06 |
 | hors champ | out of scope | — | — | Facts outside the period, about the whole team, or of an undefined type. | BKT prompt 2.10 |
 | profondeur historique | historical depth | — | — | The player's whole NBA career; not a parameter. | H-06, BKT-08, TRV-38 |
@@ -395,7 +396,7 @@ Decisions:
 | correspondance (entre événements), se correspondre | correspondence, correspond | `eventsCorrespond()` | — | Same type within 2 days, or a shared cleaned link. | IMP-25, H-IMP-03 |
 | doublon possible (à l'import) | possible duplicate | `PossibleDuplicate` | Possible duplicate | Correspondence the owner must judge before saving. | IMP-25 |
 | « même fait », « faits distincts » | same fact, distinct facts | `PossibleDuplicateAnswer` | Same fact; Distinct facts | Answers to a possible duplicate. | IMP-25 |
-| « événements distincts » | distinct events | `keep_as_distinct` | Distinct events | Override that adds an event matching an existing historical event. | IMP-26 |
+| « événements distincts » | distinct events | `keep_as_distinct` | Distinct events | Override that adds an event corresponding to an existing historical event. | IMP-26 |
 | doublon d'un événement historique (import) | duplicate of a historical event | — | — | Not added; its new sources attach to the existing event. | IMP-26 |
 | doublon d'un événement détecté | duplicate of a detected event | — | — | Never added; a dismissed one is reinstated instead. | IMP-27 |
 | sondage des sources | source spot check | `SourceSpotCheck` | Spot-check sources | Optional: open 3 random sources and judge each. | IMP-23, H-IMP-09 |
@@ -438,7 +439,7 @@ Decisions:
 | tournoi de qualification | play-in tournament | `play_in` | Play-in | Game phase. | STA-04, STA-05 |
 | phases finales | playoffs | `playoffs` | Playoffs | Game phase; in a baseline, play-in and playoffs together are "postseason". | STA-04, STA-18 |
 | finale | the Finals | — | Finals | Last playoff series; ends the phase for everyone. | STA-20 |
-| match éliminatoire | playoff game | — | Playoff game | Game of the playoffs; "elimination game" is the one a loss ends a team's season. | 00, SEN-14 |
+| match éliminatoire | playoff game | — | Playoff game | Game of the playoffs; an "elimination game" is one where a loss ends a team's season. | 00, SEN-14 |
 | série | series | `seriesId` | Series | Play-in or playoff pairing. | STA-05 |
 | numéro du match dans la série | game number | `gameNumber` | Game {n} | Rank of the game in its series. | STA-05 |
 | victoires de chaque équipe avant ce match | series wins before the game | `seriesWinsBefore` | — | Per team, play-in and playoffs only. | STA-05 |
@@ -447,7 +448,7 @@ Decisions:
 | instant prévu de début, début prévu | scheduled start | `scheduledStartAt` | Tip-off | Absolute instant; the latest known time prevails. | STA-05, STA-29, STA-31 |
 | coup d'envoi | tip-off | — | Tip-off | Start of a game; compared as instants, never as local times. | H-02, STA-30, SEN-03 |
 | « heure à déterminer » | time TBD | `isStartTimeTbd` | Time TBD | Game with a date only, deemed to start at the beginning of its local day. | STA-31 |
-| journée de compétition, date américaine | US date | `usDate` | — | A game's day is its date in the US; shown when it differs from the local date. | STA-32, TRV-72, IHM-14 |
+| journée de compétition, date américaine | US date, game day | `gameDayOn` | — | A game's day is its calendar date in the US; shown when it differs from the local date. | STA-32, TRV-72, IHM-14 |
 | équipe qui reçoit, équipe qui se déplace | home team, away team | `homeTeamId`, `awayTeamId` | Home; Away | — | STA-05 |
 | à domicile, à l'extérieur | home, away | `GameVenue` | Home; Away | Venue of the player's team. | STA-26 |
 | score final | final score | `finalScore` | — | Stored, never used as a measure (VUE-03). | STA-05 |
@@ -549,7 +550,7 @@ Decisions:
 | seuils du verdict | verdict thresholds | `possibleSnrThreshold`, `possibleMeanGapThreshold`, `probableSnrThreshold`, `probableMeanGapThreshold` | Verdict thresholds | 2 and 0.25, 3 and 0.40 by default. | SEN-23, Q-04 |
 | seuil de cas valides (par joueur), seuil de cas | valid-case threshold | `validCaseThreshold` | Case threshold | 5 by default; below it the player's verdict is inconclusive. | SEN-23, H-03 |
 | « non concluant pour ce joueur (k cas valides sur 5 nécessaires) » | inconclusive for this player | — | (section 7) | Label of a profile under the threshold. | SEN-31 |
-| « tendance générale du type, ne décrit pas ce joueur » | type's general trend, not this player | — | (section 7) | Title above the trend shown for a player under the threshold. | SEN-31 |
+| « tendance générale du type, ne décrit pas ce joueur » | general trend of the type, does not describe this player | — | (section 7) | Title above the trend shown for a player under the threshold. | SEN-31 |
 | verdict fragile, « fragile » | fragile verdict | `isFragile` | Fragile | Level or direction changes when the most supportive case is removed. | SEN-26 |
 | test de robustesse | robustness test | `runRobustnessTest()` | — | The recalculation that decides fragility. | SEN-26 |
 | confiance du profil, niveau de confiance | profile confidence | `ProfileConfidence` | Profile confidence | low, medium or high: what the verdict rests on. | SEN-25, D-11 |
@@ -570,10 +571,10 @@ Decisions:
 | cause (d'un changement de verdict) | change cause | `VerdictChangeCause` | Cause | Closed list (section 4). | SEN-37, SEN-48 |
 | recalcul, recalcul complet | recalculation, full recalculation | `recalculate()` | Recalculate | Deterministic; preserves manual decisions; never calls the stats source. | SEN-34–SEN-36 |
 | « recalcul en cours » | recalculation in progress | `isRecalculating` | Recalculation in progress | Shown on affected profiles and sheets. | SEN-36, ALE edge cases |
-| faux signaux attendus, synthèse | expected false signals | `ExpectedFalseSignals` | Verdicts chance alone would give | Evaluated pairs × 4.6 % (at least possible) and × 0.27 % (probable). | SEN-41 |
+| faux signaux attendus, synthèse | expected false signals | `ExpectedFalseSignals` | Verdicts chance alone would produce | Evaluated pairs × 4.6 % (at least possible) and × 0.27 % (probable). | SEN-41 |
 | pièges d'interprétation | interpretation pitfalls | — | Interpretation pitfalls | Section of 08 shown from "Method and limits". | 08, IHM-69 |
 | affichage honnête (des petits échantillons) | honest display | — | — | Counts, ranges and case lists always shown; no showcase of the best profiles. | SEN-38–SEN-40, IHM-45–IHM-52 |
-| association observée, cause démontrée | observed association, proven cause | — | — | A verdict describes the first, never the second. | SEN-42 |
+| association observée, cause démontrée | observed association, demonstrated cause | — | — | A verdict describes the first, never the second. | SEN-42 |
 
 Merged into other rows: « profil » (into sensitivity profile); « écart normalisé moyen » (into mean gap); « niveau de confiance » (into profile confidence); « fourchette » (into plausible range); « seuil de cas » (into valid-case threshold).
 
@@ -628,7 +629,7 @@ Decisions:
 | extrait, court extrait | excerpt | `excerpt` | Excerpt | Feed-supplied text, 500 characters at most; erased on schedule. | COL-27, COL-37 |
 | texte intégral, corps de l'article, corps d'un article | full text | — | — | Never stored; the article page is never fetched. | COL-25, COL-26 |
 | rubriques | feed sections | — | — | Item categories of the feed; never stored. | COL-25 |
-| lien nettoyé, éléments de suivi publicitaire | cleaned link, tracking parameters | `cleanLink()` | — | Link without ad-tracking parts, used for dedup. | COL-28 |
+| lien nettoyé, éléments de suivi publicitaire | cleaned link, ad-tracking parameters | `cleanLink()` | — | Link without ad-tracking parts, used for dedup. | COL-28 |
 | dédoublonnage, doublon | deduplication, duplicate | — | Duplicates | Same link, same feed ID, or same outlet and title within 6 h. | COL-30–COL-33 |
 | fenêtre de dédoublonnage par titre | title dedup window | `titleDedupWindowHours` | — | 6 h by default. | COL-30, H-COL-02 |
 | trace de dédoublonnage | dedup trace | `DedupTrace` | — | Link and first-collection instant of a deleted article, kept 180 days; none after a withdrawal. | COL-34, DSN-34 |
@@ -706,7 +707,8 @@ Decisions:
 | raison de la non-correspondance | no-fit reason | `noFitReason` | Why no type fits | Sent with each proposal. | DET-34, TAX-18 |
 | repêcher, repêchage | rescue | `rescueArticle()` | Rescue | Owner turns a not-relevant article into an event of his choice. | DET-49 |
 | corriger, fusionner (des événements détectés) | correct, merge events | `correctEvent()`, `mergeEvents()` | Correct; Merge | Wrong player, type or duplicate: corrected, not dismissed. | DET-47 |
-| journal de détection | detection journal | `DetectionJournalEntry` | Detection journal | Counters of each run (section 3.15 counters). | DET-55 |
+| journal de détection | detection journal | `DetectionJournalEntry` | Detection journal | One entry per run with the counters of the next row. | DET-55 |
+| articles reçus, non retenus par le préfiltrage, classés, classés sans fait, rattachés à un événement existant, sous le seuil, faits anciens, faits déjà rapportés par un backtest, propositions transmises, occurrences ajoutées, descriptions remplacées, classifications en échec, événements créés, articles restant en file, quota consommé et restant | articles received, not prefiltered in, classified, classified without fact, attached to an existing event, below threshold, old facts, already reported by a backtest, proposals submitted, occurrences added, descriptions replaced, failed classifications, events created, still queued, quota used and left | `DetectionCounters` | (same) | Detection journal counters. | DET-55 |
 | indicateurs de qualité | quality indicators | — | — | Dismissal rates by confidence band and other detection measures. | DET-25, DET-56 |
 | « réponse sur le terrain » | "answer on the court" | — | — | Outcome narrative the classifier must ignore. | DET-19 |
 | événements d'équipe, événement d'équipe, élimination humiliante | team events, humiliating elimination (example) | — | — | Out of scope: a fact that targets only a team is no event. | Q-06, VUE-04 |
@@ -852,7 +854,7 @@ Decisions:
 | catégorie (de notification) | notification category | `NotificationCategory` | Category | backtest requests, alerts, tracked results, type proposals, incidents. | TEL-24 |
 | sous-option | sub-option | `NotificationSubOption` | — | deadline reminder, inconclusive alerts, incident end. | TEL-24 |
 | messages de service | service messages | — | — | Messages outside any category; only the master switch stops them. | TEL-16 |
-| interrupteur général | master switch | `notificationsEnabled` | Notifications | Suspends all sending without unlinking. | TEL-25 |
+| interrupteur général | master switch | `notificationsEnabled` | Send notifications | Suspends all sending without unlinking. | TEL-25 |
 | réglages de notification | notification settings | `NotificationSettings` | Notifications | Categories, sub-options, quiet hours, urgency, cap, delays, thresholds. | TEL-24–TEL-27 |
 | première ligne | first line | — | — | « Egoscope · catégorie — sujet », often visible on the lock screen. | TEL-06, TEL-08 |
 | écran verrouillé | lock screen | — | — | Why the first line is limited to category and subject. | TEL-06 |
@@ -1016,7 +1018,7 @@ Decisions:
 | avertissement de quota | quota warning | `quota_warning` | Quota warning | At 80 % of a limit. | TRV-05, H-TRV-02 |
 | limite atteinte | limit reached | `quota_reached` | Quota reached | Operations deferred, never lost; an early refusal counts as reached. | TRV-05, TRV-06 |
 | avertissement de volume | database volume warning | `database_volume_warning` | Database volume warning | At 80 % of the free capacity; core data never deleted. | TRV-07, H-TRV-03 |
-| fiche de service | service sheet | `docs/services/*` | — | Role, free tier, limits, terms date and address, behavior at the limit, replacement. | TRV-09, TRV-10 |
+| fiche de service | service sheet | — | — | Role, free tier, limits, terms date and address, behavior at the limit, replacement. | TRV-09, TRV-10 |
 | rôle (d'un service) | service role | `ServiceRole` | — | hosting, database, stats source, language model, news feeds, notifications, trigger service, backup storage. | TRV-09 |
 | conception technique | technical design | — | — | Engineering documents that fix what the specs leave open. | TRV-25 |
 | hébergement, hébergeur | hosting, host | — | — | The free hosting service. | TRV-13 |
@@ -1124,7 +1126,7 @@ Decisions:
 | critères d'acceptation | acceptance criteria | — | — | `CA-XXX-nn` (positional IDs where the spec gives none). | decisions |
 | cas limites et erreurs | edge cases and errors | — | — | Spec section. | every spec |
 | données manipulées | data handled | — | — | Spec section listing stored data. | every spec |
-| mention | notice | — | — | Text shown on an object (« mention « partielle » » is the partial notice); not a mark. | STA-24, ALE-17, IHM-50 |
+| mention | notice | — | — | Text shown on an object (the « partielle » mention is the partial notice); not a mark. | STA-24, ALE-17, IHM-50 |
 | motif, raison | reason | `reason` | Reason | Why something happened; « motif » for closed lists, « raison » for free text. | many |
 | état, statut | status | `status` | Status | Lifecycle position of an object. | many |
 | origine, provenance | origin | `origin` | Origin | Where something comes from. | many |
@@ -2770,7 +2772,7 @@ Scope: every UI string, Telegram message, alert sheet, event description, classi
 | record, record approach, negative record, win-loss record | Sports records and a team's results. |
 | first line, row | A Telegram message's first line; a row of the validation table (never "line"). |
 | dispersion | Never "spread". |
-| confirmed, refuted, confirm (button) | Case category and row assessment; the verb on a user's confirmation button ("Confirm", "Confirm withdrawal"). |
+| confirmed, refuted, confirm (button), awaiting confirmation, to be confirmed | Case category and row assessment; the verb on the owner's confirmation buttons ("Confirm"); the Telegram link status; the mark of a hypothesis. Never about a verdict, a profile or an effect. |
 
 ### 8.4 Neutral wording to use instead
 
