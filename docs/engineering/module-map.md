@@ -680,3 +680,140 @@ F-params creates the registry complete, one file per family, from this table (TR
 **Not parameters.** Fixed by the journal (TRV-38): the press languages (H-11, COL-05), the daily frequency of collection and detection (only the hours are set), the backtest depth of a whole NBA career (H-06, BKT-08). Fixed by a spec rule: the Game Score coefficients (STA-11), the minutes ceiling of 48 plus 5 per overtime (STA-09), 3 decimals for the index and 2 for gaps (STA-12, SEN-09), the dispersion floor of 1 and the range of twice the expected noise (SEN-22), the false-signal shares derived from the signal-to-noise thresholds (SEN-41), the Pacific end-of-day convention (SEN-01). Fixed by a decision: the eight-week fingerprint lifetime (ADR 0017; whether it follows `backups.kept` is open point 5). Engineering constants, documented where they are defined: the trigger cadence, lease timeouts, the tick budget, the 10-point confidence bands of DET-25, one statistics download at a time.
 
 **Settings that live on an object, not in the registry:** on a type sheet, the dating rule (known in advance, calendar-derived), the intimate-subject mark, the switched-off doubtful criterion (ADR 0016) and the sheet's own thresholds (for example the media-storm outlet count); on a source, its silence delay and media time zone (COL-04, COL-42).
+
+## 7. Cross-cutting rules for implementers
+
+Check every item that applies before opening a pull request.
+
+**Spec and decisions**
+- [ ] Look up each requirement you implement in the [deviations register](spec-deviations.md): a listed ID follows "What we do instead". Never settle an open point of the register in a pull request; raise it with the orchestrator.
+- [ ] Each test names the requirement or acceptance criterion it verifies; a test of a criterion the register changes asserts the register's value and cites both.
+
+**Journal** (TRV-41–TRV-44, DSN-11, DSN-29)
+- [ ] Every data-changing action and every task run writes one entry, in the same transaction as the change.
+- [ ] Plain English that says what happened, when, with what consequence and what to do; level info, warning or incident.
+- [ ] Never an event description, a classification justification, an article's text, excerpt or title, or a DSN-18 item; an event is designated only through `eventRef`, never by writing its player, type or date into the text.
+- [ ] Raw service answers go to the technical details, reduced to what diagnosis needs, through `env.redact`.
+
+**Incidents** (TRV-45, TEL-15)
+- [ ] Open with `incidents.open(cause)` from the cause list of §2.1 and close when the cause disappears; an input error shown to the owner is not an incident; never send a Telegram message for an incident yourself.
+
+**Quotas and outside calls** (TRV-03–TRV-06, STA-39, STA-40, DET-08)
+- [ ] Every port call goes through `quotas.withQuota` with its estimate and its priority; a deferred call stays queued and is never lost.
+- [ ] No network call outside a port; tests use the fakes only.
+
+**Sensitive data** (DSN-06, DSN-15, DSN-18, DSN-20–DSN-35, TRV-66)
+- [ ] An event carries only the DSN-06 whitelist; no absence cause, no health detail, nothing of DSN-18.
+- [ ] A description or justification passes the `ai-exchange` text checks before it is stored or sent.
+- [ ] Pasted text lives only in `drafts`.
+- [ ] A module that stores data about an event implements its `eraseEventData` hook, and `withdrawal` calls it.
+- [ ] Nothing about the owner leaves the app; each service receives only what its role needs; a Telegram message never quotes an article and never names an intimate-subject type.
+
+**Time** (TRV-68–TRV-73, ADR 0010)
+- [ ] Instants are epoch milliseconds in code and `timestamptz` in the database; local dates are `YYYY-MM-DD` strings and `date` columns.
+- [ ] Every "before or after the game" comparison is between instants; no fixed offset; the clock is `time.now()`.
+- [ ] Every rule that speaks of a day says which: the owner's day for tasks and displays, the US date for a game.
+- [ ] An imprecise instant keeps its precision and is read with prudence (latest compatible instant).
+- [ ] Displays go through the `time` formatters, in `display.timeZone`, zone named, games with their US date and venue time.
+
+**Parameters and words** (TRV-34–TRV-36, VUE-02, VUE-08, IHM-45, IHM-50)
+- [ ] Every tunable comes from `params`; none is hard-coded; a missing one goes to the orchestrator, never into a module.
+- [ ] Labels, states and fixed sentences come from `wording`; numbers through its formatters.
+- [ ] No betting word anywhere: screen and message tests call `assertNoBettingWords`.
+- [ ] Every mean gap shows its case count and range, every verdict its confidence and case count, through `ui/figures`.
+
+**Access, lots, offline, accessibility** (TRV-58, TRV-64, IHM-10, IHM-58, IHM-61, IHM-62, ADR 0001)
+- [ ] `auth.requireSession()` first in every page, Server Action and session-protected route handler.
+- [ ] Secrets only through `env`; never a password or token in a URL.
+- [ ] A Lot 1 module never imports Lot 2; Lot 2 screens, blocks and items are behind the lot gate.
+- [ ] A mutating form uses `OnlineOnlySubmit`.
+- [ ] WCAG 2.2 AA, explicit labels, nothing carried by color alone; axe runs on every screen's end-to-end test.
+
+## 8. Dependency graph
+
+```mermaid
+flowchart TB
+  subgraph composition["Composition"]
+    tasks["tasks"]
+    todo["todo"]
+    withdrawal["withdrawal"]
+  end
+  subgraph lot2["Domain, Lot 2"]
+    notifications["notifications"]
+    detection["detection"]
+    tracking["tracking"]
+    alerts["alerts"]
+    collection["collection"]
+  end
+  subgraph lot1["Domain, Lot 1"]
+    imports["imports"]
+    backtests["backtests"]
+    taxonomy["taxonomy"]
+    calendarEvents["calendar-events"]
+    sensitivity["sensitivity"]
+    games["games"]
+    players["players"]
+    events["events"]
+  end
+  subgraph base["Foundation"]
+    pure["pure core: stats-engine, ai-exchange"]
+    ports["ports: stats-source, link-check, backup-storage, language-model, press-feeds, telegram"]
+    machinery["machinery: env, result, time, wording, ui, db, journal, params, outbox, incidents, quotas, scheduler, auth, drafts, offline, navigation, backups"]
+  end
+  composition --> lot2
+  composition --> lot1
+  notifications --> tracking & alerts
+  detection --> collection & tracking & alerts
+  tracking --> alerts
+  lot2 --> lot1
+  imports --> backtests & taxonomy & sensitivity & games & events
+  backtests --> taxonomy & sensitivity & games
+  taxonomy --> calendarEvents & sensitivity & events
+  calendarEvents --> sensitivity & games & events
+  sensitivity --> games
+  games --> players
+  lot1 --> base
+  lot2 --> base
+```
+
+Arrows point from a module to what it calls; Lot 2 modules also call the Lot 1 modules listed in §2.5. What must exist before what, as waves of foundation tasks (§9) followed by the features:
+
+1. **Wave 0, predefined:** F-toolchain, then F-db, F-time, F-ui, F-trace, F-security, F-mutation, F-e2e.
+2. **Wave 1:** F-env, F-wording, F-pure-skeleton, F-schema-core.
+3. **Wave 2:** F-service-kit, F-figures, F-schema-catalog.
+4. **Wave 3:** F-params, F-incidents, F-ports-lot1, F-ports-lot2, F-schema-measure.
+5. **Wave 4:** F-quotas, F-scheduler, F-auth, F-drafts, F-todo, F-skeleton-lot1, F-export, F-test-support, F-schema-lot2, and the adapters, each once its service sheet exists (F-adapter-stats-source first: its sheet is ready and the decision asks for the statistics source in the foundation wave).
+6. **Wave 5:** F-tasks, F-access, F-shell, F-seed, F-skeleton-lot2.
+7. **Wave 6:** F-pwa, F-backups.
+8. **Wave 7:** F-offline, F-restore.
+9. **Lot 1 features.** Engine and `ai-exchange` parts can start after F-pure-skeleton (wave 2). Domain operations follow the order of §1.3 — `events` and `players`, then `games`, `sensitivity`, `calendar-events`, `taxonomy`, `backtests`, `imports`, `withdrawal` — a task starts when the operations it calls are merged. Screens need F-shell and the read APIs they show; task handlers need F-tasks and the operations they compose. Then the Lot 1 milestone: the `00 AC-6` journey passes end to end on a build with no Lot 2 configuration, and `main` is tagged (ADR 0001).
+10. **Lot 2.** `collection`, the Telegram transport and their adapters may start as soon as F-skeleton-lot2 and F-ports-lot2 are merged; `alerts`, `tracking`, `detection` and `notifications` follow the order of §1.3 after the milestone; the last Lot 2 task flips the default of `EGOSCOPE_LOT` to 2.
+
+## 9. Shared files and how to avoid collisions
+
+The rule: **a file that many tasks would edit is created complete by one early task; later tasks only fill files they own.** When a task truly needs a change to a file below, it asks the orchestrator, who schedules a small dedicated pull request.
+
+| Shared file or folder | Created complete by | What other tasks do |
+|---|---|---|
+| `src/lib/navigation/**` — tabs, More menu, `paths` for every route | F-shell | read only; a screen missing from §3 is an orchestrator decision |
+| Every route folder of §3.3 with its placeholder `page.tsx`, and the block files of §3.4 | F-shell | replace the files of their own route or block only |
+| `src/app/layout.tsx`, `src/app/(app)/layout.tsx`, `error.tsx`, `not-found.tsx` | F-shell | do not edit |
+| `src/proxy.ts` (public paths, security headers), `src/app/(auth)/**`, `robots.ts`, `/api/health` | F-access | do not edit; a new public endpoint is an orchestrator decision |
+| `src/lib/db/schema/*.ts`, `schema/index.ts`, `drizzle/` migrations and their journal | F-schema-core, F-schema-catalog, F-schema-measure, F-schema-lot2, strictly one after the other | features do not touch the schema; a missing column becomes a schema-amendment pull request that rebases and regenerates its migration (never hand-merge `drizzle/meta`), one in flight at a time |
+| `src/lib/params/registry/<family>.ts` | F-params, complete from §6 | read through `getParam`; a missing tunable goes to the orchestrator |
+| `src/lib/tasks/registry.ts` and one stub handler per task | F-tasks | implement only their own handler file |
+| `src/lib/env/**`, `.env.example` | F-env, with every variable of §2.1 | read only |
+| Each port's `index.ts`, `port.ts`, `types.ts`, `errors.ts`, `fake.ts`; `test/support/contracts/<port>.ts` | F-ports-lot1, F-ports-lot2 | adapter tasks add only their adapter files and recorded fixtures |
+| Domain module barrels `src/lib/<module>/index.ts`, their planned files (empty) and `types.ts` (row types from the schema), the no-op `erase.ts` hooks | F-skeleton-lot1, F-skeleton-lot2 | fill their planned files; a file not planned in §2 adds one `export *` line (rare, trivial to rebase) |
+| `src/lib/stats-engine/index.ts`, `types.ts` and each part's `index.ts`; `src/lib/ai-exchange` shared files and part barrels | F-pure-skeleton | fill their part folder only |
+| `src/lib/wording/{states,glossary}.ts`, `sentences/<area>.ts` | F-wording | add fixed sentences in the file of their area only |
+| Enumerations: journal categories, incident causes, outbox fact kinds | F-service-kit, F-incidents | use them; an addition is an orchestrator decision |
+| `src/lib/todo/<section>.ts` | F-todo (stubs returning nothing, incidents section done) | the owner of each section replaces its own file |
+| `src/lib/tasks/purge.ts` step list | F-tasks (machinery steps) | the owner of a purge step (fingerprints, Lot 2 articles, link codes) adds its one line |
+| `data/seed/**` | F-seed | read only |
+| `data/fixtures/<area>/**`, `test/support/**` | F-test-support (invented league, research results, factories, scenarios) | add files in their own area folder; never edit another area's |
+| `next.config.ts` | F-pwa | do not edit |
+| `package.json`, `bun.lock` | F-toolchain and the foundation tasks | add a dependency only when needed; on conflict, rebase and rerun `bun install`, never hand-merge the lockfile |
+| `docs/engineering/**` | their authors | update only their own page; this map changes through the orchestrator |
+
+Other habits that keep parallel pull requests apart: one task per planned file (the planners assign files, §2); a page made of blocks never gets a page-wide `queries.ts` shared by several tasks; tests and fixtures sit next to the code they test or in their own area folder; a task that discovers missing shared work stops and reports it rather than adding it.
