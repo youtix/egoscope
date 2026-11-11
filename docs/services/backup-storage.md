@@ -1,20 +1,24 @@
 # Backup storage: release assets in a private GitHub repository
 
-| Item         | Value                                                                              |
-| ------------ | ---------------------------------------------------------------------------------- |
-| Role         | Keeps the weekly encrypted backups outside the database service (TRV-50, Q-TRV-01) |
-| Decision     | One draft release in a separate private repository of the owner's GitHub account   |
-| Runner-up    | A private Vercel Blob store on Hobby                                               |
-| Date checked | 2026-11-11                                                                         |
+| Item         | Value                                                                            |
+| ------------ | -------------------------------------------------------------------------------- |
+| Role         | Keeps the encrypted backups outside the database service (TRV-50, Q-TRV-01)      |
+| Decision     | One draft release in a separate private repository of the owner's GitHub account |
+| Runner-up    | A private Vercel Blob store on Hobby                                             |
+| Date checked | 2026-11-11                                                                       |
 
 ## Role
 
-Every Monday at 05:00 (Paris time by default), the application exports its whole database (TRV-51),
-compresses and encrypts the file with a key from the deployment configuration, uploads it, and
-deletes older backups so that 8 remain (TRV-50, H-TRV-09). A withdrawn fact must disappear from every
-backup within eight weeks (DSN-28), so deletion must really remove the file. The owner chose a
-private space on their GitHub account, or the host's free file storage if that checked out better;
-GitHub checks out better (see "Replaceable by").
+At the configured day and time (Monday at 05:00, Paris time, by default; the parameter also allows
+every day), the application exports its whole database (TRV-51), compresses and encrypts the archive
+with a key from the deployment configuration, uploads it, then deletes every backup beyond the
+configured number to keep, 8 by default (TRV-50, H-TRV-09). Manual backups and the backup taken
+before a schema change count in the same number (ruling CL-TRV-04). A withdrawn fact leaves the
+backups when the last backup that held it rotates out; the horizon is the number of backups kept
+times the backup interval, eight weeks with the defaults (ruling CL-DSN-07, DSN-28). Deletion must
+therefore really remove the file. The owner chose a private space on their GitHub account, or the
+host's free file storage if that checked out better; GitHub checks out better (see "Replaceable
+by").
 
 ## Plan and cost
 
@@ -42,16 +46,17 @@ None new: the owner's existing GitHub account. The owner creates:
 
 ## Our expected use and the margin
 
-| Resource    | Expected use                                                                                                 | Limit                | Margin |
-| ----------- | ------------------------------------------------------------------------------------------------------------ | -------------------- | ------ |
-| Backup file | Compressed and encrypted export of a database of at most 100 MB: well under 100 MB, realistically 5 to 50 MB | Under 2 GiB per file | >95%   |
-| Files kept  | 8 (one draft release holds them all)                                                                         | 1,000 per release    | >99%   |
-| Storage     | 8 × 50 MB = 400 MB at most                                                                                   | No limit             | n/a    |
-| API calls   | About 4 a week (upload, list, delete, list again)                                                            | 5,000 an hour        | >99%   |
+| Resource     | Expected use                                                                                                 | Limit                | Margin              |
+| ------------ | ------------------------------------------------------------------------------------------------------------ | -------------------- | ------------------- |
+| Backup file  | Compressed and encrypted export of a database of at most 100 MB: well under 100 MB, realistically 5 to 50 MB | Under 2 GiB per file | >95%                |
+| Backups kept | The configured number N (`backups.kept`, 8 by default), all kinds counted together, in one draft release     | 1,000 per release    | >99% at the default |
+| Storage      | N times the backup size: 400 MB with the defaults (8 × 50 MB); it grows in proportion if N is raised         | No limit             | n/a                 |
+| API calls    | About 5 per backup (privacy check, upload, list, delete, list again)                                         | 5,000 an hour        | >99%                |
 
-The upload is one outbound request from a Vercel Function: it is not bound by the 4.5 MB limit on
-requests the function receives ([Functions limitations](https://vercel.com/docs/functions/limitations)),
-and 50 MB fits easily in the 2 GB of memory and the 300 seconds of a Hobby function.
+The 2 GiB limit applies to each file and does not depend on how many backups are kept. The upload is
+one outbound request from a Vercel Function: it is not bound by the 4.5 MB limit on requests the
+function receives ([Functions limitations](https://vercel.com/docs/functions/limitations)), and
+50 MB fits easily in the 2 GB of memory and the 300 seconds of a Hobby function.
 
 ## Terms on personal use and automated access
 
@@ -78,14 +83,14 @@ and 50 MB fits easily in the 2 GB of memory and the 300 seconds of a Hobby funct
   because they look inactive ([Username policy](https://docs.github.com/en/site-policy/other-site-policies/github-username-policy)).
 - **Token**: GitHub automatically revokes a personal access token that has not been used for one
   year ([Token expiration and revocation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/token-expiration-and-revocation));
-  the weekly backup uses it every week.
+  every backup uses it, at least once a week with the defaults.
 
 ## Data we send
 
 Only ciphertext: the full export (TRV-51), compressed then encrypted with AES-256-GCM under
-`BACKUP_ENCRYPTION_KEY`. GitHub sees the file names (a UTC timestamp), their sizes and their upload
-dates, nothing else. The backup holds no deployment secret and never the text pasted at import
-(TRV-51, DSN-32).
+`BACKUP_ENCRYPTION_KEY`. GitHub sees the file names (the UTC creation instant and the backup's
+kind), their sizes and their upload dates, nothing else. The backup holds no deployment secret and
+never the text pasted at import (TRV-51, DSN-32).
 
 ## Availability in France
 
@@ -104,22 +109,33 @@ Plain HTTPS with `fetch`. Every call sends `Authorization: Bearer <BACKUP_GITHUB
    A draft is used because, if immutable releases are ever switched on, the assets of a published
    release can no longer be deleted ([Immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases));
    leave that setting off in the backup repository.
-2. **Weekly upload**: `POST https://uploads.github.com/repos/{owner}/{repo}/releases/{release_id}/assets?name=backup-YYYY-MM-DDTHHMMZ.enc`
-   with `Content-Type: application/octet-stream` and the encrypted bytes as the body; expect `201`
-   with `state: "uploaded"` and the right `size`. A `422` means the name exists; a `502` can leave an
-   empty asset in state `starter`, which is deleted before retrying
-   ([Release assets API](https://docs.github.com/en/rest/releases/assets)). Names use only letters,
-   digits, `.`, `_` and `-`.
-3. **Prune**: list the assets (`GET .../releases/{release_id}/assets?per_page=100`), sort by
-   `created_at`, then `DELETE https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}`
-   (expect `204`) for every asset beyond the newest 8 **and** for every asset older than 55 days,
-   then list again to confirm. The age rule keeps the eight-week guarantee even when a weekly backup
-   fails; run the prune also with the daily purge at 04:00 (TRV-25).
+2. **Each backup**: first check that the repository is still private: the repository's own
+   endpoint, `GET https://api.github.com/repos/{owner}/{repo}`, must answer `"private": true`;
+   otherwise upload nothing and open "backup failed" (CL-TRV-04). Then
+   `POST https://uploads.github.com/repos/{owner}/{repo}/releases/{release_id}/assets?name=backup-<UTC instant>-<kind>.enc`,
+   for example `backup-2026-11-16T0400Z-weekly.enc`, with `Content-Type: application/octet-stream`
+   and the encrypted bytes as the body; expect `201` with `state: "uploaded"` and the right `size`. A
+   `422` means the name exists; a `502` can leave an empty asset in state `starter`, which is deleted
+   before retrying ([Release assets API](https://docs.github.com/en/rest/releases/assets)). Names use
+   only letters, digits, `.`, `_` and `-`, and hold only the creation instant and the kind (weekly,
+   manual, before an update).
+3. **Rotate**: list the assets (`GET .../releases/{release_id}/assets?per_page=100`, paging when
+   more than 100 are kept), sort them by `created_at`, keep the newest N (`backups.kept`), all kinds
+   counted together, and delete an asset only when it is beyond that count:
+   `DELETE https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}` (expect `204`).
+   Then confirm that the asset no longer appears in a new listing and that reading it by id answers
+   `404` (CL-TRV-04). A failed or unverified deletion opens "backup failed" and the asset stays in the
+   application's backup register as still stored; the next rotation, or the daily purge, tries again.
+   There is **no fixed age limit**: one would silently cut a retention the owner has raised. When
+   backups fail for some weeks, the older ones stay until rotation resumes, and the fingerprints of
+   withdrawn events live as long as a backup made before them is still listed (CL-DSN-07).
 4. **Restore**: `GET https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}` with
    `Accept: application/octet-stream`, following a `302` redirect; decrypt with the key and restore
    into an empty database (TRV-53).
 
-Each step is logged; a failure opens an incident (TRV-50).
+Each step is logged; a failure opens an incident (TRV-50). The installation check writes a test
+object, reads it back, decrypts it, deletes it, verifies that it is gone and checks that the
+repository is private (TRV-47, CL-TRV-04).
 
 ### Token and permission
 
@@ -151,16 +167,16 @@ A fine-grained personal access token (generally available since 2025-03-18,
 
 The only limits within reach are API rate limits: a `403` or `429` on rate limiting means the step is
 retried at the next tick. Creating content too quickly can trigger GitHub's secondary rate limits
-([Releases API](https://docs.github.com/en/rest/releases/releases)); four calls a week cannot. A
+([Releases API](https://docs.github.com/en/rest/releases/releases)); a few calls per backup cannot. A
 failed backup opens an incident and the previous backups stay in place (TRV-50).
 
 ## Quota parameters to enter (TRV-03)
 
-| Parameter         | Value to enter |
-| ----------------- | -------------- |
-| Backups kept      | 8 (H-TRV-09)   |
-| Maximum file size | 2 GiB          |
-| REST requests     | 5,000 an hour  |
+| Parameter         | Value to enter                                                                |
+| ----------------- | ----------------------------------------------------------------------------- |
+| Backups kept      | 8 by default (`backups.kept`, H-TRV-09), all kinds together, fewer than 1,000 |
+| Maximum file size | 2 GiB                                                                         |
+| REST requests     | 5,000 an hour                                                                 |
 
 ## Replaceable by
 
@@ -178,8 +194,8 @@ failed backup opens an incident and the previous backups stay in place (TRV-50).
   keep every file version until lifecycle rules remove them ([Lifecycle rules](https://www.backblaze.com/docs/cloud-storage-lifecycle-rules)).
 
 Replacement procedure: create the new store, point the application's backup adapter at it, run a
-backup by hand and check it (TRV-75 step 13); delete the old backups from GitHub once eight new ones
-exist, or at once if the account is abandoned.
+backup by hand and check it (TRV-75 step 13); delete the old backups from GitHub once the new store
+holds as many backups as are kept, or at once if the account is abandoned.
 
 ## Date checked
 
@@ -203,6 +219,8 @@ with Contents read and write), and whether a draft release creates a tag.
 - **Releases are meant for software**: a policy change could forbid this use; the Vercel Blob
   replacement needs no new account.
 - **Lost key, lost backups**: the owner must keep the key outside Vercel.
+- **A raised retention lengthens the horizon**: with more backups kept, a withdrawn fact stays longer
+  in the stored backups, and its fingerprint with it (CL-DSN-07).
 - **Never purge by deleting the repository**: a deleted repository can be restored for 90 days
   ([Restoring a deleted repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/restoring-a-deleted-repository)).
 - **Never commit backups to Git**: history keeps every version.

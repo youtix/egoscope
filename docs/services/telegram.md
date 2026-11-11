@@ -129,8 +129,13 @@ Plain HTTPS: `https://api.telegram.org/bot<token>/<method>` with JSON bodies; no
 
 - **Receiving: polling (fallback)**. `getUpdates` cannot be used while a webhook is set, and updates
   wait at most 24 hours ([Getting updates](https://core.telegram.org/bots/api#getting-updates)). If the
-  webhook cannot be used, the application deletes it and polls from the 5-minute tick: the linking
-  confirmation then arrives within about 5 minutes, still inside the code's 15 minutes.
+  webhook cannot be used, the application deletes it and polls instead. **Linking relies on the
+  webhook**: a tick cannot be counted on to poll within the code's 15-minute validity, since with only
+  the fallback trigger up to about 30 minutes can pass between ticks ([scheduler.md](scheduler.md)).
+  In polling mode, the owner's "I tapped Start" action in the linking screen therefore polls at once,
+  while the code is still valid. Otherwise polling only catches up later: at a tick's probe while a
+  link code is pending, or at the end of a database pass, which comes at least hourly. Messages from
+  other chats are still logged (TEL-31), since Telegram keeps updates for 24 hours.
 - **Deleting after a withdrawal** (TEL-38, H-TEL-04): `deleteMessages` for messages under 48 hours
   old ([deleteMessages](https://core.telegram.org/bots/api#deletemessages)); older ones cannot be
   deleted by the bot, so the application lists them for the owner, who can delete them himself, as
@@ -187,6 +192,7 @@ blocked the bot.
 
 - **Messages older than 48 hours cannot be deleted by the bot**: a withdrawn event can remain in old
   messages until the owner deletes them; the withdrawal screen says so (DSN-28).
-- **Webhook certificate on `*.vercel.app`**: unverified; the polling fallback covers it.
+- **Webhook certificate on `*.vercel.app`**: unverified; the polling fallback, with the owner's "I
+  tapped Start" action, covers the linking.
 - **Owner's account self-destruct** after 18 months offline would take the bot with it.
 - **Token leak**: anyone with the token controls the bot; it lives only in the Vercel environment.

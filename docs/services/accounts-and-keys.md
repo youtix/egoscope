@@ -176,14 +176,14 @@ redeploy together.
 
 ## If a secret leaks
 
-| Secret                                  | What to do                                                                                                                            |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Reset the database role's password in Neon, copy both new strings, redeploy                                                           |
-| `CRON_SECRET`                           | Generate a new value, update Vercel and the Worker, redeploy                                                                          |
-| `CLOUDFLARE_AI_API_TOKEN`               | Roll or delete the token in Cloudflare and create a new one                                                                           |
-| `GROQ_API_KEY`                          | Delete the key in the GroqCloud console and create a new one, or remove the variable to run on Workers AI alone                       |
-| `TELEGRAM_BOT_TOKEN`                    | Send `/token` to BotFather, update the variable, redeploy                                                                             |
-| `TELEGRAM_WEBHOOK_SECRET`               | Generate a new value, redeploy; the installation check registers it again                                                             |
-| `BACKUP_GITHUB_TOKEN`                   | Revoke it in GitHub's token settings and generate a new one with the same scope                                                       |
-| `BACKUP_ENCRYPTION_KEY`                 | Generate a new key, redeploy, run a backup by hand; keep the old key until the last backup made with it is deleted, eight weeks later |
-| `INITIAL_PASSWORD`                      | Set a new value and redeploy: the reset of TRV-63 applies                                                                             |
+| Secret                                  | What to do                                                                                                                                                                                                  |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Reset the database role's password in Neon, copy both new strings, redeploy                                                                                                                                 |
+| `CRON_SECRET`                           | Generate a new value, update Vercel and the Worker, redeploy                                                                                                                                                |
+| `CLOUDFLARE_AI_API_TOKEN`               | Roll or delete the token in Cloudflare and create a new one                                                                                                                                                 |
+| `GROQ_API_KEY`                          | Delete the key in the GroqCloud console and create a new one, or remove the variable to run on Workers AI alone                                                                                             |
+| `TELEGRAM_BOT_TOKEN`                    | Send `/token` to BotFather, update the variable, redeploy                                                                                                                                                   |
+| `TELEGRAM_WEBHOOK_SECRET`               | Generate a new value, redeploy; the installation check registers it again                                                                                                                                   |
+| `BACKUP_GITHUB_TOKEN`                   | Revoke it in GitHub's token settings and generate a new one with the same scope                                                                                                                             |
+| `BACKUP_ENCRYPTION_KEY`                 | Generate a new key, redeploy, run a backup by hand; keep the old key until the last backup made with it has rotated out, after the backup horizon (backups kept times the interval, eight weeks by default) |
+| `INITIAL_PASSWORD`                      | Set a new value and redeploy: the reset of TRV-63 applies                                                                                                                                                   |
