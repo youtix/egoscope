@@ -1,0 +1,6 @@
+# Prettier also skips everything in .gitignore.
+
+# The French functional specifications are frozen: never reformat them.
+/docs/*.md
+
+bun.lock

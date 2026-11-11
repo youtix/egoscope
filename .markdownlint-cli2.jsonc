@@ -1,0 +1,16 @@
+{
+  // Lints the English documentation. The French specifications (the .md files
+  // directly inside docs/) are frozen: they are never linted or reformatted.
+  "config": {
+    "default": true,
+    // Prettier owns formatting; this preset switches off the rules it would fight.
+    "extends": "markdownlint/style/prettier",
+    // Repeated headings are fine under different parents ("Scripts" in two sections).
+    "MD024": { "siblings_only": true },
+    // The pull request template starts below the title GitHub already shows.
+    "MD041": false,
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["docs/*.md"],
+  "gitignore": true,
+}
