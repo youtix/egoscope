@@ -62,11 +62,11 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** the cap guards against a runaway, and carrying the backlog to the next day would restart it.
 - **Owner review:** yes
 
-### CL-TEL-08 — An incident's end message waits for the recurrence delay
+### CL-TEL-08 — An incident's end message waits for the recurrence window
 
 - **Affects:** TEL-15, TEL-24, CA-TEL-16
 - **Problem:** an incident that restarts within 6 hours is not notified again, but its end message may already be out, leaving the owner to believe it is resolved.
-- **Ruling:** the end message of a notified incident is sent only once the incident has stayed closed for the recurrence delay (default 6 hours). If an incident of the same nature and the same object opens again within that delay, neither an end message nor a new start message is sent, and the reminder cycle goes on from the first start. The end message gives the whole interruption, from the first start to the final end. Quiet hours and the « fin d'incident » sub-option apply as usual.
+- **Ruling:** the end message of a notified incident is sent only once the incident has stayed closed for the incident recurrence window (default 6 hours). If an incident of the same nature and the same object opens again within that delay, neither an end message nor a new start message is sent, and the reminder cycle goes on from the first start. The end message gives the whole interruption, from the first start to the final end. Quiet hours and the « fin d'incident » sub-option apply as usual.
 - **Why:** a "resolved" message followed by silence during a new outage would mislead; a late end message misleads no one.
 - **Owner review:** yes
 

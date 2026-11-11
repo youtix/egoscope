@@ -184,12 +184,12 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** a closure by the owner while the cause persists would contradict TRV-45's « reste ouvert tant que la cause subsiste », and every incident of the specs has an automatic end.
 - **Owner review:** no
 
-### CL-IHM-21 — The sheet of a calendar-derived event
+### CL-IHM-21 — The page of a calendar-derived event
 
 - **Affects:** IHM-24, IHM-25, IHM-32, IHM-67, IHM-68; ADR 0015
-- **Problem:** the event sheet lists press sources, confidences and marks, and actions that do not fit an event derived from the calendar (birthday game, first game against a former team).
+- **Problem:** the event page lists press sources, confidences and marks, and actions that do not fit an event derived from the calendar (birthday game, first game against a former team).
 - **Ruling:**
-  - The sheet shows player, type and the sheet version it was qualified under, "derived from the calendar" with the derived game (date, time, opponent, home or away) and the basis of the derivation (CL-VUE-15), the reference date (that game's day, before tip-off), the description written by the app, context indications with their origin, the case's state and the correction history.
+  - The page shows player, type and the sheet version it was qualified under, "derived from the calendar" with the derived game (date, time, opponent, home or away) and the basis of the derivation (CL-VUE-15), the reference date (that game's day, before tip-off), the description written by the app, context indications with their origin, the case's state and the correction history.
   - It shows no source, no research or detection confidence, no precedence and no mark.
   - Its actions are correcting the context indications (H-09) and withdrawing the event (IHM-68); there is no dismissal, no deletion and no correction of type, player or date, which are derived (ADR 0015).
   - Such events never appear in the detected-events list (IHM-32); in case lists they show their case origin like any other (IHM-46).
@@ -209,7 +209,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - Navigation labels, screen titles, banners, empty states and the short notice « Mesure du passé, hypothèse non démontrée, aucune recommandation de pari ».
 - The screen's zone statement ("Times in Paris time"), the zone names, the part-of-day words of CL-IHM-07 and the generic "This item no longer exists" text.
 - « Rien à faire pour le moment », « Backtest en cours : … », « prompt copié », « brouillon gardé à … », « incidents masqués », « Hors connexion — données du … à … », « Plus tard ».
-- « retiré »: a withdrawn player or type keeps its data, archived, while the withdrawal of an event erases it; the two English words must differ, as IHM-68 asks.
+- « retiré »: one English verb, withdraw, for players, types, sources and events; a withdrawn player or type keeps its data, archived, while an event withdrawal erases the event, so the labels differ, as IHM-68 asks: "Withdraw and erase" and "event withdrawal" for an event, which never has a "Withdrawn" status, the bare "Withdraw" and the "Withdrawn" status for players, types and sources.
 
 ## Ruled elsewhere
 

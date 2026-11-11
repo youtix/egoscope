@@ -3,7 +3,7 @@
 Rulings on the unclear points of the French spec `docs/07-statistiques-de-match.md`.
 The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and these rulings override the spec text where they say so; the French spec is authoritative everywhere else.
 
-These rulings take into account the statistics source chosen on 2026-11-11 (`docs/services/statistics-source.md` and `docs/engineering/statistics-source-evaluation.md`): season files of box scores, schedules and players from 1993-94, whole minutes, no ejection data.
+These rulings take into account the stats source chosen on 2026-11-11 (`docs/services/statistics-source.md` and `docs/engineering/statistics-source-evaluation.md`): season files of box scores, schedules and players from 1993-94, whole minutes, no ejection data.
 
 ### CL-STA-01 — Acceptance-criterion IDs and what each verifies
 
@@ -30,21 +30,21 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 - **Affects:** STA-05, STA-09
 - **Problem:** the minutes check needs the number of overtimes, which no game attribute holds.
-- **Ruling:** A game stores its number of overtimes: for the chosen source, the final period of a final game minus 4 (evaluation, test T11). When that period is missing, the game's overtime count is unknown and the upper bound of the minutes check is not applied to its sheets; the other checks still apply.
-- **Why:** derivable from the source; an unknown bound must not make a sheet suspect.
+- **Ruling:** A game stores its number of overtimes: for the chosen source, the final period of a final game minus 4 (evaluation, test T11). When that period is missing, the game's overtime count is unknown and the upper bound of the minutes check is not applied to its box scores; the other checks still apply.
+- **Why:** derivable from the source; an unknown bound must not make a box score suspect.
 - **Owner review:** no
 
 ### CL-STA-04 — Whether the player played, and games without a box score
 
 - **Affects:** STA-08, STA-10, STA-13, STA-24, STA-27, STA-35, STA-46, SEN-03, SEN-07, SEN-13
-- **Problem:** "played" needs time on court from a sheet, but some games have no box score at all (the chosen source lists a few games of older seasons without player lines), so their participation is unknown, while attachment, absence counts and the partial-baseline share all need it.
+- **Problem:** "played" needs time on court from a box score, but some games have no box score at all (the chosen source lists a few games of older seasons without player lines), so their participation is unknown, while attachment, absence counts and the partial-baseline share all need it.
 - **Ruling:**
   - For each final official game of a team the player belongs to (CL-STA-05), his participation is:
     - played: his line shows minutes above zero, or any non-zero element whatever its minutes (CL-STA-06);
     - not played: the source has player lines for his team in that game and he has a did-not-play line, no line, or a line with zero minutes and no non-zero element;
     - unknown: the source has no player lines for his team in that game, or has not published them yet.
-  - An unknown participation lasts while the sheet is missing and ends as "unavailable" under STA-35 (CL-STA-11). A game of a past season listed without player lines is therefore unavailable at once.
-  - Attachment (SEN-03) stops at the first game of unknown participation: the case waits, reason "statistics pending", and once that sheet is unavailable it is not measurable, reason "box score unavailable" (SEN-07). It never slides past such a game to a later one.
+  - An unknown participation lasts while the box score is missing and ends as "unavailable" under STA-35 (CL-STA-11). A game of a past season listed without player lines is therefore unavailable at once.
+  - Attachment (SEN-03) stops at the first game of unknown participation: the case waits, reason "statistics pending", and once that box score is unavailable it is not measurable, reason "box score unavailable" (SEN-07). It never slides past such a game to a later one.
   - A game without a box score has no index and enters no baseline and no average of minutes.
   - Absence counts (SEN-13, STA-46) count games of unknown participation as missed.
   - The partial share of STA-24 counts them on both sides: played games without index plus unknown games, out of played games plus unknown games.
@@ -80,7 +80,7 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 - **Affects:** STA-14, STA-15, STA-21, SEN-12, SEN-34
 - **Problem:** the threshold uses the player's average minutes in the same regular season, which changes after each game of the current season, so games can move in and out of "usable"; the spec does not say whether the measured game is in that average or when the status is fixed.
 - **Ruling:**
-  - One threshold per player and season: the larger of the floor and the fraction of his average minutes. The average is the mean minutes of his regular-season games of that season that he played with known minutes above zero and a sheet that is not suspect (incomplete sheets with known minutes count). With no such game, the threshold is the floor.
+  - One threshold per player and season: the larger of the floor and the fraction of his average minutes. The average is the mean minutes of his regular-season games of that season that he played with known minutes above zero and a box score that is not suspect (incomplete box scores with known minutes count). With no such game, the threshold is the floor.
   - The same threshold applies to every game of that season — regular season, play-in and playoffs — and the measured game stays in the average (STA-15's "same threshold").
   - It is recomputed from stored data at every recalculation. Until the season's last regular-season game is consolidated, every usable status of the season may change; each recalculation of the season (SEN-34, item b, after each new game) therefore re-derives the usable statuses, then the baselines, gaps and cases. Once that game is consolidated, the threshold changes only through a correction found by a manual refetch (STA-34).
 - **Why:** taking the measured game out of the average would give each case its own threshold, against STA-15.
@@ -108,17 +108,17 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 - **Problem:** STA-32's earliest time moves with each day's last tip-off, the host has no fine scheduler, and the chosen source publishes the previous night about eight to nine hours after its last tip-off.
 - **Ruling:** The timing is CL-TRV-23's, applied as it is; in this file's terms:
   - The competition day D is the league's US date of the games (CL-TRV-03).
-  - The daily update for D starts at the start hour (15:00 in the owner's time zone by default, CL-TRV-23) and fetches as soon as the source shows a refresh made after D's last scheduled tip-off plus STA-32's delay (3 hours); it checks every probe interval (60 minutes) until the cut-off (20:00), then fetches what is published and ends with the result "source late", missing sheets following STA-35. After a competition day without games it does not wait.
-  - A late source is not a failed request: STA-36's retries do not apply to it. One day that ends "source late" is a warning only; the "statistics source unavailable" incident of STA-37 opens when the source has been late on 2 consecutive competition days (parameter) and closes when a refresh lands, as CL-TRV-23 rules.
+  - The daily update for D starts at the start hour (15:00 in the owner's time zone by default, CL-TRV-23) and fetches as soon as the source shows a refresh made after D's last scheduled tip-off plus STA-32's delay (3 hours); it checks every probe interval (60 minutes) until the cut-off (20:00), then fetches what is published and ends with the result "source late", missing box scores following STA-35. After a competition day without games it does not wait.
+  - A late source is not a failed request: STA-36's retries do not apply to it. One day that ends "source late" is a warning only; the "Stats source unavailable" incident of STA-37 opens when the source has been late on 2 consecutive competition days (parameter) and closes when a refresh lands, as CL-TRV-23 rules.
   - The external trigger (ADR 0002) runs the scheduler often enough for these steps; the update runs once per D and resumes where it stopped (TRV-30).
 - **Why:** STA-32 sets an earliest time; waiting for the publication avoids ingesting each night a day late; file 14 owns the task calendar.
 - **Owner review:** no
 
-### CL-STA-11 — The 30 days before a sheet is "unavailable"
+### CL-STA-11 — The 30 days before a box score is "unavailable"
 
 - **Affects:** STA-35, STA-36, STA-39, SEN-07, CA-STA-14
 - **Problem:** days when the source is down do not count toward the 30 days, but no rule says what such a day is, and quota stops are not mentioned.
-- **Ruling:** A sheet missing while the source answers normally becomes unavailable at the first daily update when more than 30 (parameter) counted days have passed since the game's US date. A day, in the owner's time zone (TRV-72), counts unless a "statistics source unavailable" incident (STA-37) or a "quota reached" incident (STA-39) was open at some moment of it. A game already older than that when first requested — a past-season game listed without player lines — is unavailable at once. The days are counted from the stored incident periods; no other record is kept.
+- **Ruling:** A box score missing while the source answers normally becomes unavailable at the first daily update when more than 30 (parameter) counted days have passed since the game's US date. A day, in the owner's time zone (TRV-72), counts unless a "Stats source unavailable" incident (STA-37) or a "Quota reached" incident (STA-39) was open at some moment of it. A game already older than that when first requested — a past-season game listed without player lines — is unavailable at once. The days are counted from the stored incident periods; no other record is kept.
 - **Why:** STA-36's principle — no case changes state because the app could not ask — extends to days blocked by the quota.
 - **Owner review:** no
 
@@ -165,7 +165,7 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 - **Affects:** STA-04, STA-06, STA-14, STA-26, SEN-03, H-STA-02, « Cas limites » (match ignoré par STA-04), ADR 0015
 - **Problem:** the chosen source files All-Star games and the NBA Cup final as regular-season games, while STA-04 ignores every game the official statistics do not count.
-- **Ruling:** The adapter flags as never counting: All-Star games (labeled as such, or whose teams are not both NBA franchises) and the NBA Cup final (labeled as such); preseason and exhibition games are absent from the files. A flagged game is never a measured game, a baseline game, a team-record game, an absence, a next game (STA-26), a game of the average minutes, or a calendar-derived game. NBA Cup group and knockout games before the final are regular-season games and count. The team test needs no label, so the rule holds for every season.
+- **Ruling:** The adapter recognizes as never counting: All-Star games (labeled as such, or whose teams are not both NBA franchises) and the NBA Cup final (labeled as such); preseason and exhibition games are absent from the files. Such games are dropped at ingestion and never stored, so none is ever a measured game, a baseline game, a team-record game, an absence, a next game (STA-26), a game of the average minutes, or a calendar-derived game. NBA Cup group and knockout games before the final are regular-season games: they are stored and count. The team test needs no label, so the rule holds for every season.
 - **Why:** STA-04 as written, applied to how the source files these games.
 - **Owner review:** no
 
@@ -214,7 +214,7 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 - **Affects:** STA-46, JOU-02, JOU-21, STA-48; CL-JOU-15 (file 01 ruling)
 - **Problem:** STA-46 gives the games played and average minutes of the current season, which the off-season leaves undefined.
-- **Ruling:** As CL-JOU-15 rules for the indicators of the player sheet: STA-46 gives the games played and average minutes of the season in progress (from its first regular-season game to its last playoff game, STA-48) and, between seasons, of the last season played, naming the season it covers. The consecutive games missed since the last game played are counted across seasons, on the team games of CL-STA-05. Every other rule that speaks of the current season (provisional baselines, STA-21) means the season today's date belongs to under STA-48.
+- **Ruling:** As CL-JOU-15 rules for the indicators of the player page: STA-46 gives the games played and average minutes of the season in progress (from its first regular-season game to its last playoff game, STA-48) and, between seasons, of the last season played, naming the season it covers. The consecutive games missed since the last game played are counted across seasons, on the team games of CL-STA-05. Every other rule that speaks of the current season (provisional baselines, STA-21) means the season today's date belongs to under STA-48.
 - **Why:** file 01 owns the display of these indicators; an empty coming season would tell the owner nothing in summer.
 - **Owner review:** no
 
@@ -231,9 +231,9 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 - **Affects:** STA-03, STA-16, STA-42, JOU-10, JOU-12, TRV-12, ADR 0012 (open point), register row STA-03; CL-JOU-21, CL-TRV-14 (file 01 and 14 rulings)
 - **Problem:** combining two sources clashes with one source identity per player (STA-03) and with baselines computed season by season.
 - **Ruling:**
-  - The source chosen on 2026-11-11 is used alone (statistics-source evaluation, section 1): one source, one confirmed identity per player, STA-03 as written.
+  - The source chosen on 2026-11-11 is used alone (statistics-source evaluation, section 1): one source, one established mapping per player, STA-03 as written.
   - One source per season, always: the service sheet assigns each season to exactly one source. All data of a season — schedule, results, series, box scores, team records — comes from that source and the other is never queried for it, so no rule ever chooses between two sources for one game, and no baseline, threshold, team record or opponent percentage mixes sources.
-  - Two combined sources: the player has one mapping per source, each confirmed by the owner (CL-JOU-21); until a source's mapping is confirmed, its seasons are not fetched and their cases wait (stats match not confirmed).
+  - Two combined sources: the player has one mapping per source, each confirmed by the owner (CL-JOU-21); until a source's mapping is established, its seasons are not fetched and their cases wait (reason "stats-source mapping not established").
   - Replacement (TRV-12): as CL-TRV-14 rules — stored seasons keep the data and identifiers of the source they came from, except the season in progress at the replacement, which is fetched again whole from the new source, its consolidated games included, so that its baseline never mixes two sources (CL-TRV-14's exception to STA-42); a full recalculation follows (SEN-34, item d).
 - **Why:** ADR 0012's recommended handling, one source per season; a season half from each source would mix, for example, rounded and exact minutes inside one baseline.
 - **Owner review:** no
@@ -264,8 +264,8 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 ### CL-STA-26 — Two correction histories
 
 - **Affects:** STA-33, STA-34, IMP-32
-- **Problem:** the statistics correction log keeps old values, while corrections of events must not.
-- **Ruling:** As written: the statistics correction log (element, old value, new value, date, origin) and the trace of event corrections (date and fields changed, never the old value, D-20) are two separate stores with separate rules; no generic history serves both.
+- **Problem:** the statistics correction log keeps old values, while the correction history of events keeps some and never an earlier text.
+- **Ruling:** the statistics correction log (element, old value, new value, date, origin; STA-33, STA-34) and the correction history of events, ruled by CL-DSN-15, are two separate stores with separate rules; no generic history serves both.
 - **Why:** statistics are not sensitive; event texts are.
 - **Owner review:** no
 
@@ -281,14 +281,14 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 - **Affects:** STA-48, IMP-22, H-STA-17, CA-STA-17
 - **Problem:** the source names files by season but some files overlap (1998-99 games also sit in the 1999-2000 files), and the off-season rule needs a season even when its schedule is not stored.
-- **Ruling:** Each game gets its season from its date and the seasons' start dates, never from the file it came from, and is kept once per game identifier. To file any date by season (IMP-22): a date from a season's first regular-season game to its last playoff game belongs to that season; any other date belongs to the next season (H-STA-17), even when that season's schedule is not yet stored. Seasons are written "2024-2025" in data; their display follows the glossary.
+- **Ruling:** Each game gets its season from its date and the seasons' start dates, never from the file it came from, and is kept once per game identifier. To file any date by season (IMP-22): a date from a season's first regular-season game to its last playoff game belongs to that season; any other date belongs to the next season (H-STA-17), even when that season's schedule is not yet stored. A season is written `2024-25`, in data as on screens (glossary), where STA-48 writes « 2024-2025 ».
 - **Why:** STA-48 defines seasons by their games, not by files.
 - **Owner review:** no
 
 ## Passed to the glossary
 
 - Game statuses « prévu », « en cours », « terminé », « reporté », « annulé »; phases « saison régulière », « tournoi de qualification », « phases finales », and the baseline phase "postseason".
-- Sheet states « complète », « incomplète », « douteuse », « indisponible »; the mentions « minutes arrondies », « heure à déterminer », « partielle »; « correspondance à établir ».
+- Box-score statuses « complète », « incomplète », « douteuse », « indisponible »; the mentions « minutes arrondies », « heure à déterminer », « partielle »; « correspondance à établir ».
 - Baseline states « définitive », « provisoire », « en constitution », « insuffisante »; game classes « non joué », « joué non exploitable », « exploitable ».
 - Reasons « aucun match prévu », « intersaison », « équipe éliminée », « joueur sans équipe », « calendrier non publié »; « statistiques en attente »; « saison non couverte par la source »; « date inconnue ».
 - Incidents « source de statistiques indisponible », « quota atteint »; the progress label « 9 saisons sur 14 »; the correction-log origins « fenêtre de correction », « relance manuelle »; « indicative ».
@@ -298,7 +298,7 @@ These rulings take into account the statistics source chosen on 2026-11-11 (`doc
 
 - The start hour, wait and cut-off of the daily statistics task (TRV-25, file 14): ruled by CL-TRV-23, which CL-STA-10 follows.
 - The day of a game (TRV-72, file 14): ruled by CL-TRV-03 — its date in US Eastern time, with no venue time zone — which CL-STA-10 and CL-STA-14 follow.
-- Replacing the statistics source (TRV-12, TRV-77, file 14): ruled by CL-TRV-14, which CL-STA-23 follows.
+- Replacing the stats source (TRV-12, TRV-77, file 14): ruled by CL-TRV-14, which CL-STA-23 follows.
 - The calendar derivation and the Lot 2 flow of upcoming calendar-derived events (ADR 0015, open points 1 and 2): ruled by CL-TAX-18, CL-TAX-19, CL-VUE-13, CL-SUI-14, CL-ALE-13 and CL-TEL-21, which CL-STA-25 follows.
 - A birthday on 29 February (ADR 0015, open point 5): ruled by CL-JOU-17.
-- The player-sheet indicators between seasons (JOU-02, JOU-21, file 01): ruled by CL-JOU-15, whose count of missed games CL-STA-05 and CL-STA-21 define in this file's terms.
+- The player-page indicators between seasons (JOU-02, JOU-21, file 01): ruled by CL-JOU-15, whose count of missed games CL-STA-05 and CL-STA-21 define in this file's terms.

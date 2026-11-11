@@ -30,8 +30,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 ### CL-JOU-04 — Duplicates while the mapping is pending
 
 - **Affects:** JOU-10, JOU-12, CA-JOU-08, 01 « Cas limites » (Joueur déjà suivi)
-- **Problem:** uniqueness rests on the confirmed mapping, so two records of the same player can coexist while both are "mapping to establish"; the refusal is described only at addition.
-- **Ruling:** confirming a statistics identity already linked to another followed player is refused at any moment — at addition, from the to-do list, or after a JOU-12 change — whatever that player's state; the message names him and opens his page (CA-JOU-08). Candidate lists show such an identity as "already followed as <name>", and it cannot be confirmed. The refused record keeps "mapping to establish"; the owner can withdraw it and delete its data (JOU-24). At addition, the usual name typed is compared with every followed player's name variants (CL-JOU-13) and a match shows the shared-variant warning of JOU-09 before saving.
+- **Problem:** uniqueness rests on the established mapping, so two records of the same player can coexist while both are "mapping to establish"; the refusal is described only at addition.
+- **Ruling:** confirming a stats-source identity already linked to another followed player is refused at any moment — at addition, from the to-do list, or after a JOU-12 change — whatever that player's state; the message names him and opens his page (CA-JOU-08). Candidate lists show such an identity as "already followed as <name>", and it cannot be confirmed. The refused record keeps "mapping to establish"; the owner can withdraw it and delete its data (JOU-24). At addition, the usual name typed is compared with every followed player's name variants (CL-JOU-13) and a match shows the shared-variant warning of JOU-09 before saving.
 - **Why:** the mapping is the only reliable identity; the refusal must not depend on when the owner confirms it.
 - **Owner review:** no
 
@@ -39,7 +39,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** JOU-16 to JOU-20, JOU-02, JOU-21, JOU-22, STA-40; record 0015 (reading "active and paused players")
 - **Problem:** JOU-16 lists statistics and profiles for active players; nothing says whether baselines, the next game and the indicators keep updating for paused or withdrawn players with open cases.
-- **Ruling:** for every followed player with a confirmed mapping, whatever his state, the statistics functions go on: schedule and box scores (career fetch included), season baselines, next game, the JOU-02 and JOU-21 indicators, and the calculation of his profiles. States gate only:
+- **Ruling:** for every followed player with an established mapping, whatever his state, the statistics functions go on: schedule and box scores (career fetch included), season baselines, next game, the JOU-02 and JOU-21 indicators, and the calculation of his profiles. States gate only:
   - detection, detection-born requests and alert sheets: active players only (JOU-18, JOU-19);
   - manual backtest requests: active and paused players (JOU-17, JOU-19);
   - the prolonged-absence suggestion: active players only (JOU-22);
@@ -52,7 +52,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** JOU-24, CA-JOU-16, DSN-27, TRV-41, TRV-50
 - **Problem:** JOU-24 and its criterion list only part of what designates the player.
 - **Ruling:** deleting a withdrawn player's data erases, in one operation:
-  - his identity (usual name, variants, nicknames and their marks, current team, statistics mapping or mappings, day and month of birth, date of addition), his status history and his team history;
+  - his identity (usual name, variants, nicknames and their marks, current team, stats-source mapping or mappings, day and month of birth, date of addition), his status history and his team history;
   - his box-score lines and his exposure counts (schedules and results, shared by all players, stay);
   - every backtest request of any state with its prompt, copy dates and draft, his coverage and his import traces;
   - every one of his events, of every origin and state, with the scope of a withdrawal (DSN-27): cases, sources, descriptions, context, correction history and, in Lot 2, classification results, articles attached to no remaining event (DSN-34), alert sheets with their alert-history entries, tracked cases, and stored Telegram texts with an attempt to delete the messages;
@@ -95,7 +95,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Why:** the application never changes a state on its own (JOU-22); the owner keeps the choice.
 - **Owner review:** no
 
-### CL-JOU-11 — Changing the statistics mapping
+### CL-JOU-11 — Changing the stats-source mapping
 
 - **Affects:** JOU-12, JOU-10, STA-03
 - **Problem:** nothing says what happens to statistics, baselines and cases computed with the old mapping.
@@ -143,7 +143,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** JOU-08, JOU-11, JOU-25; record 0015
 - **Problem:** JOU-11 would add "le seul jour anniversaire" if Q-TAX-01 went to the calendar, without saying whether the year is excluded or where the value comes from.
 - **Ruling:** the identity gains one optional field, the day and month of birth, never the year (record 0015).
-  - It is filled from the statistics source when a mapping is confirmed and the source gives a date of birth, only if the field is empty: the adapter keeps the day and month and drops the year before anything is stored, shown or logged. The application never overwrites it afterwards, except as CL-JOU-11 says.
+  - It is filled from the stats source when a mapping is established and the source gives a date of birth, only if the field is empty: the adapter keeps the day and month and drops the year before anything is stored, shown or logged. The application never overwrites it afterwards, except as CL-JOU-11 says.
   - The owner can enter, correct or remove it. Before saving, the screen shows how many birthday events and cases the change adds and drops; a full derivation of his birthday events then runs (CL-TAX-19). Events of games that no longer qualify are deleted with their cases, each deletion written to the journal (CL-TAX-19); this is not a withdrawal: no fingerprint, no counter, and no Telegram message (CL-TEL-21). Those whose game had already started count among the exits of his birthday profile, as a number without date or game (CL-SEN-25). Alert sheets and Telegram messages already produced for such events stay as they are, apart from the update of CL-ALE-13 for a drop before tip-off; to remove them too, the owner withdraws the events before changing the birthday (CL-DSN-09).
   - The player page shows it as day and month ("14 March"); when it is missing, the page and the birthday profile say "birthday not recorded: no birthday events".
 - **Why:** the owner agreed to this one exception to JOU-11; removing the value must not leave events whose dates reveal it.
@@ -161,7 +161,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** JOU-11, JOU-13, STA-08, STA-45; record 0015; register open point "Former teams known only from seasons the source does not cover"
 - **Problem:** former teams were to be added to the identity; record 0015 derives them from box scores, which exist only for covered seasons.
-- **Ruling:** former teams are never entered nor stored in the identity. At each derivation they are read from the stored box scores of covered seasons: a team for which the player played (CL-STA-04) at least one official game, his stint with it ending at his last official game played for it. Teams are identified by the statistics source's stable team identifier, so a franchise that moved or was renamed stays one team when the source keeps its identifier. A team the player left during a season the source does not cover stays unknown and its reunions are missed; a first meeting is derived only when every season from the departure to that game is covered. The former-team profile carries a permanent mention that its team history starts with the first covered season, which it names.
+- **Ruling:** former teams are never entered nor stored in the identity. At each derivation they are read from the stored box scores of covered seasons: a team for which the player played (CL-STA-04) at least one official game, his stint with it ending at his last official game played for it. Teams are identified by the stats source's stable team identifier, so a franchise that moved or was renamed stays one team when the source keeps its identifier. A team the player left during a season the source does not cover stays unknown and its reunions are missed; a first meeting is derived only when every season from the departure to that game is covered. The former-team profile carries a permanent mention that its team history starts with the first covered season, which it names.
 - **Why:** the box scores are the only automatic evidence of a player's teams; the mention keeps the limit visible.
 - **Owner review:** yes — reunions with teams left before the first covered season are missed, and the profile says so.
 
@@ -181,11 +181,11 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Why:** a followed player can be released mid-season; the data must be able to say so.
 - **Owner review:** no
 
-### CL-JOU-21 — One mapping per statistics source
+### CL-JOU-21 — One mapping per stats source
 
 - **Affects:** JOU-10, STA-03; record 0012 (open point "Two combined statistics sources")
 - **Problem:** if two sources are combined to reach further back, one mapping per player is not enough.
-- **Ruling:** when two statistics sources are in use, a player has one mapping per source, each confirmed by the owner through the JOU-10 flow with that source's candidates; uniqueness holds per source; nothing is fetched from a source before that source's mapping is confirmed; "mapping to establish" is shown per source. Which source serves which season is set in the statistics service sheet (record 0012, recommended handling).
+- **Ruling:** when two stats sources are in use, a player has one mapping per source, each confirmed by the owner through the JOU-10 flow with that source's candidates; uniqueness holds per source; nothing is fetched from a source before that source's mapping is established; "mapping to establish" is shown per source. Which source serves which season is set in the statistics service sheet (record 0012, recommended handling).
 - **Why:** each source has its own identifiers; the owner confirms identities, never the application.
 - **Owner review:** no
 
@@ -209,7 +209,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** JOU-08, JOU-24; record 0017; register open point "Player key of a fingerprint, and deletion of a player's data"
 - **Problem:** the fingerprint of a withdrawn event needs a player key, and a deleted player's events would leave fingerprints nothing can match.
-- **Ruling:** the player key of a fingerprint is the application's player identifier (JOU-08, CL-JOU-09), never a name or variant. Deleting a player's data creates no event fingerprint, since no future event can carry his identifier; it creates one deleted-player entry instead — a keyed hash of his identifier with its creation instant, same secret and same lifetime as fingerprints (CL-DSN-06, CL-DSN-07) — used only to delete him again after a restore (CL-TRV-06). Fingerprints left by his earlier withdrawals expire normally.
+- **Ruling:** the player key of a fingerprint is the application's player identifier (JOU-08, CL-JOU-09), never a name or variant. Deleting a player's data creates no event fingerprint, since no future event can carry his identifier; it creates one deleted-player entry instead — a keyed hash of his identifier with its creation instant, same secret and same horizon as fingerprints (CL-DSN-06, CL-DSN-07) — used only to delete him again after a restore (CL-TRV-06). Fingerprints left by his earlier withdrawals expire normally.
 - **Why:** the recommended handling of record 0017, plus the minimum a restore needs for the deletion to hold.
 - **Owner review:** yes — a deletion leaves one unreadable entry for the fingerprint horizon.
 

@@ -58,7 +58,8 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
   - A pass or a resume run stops submitting at the first call refused for quota, including a refusal before the declared limit (TRV-06), or not answered; the other eligible items wait.
   - When a run stops that way with eligible items left, one classification incident is opened or kept open; its message names the cause: quota reached; refused before the declared limit, inviting the owner to check the free-tier conditions; or service not answering. A change of cause updates the open incident without a new message. It closes at the end of the first run after which no item is eligible.
   - The resume task is due when an item is eligible and 6 hours (parameter) have passed since the last run that processed the queue, pass or resume; every scheduled collection pass also processes the queue.
-- **Why:** items that need the owner cannot keep an automatic incident open for ever, and variant A and the edge case require an incident when the model is down.
+  - When the last run stopped for a provider's quota and that provider's reset instant is known — its declared boundary (CL-TRV-12) or the rate-limit headers of its refusal — the resume task is also due at that instant if it comes before the six-hour mark (DET-10 gives six hours as a default, H-DET-05); the incident shows that instant as the planned resumption (CL-DET-05).
+- **Why:** items that need the owner cannot keep an automatic incident open for ever, and variant A and the edge case require an incident when the model is down. With one provider, the overflow of the 23:00 run would otherwise be classified around 05:00 Paris time, after most tip-offs, although the allocation renews hours earlier.
 - **Owner review:** yes
 
 ### CL-DET-05 — Content of the classification incident
@@ -68,7 +69,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:** the incident, on screen and in its Telegram message, states:
   - the number of eligible waiting articles when it opens (the screen shows the current number);
   - the nearest player: among the active players recognized in eligible items, the one whose next game (STA-26) starts first, with that game's date, time and opponent; if none has a known next game, a sentence saying so;
-  - the planned resume: the first scheduled run of the resume task or of a collection pass at or after the quota's reset instant when the service sheet gives one, otherwise the next scheduled run of either, as a date and time in the owner's zone;
+  - the planned resume: the provider's reset instant when the resume task is due at it (CL-DET-04); otherwise the first run of the resume task or of a collection pass due at or after the quota's reset instant when it is known, otherwise the next run of either, as a date and time in the owner's zone;
   - the cause (CL-DET-04).
   - The example's article count may stay as extra context; the items above are required.
 - **Why:** DET-11 owns the content and wins over the TEL-15 example (a requirement wins over an example).
@@ -93,7 +94,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
   - A result of origin « utilisateur » holds player, type or "no event", instant, origin and the validated types at that instant; no detection confidence, justification, instructions version or precedence date.
   - An event created from it gets DET-21's template description (type name, media and date of the reference article) without the « description à revoir » mention, and the context indications « inconnu »; the owner corrects both through DET-47.
   - An event's detection confidence is the highest confidence among its model-origin results; an event whose results are all of origin « utilisateur » has none and shows that origin instead (ALE-08).
-  - Such events form their own "origin user" row in the breakdown of DET-25, and the vigilance caveat of ALE-16 never applies to them.
+  - Such events form their own user-origin row in the breakdown of DET-25, and the vigilance caveat of ALE-16 never applies to them.
 - **Why:** the owner judged the fact; inventing a confidence or a text would misstate where the decision came from.
 - **Owner review:** no
 
@@ -118,9 +119,9 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** DET-43, DET-52, DET-58, IHM-20, IHM-32, IHM-67, CA-DET-35
 - **Problem:** DET-58 describes only the "same fact" outcome (dismissal); there is no way to clear the mark when the facts are distinct, IHM-32 does not list it among the marks shown, and nothing draws the owner's attention while the case counts.
 - **Ruling:**
-  - The mark is set when an event is created with a type different from that of a historical event of the same player whose public date is within IMP-25's window (file 06 parameter, default 2 days).
-  - It is shown wherever the other two marks are: detected-events list (IHM-32), event sheet (IHM-67), alert sheet.
-  - The event sheet offers "not the same fact", which lifts the mark; the lift is traced (DET-52), changes no calculation and is no post-tip-off decision (SUI-17), since the mark never changed the counts.
+  - The mark is set when an event is created with a type different from that of a historical event of the same player whose public date is within the correspondence window of IMP-25 (file 06 parameter, default 2 days).
+  - It is shown wherever the other two marks are: detected-events list (IHM-32), event page (IHM-67), alert sheet.
+  - The event page offers "not the same fact", which lifts the mark; the lift is traced (DET-52), changes no calculation and is no post-tip-off decision (SUI-17), since the mark never changed the counts.
   - A marked event appears in the to-do section « événements et cas à examiner » (IHM-20) until the mark is lifted or the event dismissed.
 - **Why:** while marked the case counts normally; without a way out and a reminder, one fact could be counted twice (SUI-07).
 - **Owner review:** yes
@@ -137,7 +138,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** DET-41, DET-47, DET-52, COL-36, COL-37, TEL-18
 - **Problem:** a detached article that "becomes not relevant" has no reason among those listed, and the routing of a detached article that forms its own event is not stated.
-- **Ruling:** detaching an article gives the part that attached it a new reason, « détaché par l'utilisateur » (detached by the owner), and the article state is recomputed (CL-DET-01); if it becomes « non pertinent », its retention clock starts at the detachment. When the owner makes it its own event instead, that event has origin « utilisateur », takes the article's retained instant as reference date and is routed at creation (DET-41), with no notification (TEL-18).
+- **Ruling:** detaching an article gives the part that attached it a new reason, « détaché par l'utilisateur » ("Detached by you"), and the article state is recomputed (CL-DET-01); if it becomes « non pertinent », its retention clock starts at the detachment. When the owner makes it its own event instead, that event has origin « utilisateur », takes the article's retained instant as reference date and is routed at creation (DET-41), with no notification (TEL-18).
 - **Why:** the reasons must cover every way an article becomes not relevant, and the new event is the owner's correction.
 - **Owner review:** no
 
@@ -148,7 +149,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:** eligible items are ordered at each run:
   1. the owner's requests (DET-50, DET-22 retries), the most recent first;
   2. automatic reclassifications (DET-36, DET-07), the oldest trigger first;
-  3. items with an active recognized player whose next game (STA-26) starts within the priority horizon (default 48 hours from the run), the earliest such game first, an article with several players taking its earliest;
+  3. items with an active recognized player whose next game (STA-26) starts within the queue priority horizon (default 48 hours from the run), the earliest such game first, an article with several players taking its earliest;
   4. all others, the oldest retained publication instant first, including items whose players' next games are all unknown.
   - Ties: the older retained instant, then the older first collection, then the article identifier.
 - **Why:** this is DET-09's order made total; DET-12 itself calls DET-07 a reclassification.
@@ -178,7 +179,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 ### CL-DET-16 — Late-detection mark when the expected game is unknown
 
 - **Affects:** DET-33, SUI-06, CA-DET-17
-- **Problem:** DET-33 sets the mark at creation from the expected game, which may then be unknown (statistics source down, off-season).
+- **Problem:** DET-33 sets the mark at creation from the expected game, which may then be unknown (stats source down, off-season).
 - **Ruling:** the mark is computed, not set once: when the measured game is established, it is set if that game's scheduled start is at or before the event's creation instant, and then equals SUI-06's « enregistré après le coup d'envoi »; before that, if an expected game is known, it is set if that game's scheduled start is at or before the creation instant; otherwise it is not set.
 - **Why:** DET-33 already confirms or lifts the mark once the measured game is known; this fills the time before.
 - **Owner review:** no
@@ -221,7 +222,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Problem:** ADR 0017 makes detection check the withdrawal fingerprints before creating an event, but leaves open the date tolerance, the order with DET-58 and the owner's own classifications.
 - **Ruling:**
   - The check runs when a model-origin fact would create a new event, not when it attaches to an existing one, and before DET-58's search for a historical event.
-  - Candidate days: every calendar day from the would-be reference date's day minus IMP-25's window (default 2 days) to that day plus the window, each day computed as file 13 computes it when it creates a fingerprint. The fact matches when the keyed hash of (player, type, one of these days) equals a stored fingerprint.
+  - Candidate days: every calendar day from the would-be reference date's day minus the correspondence window of IMP-25 (default 2 days) to that day plus the window, each day computed as file 13 computes it when it creates a fingerprint. The fact matches when the keyed hash of (player, type, one of these days) equals a stored fingerprint.
   - A match creates no event, case, sheet or request; the part is handled by CL-COL-16, and nothing about the match is logged.
   - The calendar derivation runs the check too, on the derived game's day only (CL-DSN-06, CL-SUI-14).
   - Events created by the owner (DET-13, DET-49) are not checked: the owner acts knowingly and can withdraw again, and no screen may tell him about a withdrawn event (IHM-68, ADR 0017).
@@ -252,7 +253,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** DET-25, DET-56, CA-DET-33
 - **Problem:** DET-25's bands have no width, and the period filters of DET-25 and DET-56 do not say which instant puts an item in a period.
-- **Ruling:** bands are 10 points wide (new parameter, confidence band width, default 10, registered under file 04 per TRV-40): 0–9, 10–19, …, 90–100; only bands holding at least one event are shown, plus the "origin user" row (CL-DET-07). Each item enters a period by its own instant: events by their creation instant, dismissals by the dismissal instant, corrections and rescues by theirs, proposals by their transmission instant.
+- **Ruling:** bands are 10 points wide (new parameter, confidence band width, default 10, registered under file 04 per TRV-40): 0–9, 10–19, …, 90–100; only bands holding at least one event are shown, plus the user-origin row (CL-DET-07). Each item enters a period by its own instant: events by their creation instant, dismissals by the dismissal instant, corrections and rescues by theirs, proposals by their transmission instant.
 - **Why:** the owner tunes a threshold on a 0–100 scale, and ten-point bands match the scale of the vigilance margin.
 - **Owner review:** no
 
@@ -298,11 +299,11 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - Non-relevance reasons « aucun joueur suivi », « aucun fait », « sous le seuil », « fait ancien », « déjà rapporté par un backtest », « type rejeté ou retiré », « proposition rejetée », and the new « détaché par l'utilisateur » and « sous le seuil de couverture » (CL-DET-27).
 - Marks « datation à vérifier », « détecté après le coup d'envoi », « doublon possible d'un événement historique »; mentions « description à revoir », « texte non conservé », « classification en échec »; the "not the same fact" action.
 - Dismissal reasons of DET-43; the three causes of the classification incident (CL-DET-04); the name of the calendar list of CL-DET-22.
-- The new parameter "confidence band width" and the "origin user" row of DET-25.
+- The new parameter "confidence band width" and the user-origin row of DET-25.
 
 ## Ruled elsewhere
 
-- File 13, DSN-21 and DSN-24: ruled by CL-DSN-03 — the quotation-mark check rejects « » “ ” „ ‟ and the straight double quote only, never the straight or typographic apostrophe (' ’), which English and French text needs.
+- File 13, DSN-21 and DSN-24: ruled by CL-DSN-03 — the quotation-mark check fails a text that holds « » “ ” „ ‟ or the straight double quote, never one that holds an apostrophe, straight or typographic (' ’), which English and French text needs.
 - File 13, fingerprint creation (ADR 0017): ruled by CL-DSN-06 — the fingerprint's day is the reference date's calendar date in the owner's time zone (TRV-72), or the date as written when the reference date has no time; CL-DET-21's window absorbs any one-day shift between zones.
 - File 06, IMP-25: ruled by CL-IMP-34 — its window parameter is the one used by the possible-duplicate mark (CL-DET-10) and by the fingerprint check (CL-DET-21), a single parameter.
 - File 02, TAX-23: ruled by CL-TAX-22, which names the type correction of DET-53 next to the creation case (CL-DET-17).

@@ -94,7 +94,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 ## Ruled elsewhere
 
 - **Per-minute index at very low or zero minutes** (H-13) — owned by 07: ruled by CL-STA-04 and CL-STA-06 (no minutes and no statistic, not played; zero minutes with a statistic, played without index) and CL-STA-07 (the playing-time threshold of STA-14), with SEN-12 for the measured game.
-- **Opponent level computed from statistics** (H-09) — owned by 07: ruled by CL-STA-19 (team records computed from the stored results the source must provide, TRV-15, never from its record columns), with CL-SEN-10 for the games SEN-15 counts; no extra data source.
+- **Opponent strength computed from statistics** (H-09) — owned by 07: ruled by CL-STA-19 (team records computed from the stored results the source must provide, TRV-15, never from its record columns), with CL-SEN-10 for the games SEN-15 counts; no extra data source.
 
 ## Passed to the glossary
 

@@ -31,7 +31,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Affects:** SEN-02, SEN-03, SEN-04, SEN-06, SEN-07, SEN-13, SEN-14, SEN-43, SEN-44, SEN-45, SEN-46, Q-SEN-04, register rows SEN-02, SEN-03, SEN-04, SEN-07 and SEN-46
 - **Problem:** ADR 0015 measures birthday and former-team events on their own game and makes the case not measurable when the player misses it; the rest of 08 must follow.
 - **Ruling:**
-  - The measured game is the derived game, which is also the event's expected game (CL-SUI-14). If the player's participation in it is unknown, the case waits ("statistics pending") and becomes not measurable, "box score unavailable", once the sheet is unavailable (CL-STA-04). If he did not play it, the case is not measurable with its own reason, "did not play the derived game" (glossary). If he played it, steps 8 to 10 of CL-SEN-05 follow.
+  - The measured game is the derived game, which is also the event's expected game (CL-SUI-14). If the player's participation in it is unknown, the case waits ("statistics pending") and becomes not measurable, "box score unavailable", once the box score is unavailable (CL-STA-04). If he did not play it, the case is not measurable with its own reason, "did not play the derived game" (glossary). If he played it, steps 8 to 10 of CL-SEN-05 follow.
   - No skipping (SEN-03), no window (SEN-04), no precedence check (IMP-18, SEN-44), no "dating to verify" (SEN-45).
   - The case's reference is the game's date, with the provenance "known in advance". The case is tracked or historical as CL-VUE-13 rules: tracked when the event was created before the game's scheduled start, historical otherwise.
   - Context indications start "unknown" (ADR 0015), so only the calculated conditions of SEN-13 and SEN-14 apply until the owner sets them.
@@ -57,16 +57,16 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
   1. Calendar-derived event: CL-SEN-03, then steps 8 to 10.
   2. The season of the reference instant (STA-48) is not covered (CL-STA-22): not measurable, "season not covered by the source".
   3. Lot 2: the detected event is marked "dating to verify": pending, "dating to verify" (SEN-45).
-  4. The player's statistics identity is not confirmed: pending, "stats match not confirmed".
+  4. The player's stats-source mapping is not established: pending, "stats-source mapping not established".
   5. The schedule of the player's teams after the reference instant is not stored: pending, "precedence to verify" for a historical event, "statistics pending" for a detected one.
   6. Attachment (SEN-03, SEN-04): the player's team games (CL-STA-05) are taken in order of scheduled start, from the first one starting strictly after the reference instant:
      - a game starting more than 10 days (parameter; 240 hours) after the reference instant ends the walk: not measurable, "no game played within the window"; with no further game stored, the same once 10 days have passed, and pending, "game not yet played", before;
      - a game not yet final ends the walk: pending, "game not yet played" if its start is still to come, "statistics pending" if it has passed;
-     - a game of unknown participation (CL-STA-04) ends the walk: pending, "statistics pending", or not measurable, "box score unavailable", once its sheet is unavailable;
+     - a game of unknown participation (CL-STA-04) ends the walk: pending, "statistics pending", or not measurable, "box score unavailable", once its box score is unavailable;
      - a game he did not play is skipped and counts as an absence;
      - the first game he played is the measured game.
   7. Historical event: precedence against that game (CL-IMP-17). « non établie »: not measurable, "precedence not established". « incertaine »: one shift (CL-SEN-07), then step 6 again from the shifted instant. « établie »: go on.
-  8. The measured game's sheet is incomplete or suspect: pending, "statistics pending", while the game is in its correction window; then not measurable, "box score incomplete" or "box score suspect".
+  8. The measured game's box score is incomplete or suspect: pending, "statistics pending", while the game is in its correction window; then not measurable, "box score incomplete" or "box score suspect".
   9. The baseline of its season and baseline phase, measured game excluded: building gives pending, "baseline being built"; insufficient gives not measurable, "insufficient baseline".
   10. The gap is computed; the doubtful-case criteria (SEN-11 to SEN-16, without a criterion switched off for the type, CL-SEN-13) and the manual decisions (SEN-17) make the case excluded, with every retained criterion and its values, or measured, which is a valid case.
   - Grouping of same-type events (SEN-05) then follows CL-SEN-06. A postponed game with no new date is not a team game until it is rescheduled (CL-STA-17).
@@ -106,7 +106,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Why:** the off-season is a break for every player, not an absence; counting within the season also keeps the result independent of whether the previous season has been fetched.
 - **Owner review:** yes — a player who missed the last games of a season and plays the first games of the next one is not excluded for return from injury unless he also missed games of the new season.
 
-### CL-SEN-10 — Opponent level, and stakes that cannot be evaluated
+### CL-SEN-10 — Opponent strength, and stakes that cannot be evaluated
 
 - **Affects:** SEN-14, SEN-15, H-SEN-07, CA-SEN-09, CL-STA-18, CL-STA-19
 - **Problem:** SEN-15 does not say which games of the opponent's season count; the statistics-source evaluation speaks of "the opponent's win percentage at the date of the game"; and older playoff series may not allow an elimination game to be identified.
@@ -119,7 +119,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 ### CL-SEN-11 — Review flags: first game with a new team, ejection
 
 - **Affects:** SEN-16, SEN-17, H-SEN-08, Q-JOU-01, « Cas limites » (joueur expulsé), service sheet (ejection unknown)
-- **Problem:** the chosen statistics source never reports ejections, so the ejection flag of SEN-16 can never be set; the first-game-with-a-new-team flag needs a definition.
+- **Problem:** the chosen stats source never reports ejections, so the ejection flag of SEN-16 can never be set; the first-game-with-a-new-team flag needs a definition.
 - **Ruling:**
   - First game with a new team: flagged when the measured game is the first game the player played for a team other than the team of his previous game played, whatever the season (CL-STA-05). It is shown on the case and in the to-do list, and excludes nothing (as written).
   - Ejection: flagged only when the source reports one, which the chosen source never does; its adapter returns "unknown", never "no". The app never infers an ejection, for example from minutes or fouls, and never shows "not ejected". The Method and limits page and the help on review flags say that the source does not report ejections, so an ejection in a measured game is flagged only if the owner notices it; the owner can then exclude the case (SEN-17, for example "other confounding factor" with a comment), and a case excluded for playing time can be reinstated with "criterion unsuited to this case" (« Cas limites »). With a source that reports ejections, the flag works as written.
@@ -168,7 +168,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
   - Every change that SEN-34 or SEN-35 lists records a recalculation job in the same transaction as the change, with its scope (SEN-34, items a to d) and its cause (CL-SEN-17). Jobs run one at a time, in the order recorded; jobs with different causes are never merged.
   - The job starts in the same request, right after the commit. If it cannot finish within the request's time budget, it continues in chunks from the external trigger (TRV-30) until done. The operation that caused it — an import save, a manual decision, a parameter save, a statistics update — reports itself complete only when its job has finished; until then its screen says that the recalculation is in progress.
   - Each profile and general trend is written whole, never half updated. While a job covering it is pending or running, it shows "recalculation in progress" next to its last values and their date. Verdict-history entries are written when the job finishes.
-  - Results never depend on chunking or timing (SEN-36; order of sums, CL-STA-09). A job requests nothing from the statistics source; statistics an import asks for (IMP-34) arrive through the daily update, which records its own job.
+  - Results never depend on chunking or timing (SEN-36; order of sums, CL-STA-09). A job requests nothing from the stats source; statistics an import asks for (IMP-34) arrive through the daily update, which records its own job.
 - **Why:** the job cannot be lost, works within the host's time limits, and is visible while it runs.
 - **Owner review:** no
 
@@ -187,7 +187,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
   | « événement écarté » | A detected event dismissed (SEN-48, lot 2). |
   | « changement de paramètre » | A parameter change; the criterion switch of a type (ADR 0016). |
   | « recalcul » | A recalculation the owner asks for; a withdrawal; the deletion of a player's data (CL-SEN-18). |
-  | "event corrected or removed" (new) | A correction of an event (type, date, context, sources, research confidence, reservation; IMP-32, DET-47, DET-48); a dating mark lifted (lot 2); a requalification, reassignment or distribution (TAX-25, TAX-29); a manual deletion (IMP-33); a merge of detected events (DET-47); a derived event no longer derived (CL-SEN-25), or derived anew after a change of the player's birthday or team history (CL-TAX-19). |
+  | "event corrected or removed" (new) | A correction of an event (type, date, context, sources, research confidence, unverified note; IMP-32, DET-47, DET-48); a dating mark lifted (lot 2); a requalification, reassignment or distribution (TAX-25, TAX-29); a manual deletion (IMP-33); a merge of detected events (DET-47); a derived event no longer derived (CL-SEN-25), or derived anew after a change of the player's birthday or team history (CL-TAX-19). |
   | "event reinstated" (new) | A dismissed event reinstated (DET-45, lot 2). |
   | "taxonomy changed" (new) | A type validated, withdrawn, reactivated, merged or split; a substantive change of a calendar-derived sheet that runs its derivation again. |
 
@@ -230,13 +230,13 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Why:** the denominator is what makes a percentage misleading.
 - **Owner review:** no
 
-### CL-SEN-22 — Remaining rejections shown on profiles
+### CL-SEN-22 — Remaining refusals shown on profiles
 
 - **Affects:** SEN-46, IMP-24, H-IMP-12, CL-IMP-24
-- **Problem:** SEN-46 shows "the remaining rejections of the player's last import", so a later import into another request would hide rejections never corrected.
-- **Ruling:** Each profile of the player shows the sum, over all his requests, of each request's remaining rejections (those of its last import, H-IMP-12). It shows on every profile of the player, since a rejected event has no reliable type.
-- **Why:** an uncorrected rejection is a hole in the backtest (H-01) and must stay visible until corrected.
-- **Owner review:** yes — the profile count adds up the rejections of every request instead of showing only the last import's.
+- **Problem:** SEN-46 shows "the remaining refusals of the player's last import", so a later import into another request would hide refusals never corrected.
+- **Ruling:** Each profile of the player shows the sum, over all his requests, of each request's remaining refusals (those of its last import, H-IMP-12). It shows on every profile of the player, since a refused event has no reliable type.
+- **Why:** an uncorrected refusal is a hole in the backtest (H-01) and must stay visible until corrected.
+- **Owner review:** yes — the profile count adds up the refusals of every request instead of showing only the last import's.
 
 ### CL-SEN-23 — "Tip-off" is the scheduled start
 
@@ -280,6 +280,14 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Problem:** the glossary of 00 defines a valid case as "measured, with no doubtful criterion retained", which suggests a measured case could carry a retained criterion.
 - **Ruling:** As written in SEN-07 and SEN-11: a case with any retained criterion, automatic or manual, is in the state excluded; the state measured always means a valid case.
 - **Why:** SEN-07 settles it.
+- **Owner review:** no
+
+### CL-SEN-28 — Context indications of a case that groups several events
+
+- **Affects:** SEN-05, SEN-13, SEN-14, H-09; CL-SEN-06, CL-VUE-03
+- **Problem:** a case can hold several events of one type (SEN-05), each with its own context indications — return from injury, game stakes — and they may disagree.
+- **Ruling:** the case carries "yes" for return from injury, or "high" for game stakes, as soon as one of its events says so; otherwise the value its events share, and "unknown" when they differ. The flagged conditions of the doubtful-case criteria (SEN-13, SEN-14) read the case's value, and a correction of an event's indication recomputes it (SEN-34).
+- **Why:** the cautious reading, consistent with the doubtful-case criteria, which retain a criterion as soon as one sign of the confounder is flagged.
 - **Owner review:** no
 
 ## Passed to the glossary

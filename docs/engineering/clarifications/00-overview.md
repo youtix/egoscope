@@ -24,7 +24,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** 00 glossary « Cas », 00 relations, SEN-05, SEN-06
 - **Problem:** the glossary defines a case as "an event and its measured game", while the relations section groups several same-type events attached to the same game into one case.
 - **Ruling:** the relation wins over the glossary sentence.
-  - A case is identified by one player, one type and one measured game, and holds one or more events of that type attached to that game; an event belongs to at most one case. Events of different types attached to the same game give one case per type, marked concomitant (SEN-06).
+  - A case is identified by one player, one type and one measured game, and holds one or more events of that type attached to that game; an event belongs to at most one case. Events of different types attached to the same game give one case per type, marked co-occurring (SEN-06).
   - An event attached to a game that already has a case of its type joins that case; no second case is created.
   - An event that leaves the case (dismissed, erased, or attached to another game after a correction) stops counting in it; the case keeps counting while at least one of its events is neither dismissed nor erased, and its reference instant is the earliest among those events (SEN-05). A case with no event left disappears.
   - A case's origin, historical or tracked, is set by the first of its events recorded and never changes afterwards (SUI-07); CL-VUE-13 gives the origin of calendar-derived cases.
@@ -35,8 +35,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** 00 glossary « Retrait (d'un événement) », common states, JOU-15, TAX-10, DSN-26
 - **Problem:** the same French word names a reversible state of a player or a type and the permanent erasure of an event; 00 does not say whether the state can be undone.
-- **Ruling:** as written. A withdrawn player or type erases nothing and can be reactivated (JOU-15: withdrawn to active; TAX-10: withdrawn to validated). Withdrawing an event is a permanent erasure (DSN-26 to DSN-29). The interface never uses the event-erasure term for a player or type state, nor the reverse; the two English terms come from the glossary and must differ.
-- **Why:** JOU-15 and TAX-10 settle reversibility; 00 itself warns against the confusion.
+- **Ruling:** as written. A withdrawn player or type erases nothing and can be reactivated (JOU-15: withdrawn to active; TAX-10: withdrawn to validated). Withdrawing an event is a permanent erasure (DSN-26 to DSN-29). « retiré » stays one English verb, withdraw, as in French, and the labels tell the two apart: an event never has a "Withdrawn" status, the action on an event is always labeled "Withdraw and erase" and named "event withdrawal", and the bare "Withdraw" action and the "Withdrawn" status belong to players, types and sources only (glossary).
+- **Why:** JOU-15 and TAX-10 settle reversibility; 00 itself warns against the confusion, which distinct labels prevent while one verb mirrors the French.
 - **Owner review:** no
 
 ### CL-VUE-05 — Manual backtest requests in both lots
@@ -83,7 +83,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** 00 « Dans le périmètre » (press collection), H-11, TAX-16, BKT-21, DET-21
 - **Problem:** the product is English, yet the press read is English and French, and the prompts are specified in French.
-- **Ruling:** as decided (record 0010): the research prompt, the exploration prompt and the classifier instructions are in English; the application still collects and classifies English- and French-language articles; every text that an AI or the classifier writes for storage (description, justification, reservation, limit) is in English whatever the article's language; article titles and proper names stay as published.
+- **Ruling:** as decided (record 0010): the research prompt, the exploration prompt and the classifier instructions are in English; the application still collects and classifies English- and French-language articles; every text that an AI or the classifier writes for storage (description, justification, unverified note, limitation) is in English whatever the article's language; article titles and proper names stay as published.
 - **Why:** the decision separates the product language from the press languages.
 - **Owner review:** no
 
@@ -141,7 +141,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 ## Passed to the glossary
 
 - English terms for every common and complementary term of the 00 glossary and for the common states (VUE-08).
-- Two distinct English terms: withdrawing an event (erasure) versus the withdrawn state of a player or a type.
+- Distinct labels, with one verb, for withdrawing an event ("Withdraw and erase", "event withdrawal") and for the withdrawn status of a player, a type or a source ("Withdraw", "Withdrawn").
 - The label of the third origin, calendar-derived.
 - The full English names of the three confidences.
 - The title of the « Méthode et limites » page and the label of the withdrawn-events counter.

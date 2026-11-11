@@ -18,7 +18,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Ruling:**
   - As decided (ADR 0010, register row BKT-24): format 1.0 is the English-keyed form. `format` keeps the value `egoscope-backtest`. The French-keyed form is never implemented; the import reads no French key or value (a French key is an unknown field, IMP-16).
   - Key names and enumerated values are the glossary's one-to-one English mapping of the French ones. The structure, the required and optional fields and every rule of « Données manipulées » are unchanged.
-  - The prompt is one fixed English template: a rule-by-rule translation of the reference text, with only these changes: free texts (description, precision, reservation, leads, limitations) are asked "in English"; article titles stay as published, in their own language; calendar-derived types never appear (CL-BKT-03); rule 2.5 loses its birthday example. Every placeholder keeps its meaning and no demand listed in BKT-21 is weakened.
+  - The prompt is one fixed English template: a rule-by-rule translation of the reference text, with only these changes: free texts (description, context detail, unverified note, leads, limitations) are asked "in English"; article titles stay as published, in their own language; calendar-derived types never appear (CL-BKT-03); rule 2.5 loses its birthday example. Every placeholder keeps its meaning and no demand listed in BKT-21 is weakened.
   - Every date the prompt shows (today's date, the periods, the first NBA game in the player marker) is written `YYYY-MM-DD`, never in the owner's display format (ADR 0010: machine formats stay ISO 8601).
   - The full example of 05 is rewritten with English keys, English enumerated values, English free texts, English outlet labels and the glossary's English type identifiers, with the same facts, dates and links. `CA-BKT-13` tests that English example; its free texts still respect the length and quotation-mark rules.
   - The import does not check the language of free texts; a French description is imported like any other.
@@ -78,7 +78,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Problem:** BKT-06 offers the supplement covering what an import left out, including the part a reduction removed, but a reduced request no longer holds that part.
 - **Ruling:**
   - A request stores its planned types: the types at creation, plus those an update adds, minus those an update removes because they are no longer validated. A reduction removes a type from the requested types but not from the planned types.
-  - After an import, the import summary and the player sheet offer one supplement covering every planned type that still has an uncovered day up to today. Its periods are computed by CL-BKT-05 on the day the owner accepts it, which is also their end. Nothing is created without that acceptance.
+  - After an import, the import summary and the player page offer one supplement covering every planned type that still has an uncovered day up to today. Its periods are computed by CL-BKT-05 on the day the owner accepts it, which is also their end. Nothing is created without that acceptance.
   - If the player has a to-do request when the owner accepts, the app offers to update that request instead, as BKT-05 does.
   - `CA-BKT-08` holds: accepted on the import day, the supplement runs from 2022-07-01 to 2026-11-11.
 - **Why:** BKT-15 promises that what a reduction removes comes back as a supplement; BKT-07 allows one open request per player.
@@ -171,7 +171,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** prompt rule 2.5, the full example (first event)
 - **Problem:** the example's public date (23:10) is 30 minutes before its earliest source (23:40), while rule 2.5 says the public date is "usually" that of the first source.
-- **Ruling:** As written: "en général" leaves room for a fact made public at a known moment, such as a press conference, and reported soon after. The import never rejects a public date earlier than its sources; it rejects only a source dated more than one day before the public date (IMP-14, CL-IMP-11). Precedence over the game is decided by the sources (IMP-18).
+- **Ruling:** As written: "en général" leaves room for a fact made public at a known moment, such as a press conference, and reported soon after. The import never refuses a public date earlier than its sources; it refuses an event only for a source dated more than one day before its public date (IMP-14, CL-IMP-11). Precedence over the game is decided by the sources (IMP-18).
 - **Why:** rule 2.5 settles it.
 - **Owner review:** no
 
@@ -195,7 +195,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** BKT-07, BKT-13, BKT-14, IMP-08
 - **Problem:** BKT-13 lets a canceled request become imported; meanwhile a new to-do request may exist, and two requests then feed the same coverage.
-- **Ruling:** Allowed (H-IMP-05). The canceled request becomes imported; the other request stays to do, since BKT-07 limits only to-do requests. Coverage is one union per player and type: each import adds its own retained coverage, computed against its own request, in any order. Remaining rejections stay per request (CL-IMP-24). The preview of such an import says that the player has another request to do, gives its reference, and says it stays open.
+- **Ruling:** Allowed (H-IMP-05). The canceled request becomes imported; the other request stays to do, since BKT-07 limits only to-do requests. Coverage is one union per player and type: each import adds its own retained coverage, computed against its own request, in any order. Remaining refusals stay per request (CL-IMP-24). The preview of such an import says that the player has another request to do, gives its reference, and says it stays open.
 - **Why:** nothing conflicts once coverage is a union.
 - **Owner review:** no
 
@@ -251,5 +251,5 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ## Ruled elsewhere
 
-- Format of the exploration return (TAX-17, file 02): ruled by CL-TAX-04, which takes the conventions of format 1.0 and the reading rules of the import.
+- Format of the exploration response (TAX-17, file 02): ruled by CL-TAX-04, which takes the conventions of format 1.0 and the reading rules of the import.
 - The US date of a game, used here for season ends and the player marker (TRV-72, file 14): ruled by CL-TRV-03, its date in US Eastern time.

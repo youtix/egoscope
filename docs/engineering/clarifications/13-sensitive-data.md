@@ -50,7 +50,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Ruling:**
   - Each withdrawal of an event (DSN-26), of any origin, and nothing else, creates one fingerprint: HMAC-SHA-256, with the fingerprint secret of the deployment configuration, of the text `<player id>|<type id>|<YYYY-MM-DD>`, stored with its creation instant only. The player key is the application's player identifier (JOU-08, CL-JOU-24), never a name or a variant.
   - The day is the event's reference date: the date as written when it has no time; otherwise the calendar date of the reference instant in the owner's time zone (TRV-72). The same function gives the day of every event compared with a fingerprint; a change of the owner's time zone can shift a day by one, which the window absorbs.
-  - An event of player p, type t and day d matches when the hash of `p|t|d'` equals a live fingerprint for some day d' from d − g to d + g, g being the maximum gap between public dates of IMP-25 (2 days by default), the single parameter that the duplicate checks also use (CL-DET-21, CL-IMP-34). The calendar derivation compares the derived game's day only: such an event's day is exact, and a window could keep another qualifying game of the same player and type within g days from being derived (record 0015: every such game counts).
+  - An event of player p, type t and day d matches when the hash of `p|t|d'` equals a live fingerprint for some day d' from d − g to d + g, g being the correspondence window of IMP-25 (2 days by default), the single parameter that the duplicate checks also use (CL-DET-21, CL-IMP-34). The calendar derivation compares the derived game's day only: such an event's day is exact, and a window could keep another qualifying game of the same player and type within g days from being derived (record 0015: every such game counts).
   - Fingerprints are checked by detection for a model-origin fact that would create a new event, before the search of DET-58, never for the owner's own classifications (CL-DET-21; a match creates nothing, and its article follows CL-DSN-10); by the calendar derivation before it creates an event (CL-SUI-14, CL-TAX-19); in every import preview (the flag of record 0017); and at every restore (CL-TRV-06).
   - No fingerprint is created by a deletion (IMP-33), a replacement (IMP-29), a requalification or split erasure (CL-TAX-09), a calendar-derived event dropped by the derivation (CL-TAX-19), a preview decline (IMP-37) or a player-data deletion (CL-JOU-24).
   - When the owner records an event that the preview flagged, the fingerprints it matches are erased: he has taken that fact back.
@@ -58,7 +58,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Why:** day precision with the duplicate window of IMP-25 catches the same fact reported a day or two apart (recommended handling of record 0017); erasing on deliberate recording keeps a restore from undoing the owner's later choice.
 - **Owner review:** no
 
-### CL-DSN-07 — Fingerprint lifetime follows the backup retention
+### CL-DSN-07 — Fingerprint horizon follows the backup retention
 
 - **Affects:** DSN-29, TRV-50, H-TRV-09; record 0017; register open point "Fingerprint horizon when the owner changes the backup retention"
 - **Problem:** the decision keeps fingerprints eight weeks because backups hold the event that long; a changed retention or a failed rotation breaks that equality.
@@ -79,8 +79,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** DSN-26, DSN-28, DSN-29, IHM-68, SEN-17; records 0015 and 0017; register open point "Withdrawing a calendar-derived event"
 - **Problem:** the derivation could recreate a withdrawn calendar-derived event once its fingerprint has expired.
 - **Ruling:**
-  - As written in DSN-26, any event can be withdrawn, calendar-derived ones included, with the scope of DSN-27 and a fingerprint (CL-DSN-06). Their sheet offers withdrawing and correcting the context indications, and no dismissal and no deletion, since they are not detected events and their type, player and date are derived (CL-IHM-21, CL-SUI-14). Their case can also be excluded by hand like any case (SEN-17): that exclusion is permanent and stays visible on the case.
-  - The regular derivation never revisits a game it has already derived, and every derivation checks the fingerprints first (CL-TAX-19, CL-SUI-14). A withdrawn calendar-derived event can therefore come back only through a full derivation — validation, reactivation or substantive change of its type; a change of the player's day and month of birth or of his statistics mapping; a box-score correction that changes his team history — run after its fingerprint has expired. No other memory of the withdrawal is kept.
+  - As written in DSN-26, any event can be withdrawn, calendar-derived ones included, with the scope of DSN-27 and a fingerprint (CL-DSN-06). Their page offers withdrawing and correcting the context indications, and no dismissal and no deletion, since they are not detected events and their type, player and date are derived (CL-IHM-21, CL-SUI-14). Their case can also be excluded by hand like any case (SEN-17): that exclusion is permanent and stays visible on the case.
+  - The regular derivation never revisits a game it has already derived, and every derivation checks the fingerprints first (CL-TAX-19, CL-SUI-14). A withdrawn calendar-derived event can therefore come back only through a full derivation — validation, reactivation or substantive change of its type; a change of the player's day and month of birth or of his stats-source mapping; a box-score correction that changes his team history — run after its fingerprint has expired. No other memory of the withdrawal is kept.
   - The withdrawal screen of such an event states that limit and that excluding its case is the permanent alternative (CL-DSN-19).
   - Removing a player's day and month of birth drops all his birthday events (CL-JOU-16); deleting a player's data erases his events like the others (JOU-24); neither is a withdrawal of these events one by one.
 - **Why:** DSN-26 allows any event to be withdrawn; this agrees with the rulings on 10 and 12 (CL-SUI-14, CL-IHM-21) and leaves one narrow, stated way back.
@@ -126,12 +126,14 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Why:** the text states the exception and its condition.
 - **Owner review:** no
 
-### CL-DSN-15 — Earlier texts in the correction history
+### CL-DSN-15 — Earlier values in the correction history
 
-- **Affects:** DSN-06, DSN-10
-- **Problem:** the correction trace could keep earlier, non-compliant versions of a free text.
-- **Ruling:** as written: corrections are traced with their date and the fields changed, without the old value (IMP-32 for historical events; DET-52 for detected ones), so no earlier free text is ever kept.
-- **Why:** 06 and 04 already exclude old values.
+- **Affects:** DSN-06, DSN-10, DET-52, IMP-32, D-20; CL-STA-26
+- **Problem:** the correction trace could keep earlier, non-compliant versions of a free text, and 04 and 06 trace corrections differently.
+- **Ruling:**
+  - A correction history keeps, for each correction, its instant, the fields changed and, for the structured fields — type, player, dates, context indications — their values before and after: so for a detected event (DET-52) and for the context corrections of a calendar-derived event (CL-DSN-20). It never keeps a previous description, comment or other free text: a corrected description is noted as changed, without its earlier text (DET-52, D-20).
+  - A historical event keeps what IMP-32 says: the date and the fields changed, without the old value (D-20).
+- **Why:** structured values reveal nothing sensitive and show the owner what a correction changed; an earlier free text could hold what the correction removed (DET-52).
 - **Owner review:** no
 
 ### CL-DSN-16 — Withdrawal across the two lots
@@ -146,7 +148,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** DSN-32, IHM-42, H-IHM-08, IMP-03, TAX-17, TRV-51
 - **Problem:** the pasted text must be kept by the application for use on another device, yet stay out of saved data, import traces, the journal and backups.
-- **Ruling:** drafts live in a dedicated draft store of the database: at most one import draft per backtest request and one exploration draft per exploration screen (general) or targeted proposal, each holding the text, its last change instant and the device it came from, nothing else. The store is excluded from backups and exports by name; no journal entry or technical detail contains a draft's text. A draft is erased when its import or its proposals are saved, when abandoned, at the end of the draft lifetime (IHM-42, counted from its last change), when its request or proposal or player disappears, and at every restore. Logging out erases the device copy (DSN-33) but not the server copy.
+- **Ruling:** drafts live in a dedicated draft store of the database: at most one import draft per backtest request and one exploration draft per exploration screen (general) or targeted proposal, each holding the text, its last change instant and the device it came from, nothing else. The store is excluded from backups and exports by name; no journal entry or technical detail contains a draft's text. A draft is erased when its import or its proposals are saved, when abandoned, at the end of the draft retention (IHM-42, counted from its last change), when its request or proposal or player disappears, and at every restore. Logging out erases the device copy (DSN-33) but not the server copy.
 - **Why:** one store with explicit exclusions is the only way to meet DSN-32 and IHM-42 together.
 - **Owner review:** no
 
@@ -193,7 +195,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 ## Ruled elsewhere
 
 - **Showing a fingerprint match in the import preview** — owned by 06 (IMP-37): ruled by CL-IMP-28 (the flag beside the event with the choice "don't record — sensitive data", nothing preselected (record 0017), the save confirmation saying how many flagged events will be recorded, and the matched fingerprints of an event recorded anyway erased, CL-DSN-06).
-- **Already settled consistently by the rulings on Lot 2:** Telegram message identifiers and the deletion list (CL-TEL-09), the article that matches a fingerprint (CL-COL-16), the fingerprint check in detection (CL-DET-21), the calendar derivation's fingerprint check (CL-SUI-14), the sheet of a calendar-derived event (CL-IHM-21) and the generic page for vanished items (CL-IHM-19).
+- **Already settled consistently by the rulings on Lot 2:** Telegram message identifiers and the deletion list (CL-TEL-09), the article that matches a fingerprint (CL-COL-16), the fingerprint check in detection (CL-DET-21), the calendar derivation's fingerprint check (CL-SUI-14), the page of a calendar-derived event (CL-IHM-21) and the generic page for vanished items (CL-IHM-19).
 
 ## Passed to the glossary
 

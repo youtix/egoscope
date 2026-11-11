@@ -71,7 +71,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:** after each read the health state is the first that applies:
   1. « en panne » when the source's reads failed in its last N counted runs (COL-41, default 2; runs in which every source failed do not count, CL-COL-05);
   2. « jamais lue » when the source has had no successful read yet;
-  3. « muette » when it has brought no new article during its silence delay, counted from the latest of its last new article, its first successful read and its last reactivation;
+  3. « muette » when it has brought no new article during its silence period, counted from the latest of its last new article, its first successful read and its last reactivation;
   4. « fonctionnelle » otherwise.
   - A successful read therefore ends « en panne » even without a new article: the « flux en panne » incident closes and the journal records the interruption, from the first failed run of the streak to that read. If rule 3 then applies, the source goes straight to « muette » and the silent-source warning opens; that warning closes when the state leaves « muette ».
   - Each change of state is dated (COL-40).
@@ -202,7 +202,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** COL-14, COL-15, CA-COL-24, TRV-28
 - **Problem:** COL-14 defers an on-demand request while another collection runs, without saying when the deferred run starts or what repeated requests do.
-- **Ruling:** the unit is the pass, collection plus its chained detection (TRV-26). A request made during a pass is recorded once — further requests during that pass change nothing — and starts as soon as the pass ends; the screen says the collection is deferred until then. The deferred run is marked « à la demande » and does not cancel the next scheduled run (variant C).
+- **Ruling:** the unit is the pass, collection plus its chained detection (TRV-26). A request made during a pass is recorded once, as a requested run that has not started — further requests during that pass change nothing — and starts as soon as the pass ends; the screen says the collection is deferred until then. The deferred run is marked « à la demande » and does not cancel the next scheduled run (variant C).
 - **Why:** TRV-28 forbids overlapping runs, and merging repeated taps keeps COL-15's no-duplicate rule trivially true.
 - **Owner review:** no
 
@@ -233,6 +233,14 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
   - The cleaning removes from the query of a link every parameter whose name starts with `utm_`, and the parameters `fbclid`, `gclid`, `mc_cid` and `mc_eid`, names compared without regard to case. Nothing else is removed: the other parameters keep their order and values.
   - The list is one constant of the shared link module that lot 1 builds for the import (CL-IMP-14) and lot 2 reuses for collection, covered by tests; extending it is a change of that constant, never a setting.
 - **Why:** these are the parameters that mark a campaign or a click without changing the page they open; a closed list keeps two links to different articles from ever being taken for one.
+- **Owner review:** no
+
+### CL-COL-24 — When the "Add a collection time" warning closes
+
+- **Affects:** COL-46, CA-COL-21, TRV-43; CL-COL-13
+- **Problem:** COL-46 raises a warning suggesting a further collection time when a gap is recorded although no run was missed (CL-COL-13), but does not say when the warning ends.
+- **Ruling:** the warning belongs to its source and closes at the end of the first later successful read of that source that runs the gap test of CL-COL-13 and records no gap; a later gap recorded under the same conditions opens it again. Adding a collection time does not close it by itself: the next read shows whether the feed now keeps enough items. The warning is never notified (CL-TEL-17).
+- **Why:** COL-46 only says when the warning is raised; a read without a gap is the first evidence that the feed now covers the interval between two collections.
 - **Owner review:** no
 
 ## Passed to the glossary

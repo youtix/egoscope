@@ -27,11 +27,11 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Why:** record 0010.
 - **Owner review:** no
 
-### CL-TAX-04 — Format of the exploration return
+### CL-TAX-04 — Format of the exploration response
 
 - **Affects:** TAX-16, TAX-17, CA-TAX-07, CA-TAX-08, CA-TAX-17, H-TAX-06
 - **Problem:** TAX-17 lists the elements "in plain language" and defers the exact form to the conventions of 05, which define field names for the research result only; whether the description length cap applies is not said.
-- **Ruling:** the exploration return is one JSON object with this shape:
+- **Ruling:** the exploration response is one JSON object with this shape:
 
   ```json
   {
@@ -57,8 +57,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
   - Conventions of the research-result format 1.0 (BKT-24, English form): UTF-8, field names exactly as above, lowercase enumerated values, an optional field omitted rather than empty, never `null`, straight quotes only. The version key is `format_version` with the value `1.0`, spelled as in the research-result format; every key above is the glossary's.
   - `proposed_types` is required and may be empty (the preview then says that no type was proposed, and nothing is created). In each item only `name` is required; any other missing element is flagged in the preview, and the proposal can be created incomplete but validated only once complete (TAX-17). `possible_overlaps` holds one sentence per possible overlap with an existing type. Each `illustration_sources` item is a source object exactly as the research-result format defines `sources[]`; one that fails the source checks of IMP-14 is dropped with a warning.
   - Text elements are not capped by the description length of DSN-20, which governs event descriptions; only the maximum pasted-text size (IMP-02) bounds the whole. The wording rules of 13 apply on reading (DSN-10) and the TAX-12 checklist covers the example; no automatic length or quotation-mark check runs on sheet texts.
-  - Reading follows the research import: text around the object, code fences and invisible characters are ignored (IMP-04); a syntax error is reported with its approximate location; a cut return is refused, with the advice to ask for fewer types; an unknown version is refused, with the advice to regenerate the prompt; a missing `format` or version with a recognized structure is read with a warning (IMP-06); any other `format` value, `egoscope-backtest` included, is refused with "this text is not an exploration return" (CA-TAX-17); unknown fields are ignored, flagged once and never stored, and texts are shown as plain text (IMP-16).
-  - The return names no target: in targeted mode, the screen where it is pasted gives the proposal it is compared with. The prompt gives this skeleton and these rules.
+  - Reading follows the research import: text around the object, code fences and invisible characters are ignored (IMP-04); a syntax error is reported with its approximate location; a cut response is refused, with the advice to ask for fewer types; an unknown version is refused, with the advice to regenerate the prompt; a missing `format` or version with a recognized structure is read with a warning (IMP-06); any other `format` value, `egoscope-backtest` included, is refused with "This text is not an exploration response." (CA-TAX-17); unknown fields are ignored, flagged once and never stored, and texts are shown as plain text (IMP-16).
+  - The response names no target: in targeted mode, the screen where it is pasted gives the proposal it is compared with. The prompt gives this skeleton and these rules.
 - **Why:** the minimum that carries every TAX-16 element, reusing the conventions and checks the import already has.
 - **Owner review:** no
 
@@ -66,7 +66,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** TAX-17 (preview), TAX-18 (proposals close to each other), 02 « Cas limites »
 - **Problem:** "a name or a definition close to an existing type" has no operational definition.
-- **Ruling:** a name is normalized by Unicode NFKD, removal of diacritics, lowercase, splitting on every character that is not a letter or a digit, then removal of one-letter words and of the words `a, an, the, of, to, in, on, at, by, for, with, from, and, or, his, her, its, their, player, players`. Two types are possible duplicates when one normalized word set contains the other, or when they share at least half of the words of the smaller set. The TAX-17 preview compares each proposed type with every type in any state and with the other proposals of the same return; the page of a detection proposal lists the proposals that are possible duplicates of it (TAX-18). Definitions are not compared automatically: for each flagged pair, the preview shows both definitions side by side.
+- **Ruling:** a name is normalized by Unicode NFKD, removal of diacritics, lowercase, splitting on every character that is not a letter or a digit, then removal of one-letter words and of the words `a, an, the, of, to, in, on, at, by, for, with, from, and, or, his, her, its, their, player, players`. Two types are possible duplicates when one normalized word set contains the other, or when they share at least half of the words of the smaller set. The TAX-17 preview compares each proposed type with every type in any state and with the other proposals of the same response; the page of a detection proposal lists the proposals that are possible duplicates of it (TAX-18). Definitions are not compared automatically: for each flagged pair, the preview shows both definitions side by side.
 - **Why:** a deterministic hint is enough, since the owner always decides; names are short enough to compare reliably, definitions are not.
 - **Owner review:** no
 
@@ -165,7 +165,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** TAX-01, TAX-21, TAX-22, TRV-35, IHM-51; record 0016
 - **Problem:** record 0016 adds the switch; the sheet must say what it holds and how a change is recorded.
-- **Ruling:** the sheet has an optional field, "criterion switched off", empty by default (seeds included), naming at most one of: playing time too low (SEN-12), return from injury (SEN-13), unusual stakes (SEN-14), opponent level (SEN-15), concomitance (SEN-06, offered only while its parameter is on). While it names a criterion, that criterion is not applied to the type's cases, and the type's profiles and trend carry the permanent warning of record 0016. A change of the field is recorded in the modification history with before and after (CL-TAX-06), creates no version, triggers a full recalculation whose verdict changes carry the cause "parameter change" (SEN-37), is written to the journal, and updates the date of the last change that affects calculations (CL-TRV-17).
+- **Ruling:** the sheet has an optional field, "criterion switched off", empty by default (seeds included), naming at most one of: playing time too low (SEN-12), return from injury (SEN-13), unusual stakes (SEN-14), opponent strength (SEN-15), co-occurring cases (SEN-06, offered only while its parameter is on). While it names a criterion, that criterion is not applied to the type's cases, and the type's profiles and trend carry the permanent warning of record 0016. A change of the field is recorded in the modification history with before and after (CL-TAX-06), creates no version, triggers a full recalculation whose verdict changes carry the cause "parameter change" (SEN-37), is written to the journal, and updates the date of the last change that affects calculations (CL-TRV-17).
 - **Why:** record 0016.
 - **Owner review:** no
 
@@ -173,7 +173,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** Q-TAX-01, annex « Anniversaire du joueur » and « Match contre l'ancienne équipe », TAX-05; record 0015
 - **Problem:** record 0015 makes the application create these events itself; the exact games must be fixed.
-- **Ruling:** for each validated calendar-derived type and each active or paused player with a confirmed mapping (CL-JOU-05), over the official games (STA-04) of covered seasons:
+- **Ruling:** for each validated calendar-derived type and each active or paused player with an established mapping (CL-JOU-05), over the official games (STA-04) of covered seasons:
   - **birthday:** every official game of the player's team whose day (CL-TRV-03, which also stands for the local date at the venue) has his recorded day and month of birth (29 February: CL-JOU-17); a player without a recorded birthday has none (CL-JOU-16);
   - **former team:** for each stint of the player with a former team (CL-JOU-18), the first official game between his team and that team after his last game played for it, while he belongs to another team; one event per stint, later meetings never count.
 
@@ -186,10 +186,10 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** Q-TAX-01, TAX-20, TAX-24, TAX-32, STA-26, STA-28, SUI-03; record 0015; register open point "When an upcoming calendar-derived event is created"; CL-SUI-14
 - **Problem:** nothing says when the application derives these events, nor what happens when the schedule, the player's team or his birthday changes.
 - **Ruling:** the derivation is a Lot 1 function; this ruling owns its timing, which CL-SUI-14 applies to the Lot 2 flow.
-  - **Regular runs**, at the end of every statistics update and, in Lot 2, of every collection-and-detection pass, for each active or paused player with a confirmed mapping and each validated calendar-derived type: every qualifying game (CL-TAX-18) that started since the player's previous run, and his next game (STA-26) if it qualifies, gets an event when it has none, once the fingerprints are checked (CL-DSN-06). Each player keeps the instant of his previous run, so a player withdrawn then reactivated gets the games of the gap at the next run.
+  - **Regular runs**, at the end of every statistics update and, in Lot 2, of every collection-and-detection pass, for each active or paused player with an established mapping and each validated calendar-derived type: every qualifying game (CL-TAX-18) that started since the player's previous run, and his next game (STA-26) if it qualifies, gets an event when it has none, once the fingerprints are checked (CL-DSN-06). Each player keeps the instant of his previous run, so a player withdrawn then reactivated gets the games of the gap at the next run.
   - Every regular run re-checks the upcoming events: before tip-off, one whose game no longer qualifies — date or opponent changed, game canceled, player no longer with that team, birthday or team history corrected — is deleted with its case (CL-SUI-14). A game that still qualifies after a change of time stays the event's game.
   - When a season of a player's history is stored for the first time, its qualifying games get events, with the same fingerprint check.
-  - **Full derivations** cover every game already started in covered seasons: they create the missing events, fingerprints checked, and delete the events whose game no longer qualifies. They run at the validation, the reactivation and the substantive change of a calendar-derived type, for every eligible player; and for one player, at a change of his day and month of birth (birthday type), of his statistics mapping, or at a box-score correction that changes his team history (former-team type). Upcoming events always come from the regular runs (CL-SUI-14).
+  - **Full derivations** cover every game already started in covered seasons: they create the missing events, fingerprints checked, and delete the events whose game no longer qualifies. They run at the validation, the reactivation and the substantive change of a calendar-derived type, for every eligible player; and for one player, at a change of his day and month of birth (birthday type), of his stats-source mapping, or at a box-score correction that changes his team history (former-team type). Upcoming events always come from the regular runs (CL-SUI-14).
   - A deletion by the derivation is not a withdrawal: no fingerprint, no counter. Each creation and deletion is written to the journal, and an event whose game had already started also counts among its profile's exits, as a number without date or game (CL-SEN-25).
   - A withdrawn player's events are neither created nor deleted while he stays withdrawn (CL-JOU-05); a withdrawn type keeps its events and gets no new one (CL-TAX-20).
 - **Why:** creating upcoming events at the next-game stage keeps alerts timely and spares churn from schedule changes (recommended handling of record 0015, which CL-SUI-14 applies in Lot 2); regular runs never revisit a game already derived, so they cannot bring back an event the owner withdrew (CL-DSN-09), while full derivations apply corrections and the first fetch of a season adds its games.
@@ -200,7 +200,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Affects:** TAX-10 to TAX-12, TAX-20 to TAX-32; record 0015
 - **Problem:** the lifecycle rules were written for researched types.
 - **Ruling:**
-  - The two seeded calendar-derived types are the only ones: the "derived from the calendar" mark of their dating rule is fixed at seeding, cannot be removed from them and cannot be given to another type; the `known_in_advance` element of an exploration return sets only the "known in advance" mark of SEN-02.
+  - The two seeded calendar-derived types are the only ones: the "derived from the calendar" mark of their dating rule is fixed at seeding, cannot be removed from them and cannot be given to another type; the `known_in_advance` element of an exploration response sets only the "known in advance" mark of SEN-02.
   - Validation uses the TAX-12 checklist with the item "established by the schedule" (register row TAX-12); no supplementary request is proposed (TAX-20); the derivation runs (CL-TAX-19).
   - A formal change only rewrites the sheet. A substantive change creates a version and re-runs the derivation, which gives every event of the type the new version; nothing is "to requalify", because the derivation rule of record 0015 does not depend on the sheet's wording.
   - These types take part in no merge and no split: the screens do not offer them.
@@ -240,5 +240,5 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - Automatic reasons "merged into …" and "split into …"; documentation difficulty values.
 - The TAX-12 checklist items, including "established by the schedule".
 - The marks "derived from the calendar", "known in advance", "handled by the calendar".
-- The exploration format's key and value spellings, which CL-TAX-04 takes from the glossary (`format_version`, `possible_overlaps` among them; the shape of CL-TAX-04 stays), and the message "this text is not an exploration return".
+- The exploration format's key and value spellings, which CL-TAX-04 takes from the glossary (`format_version`, `possible_overlaps` among them; the shape of CL-TAX-04 stays), and the message "This text is not an exploration response."
 - The coverage-threshold sentence of CL-TAX-14.
