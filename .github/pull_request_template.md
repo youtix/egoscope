@@ -16,7 +16,8 @@ carries the ID in its title, or the check that proves it. Write "None" for tooli
 
 ## Checklist
 
-- [ ] `bun run gate` passes locally and CI is green (`ci-ok`).
+- [ ] `bun run check:changed` passes locally (`bun run gate` too after a tooling, CI or dependency
+      change), and CI is green (`ci-ok`).
 - [ ] Tests sit beside the code they test, carry the requirement IDs they verify, and assert
       behavior with concrete expected values.
 - [ ] No lint rule, TypeScript flag, coverage threshold or test was weakened. Any rule that seems

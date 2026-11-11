@@ -67,9 +67,20 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
 - Coverage counts every file in `src/`: at least 90% per file for lines, branches, functions and
   statements, and 100% in `src/lib/stats-engine/`. Next.js route shells (`page.tsx`, `layout.tsx`
   and the like) are excluded and kept thin by lint; `route.ts` handlers are covered.
-- While developing, run only the tests of the files you touch: `bun run test <path>`. The full suite
-  belongs to `bun run gate`, which is serialized across worktrees, and to CI. The machine is small
-  and shared: never run heavy commands in parallel.
+
+## The local loop
+
+- Heavy scripts (`typecheck`, `lint`, `lint:fix`, `test`, `test:coverage`, `build`, `knip`,
+  `check:changed`, `gate`) queue behind each other across worktrees on one lock,
+  `egoscope-heavy.lock` in the shared git directory, so run the narrowest command that answers your
+  question.
+- While developing, run `bun run check:changed` (format, lint and tests for what differs from
+  `origin/main`, plus the whole-project type check) and targeted tests: `bun run test <path>`.
+- The coverage of one module, without the per-file thresholds of other files failing the run:
+  `bun run test src/lib/<module> --coverage --coverage.include='src/lib/<module>/**'`.
+- The full gate is CI's job on every push. Run `bun run gate` locally only after changing tooling,
+  CI or dependencies, or when a CI failure does not reproduce with `check:changed`. CI is the
+  arbiter.
 
 ## Never weaken the gate
 
@@ -79,9 +90,11 @@ disabled at all. Fix the code; if a rule is wrong, say so in the PR instead.
 
 ## Definition of done
 
-`bun run gate` passes locally, CI is green (`ci-ok`), and the PR template is filled in. New CI jobs
-go in `.github/workflows/ci.yml` (reuse `./.github/actions/setup-project`) and in the `needs` of
-`ci-ok`; their local counterpart goes into the `gate:ci` script, in the same order.
+`bun run check:changed` passes locally (and `bun run gate` after a tooling, CI or dependency
+change), CI is green (`ci-ok`) on the last push, and the PR template is filled in. New CI jobs go in
+`.github/workflows/ci.yml` (reuse `./.github/actions/setup-project`) and in the `needs` of `ci-ok`;
+their local counterpart goes into the `gate:ci` script, in the same order. A new heavy script, such
+as `e2e` or `test:mutation`, runs through `bun scripts/with-lock.ts`.
 
 ## Dependencies
 

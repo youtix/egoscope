@@ -9,8 +9,12 @@ const config: KnipConfig = {
     // lands, so these files are entry points. Unused code inside a module is
     // still reported.
     'src/lib/*/index.ts',
+    // Started through scripts/with-lock.ts, where Knip does not look for entries.
+    'scripts/check-changed.ts',
   ],
   project: ['**/*.{ts,tsx,mts,css}'],
+  // A system tool from util-linux, not an npm package.
+  ignoreBinaries: ['flock'],
 };
 
 export default config;

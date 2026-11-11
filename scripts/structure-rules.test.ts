@@ -8,7 +8,7 @@ const VALID_LAYOUT = [
   'eslint.config.test.ts',
   'data/README.md',
   'data/fixtures/box-scores.json',
-  'scripts/gate.sh',
+  'scripts/with-lock.ts',
   'src/proxy.ts',
   'src/app/favicon.ico',
   'src/app/globals.css',
