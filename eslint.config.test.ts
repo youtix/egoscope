@@ -9,18 +9,37 @@ import { ESLint } from 'eslint';
 import tseslint from 'typescript-eslint';
 import { describe, expect, it, onTestFinished } from 'vitest';
 
+import config from './eslint.config';
+
 import type { Linter } from 'eslint';
 
 const ROOT = import.meta.dirname;
 const CONFIG_FILE = path.join(ROOT, 'eslint.config.ts');
 const TIMEOUT = { timeout: 60_000 };
 
-// Probes are linted from memory, so type-aware rules are switched off: the rules
-// under test read import paths, names and syntax, never types.
+// Probes are linted from memory, without type information, so every rule that
+// needs types is switched off: those whose metadata says so, whichever plugin
+// they come from, and those of eslint-react and Vitest, which do not say so.
+// The rules under test read import paths, names and syntax, never types.
+const typeAwareRules = config.flatMap((block) =>
+  Object.entries(block.plugins ?? {}).flatMap(([prefix, plugin]) =>
+    Object.entries(plugin.rules ?? {})
+      .filter(([, rule]) => {
+        const docs: object = rule.meta?.docs ?? {};
+        return 'requiresTypeChecking' in docs && docs.requiresTypeChecking === true;
+      })
+      .map(([name]) => `${prefix}/${name}`),
+  ),
+);
 const WITHOUT_TYPES: Linter.Config[] = [
   { files: ['**/*.{ts,tsx,mts}'], ...tseslint.configs.disableTypeChecked },
   eslintReact.configs['disable-type-checked'],
-  { files: ['**/*.test.{ts,tsx}'], rules: { 'vitest/unbound-method': 'off' } },
+  {
+    rules: {
+      ...Object.fromEntries(typeAwareRules.map((rule) => [rule, 'off'])),
+      'vitest/unbound-method': 'off',
+    },
+  },
 ];
 
 const eslint = new ESLint({
