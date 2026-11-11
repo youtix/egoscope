@@ -474,3 +474,95 @@ The request proxy lets through, without a session, exactly: `/sign-in`, `/choose
 5. Server start: `auth.ensureAccount()`, called from `instrumentation.ts`, creates the account on the first start and detects a reset — a changed initial password becomes the account password, every session is closed, the lockout is lifted, the reset is journaled (TRV-63).
 6. Sign-out from `/settings/account`, on this device or everywhere; device data is erased; an unsaved draft is warned about first (IHM-08, DSN-33).
 7. A link from Telegram is a plain path and goes through steps 1 to 3 (TEL-07, IHM-05).
+
+## 4. Scheduled tasks
+
+All scheduled work enters through `/api/tick` ([ADR 0002](../adr/0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md)); the external trigger calls it every 5 minutes, a cadence that suits the configured hours and retry delays (the first Telegram retry of TEL-35 therefore happens at the next tick, about five minutes later). Times are local times in `display.timeZone`. Every task: a plain English name (TRV-26), one run at a time (TRV-28), idempotent (TRV-29), chunked under the tick budget and resumed from its cursor (TRV-30), its run journaled; Lot 2 tasks are inactive while `EGOSCOPE_LOT` is 1. Handlers live in `src/lib/tasks/<key>.ts`.
+
+| Key | Name | Lot | When (parameter) | Kind |
+|---|---|---|---|---|
+| `execution-check` | Execution check | 1 | start of every tick, and each app opening | every tick |
+| `statistics-update` | Schedule and statistics update | 1 | daily at `scheduler.statsUpdateTime`; ready once the source shows a refresh after the last game of the past US competition day, not before `games.dailyUpdateDelayHours` after its last tip-off, or at `scheduler.statsUpdateCutoff` with what is published | daily + ready guard |
+| `statistics-fetch` | Pending statistics retrievals | 1 | each tick while due fetch units exist (retry delays, quota renewal) | while pending |
+| `calendar-derivation` | Events from the schedule | 1 | chained after the two statistics tasks; each tick while derivation requests are pending | chained + while pending |
+| `recalculation` | Full recalculation | 1 | each tick while a full recalculation is queued | while pending |
+| `link-check` | Source link checks | 1 | each tick while links wait, if `imports.linkCheckEnabled` | while pending |
+| `purge` | Purge of limited-retention data | 1 (+2) | daily at `scheduler.purgeTime` | daily |
+| `backup` | Weekly backup | 1 | weekly on `backups.weekday` at `backups.time` | weekly |
+| `news-collection` | News collection | 2 | daily at each of `collection.times`; on demand | daily |
+| `detection` | Detection | 2 | chained after each collection, same pass | chained |
+| `classification-resume` | Classification-queue resumption | 2 | every `detection.queueResumeIntervalHours` while the queue is not empty, at the latest with the next collection | while pending |
+| `game-tracking` | Tracking of detected events' games | 2 | chained after the two statistics tasks; forecast freezing every tick | chained + every tick |
+| `notification-dispatch` | Notifications | 2 | at the end of each pass, and every tick | every tick |
+
+**`execution-check`** (TRV-31, TRV-32). For each time-scheduled task, a last success older than its interval plus `scheduler.missedRunMarginHours` journals a missed run, opens "task not run" (closed by the next success) and makes the task due at once; a chained task is checked through its parent; a while-pending task when its oldest pending item is older than its interval plus the margin. At app opening (Home's layout) the same check runs and also detects a tick silence longer than the margin, shown on Home and on the status screen; the missed tasks then run at the next tick. Modules: `scheduler`, `incidents`, `journal`.
+
+**`statistics-update`** (TRV-25, STA-25, STA-26, STA-28, STA-32–STA-37, STA-39, STA-40, STA-42, STA-46, JOU-10, JOU-13, JOU-21, JOU-22, SEN-34, SUI-12; source timing from the [service sheet](../services/statistics-source.md)).
+1. Ready guard: a conditional probe of the source's publication (`stats-source.getPublication`) at each tick from the start time, then hourly (`games.publicationProbeIntervalMinutes`), until the past competition day is published or the cut-off is reached.
+2. `games.planDailyUpdate` queues, at STA-40 levels 2 and 3, the current season's games and the season lines of the followed players (re-reading the current season covers the correction window, STA-33), the player directory, and the searches of links still to establish; consolidated seasons are never fetched again (STA-42).
+3. `games.processFetchQueue` under quota: ingest with schema validation, sheet checks and the correction log; current-team updates (`players.recordTeamChange`); next games and player indicators.
+4. `sensitivity.recalculate` for the cases whose game, baseline, absence count or opponent record changed, with their cause.
+5. Chain `calendar-derivation`, then in Lot 2 `game-tracking` and `notification-dispatch`.
+- **Resume:** fetch units are durable (priority, attempts, next attempt, lease, cursor, source version); the run cursor records the step.
+- **Failure:** a network error, timeout or server error reschedules the unit after `games.retryFirstDelayHours`, then every `games.retryIntervalHours`; after `games.incidentAfterHours` of continuous failure, "statistics source unavailable" (closed on recovery, Telegram in Lot 2); a changed file layout stops ingestion of that file and opens "statistics source schema changed"; a refusal for quota counts as the limit reached for the period (TRV-06); cases stay "statistics pending" and never become not measurable because of an outage.
+
+**`statistics-fetch`** (STA-36, STA-39–STA-41, STA-44, IMP-34, ALE-05). Drains the fetch queue in STA-40 order: (1) sheets of games that measure a pending tracked case (L2), (2) current-season games and next games, (3) the past day and the correction window, (4) the seasons of pending historical cases, newest first, (5) the rest of the followed players' careers. When a player's requested seasons are complete: `sensitivity.recalculate(player)`, `calendarEvents.requestDerivation(player)`, and in Lot 2 `alerts.completeProfileValues(player)`. Progress and estimated end are shown (STA-41). Resume and failure as for `statistics-update`.
+
+**`calendar-derivation`** (ADR 0015, SEN-02). For each pending scope (a player whose history or team changed, a calendar-derived type validated, reactivated or substantially changed, the players touched by the last statistics run): `stats-engine/calendar` derives the birthday games and the first games against a former team over the covered seasons, for active and paused players; `events.createCalendarDerived`, idempotent per player, type and game; then `sensitivity.recalculate` for those players. Upcoming games: ADR 0015 open points 1 and 2. Resume: one scope at a time. No outside call.
+
+**`recalculation`** (SEN-34, SEN-36, SEN-37, TRV-30). Takes the queued full recalculations (parameter change, criterion switch, type status change, merge, split, deletion of a player's data, owner request); evaluates player by player, then every trend; writes the verdict history with the cause; the touched profiles show "recalculating" until it ends. Resume: per-player cursor. No outside call.
+
+**`link-check`** (IMP-17). `imports.processLinkChecks` opens a few links per tick through `link-check` (one request per domain at a time, generic user agent), marks unreachable sources "not found", never deletes or blocks anything. Resume: per-source status. Failure: a timeout is retried once at a later tick, then the link is marked unreachable.
+
+**`purge`** (TRV-25, TRV-48, COL-34, COL-36, COL-37, COL-39, IHM-42, ADR 0017). Journal entries older than `journal.retentionDays` (open incidents and collection gaps kept); expired drafts; expired sessions and login attempts; consumed outbox facts; withdrawal fingerprints after eight weeks; Lot 2: not-relevant articles after `collection.notRelevantRetentionDays` (deduplication trace kept), excerpts of attached articles at the same term, deduplication traces after `collection.dedupTraceRetentionDays`, expired link codes. One journal entry with the counts. Resume: per-step cursor.
+
+**`backup`** (TRV-50, TRV-51, ADR 0018). `backups.runBackup` serializes every table except drafts, sessions and secrets into the archive format, encrypts it with the configured key, uploads it part by part to `backup-storage`, writes the manifest last, rotates to `backups.kept` with true deletion, journals. Resume: uploaded parts are recorded. Failure, missing storage configuration included: "backup failed" (closed by the next success). The pre-migration backup (TRV-55) runs in the deploy step, not here.
+
+**`news-collection`** (COL-12–COL-33, COL-40–COL-48, TRV-26, TRV-28, ADR 0019). Opens a run; reads each active source once, retrying up to `collection.readAttempts`; per item: link and title present, language English or French, retained instant and precision under the prudence principle, maximum age (catch-up extends it), link cleaning, deduplication; stores new articles "to analyze" with the minimal fields; updates health, last read and gaps; closes the run with its counters; chains `detection` in the same pass. Never two collections at once: an on-demand request during a run is deferred and the owner told (COL-14). Resume: per-source cursor; deduplication makes reruns harmless. Failure: `collection.failedRunsBeforeDown` failed runs in a row make a source "down" with its incident; silence beyond `collection.silenceDelayDays` opens a warning; all sources failing in one run open a single "collection impossible".
+
+**`detection`** (DET-01–DET-42, DET-55, DET-57, DET-58, ALE-02, SUI-01, BKT-03, BKT-04, TRV-26). Prefilters the new articles without quota and updates exposure counts; classifies the queue in priority order through `quotas.withQuota` and `language-model`, with answer checks, retries and the threshold; groups facts into events, sets reference dates, checks backtest matches and withdrawal fingerprints; creates or attaches detected events; records type proposals and occurrences; routes each new event (`tracking.createTrackedCase`, `backtests.createFromDetection` or a supplement, an alert-sheet request); writes the detection run; ends with `alerts.produceForPass`; chains `notification-dispatch`. Resume: durable queue items, idempotent per article. Failure: quota reached or model unavailable keeps the articles queued and opens "quota reached" with the counts (DET-11); `classification-resume` continues.
+
+**`classification-resume`** (DET-10, TRV-25). `detection.processQueue`, routing and `alerts.produceForPass`, as above without the prefilter.
+
+**`game-tracking`** (SUI-06–SUI-22, SEN-35, ALE-26, ALE-27). After a statistics run: for tracked cases that left "awaiting game", the category, the tracked-game result (indicative while the baseline is building), the closure of their alert sheets with the outcome (`alerts.close`), the recalculation of their profiles and trends, the result facts for Telegram. Every tick: new forecast versions from the profile snapshots, freezing of the last version before tip-off, late forecasts. Idempotent per case. A statistics outage keeps cases pending; their sheets are fetched first when the source returns (STA-40 level 1).
+
+**`notification-dispatch`** (TEL-09–TEL-23, TEL-33–TEL-37, TRV-25, TRV-54). Consumes the outbox facts grouped by pass, composes the catalogue messages, applies restraint (grouping, quiet hours, urgency, daily cap, staleness), sends through `telegram`, records statuses; releases deferred messages when quiet hours end; reminders `notifications.reminderLeadHours` before a deadline; retries at `notifications.retryIntervalsMinutes` (minimums, aligned to ticks); incident reminders; the export reminder; the catch-up message after failures. A temporary failure retries, a slow-down waits, a definitive failure breaks the link and opens its incident.
+
+## 5. Ports
+
+Rules for every port: interface and types in the port folder; the accessor returns the adapter that `env.adapterFor` names; the fake is scriptable (scenario data plus failure scripts) and is the default outside production; tests never call out (lint plus a network guard in the test setup); every operation takes a call context (deadline and abort signal inside the tick budget) and returns a `Result` with call metadata (requests, bytes) that `quotas.withQuota` records; `checkHealth` makes at most one request and feeds the installation check (TRV-47); adapters use documented access only, never an undocumented endpoint ([ADR 0012](../adr/0012-statistics-coverage-gives-way.md)); data sent out is limited to what the role needs and never concerns the owner (TRV-66). Instants cross the port as epoch milliseconds and local dates as `YYYY-MM-DD`; an adapter converts what its provider sends.
+
+#### `stats-source` (Lot 1)
+- **Needs** (from the [evaluation](statistics-source-evaluation.md), section 12): `getPublication` — when the source was last refreshed and the last league date whose games all have lines; `listCoverage` — seasons held, regular season and playoffs, games listed without lines; `searchPlayers` — every candidate for a name with current team, first and last season, teams; `getPlayerProfile` — display name, current team, day and month of birth (never the year); `getSeasonGames(season, cursor)` — every game of a season, past and upcoming, with phase, exclusion (All-Star, NBA Cup final, preseason, placeholder), tip-off instant with "time known", league date and venue date, venue, teams, status, score, overtimes, series label, make-up link; `getSeasonLines(season, players, cursor)` — the players' box-score lines, did-not-play lines included, with minutes and their precision, the thirteen counts with `null` for "not provided", ejection unknown; optional `mapPlayers` for a replacement source; conditional fetch with the stored source version (`notModified`); pages with a cursor (one page per season file for the chosen provider).
+- **Errors:** `unavailable`, `rate_limited`, `not_published`, `not_found`, `schema_changed`, `unauthorized`, `aborted`.
+- **Fake must simulate:** an invented league (teams, seasons since a first covered season, players with careers, homonyms for candidate search, a trade, a birthday game, a former-team game, a postponed game and its make-up, play-in and playoff series with eliminations, overtimes, a whole-minutes season, "time to be determined", games without lines, an uncovered season); faults on demand — failing N times, rate limited after N calls, slow past the deadline, schema changed, not published; a correction of a line between two reads; a late publication.
+- **Spec:** STA-01–STA-05, STA-08, STA-25, STA-29, STA-31, STA-33, STA-35–STA-37, STA-39, STA-42, STA-45, STA-47, TRV-15, TRV-47, ADR 0012, ADR 0015.
+
+#### `link-check` (Lot 1)
+- **Needs:** `probe(url)` — reachable, not found (404, 410), or unreachable, with a short timeout; never follows more than a few redirects, sends no cookie, uses a generic user agent.
+- **Fake must simulate:** scripted outcomes per address, timeouts, redirects.
+- **Spec:** IMP-17, TRV-66.
+
+#### `backup-storage` (Lot 1)
+- **Needs:** `put(name, bytes)`, `get(name)`, `list(prefix)`, `delete(name)` with true deletion (ADR 0018), `checkHealth`.
+- **Errors:** `unauthorized`, `not_found`, `too_large`, `unavailable`.
+- **Fake must simulate:** an in-memory store with size limits, upload failures in the middle of a backup, failed and successful deletions, an unconfigured storage.
+- **Spec:** TRV-47, TRV-50, TRV-53, TRV-56, ADR 0018.
+
+#### `language-model` (Lot 2)
+- **Needs:** `classify(request)` — one or several articles per call, each with a traceable answer (DET-12): instructions text and version, title, excerpt, media, retained instant, recognized players, the validated sheets (calendar-derived excluded), the do-not-repropose list, the recent events of each recognized player; returns the raw structured answer per article and the call metadata; `checkHealth`.
+- **Errors:** `quota_refused` (before the declared limit counts as reached, TRV-06), `rate_limited` with retry delay, `unavailable`, `timeout`, `malformed`.
+- **Fake must simulate:** scripted answers per article — no fact, a fact of a validated type with a confidence above or below the threshold, an attachment to a recent event, a new-type suggestion, an unknown player, a non-validated type, a missing field, an over-long description or justification, quotation marks; quota refusal before the limit; slow answers; malformed output.
+- **Spec:** DET-08, DET-12, DET-14, DET-16, DET-22, DET-23, TRV-16, TRV-66, DSN-05.
+
+#### `press-feeds` (Lot 2)
+- **Needs:** `readFeed(url, knownVersion)` — the items (identifier, link, title, publication and update dates as given, declared language, origin media for aggregators, excerpt), the feed's language, a new address the feed signals, the version for a conditional read; anonymous, never the article page (COL-26).
+- **Errors:** `unreachable`, `http_error` with status, `requires_identification`, `not_a_feed`, `unreadable`.
+- **Fake must simulate:** feeds per address with dates with and without time or zone, update-only dates, other languages, items without link or title, the same article in two feeds, aggregator media, a moved address, failure sequences (down, then back), a silent feed, a gap (oldest item newer than the last read), very old items.
+- **Spec:** COL-02, COL-04, COL-06, COL-13, COL-17–COL-28, COL-41, COL-42, COL-46, TRV-17, DSN-02.
+
+#### `telegram` (Lot 2)
+- **Needs:** `sendMessage(chat, text)` returning the message id; `deleteMessage(chat, id)`; the bot's username for the `https://t.me/<bot>?start=<code>` deep link; `setWebhook(url, secret)` and its status; `parseUpdate(body)` (a `/start` with a code, or anything else, with chat id and chat type); `verifyWebhookSecret(header)`; `checkHealth`.
+- **Errors:** temporary — `rate_limited` with the delay Telegram asks (TEL-35), `unreachable`, `timeout`; definitive — `blocked`, `chat_not_found`, `bot_deactivated`, `unauthorized` (link broken, TEL-37); `too_long`; `delete_refused` (TEL-38).
+- **Fake must simulate:** an inbox per chat, inbound updates from a private chat, a group or a stranger, expired and reused codes, temporary and definitive failures, slow-down answers, deletion refused after Telegram's delay.
+- **Spec:** TEL-01, TEL-03, TEL-07, TEL-28–TEL-31, TEL-35, TEL-37, TEL-38, TRV-18, TRV-67, DSN-31.
