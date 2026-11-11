@@ -98,7 +98,8 @@ When one user action must trigger rules of a module that sits **above** the modu
 | Action (route) | Calls, in order | Spec |
 |---|---|---|
 | Add a player (`/players/new`) | `players.add` → `games.confirmLink` (or `games.markLinkPending`) → `games.requestHistory`; L2: `detection.reprefilterForPlayer` | JOU-07, JOU-10, STA-03, DET-07 |
-| Reactivate a player, add a name variant (`/players/[playerId]`, `/edit`) | `players.reactivate` or `players.updateIdentity`; L2: `detection.reprefilterForPlayer` or `detection.reprefilterForVariant` | JOU-20, DET-07 |
+| Reactivate a player (`/players/[playerId]`) | `players.reactivate` → `calendarEvents.requestDerivation(playerId)`; L2: `detection.reprefilterForPlayer` | JOU-20, DET-07, ADR 0015 |
+| Edit a player's identity (`/players/[playerId]/edit`) | `players.updateIdentity` → if the birthday changed, `calendarEvents.requestDerivation(playerId)`; L2, if a variant was added, `detection.reprefilterForVariant` | JOU-09, JOU-12, DET-07, ADR 0015 |
 | Withdraw a player (`/players/[playerId]`) | `players.withdraw` → `backtests.cancelOpenRequest(playerId, "player withdrawn")` | JOU-19, BKT-14 |
 | Change a parameter (`/settings/parameters`) | `params.setParam` → if the parameter affects calculations, `sensitivity.requestFullRecalculation("parameter change")` | TRV-35, SEN-34 |
 | Validate a type born of a detection proposal (`/types/[typeId]/validate`, L2) | `taxonomy.validate` → `detection.requeueProposalArticles` | TAX-19, DET-36 |
@@ -244,7 +245,7 @@ One module per outside service; §5 gives the operations and what each fake simu
 | Port | Service | Lot | Real adapter files | Tasks |
 |---|---|---|---|---|
 | `stats-source` | statistics source: schedules, box-score lines, players | 1 | `sportsdataverse.ts`, `sportsdataverse-rows.ts`, `venue-time-zones.ts` (service sheet) | F-ports-lot1, F-adapter-stats-source |
-| `link-check` | public article links (IMP-17) | 1 | `http.ts` | F-ports-lot1, F-adapter-link-check |
+| `link-check` | public article links (IMP-17) | 1 | `http.ts` | F-ports-lot1 (adapter included) |
 | `backup-storage` | private off-site storage (ADR 0018) | 1 | per the backup service sheet | F-ports-lot1, F-adapter-backup-storage |
 | `language-model` | free-tier classification model | 2 | per the language-model service sheet | F-ports-lot2, F-adapter-language-model |
 | `press-feeds` | public news feeds | 2 | `syndication.ts` (RSS and Atom) | F-ports-lot2, F-adapter-press-feeds |
@@ -392,8 +393,8 @@ The deep-research AI is not a port: the app never calls it (VUE-07, TRV-19). The
 | `/` | Home: request-in-progress banner, system banners, to-do list, L2 open alert sheets nearest tip-off first, last statistics update and L2 last detection, first-launch introduction and self-checking guide | `todo`, `backtests`, `incidents`, `games`, `params`; L2 `alerts`, `detection`, `notifications` | open an item; refresh; hide an incident → `incidents.hide`; "Later" on the banner → `backtests.snoozeInProgressBanner`; hide the guide → `params.setPreference` | cached | tab | 1 (+2) | IHM-04, IHM-19, IHM-20, IHM-40, IHM-53, TEL-25, TEL-36, TEL-37, TRV-31 (check at opening) |
 | `/players` | Players: name, team, state, backtest state, valid cases, next game; active by default, state filter, name search, paged; empty state | `players`, `backtests`, `sensitivity`, `games` | open; add | cached | tab | 1 | IHM-18, IHM-21, IHM-54, JOU-28 |
 | `/players/new` | Add a player: criteria, active count against the maximum, identity fields, statistics-source candidates (name, teams, seasons), shared-variant flag; refusal beyond the maximum with its options | `players`, `games` | save with the confirmed candidate or as "mapping to establish" → composed action §1.7 | — | from Players | 1 | IHM-66, JOU-01, JOU-04, JOU-05, JOU-07–JOU-10, STA-03 |
-| `/players/[playerId]` | Player sheet: identity, birthday (day and month), state and team histories, mapping mention, indicators, next game, season baseline, backtest block, profiles block, events; L2 detected events with dismissed ones, alert sheets, tracked cases, exposure | `players`, `games`, `backtests`, `imports`, `sensitivity`, `events`; L2 `alerts`, `tracking`, `detection` | request a backtest (complete or redo) → `backtests.request`; accept a supplement → `backtests.acceptSupplement`; force statistics → `games.requestRefetch`; pause → `players.pause`; reactivate → `players.reactivate` (+ L2 re-prefilter, §1.7); withdraw → composed action §1.7; open `/edit`, `/delete` | cached | from Players | 1 (+2) | IHM-22, IHM-23, IHM-56, JOU-02, JOU-03, JOU-21, JOU-25–JOU-27, BKT-01, BKT-02, BKT-05–BKT-07, BKT-10, IMP-24, IMP-31, STA-41, STA-44, STA-46, STA-47, SEN-19, SEN-31, SEN-46, ADR 0015 |
-| `/players/[playerId]/edit` | Edit identity: display name (the old one kept as a variant), team, variants and ambiguity marks, day and month of birth, change of the statistics-source link | `players`, `games` | save → `players.updateIdentity` (+ L2 re-prefilter, §1.7); change link → `games.changeLink` | — | from the player sheet | 1 | JOU-08, JOU-09, JOU-11, JOU-12, ADR 0015 |
+| `/players/[playerId]` | Player sheet: identity, birthday (day and month), state and team histories, mapping mention, indicators, next game, season baseline, backtest block, profiles block, events; L2 detected events with dismissed ones, alert sheets, tracked cases, exposure | `players`, `games`, `backtests`, `imports`, `sensitivity`, `events`; L2 `alerts`, `tracking`, `detection` | request a backtest (complete or redo) → `backtests.request`; accept a supplement → `backtests.acceptSupplement`; force statistics → `games.requestRefetch`; pause → `players.pause`; reactivate and withdraw → composed actions §1.7; open `/edit`, `/delete` | cached | from Players | 1 (+2) | IHM-22, IHM-23, IHM-56, JOU-02, JOU-03, JOU-21, JOU-25–JOU-27, BKT-01, BKT-02, BKT-05–BKT-07, BKT-10, IMP-24, IMP-31, STA-41, STA-44, STA-46, STA-47, SEN-19, SEN-31, SEN-46, ADR 0015 |
+| `/players/[playerId]/edit` | Edit identity: display name (the old one kept as a variant), team, variants and ambiguity marks, day and month of birth, change of the statistics-source link | `players`, `games` | save → composed action §1.7; change link → `games.changeLink` | — | from the player sheet | 1 | JOU-08, JOU-09, JOU-11, JOU-12, ADR 0015 |
 | `/players/[playerId]/delete` | Delete a withdrawn player's data: counts of events, cases and requests that disappear, double confirmation | `withdrawal` | confirm twice → `withdrawal.deletePlayerData` | — | from the player sheet | 1 | JOU-24, IHM-22 |
 | `/players/[playerId]/profiles/[typeId]` | Profile detail: summary with checks and warnings, events out of the count, the type's general trend, threshold in force, last calculation and last calculation change, cases grouped by state with reasons, verdict history; origin filter; L2 views by origin | `sensitivity`, `backtests` (coverage warnings), `params` | filter by origin; open a case | cached | from the player sheet | 1 (+2) | IHM-24, IHM-46, IHM-48, IHM-51, SEN-20, SEN-21, SEN-27, SEN-31, SEN-33, SEN-37, SEN-38, SEN-40, SEN-43, SEN-46, ADR 0016 |
 | `/profiles` | Profiles: every player–type profile with verdict, confidence and case count; filters by verdict, player and type with the active filter and the total; evaluated pairs and the verdicts chance alone would produce; last calculation change | `sensitivity`, `params` | filter; open a profile | — | More | 1 | SEN-37, SEN-41, IHM-49, 12 AC-12 |
@@ -817,3 +818,82 @@ The rule: **a file that many tasks would edit is created complete by one early t
 | `docs/engineering/**` | their authors | update only their own page; this map changes through the orchestrator |
 
 Other habits that keep parallel pull requests apart: one task per planned file (the planners assign files, §2); a page made of blocks never gets a page-wide `queries.ts` shared by several tasks; tests and fixtures sit next to the code they test or in their own area folder; a task that discovers missing shared work stops and reports it rather than adding it.
+
+### 9.1 Who builds what
+
+| Foundation task | Creates |
+|---|---|
+| F-env | `env`: every deployment variable, secrets, adapter selection, lot switch |
+| F-service-kit | `result`, `journal`, `db.transaction` |
+| F-wording · F-figures | `wording`; `ui/figures` |
+| F-pure-skeleton | the parts and barrels of `stats-engine` and `ai-exchange`, JSON isolation, text rules |
+| F-schema-core · F-schema-catalog · F-schema-measure · F-schema-lot2 | the tables of machinery, of Lot 1 (two tasks) and of Lot 2, in that order |
+| F-params · F-incidents · F-quotas | `params` with the complete registry; `incidents` and `outbox`; `quotas` |
+| F-scheduler · F-tasks | `scheduler`; `tasks` registry, stub handlers, `execution-check`, machinery purge steps, `/api/tick` |
+| F-auth · F-access | `auth`; request proxy, headers, sign-in and choose-password screens, `/api/health`, `robots.ts` |
+| F-drafts · F-pwa · F-offline | `drafts`; manifest, service worker, offline page, update banner; offline copies and device-data erasure |
+| F-ports-lot1 · F-ports-lot2 | the six ports with fakes and contract suites (the link-check adapter included) |
+| F-adapter-stats-source · F-adapter-backup-storage · F-adapter-language-model · F-adapter-press-feeds · F-adapter-telegram | the real adapters, each from its service sheet |
+| F-skeleton-lot1 · F-skeleton-lot2 | the domain modules' barrels, planned files, row types and erase hooks |
+| F-todo · F-shell | `todo` composition; `navigation`, layouts, every placeholder route and block |
+| F-seed · F-test-support | `data/seed/`; factories, scenarios, the invented league and research-result fixtures |
+| F-export · F-backups · F-restore | `backups`: archive and exports with `/api/exports/[kind]`; encrypted weekly and pre-migration backups; the restore script |
+
+Left to the planners: every domain operation of §2.4 and §2.5, `withdrawal`, the parts of `stats-engine` and `ai-exchange`, every screen except sign-in, choose-password, More, the offline page and the placeholders, every task handler except `execution-check`, the machinery purge steps and `backup`, the Telegram webhook handler, and the documentation deliverables of TRV-74 to TRV-80.
+
+## 10. Design choices and open points
+
+### 10.1 Choices made where the specs leave room
+
+1. **Reads join any table, writes go through the owner, calls follow one order (§1.3)** — no import cycle and no event bus to learn.
+2. **Cross-module user actions are composed only in the listed Server Actions (§1.7), scheduled ones in `tasks`** — Lot 1 modules never import Lot 2 (ADR 0001).
+3. **Notifications read a transactional outbox tagged with the pass id** — producers never import `notifications`, a rerun never sends twice (TRV-29), grouping per pass comes for free (TEL-19).
+4. **Forecast versions are derived from append-only profile snapshots** — the frozen forecast is exactly the last version before tip-off whatever the tick timing (SUI-08–SUI-10), and `sensitivity` never calls `tracking`.
+5. **A full recalculation is queued and runs player by player across ticks; a scoped one runs inline** — fits the serverless limit (TRV-30) while each triggering action still completes its own recalculation (SEN-36).
+6. **Telegram updates arrive by webhook, not polling** — the link confirmation is immediate and costs no tick.
+7. **Migrations, the pre-migration backup and seeding run in the deploy step under a lock** — a failed backup stops the deploy and the previous version keeps serving (TRV-55, TRV-76, TRV-77).
+8. **Restore is a script, not an in-app upload** — serverless request bodies are too small for a backup; the developer-level guide allows commands (ADR 0014).
+9. **One archive format, JSON Lines per table, for export, backup and restore** — one serializer, testable by a round trip (TRV-52, TRV-53, CA-TRV-16).
+10. **Module skeletons with planned files and barrels are created up front** — parallel pull requests never edit the same `index.ts`.
+11. **A lot switch, `EGOSCOPE_LOT`** — the Lot 1 milestone runs on a build with no Lot 2 configuration while Lot 2 code merges early (ADR 0001).
+12. **The session is checked in the authenticated layout and in every action; the proxy only checks that a cookie exists** — no database access in the request proxy.
+13. **Passwords are hashed with Node's built-in scrypt** — no native module on Vercel.
+14. **A profiles list, `/profiles`, in the More menu** — SEN-37, SEN-41 and IHM-49 (12 AC-12) need a list of all profiles that file 12 does not place.
+15. **Help is one screen**, reached from More and from Settings (IHM-16 and IHM-37 both name it).
+16. **A cold start opens Home (IHM-02); a resume or reload restores the last screen and its scroll position (IHM-41).**
+17. **WCAG 2.2 level AA** — IHM-61 names no version, and touch-target size is level AA only in 2.2.
+18. **A missed run noticed at app opening opens its incident at once and runs at the next tick** — a page request cannot host a long task (TRV-31).
+19. **Leases expire after a timeout** — a crashed run can be resumed without breaking TRV-28.
+20. **"Affects calculations" means changing a case, profile, trend, forecast or validation result** — TRV-35 cites files 07, 08 and 10 wholesale, which would include retry delays; ADR 0016's switch counts too.
+21. **The engine holds the rules that decide what is measured and concluded**; pure operational rules stay in their module; AI contracts and texts sit in `ai-exchange`.
+22. **Exports are session-protected route handlers**, the journal export being one of their kinds; **`/api/health` is public and returns the version only** (update banner).
+23. **Port contract suites live in `test/support/contracts/`, fixtures in `data/fixtures/`** (ADR 0005), so production barrels never import test code; the evaluation had proposed `contract.ts` in the port folder and `tests/fixtures/`.
+24. **Ports carry instants as epoch milliseconds** (the time ruling); the evaluation's ISO-string `Instant` is converted inside the adapter.
+25. **The birthday comes from the statistics source's player file and the owner can edit it** (ADR 0015 allows both).
+26. **The external trigger calls every 5 minutes**, which suits the hours and retry delays (ADR 0002).
+
+### 10.2 Conflicts and gaps between spec files that affect the structure
+
+1. **No screen for the profile list.** SEN-37, SEN-41 and 12 AC-12 (IHM-49) describe a list of profiles with filters, total, last parameter change and expected chance verdicts; file 12's inventory and IHM-16 have none. Placed as `/profiles` (choice 14).
+2. **Start screen.** IHM-02 starts on Home; IHM-41 reopens on the last screen (choice 16).
+3. **Crashed runs.** TRV-28 forbids overlapping runs and TRV-30 expects interruptions, but nothing says when a run that never finished may be resumed (choice 19).
+4. **Missed-run interval** is undefined by TRV-31 for chained, queue and every-tick tasks; §4 defines it per kind.
+5. **The journal is not append-only.** TRV-41 and DSN-29 erase event mentions on withdrawal; hence `eventRef` set to null and no event identity in entry texts.
+6. **The server-side draft** of IHM-42 must be kept out of backups although TRV-51 says a backup holds everything; drafts are excluded explicitly.
+7. **Restore against withdrawal.** TRV-53 restores identically, so a restored backup brings back withdrawn events and an older counter (DSN-29); whether backups hold fingerprints is ADR 0017 open point 3.
+8. **Lot 1 needs a Lot 2 rule.** IMP-25 (Lot 1) relies on the link cleaning of COL-28 (Lot 2); the cleaning sits in the engine's `matching` part, built in Lot 1.
+9. **First Telegram retry after 1 minute** (TEL-35) against a tick-driven dispatcher; retry delays are minimums aligned to ticks.
+10. **Public exceptions to TRV-58** are not listed; §3.5 lists them, including the secret-protected tick and webhook.
+11. **US date of a game played outside North America** (TRV-72, IHM-14) is undefined; the source's league date (Eastern) is used.
+12. **Help in two places** (IHM-16, IHM-37); one screen (choice 15).
+13. **Statistics timing.** H-TRV-07 runs the update at 12:00 Paris time, before the chosen source has published the previous night (service sheet, test T10); §4 uses 15:00 with an hourly probe and a 20:00 cut-off, pending the ruling being written.
+14. **Time representation in the proposed port** (ISO strings) differs from the ruling (epoch milliseconds) (choice 24).
+15. **Recorded fixtures of the real statistics source contain real player names**, which ADR 0006 keeps out of the public repository; recorded fixtures must be anonymized before they are committed.
+16. **TRV-35's "affects calculations"** is not precise enough to drive the recalculation prompt (choice 20).
+17. **Correcting a player's birthday** (ADR 0015 allows the owner to enter it) re-runs the derivation, but nothing says what becomes of the events derived from the old date; the same question arises when a schedule change moves a derived game (ADR 0015 open point 2).
+
+### 10.3 Open or provisional placements
+
+- **Open points of the deviations register that land in modules** (never settled in a pull request): the Lot 2 flow and creation time of upcoming calendar-derived events, and the origin of their cases in the validation table (ADR 0015 points 1 and 2: `calendar-events`, `tracking`, `alerts`); articles about birthdays and reunions (0015-3: `ai-exchange/classification`); former teams known only from uncovered seasons (0015-4) and 29 February birthdays (0015-5: `stats-engine/calendar`); withdrawing a calendar-derived event (0015-6, 0017-6); the fingerprint's date tolerance and player key (0017-1, 0017-2: `events`); fingerprints in backups and the horizon when the retention changes (0017-3, 0017-5: `backups`, `purge`); a collected article matching a fingerprint (0017-4: `collection`); citation markers inside text values (ADR 0013: `ai-exchange`).
+- **Documentation deliverables** (TRV-74–TRV-80: deployment checklist, user guide, operations guide, service sheets, parameter list, troubleshooting, release notes, requirement status) are not modules; proposed home `docs/guide/` and `docs/services/`, written by end-of-build tasks, the requirement status generated by F-trace.
+- **The external trigger** itself (which free scheduler calls `/api/tick`) is a service sheet, not a module.
