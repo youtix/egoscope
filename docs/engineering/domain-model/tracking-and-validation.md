@@ -94,12 +94,12 @@ Every owner decision of the kinds SUI-17 lists that made a tracked case leave th
 | `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | `none` | SUI-17 |
 | `kind` | text | no | — | `CHECK (kind IN ('event_dismissed','event_reinstated','case_excluded','case_reinstated','context_corrected','reference_date_corrected','player_corrected','type_corrected','dating_mark_lifted'))` (`PostTipOffDecisionKind`) | `none` | SUI-17 |
 | `effect` | text | no | — | `CHECK (effect IN ('exit','entry','measured_game_change'))` (`PostTipOffDecisionEffect`) | `none` | SUI-17, CL-SUI-10 |
-| `event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event decided on; null for `case_excluded` and `case_reinstated` | `event` | SUI-17 |
+| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event decided on; null for `case_excluded` and `case_reinstated` | `event` | SUI-17 |
 | `decided_at` | timestamptz | no | — | | `none` | SUI-17, H-SUI-07 |
 
 - **Unique and indexes:** `tracked_case_decisions_case_idx` `(tracked_case_id, decided_at)` — the case's decisions and the latest one (`CL-SUI-10`).
 - **Deletion:** with its tracked case; the decisions about a withdrawn event by the withdrawal step.
-- **TypeScript:** `{ kind: PostTipOffDecisionKind; effect: PostTipOffDecisionEffect; eventId: EventId | null; decidedAt: EpochMs }`; `isPostTipOff` is computed.
+- **TypeScript:** `{ kind: PostTipOffDecisionKind; effect: PostTipOffDecisionEffect; playerEventId: PlayerEventId | null; decidedAt: EpochMs }`; `isPostTipOff` is computed.
 
 ### 1.6 Validation table (derived) — `ValidationTable`, `ValidationRow`
 
@@ -215,7 +215,7 @@ The content stored in `tracked_game_results.content` and handed to notifications
 | Key | Type | Allowed values and limits | Spec |
 | --- | --- | --- | --- |
 | `kind` | string | `indicative`, `final` | SUI-19, SUI-20 |
-| `caseId`, `playerId`, `eventIds`, `eventTypeId` | identifiers | the case, its player, its events, its type | SUI-19 |
+| `caseId`, `playerId`, `playerEventIds`, `eventTypeId` | identifiers | the case, its player, its events, its type | SUI-19 |
 | `measuredGameId` | identifier or null | null when no game was played within the window | SUI-19 |
 | `minutes` | number or null | decimal minutes | SUI-19 |
 | `performanceIndex` | number or null | | SUI-19 |
@@ -246,7 +246,7 @@ The content stored in `tracked_game_results.content` and handed to notifications
 - `CL-SUI-10`: three counts of touched cases by present situation and latest decision.
 - `CL-SUI-11`: rows of withdrawn types and players kept in an archived part.
 - `CL-SUI-12`, `CL-SUI-13`: one reference instant per event; scheduled start as tip-off.
-- `CL-SUI-14`: upcoming calendar-derived events become tracked cases; their changes and table membership.
+- `CL-SUI-14`, `CL-TAX-19`: upcoming calendar-derived events become tracked cases, created by the regular derivation runs; their changes and table membership. `CL-SUI-14` also drops an upcoming event whose type stops being validated, which `CL-TAX-20` (after TAX-31) keeps as a pending case of an archived type: this model supports either; the remaining difference is the orchestrator's to settle.
 - `CL-SUI-15`: chance-expected counts.
 - `CL-DET-09`, `CL-DET-15`: dismissed cases leave every calculation; only a dismissal at or after tip-off shows in the separate count, measured outside the calculations.
 
@@ -280,6 +280,6 @@ erDiagram
 2. **Append-only profile history**: for each player–type pair in the historical-only view and each type's historical-only trend, a row per change with the instant it took effect, the valid-case count, mean gap, verdict level and direction, and profile confidence, queryable by pair or type and instant (SUI-08, SUI-09, `CL-SEN-19`). The glossary gives the name `ProfileSnapshot` to the alert sheet's frozen copy (glossary §3.10); this history needs another name.
 3. **Historical data availability of a pair** (`CL-SUI-05`): whether an imported research result covers the type for the player (BKT-10), whether the calendar derivation over the covered seasons has run for him, and whether a historical case of the pair still awaits its statistics.
 4. **Decision hooks**: the composed actions of manual exclusion and reinstatement (SEN-17), dismissal and reinstatement (DET-45), context, reference-date, player and type corrections (DET-47, DET-48) and the lifting of the dating mark (SEN-45) report to tracking, in their transaction, whether the case left the counts, entered them or changed its measured game.
-5. **Calendar derivation in Lot 2** (`CL-SUI-14`): also run in every collection-and-detection pass; create an upcoming event only for a game that is the player's next game and has not started; drop it, with its case, when its game no longer qualifies before its scheduled start, through the Lot 2 hooks of alerts, tracking and notifications.
+5. **Calendar derivation in Lot 2** (`CL-SUI-14`, `CL-TAX-19`): the regular runs at the end of every collection-and-detection pass create an upcoming event only for a game that is the player's next game and has not started, with a tracked case; a drop before its scheduled start, with its case, calls the Lot 2 hooks of alerts, tracking and notifications first.
 6. **Read values**: the withdrawn-events counter (DSN-29); the date of the last change of a parameter that affects calculations (TRV-35, `CL-SUI-04`); the parameters `categoryThreshold`, `minTrackedCasesForAssessment`, `possibleSnrThreshold` and the case threshold of SEN-23.
 7. **Cases spreadsheet export** (TRV-52): for a tracked case, add the recording timing, the frozen forecast (source, level, direction, announced gap, late or not) and the category.

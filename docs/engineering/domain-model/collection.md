@@ -1,6 +1,6 @@
 # Domain model — news collection (Lot 2)
 
-Press sources, articles, deduplication, collection runs and possible collection gaps: file 03 (COL-01 to COL-50) as ruled by `CL-COL-01` to `CL-COL-22`, with ADR 0017, ADR 0019 and `CL-DSN-10`. Detection's use of articles (parts, results, attachments) is in [detection.md](detection.md); the shared entities this file points to (players, events, incidents, task runs, parameters, the withdrawal ledger) belong to the core model.
+Press sources, articles, deduplication, collection runs and possible collection gaps: file 03 (COL-01 to COL-50) as ruled by `CL-COL-01` to `CL-COL-22`, with ADR 0017, ADR 0019 and `CL-DSN-10`. Detection's use of articles (parts, results, attachments) is in [detection.md](detection.md); the shared entities this file points to (players, events, incidents, task runs, parameters, withdrawal fingerprints) belong to the core model.
 
 **Conventions.** Tables are snake_case plural, enumerations are `text` with a `CHECK` on the glossary's snake_case values, `id` is an `integer` identity primary key. An instant is `timestamptz` (`EpochMs` in code); a calendar date is `date` (`IsoDate` in code) and its calendar is stated on the column. Columns that reference core tables take the type of the referenced key (assumed `integer`, `event_types.id` a `text` slug). Parameter keys are the glossary's (§9.3).
 
@@ -91,12 +91,12 @@ A stored feed item reduced to the COL-25 minimum, dated cautiously (COL-19 to CO
 | `outlet_name` | text | no | — | origin outlet of an aggregator item when the feed gives it, else the source's name at collection; never changed afterwards | `press` | COL-06, COL-25 |
 | `link` | text | no | — | cleaned link (COL-28); unique | `press` | COL-25, COL-28, COL-30 |
 | `retained_published_at` | timestamptz | no | — | retained publication instant, fixed at first collection; `CHECK (retained_published_at <= first_collected_at)` | `press` | COL-19 to COL-23, CL-COL-02, CL-COL-03 |
-| `retained_published_at_precision` | text | no | — | `CHECK (... IN ('exact','approximate','none'))` (`DatePrecision`) | `none` | COL-20, COL-22, CL-COL-03 |
+| `retained_published_at_precision` | text | no | — | `CHECK (retained_published_at_precision IN ('exact','approximate','none'))` (`DatePrecision`) | `none` | COL-20, COL-22, CL-COL-03 |
 | `first_collected_at` | timestamptz | no | — | | `none` | COL-22 |
 | `language` | text | no | — | `CHECK (language IN ('en','fr'))`; the item's declared language, else the source's | `none` | COL-17, CL-COL-11 |
 | `excerpt` | text | yes | null | feed-supplied text without formatting, truncated to `excerptMaxLength`; `CHECK (char_length(excerpt) BETWEEN 1 AND 1000)`; null when the feed gave none or once erased | `excerpt` | COL-25, COL-27, COL-37, DSN-09 |
 | `processing_status` | text | no | `'to_analyze'` | `CHECK (processing_status IN ('to_analyze','awaiting_classification','not_relevant','attached','linked_to_proposal'))` (`ArticleProcessingStatus`) | `none` | COL-35, CL-DET-01 |
-| `not_relevant_reasons` | text[] | no | `'{}'` | every distinct non-relevance reason of the article's parts and facts (detection.md §2.3); `CHECK (not_relevant_reasons <@ ARRAY['no_followed_player','no_fact','below_threshold','old_fact','already_reported_by_backtest','type_rejected_or_withdrawn','proposal_rejected','detached_by_owner'])`; `CHECK (processing_status <> 'not_relevant' OR cardinality(not_relevant_reasons) > 0)` | `none` | DET-54, CL-DET-01, CL-DET-12 |
+| `not_relevant_reasons` | text[] | no | `'{}'` | every distinct non-relevance reason of the article's parts and facts (detection.md §2.3); `CHECK (not_relevant_reasons <@ ARRAY['no_followed_player','no_fact','below_threshold','old_fact','already_reported_by_backtest','type_rejected_or_withdrawn','proposal_rejected','detached'])`; `CHECK (processing_status <> 'not_relevant' OR cardinality(not_relevant_reasons) > 0)` | `none` | DET-54, CL-DET-01, CL-DET-12 |
 | `retention_clock_started_at` | timestamptz | yes | null | start of the not-relevant retention (CL-COL-08): `first_collected_at` when the prefilter found no followed player, else the instant the article last became not relevant; `CHECK ((processing_status = 'not_relevant') = (retention_clock_started_at IS NOT NULL))` | `none` | COL-36, COL-38, CL-COL-08, CL-COL-14 |
 | `first_press_source_id` | integer | no | — | → `press_sources.id` `ON DELETE RESTRICT`; the source whose read first stored it | `none` | CL-COL-21 |
 | `first_task_run_id` | integer | yes | null | → core `task_runs.id` `ON DELETE SET NULL`; the collection run that stored it | `none` | COL-49, CL-COL-14 |
@@ -150,7 +150,7 @@ What remains of a purged article so that a feed still offering it does not bring
 
 A collection run is the core's task run of task `news_collection` (TRV-26). It has no table of its own: its journal entry (COL-48) is the task run plus its source reads (§1.8), its gaps (§1.9) and the incidents it opened or closed (§4). Its origin is the task run's trigger: `on_demand`, otherwise `scheduled`, including the run TRV-31 starts after a missed run (CL-COL-07).
 
-- **TypeScript:** `interface CollectionRun { taskRunId: TaskRunId; origin: CollectionRunOrigin /* 'scheduled' | 'on_demand' */; withCatchUp: boolean; startedAt: EpochMs; endedAt: EpochMs | null; reads: SourceRead[]; totals: CollectionCounters }`.
+- **TypeScript:** `interface CollectionRun { taskRunId: TaskRunId; origin: CollectionRunOrigin /* 'scheduled' | 'on_demand' */; isCatchUp: boolean; startedAt: EpochMs; endedAt: EpochMs | null; reads: SourceRead[]; totals: CollectionCounters }`.
 
 ### 1.8 Source read — `collection_source_reads`
 
@@ -165,10 +165,10 @@ The per-source part of a collection journal entry: result, plain-language reason
 | `feed_url_read` | text | no | — | the stored address that was read | `none` | CL-COL-19 |
 | `outcome` | text | no | — | `CHECK (outcome IN ('success','failure'))` (`SourceReadOutcome`) | `none` | COL-48 |
 | `failure_reason` | text | yes | null | `CHECK (failure_reason IN ('unreachable','error_response','requires_identification','unreadable','not_a_feed'))` (`SourceReadFailureReason`); `CHECK ((outcome = 'failure') = (failure_reason IS NOT NULL))` | `none` | COL-41, COL-48 |
-| `attempts` | smallint | no | — | `CHECK (attempts BETWEEN 1 AND 5)`; reads of this source in this run, the first included | `none` | COL-13, CL-COL-09 |
+| `read_attempts` | smallint | no | — | `CHECK (read_attempts BETWEEN 1 AND 5)`; reads of this source in this run, the first included | `none` | COL-13, CL-COL-09 |
 | `items_read` | integer | no | 0 | `CHECK (items_read >= 0)` | `none` | COL-48 |
 | `new_articles` | integer | no | 0 | `CHECK (new_articles >= 0)` | `none` | COL-48 |
-| `duplicates` | integer | no | 0 | `CHECK (duplicates >= 0)`; includes items matching an article skip entry (CL-DSN-10) | `none` | COL-48, CL-DSN-10 |
+| `duplicates` | integer | no | 0 | `CHECK (duplicates >= 0)`; includes items matching a deduplication trace | `none` | COL-34, COL-48 |
 | `too_old` | integer | no | 0 | `CHECK (too_old >= 0)` | `none` | COL-24, COL-48 |
 | `incomplete` | integer | no | 0 | `CHECK (incomplete >= 0)` | `none` | COL-18, COL-48 |
 | `unsupported_language` | integer | no | 0 | `CHECK (unsupported_language >= 0)` | `none` | COL-17, COL-48 |
@@ -216,31 +216,30 @@ Which source a source-level incident or warning concerns, so that it closes on t
 
 ### 1.11 Withdrawal, other erasures, purge, export and backup
 
-**Withdrawal of an event** (DSN-27, DSN-34, COL-37, `CL-DSN-10`, `CL-DSN-16`). Collection's eraser runs last among the Lot 2 erasers, after detection has removed the event's attachments and the facts that designate it (detection.md §1.9). In the withdrawal's transaction it then:
+**Withdrawal of an event** (DSN-27, DSN-34, COL-37, `CL-COL-16`, `CL-DSN-10`, `CL-DSN-16`). Collection's eraser runs last among the Lot 2 erasers, after detection has removed the event's attachments and the facts that designate it (detection.md §1.9). In the withdrawal's transaction it then:
 
 1. finds every article left with no role — no attachment to another event, no fact linked to a pending proposal, no pending part (CL-COL-16);
-2. for each one whose `retained_published_at + maxArticleAgeDays` is still in the future, asks the core's withdrawal ledger to record an article skip entry (HMAC-SHA-256 of `link` with the fingerprint secret, expiring at that instant);
-3. deletes the article at once, with no deduplication trace: its sightings, parts, results and facts go by cascade.
+2. deletes each of them at once, with no deduplication trace and no other record: its sightings, parts, results and facts go by cascade.
 
-What may remain: the source rows, the daily counts and the run counters (numbers only), the gaps, and every article that keeps another role, with its own sightings and results.
+An erased article that a feed still offers within the maximum age is collected again as new and classified again — at most about six times with the two default runs a day — and each time the withdrawal fingerprint keeps it from becoming an event (`CL-DSN-10`, `CL-COL-16`). What may remain: the source rows, the daily counts and the run counters (numbers only), the gaps, and every article that keeps another role, with its own sightings and results.
 
 **Other erasures.**
 
-- A fact that matches a live withdrawal fingerprint (CL-COL-16, CL-DET-21): the same steps 1 to 3 for its article, the skip entry included.
-- An event erased by a requalification or a split (CL-TAX-09): steps 1 and 3, no skip entry (no fingerprint exists).
-- A player-data deletion (CL-JOU-06): after detection deletes the player's parts, steps 1 and 3 for every article left with no part and no role, no skip entry.
+- A fact that matches a live withdrawal fingerprint (CL-COL-16, CL-DET-21): the same two steps for its article.
+- An event erased by a requalification or a split (CL-TAX-09): the same two steps.
+- A player-data deletion (CL-JOU-06): after detection deletes the player's parts, the same two steps for every article left with no part and no role.
 
 **Daily purge** (task `data_purge`, COL-39, CL-COL-08, CL-COL-12). Each run, in order:
 
-1. deletes every article with `processing_status = 'not_relevant'` and `retention_clock_started_at + notRelevantRetentionDays <= now`, and inserts one deduplication trace per deleted article (`link_sha256`, its `first_collected_at`, `article_deleted_at = now`);
-2. sets `excerpt` to null on every article with `processing_status = 'attached'` and `first_collected_at + notRelevantRetentionDays <= now`, unless a fact of the article is linked to a pending type proposal or a part of it is pending (DSN-09, CL-COL-08);
-3. deletes the deduplication traces with `article_deleted_at + dedupTraceRetentionDays <= now`;
+1. deletes the deduplication traces with `article_deleted_at + dedupTraceRetentionDays <= now`;
+2. deletes every article with `processing_status = 'not_relevant'` and `retention_clock_started_at + notRelevantRetentionDays <= now`, and inserts one deduplication trace per deleted article (`link_sha256`, its `first_collected_at`, `article_deleted_at = now`), replacing a trace of the same link if one remains;
+3. sets `excerpt` to null on every article with `processing_status = 'attached'` and `first_collected_at + notRelevantRetentionDays <= now`, unless a fact of the article is linked to a pending type proposal or a part of it is pending (DSN-09, CL-COL-08);
 4. deletes the source reads older than `journalRetentionDays`;
 5. deletes the daily counts older than 90 days.
 
 The run is recorded in the activity journal with three figures: articles deleted, excerpts erased, deduplication traces expired (CL-COL-12). Never purged: press sources, deactivation periods, gaps, and articles that are `to_analyze`, `awaiting_classification` or `linked_to_proposal` (COL-38) or attached (COL-37).
 
-**Export and backup** (TRV-51, TRV-52, `CL-TRV-05`). Every table of this file is in each backup and in the full export, excerpts included while they exist. None feeds a spreadsheet export. The article skip entries, which belong to the core's withdrawal ledger, are in neither (`CL-DSN-08`).
+**Export and backup** (TRV-51, TRV-52, `CL-TRV-05`). Every table of this file is in each backup and in the full export, excerpts included while they exist. None feeds a spreadsheet export.
 
 ## 2. Lifecycles
 
@@ -287,7 +286,7 @@ A collection run has no status of its own: the core's task-run status applies (`
 | One article per cleaned link. | COL-30 | unique `articles_link_uq` |
 | One article per source and feed identifier. | COL-30, CL-COL-01 | unique `article_sightings_item_uq` |
 | No two articles share outlet and title key with retained instants less than `titleDedupWindowHours` apart. | COL-30 | collection service, in the transaction that stores the item |
-| An item whose cleaned link matches a deduplication trace or a live article skip entry is not stored. | COL-34, CL-DSN-10 | collection service, before any storage |
+| An item whose cleaned link matches a deduplication trace is not stored. | COL-34 | collection service, before any storage |
 | An item without link or title, in another language, or older than the admitted age is not stored, only counted. | COL-17, COL-18, COL-24 | collection service |
 | The excerpt is plain text of at most `excerptMaxLength` characters. | COL-27 | collection service; `CHECK` at the bound of 1,000 |
 | An article is not relevant exactly when its retention clock is set, and then has at least one reason. | COL-36, CL-DET-01 | `CHECK` on `articles` |
@@ -330,14 +329,14 @@ None is owned here. Feed items arrive through the `press-feeds` port, whose cont
 - `CL-COL-04`: R drives catch-up and gaps; the uncollected period is written on the first read after a reactivation.
 - `CL-COL-05`: runs in which every active source failed count in no streak and open one `collection_impossible`.
 - `CL-COL-06`: order of the health rules; hence `first_successful_read_at` and `failure_streak_started_at`.
-- `CL-COL-07`: origin `scheduled` or `on_demand` plus a separate catch-up mark, both derived.
+- `CL-COL-07`: origin `scheduled` or `on_demand` plus a separate catch-up mark, both derived; the glossary's `CollectionRunOrigin` value `with_catch_up` is therefore the `isCatchUp` mark (glossary `isCatchUp`), not an origin.
 - `CL-COL-08`: retention clocks of not-relevant articles and of attached excerpts.
-- `CL-COL-09`: `attempts` counts every read of the run, the first included.
+- `CL-COL-09`: `read_attempts` (glossary `readAttempts`) counts every read of the run, the first included.
 - `CL-COL-12`: the purge is journaled in the activity journal with three figures.
 - `CL-COL-13`: gap computation and the `feed_too_short` warning.
 - `CL-COL-14`: the operational values kept on articles and sources.
 - `CL-COL-15`: a withdrawn or deactivated source's articles keep their fate.
-- `CL-COL-16`, `CL-DSN-10`: articles of a fingerprint match or a withdrawal are erased at once, with an article skip entry.
+- `CL-COL-16`, `CL-DSN-10`: articles of a fingerprint match or a withdrawal are erased at once, with no trace and no other record; collecting and classifying them again while a feed still offers them is accepted.
 - `CL-COL-17`, ADR 0019: two default collection times, thresholds counted in runs.
 - `CL-COL-18`: `feed_url_key`.
 - `CL-COL-19`: `proposed_feed_url` and `permanent_redirect_url`.
@@ -376,18 +375,14 @@ erDiagram
   dedup_traces {
     bytea link_sha256
   }
-  article_skip_entries {
-    bytea link_hmac
-  }
 ```
 
-`task_runs`, `incidents` and `article_skip_entries` belong to the core model; `article_parts` is detection's. Deduplication traces and skip entries are matched by link digest, not by key.
+`task_runs` and `incidents` belong to the core model; `article_parts` is detection's. Deduplication traces are matched by link digest, not by key.
 
 ## 8. Requests to the core model
 
 1. **Task runs** (`task_runs`): one row per run of `news_collection`, with `id`, `task_key`, trigger (`scheduled`, `on_demand`; the run TRV-31 starts after a missed run is reported as `scheduled` to this module), `started_at`, `ended_at`, status (`TaskRunStatus`) and the pass identifier; rows kept at least `journalRetentionDays`, since `collection_source_reads` cascades from them and `articles.first_task_run_id` and `collection_gaps.task_run_id` are set to null when they go.
 2. **Incidents** (`incidents`): kinds `press_source_down` and `collection_impossible` (level incident), `press_source_silent` and `feed_too_short` (level warning), with `opened_at` and `closed_at`; the "once per cause" key of a source-level kind includes the press source's identifier (this module links the source through `press_source_incidents`); `collection_impossible` closes at the end of the first later run in which one active source is read (CL-COL-05).
-3. **Withdrawal ledger — article skip entries** (`CL-DSN-10`): table `article_skip_entries` with `link_hmac bytea NOT NULL UNIQUE` (HMAC-SHA-256 of the cleaned link with the fingerprint secret, `CHECK (octet_length(link_hmac) = 32)`) and `expires_at timestamptz NOT NULL`, index on `expires_at` for the purge; a check function `isArticleSkipped(cleanedLink)` and a recorder `recordArticleSkip(cleanedLink, expiresAt)`; excluded from backups, exports, the journal and every screen.
-4. **Withdrawal composition** (`CL-DSN-16`): run the Lot 2 erasers inside the withdrawal's transaction in the order notifications, alerts, tracking, detection, collection, all of them before the core erases the event's case, sources and row; apply the same order to an erasure by requalification or split (CL-TAX-09) and to a player-data deletion (CL-JOU-06).
-5. **Purge task**: call this module's purge steps of §1.11 in the daily `data_purge` run and journal their three figures.
-6. **Parameters**: none new for this file; the keys of glossary §9.3 family 03 are used as named, with `silencePeriodDays` overridable per source.
+3. **Withdrawal composition** (`CL-DSN-16`): run the Lot 2 erasers inside the withdrawal's transaction in the order notifications, alerts, tracking, detection, collection, all of them before the core erases the event's case, sources and row; apply the same order to an erasure by requalification or split (CL-TAX-09) and to a player-data deletion (CL-JOU-06).
+4. **Purge task**: call this module's purge steps of §1.11 in the daily `data_purge` run and journal their three figures.
+5. **Parameters**: none new for this file; the keys of glossary §9.3 family 03 are used as named, with `silencePeriodDays` overridable per source.

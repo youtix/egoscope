@@ -127,11 +127,11 @@ Every event a message designates (TEL-06): the events of the alert's sheet at co
 | --- | --- | --- | --- | --- | --- | --- |
 | `id` | integer identity | no | — | primary key | `none` | TEL-38 |
 | `message_id` | integer | no | — | → `notification_messages.id` `ON DELETE CASCADE` | `none` | TEL-38 |
-| `event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT` | `event` | TEL-06, TEL-38 |
+| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT` | `event` | TEL-06, TEL-38 |
 
-- **Unique and indexes:** `notification_message_events_uq` unique `(message_id, event_id)`; `notification_message_events_event_idx` `(event_id)` — dismissal and withdrawal lookups.
+- **Unique and indexes:** `notification_message_events_uq` unique `(message_id, player_event_id)`; `notification_message_events_event_idx` `(player_event_id)` — dismissal and withdrawal lookups.
 - **Deletion:** with its message; repointed to the surviving event when two detected events are merged.
-- **TypeScript:** `{ messageId: NotificationMessageId; eventId: EventId }`.
+- **TypeScript:** `{ messageId: NotificationMessageId; playerEventId: PlayerEventId }`.
 
 ### 1.6 Daily cap (derived) — `DailyCap`
 
@@ -146,7 +146,7 @@ One notified interruption (TEL-15, `CL-TEL-08`), computed from the core's incide
 - A **cycle** is a chain of incidents of the same kind and subject — the same press source for source kinds (collection's `press_source_incidents`), the same service function for `quota_reached`, none otherwise — each opened within `incidentRecurrenceWindowHours` of the previous one's closing. Its first incident identifies it.
 - **Start:** when the first incident opens, an `incident_start` message; several cycles of the same kind starting in one pass share one message, one fact row each. If the incident closes before the message leaves, the message is discarded as moot (TEL-23).
 - **Reminder:** every `incidentReminderIntervalDays` after the start while an incident of the cycle is open, an `incident_reminder` numbered from 1.
-- **End:** once the cycle's last incident has stayed closed for `incidentRecurrenceWindowHours`, an `incident_end` covering the first start to the final end, if the start was sent and the `incident_end` sub-option is on; none when the owner closed it (`CL-TRV-11`).
+- **End:** once the cycle's last incident has stayed closed for `incidentRecurrenceWindowHours`, an `incident_end` covering the first start to the final end, if the start was sent and the `incident_end` sub-option is on. Incidents close only automatically; hiding one on Home changes nothing here (`CL-IHM-20`, `CL-TRV-11`).
 - **Kinds notified:** those of TEL-15, the `press_source_silent` warning and `export_reminder` (one message per reminder, `CL-TRV-22`). Not notified: `quota_warning`, `database_volume_warning`, `feed_too_short` (`CL-TEL-17`) and `telegram_link_broken`, which only Home and the to-do list show (TEL-37).
 
 ### 1.8 Withdrawal, dismissal, other erasures, purge, export and backup
@@ -191,7 +191,7 @@ A message is created only when the chat is linked, the master switch (`notificat
 
 | From | To | Trigger | Guard | Side effects | Spec |
 | --- | --- | --- | --- | --- | --- |
-| — | `to_send` | an outbox fact of a pass or an owner-born import (ALE-05), a due reminder, a service event | the conditions above | fact rows, event rows, `player_id`, `game_id`; `is_urgent` when its game has not started and tips off before the end of the current quiet hours, the exception is on, and the message is not a late alert | TEL-09 to TEL-16, TEL-21 |
+| — | `to_send` | an outbox fact of a pass or an owner-born import (ALE-05), a due reminder, a service event | the conditions above | fact rows, event rows, `player_id`, `game_id`; `is_urgent` when it is composed during quiet hours for a game that has not started and tips off before they end, the urgent exception being on and the message not a late alert | TEL-09 to TEL-16, TEL-21 |
 | `to_send` | `deferred` | quiet hours are on | not urgent | `scheduled_send_at` = end of quiet hours (start included, end excluded) | TEL-20, CL-TEL-22 |
 | `to_send` | `grouped` | the pass digest is composed | more than one message in the pass, or alerts beyond `alertGroupingThreshold` (`CL-TEL-11`); urgent ones leave alone | `grouped_into_message_id` | TEL-19, CL-TEL-11 |
 | `deferred` | `grouped` | quiet hours end | — | into the `quiet_hours_digest` | TEL-20 |
@@ -203,7 +203,7 @@ A message is created only when the chat is linked, the master switch (`notificat
 | `failed` | `discarded` | a catch-up is composed, or the master switch is turned off, or the chat unlinked | the fact no longer holds, or as for the other discard reasons | — | CL-TEL-12, CL-TEL-20 |
 | `to_send`, `deferred` | `failed` | a permanent failure breaks the link | — | covered by the catch-up once a chat is linked again | TEL-37, CL-TEL-20 |
 
-**Special kinds.** The test message (`CL-TEL-19`) leaves at once, even in quiet hours, is never retried, counts toward the cap and is never covered by a catch-up. The link confirmation is always sent and never counted (`CL-TEL-07`). The catch-up (`CL-TEL-12`) is tried at most once per `catchUpIntervalMinutes` and right after any other successful send, waits for the end of quiet hours, and is recomposed at each try.
+**Special kinds.** The test message (`CL-TEL-19`) leaves at once, even in quiet hours, is never retried, counts toward the cap and is never covered by a catch-up. The link confirmation is always sent and never counted (`CL-TEL-07`). The catch-up (`CL-TEL-12`) is tried at most once per `catchUpIntervalMinutes` and right after any other successful send, waits for the end of quiet hours, and is recomposed at each try; a failed digest is covered through the facts of the messages it grouped.
 
 ## 3. Invariants
 
@@ -250,7 +250,7 @@ type MessageGame = {
 };
 
 // How a message designates an event: player, type, source; never its description (TEL-06).
-type MessageEvent =
+type EventDesignation =
   | {
       origin: 'press';
       typeName: string | null; // null: intimate-subject type, written "sensitive event" (DSN-35)
@@ -276,7 +276,7 @@ type BacktestRequestToDoData = {
   kind: 'backtest_request_to_do';
   playerName: string;
   teamName: string;
-  event: MessageEvent;
+  event: EventDesignation;
   deadline: MessageGame | null; // null: expected game unknown
   timeRemainingMs: number | null; // at send time
   tipOffPassed: boolean; // adds the TEL-09 sentence
@@ -287,7 +287,7 @@ type BacktestRequestToDoData = {
 type DeadlineChangedData = {
   kind: 'deadline_changed';
   playerName: string;
-  event: MessageEvent; // the new event
+  event: EventDesignation; // the new event
   deadline: MessageGame;
   timeRemainingMs: number;
   previousDeadlineStartAt: EpochMs | null;
@@ -310,7 +310,7 @@ type AlertData = {
   kind: 'alert';
   sheetNumber: number;
   playerName: string;
-  events: MessageEvent[];
+  events: EventDesignation[];
   sections: Array<{
     typeName: string | null; // null: "sensitive event"
     values:
@@ -331,7 +331,7 @@ type AlertUpdateData = {
   sheetNumber: number;
   playerName: string;
   change:
-    | { kind: 'new_event'; event: MessageEvent }
+    | { kind: 'new_event'; event: EventDesignation }
     | { kind: 'expected_game_changed'; previousGame: MessageGame | null; reason: ExpectedGameChangeReason; expectedGame: MessageGame | null }
     | { kind: 'event_no_longer_applies'; typeName: string; game: MessageGame; reason: string };
   sheetStatus: AlertSheetStatus;
@@ -448,7 +448,7 @@ The other service messages follow `CL-TEL-07` (cap), `CL-TEL-11` (pass digest), 
 - `CL-TEL-20`: master switch, unlinking and pending messages.
 - `CL-TEL-22`: quiet hours include their start; the 23:00 pass (ADR 0019).
 - `CL-TEL-23`: the code travels in the link; it is never journaled.
-- `CL-TRV-11`: no end message for an incident the owner closed (its "Ruled elsewhere" recommendation).
+- `CL-IHM-20`, `CL-TRV-11`: the owner only hides incidents; every incident closes automatically, so every notified cycle ends with its end message when the sub-option is on.
 
 Modeling choices of this file:
 
@@ -487,7 +487,7 @@ erDiagram
 
 1. **Outbox facts** (`outbox_facts`): kinds in glossary style — `backtest_request_to_do` (request), `deadline_changed` (request, the new deadline game and the new event), `alert_sheet_produced` (sheet), `alert_sheet_updated` (sheet update entry), `tracked_game_result` (tracked game result), `new_type_proposal` (event type), `incident_opened` and `incident_closed` (incident) — each with its typed reference, the pass identifier, `created_at` and `consumed_at`, unique per fact; consumed by the dispatch task and purged once consumed.
 2. **Pass identifier**: a `pass_id` (uuid) on task runs, shared by a run and the runs chained to it (TRV-26), carried by each outbox fact.
-3. **Incidents**: `kind`, `opened_at`, `closed_at`, whether the owner closed it (`CL-TRV-11`), and the service function of `quota_reached`; source-level kinds linked through collection's `press_source_incidents`; kinds `telegram_link_broken` (opened on a permanent failure, closed when a chat is linked again) and `export_reminder` (one per reminder, `CL-TRV-22`).
+3. **Incidents**: `kind`, `opened_at`, `closed_at` (always automatic, `CL-TRV-11`), and the service function of `quota_reached`; source-level kinds linked through collection's `press_source_incidents`; kinds `telegram_link_broken` (opened on a permanent failure, closed when a chat is linked again) and `export_reminder` (one per reminder, `CL-TRV-22`).
 4. **Parameters**: the keys of glossary §9.3 family 11 as named; `notificationsEnabled` (the master switch, on by default, TEL-25) in the registry; a new `catchUpIntervalMinutes` (integer, default 60, family 11, `CL-TEL-12`); bounds of `CL-TRV-16`.
 5. **Activity journal**: entries of category `telegram_message` per message (category, facts as references, status, dates, failure reason; never the text, TEL-34), per refused code or stranger's message (instant and chat kind only, `CL-TRV-21`), per cap overflow (TEL-22) and per settings change (TEL-27); their event references set to null by a withdrawal (`CL-TRV-10`).
 6. **Read APIs**: a request's player, team, triggering event and deadline game (BKT-18) and whether it is still to do; a sheet's verdict for the `inconclusive_alerts` sub-option; the type's intimate-subject mark (TAX-01); a game's scheduled start, US date and opponent; the last full export instant (TRV-54).

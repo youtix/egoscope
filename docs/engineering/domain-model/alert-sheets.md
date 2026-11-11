@@ -26,7 +26,7 @@ The sourced write-up produced when a profiled player has a new detected event, o
 
 - **Unique and indexes:** `alert_sheets_player_idx` `(player_id, produced_at)` — the alert history by player and period (ALE-28, IHM-33); `alert_sheets_status_idx` `(status, produced_at)` — the open, closed and canceled sections of IHM-33; `alert_sheets_late_idx` `(produced_at) WHERE is_late` — the "late sheets" filter.
 - **Deletion cascades to:** every table below. A sheet is deleted only by the withdrawal of its only event (ALE-30, §1.9).
-- **TypeScript:** `id: AlertSheetId` (the sheet number); `type AlertSheetState = { status: 'open' | 'closed' } | { status: 'canceled'; cancellationReason: AlertSheetCancellationReason }`; `isLate` gives the `AlertSheetTiming` `late` or `produced_before_tip_off`.
+- **TypeScript:** `id: AlertSheetId`, exposed as the glossary's `number` on screens and in messages; `type AlertSheetState = { status: 'open' | 'closed' } | { status: 'canceled'; cancellationReason: AlertSheetCancellationReason }`; `isLate` gives the `AlertSheetTiming` `late` or `produced_before_tip_off`.
 
 ### 1.2 Section — `alert_sheet_sections`
 
@@ -87,13 +87,13 @@ An event placed on a sheet. Its type, description, reference date, sources, mark
 | --- | --- | --- | --- | --- | --- | --- |
 | `id` | integer identity | no | — | primary key | `none` | ALE-08 |
 | `alert_sheet_section_id` | integer | no | — | → `alert_sheet_sections.id` `ON DELETE CASCADE`; the section of the event's type | `none` | ALE-20 |
-| `event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; unique | `event` | ALE-03, ALE-08 |
+| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; unique | `event` | ALE-03, ALE-08 |
 | `added_at` | timestamptz | no | — | | `none` | ALE-20 |
 | `detection_confidence_at_issue` | smallint | yes | null | `CHECK (detection_confidence_at_issue BETWEEN 0 AND 100)`; null for an event of origin user or calendar-derived | `none` | ALE-08, ALE-21, CL-ALE-13 |
 
-- **Unique and indexes:** `alert_sheet_events_event_uq` unique `(event_id)` — an event belongs to one sheet only (ALE-03); the sheet of an event (IHM-32 "what the event triggered").
+- **Unique and indexes:** `alert_sheet_events_event_uq` unique `(player_event_id)` — an event belongs to one sheet only (ALE-03); the sheet of an event (IHM-32 "what the event triggered").
 - **Deletion:** with its section; by the withdrawal step (§1.9); moved to the new player's sheet on a player correction (ALE-31).
-- **TypeScript:** `{ eventId: EventId; detectionConfidenceAtIssue: number | null }`, joined at read time with the event's `PlayerEvent` view.
+- **TypeScript:** `{ playerEventId: PlayerEventId; detectionConfidenceAtIssue: number | null }`, joined at read time with the event's `PlayerEvent` view.
 
 ### 1.5 Expected-game entry — `alert_sheet_expected_games`
 
@@ -128,11 +128,11 @@ One caveat the sheet shows, every applicable one, none hidden (ALE-16); recomput
 | `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | `none` | ALE-16 |
 | `kind` | text | no | — | `CHECK (kind IN ('small_sample','effect_direction','known_context','several_events','confidence_near_threshold','dating_to_verify','incomplete_or_earlier_version','late_sheet','type_not_covered','confounder_not_separable'))` (`CaveatKind`) | `none` | ALE-16, ADR 0016 |
 | `event_type_id` | text | yes | null | → core `event_types.id` `ON DELETE RESTRICT`; the section's type for `small_sample`, `effect_direction`, `incomplete_or_earlier_version`, `type_not_covered`, `confounder_not_separable` | `none` | ALE-16 |
-| `event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event for `confidence_near_threshold` and `dating_to_verify` | `event` | ALE-16 |
+| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event for `confidence_near_threshold` and `dating_to_verify` | `event` | ALE-16 |
 | `known_context_reasons` | text[] | yes | null | `CHECK (known_context_reasons <@ ARRAY['high_stakes','injury_return_flagged','opponent_strength'])` (`KnownContextReason`); `CHECK ((kind = 'known_context') = (known_context_reasons IS NOT NULL))` | `none` | ALE-16, D-19 |
 | `computed_at` | timestamptz | no | — | | `none` | CL-ALE-07 |
 
-- **Unique and indexes:** `alert_sheet_caveats_uq` unique `NULLS NOT DISTINCT (alert_sheet_id, kind, event_type_id, event_id)`.
+- **Unique and indexes:** `alert_sheet_caveats_uq` unique `NULLS NOT DISTINCT (alert_sheet_id, kind, event_type_id, player_event_id)`.
 - **Deletion:** with its sheet; replaced as a set at each recomputation (§2.4).
 - **TypeScript:** a union on `kind`; the two forms of the direction caveat (`CL-ALE-03`) follow the section's `verdict_level`.
 
@@ -146,12 +146,12 @@ The append-only update log: every dated change the sheet records (ALE-20 to ALE-
 | `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | `none` | ALE-31 |
 | `occurred_at` | timestamptz | no | — | | `none` | ALE-20 to ALE-25 |
 | `kind` | text | no | — | `CHECK (kind IN ('event_added','source_added','event_dismissed','event_reinstated','expected_game_changed','late_mark_changed','context_corrected','attachment_corrected','profile_values_entered','profile_changed_since_issue','caveats_changed','status_changed','outcome_recorded','outcome_value_changed','event_no_longer_applies'))` (`AlertSheetUpdateKind`) | `none` | ALE-20 to ALE-31, CL-ALE-04, CL-ALE-07, CL-ALE-12, CL-ALE-13 |
-| `event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event the entry concerns | `event` | ALE-20 to ALE-22, ALE-25, ALE-31 |
+| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event the entry concerns | `event` | ALE-20 to ALE-22, ALE-25, ALE-31 |
 | `alert_sheet_section_id` | integer | yes | null | → `alert_sheet_sections.id` `ON DELETE CASCADE`; the section concerned | `none` | ALE-05, ALE-19, ALE-20 |
 | `detail` | jsonb | no | `'{}'` | immutable values of the entry, read back whole (shapes below); identifiers and closed values only, never a text of an event or an article | `none` | ALE-31, CL-ALE-12 |
 
 - **Detail by kind:** `source_added` `{ articleId }`; `expected_game_changed` `{ fromEntryId, toEntryId, reason }`; `late_mark_changed` `{ isLate }`; `attachment_corrected` `{ correction: 'player' | 'type' | 'merge', newSheetId? }`; `status_changed` `{ from, to, cancellationReason? }`; `outcome_recorded` `{ caseId }`; `outcome_value_changed` `{ caseId, field: 'gap' | 'baseline' | 'category', previous }`; `event_no_longer_applies` `{ eventTypeId, gameId, reason }`; the other kinds `{}`.
-- **Unique and indexes:** `alert_sheet_updates_sheet_idx` `(alert_sheet_id, occurred_at)` — the log in order; `alert_sheet_updates_event_idx` `(event_id) WHERE event_id IS NOT NULL` — the withdrawal step.
+- **Unique and indexes:** `alert_sheet_updates_sheet_idx` `(alert_sheet_id, occurred_at)` — the log in order; `alert_sheet_updates_event_idx` `(player_event_id) WHERE player_event_id IS NOT NULL` — the withdrawal step.
 - **Deletion:** with its sheet; entries about a withdrawn event by the withdrawal step. A notification message that names an entry blocks its deletion (notifications.md).
 - **TypeScript:** a union on `kind` with the detail shapes above.
 
@@ -197,7 +197,7 @@ What may remain: the sheet of the other events, with its other sections, snapsho
 | `open` | `closed` | every non-dismissed event's case is measured, excluded or not measurable | — | one outcome per case with its profile-after snapshot; `outcome_recorded`, `status_changed` entries | ALE-26, ALE-27, CL-ALE-12 |
 | `open`, `closed` | `canceled` (`all_events_dismissed`) | the owner dismisses the last non-dismissed event | — | `event_dismissed`, `status_changed` entries; outcomes unchanged; no message | ALE-22, CL-ALE-06 |
 | `open`, `closed` | `canceled` (`attachment_corrected`) | a player correction or a merge leaves the sheet no event | — | `attachment_corrected` entry; a new sheet for the new player when ALE-01 applies | ALE-31 |
-| `open` | `canceled` (`event_no_longer_applies`) | an upcoming calendar-derived event is dropped before tip-off and no other non-dismissed event remains | — | `event_no_longer_applies` entry; an `alert_sheet_updated` fact when the sheet was notified (CL-TEL-21) | CL-ALE-13, CL-TEL-21 |
+| `open` | `canceled` (`event_no_longer_applies`) | an upcoming calendar-derived event is dropped before tip-off and no other non-dismissed event remains | — | `event_no_longer_applies` entry; an `alert_sheet_updated` fact when the sheet was notified and the drop does not follow the owner's own change, such as a corrected birthday (CL-TEL-21, CL-JOU-16) | CL-ALE-13, CL-TEL-21 |
 | `canceled` | `open` or `closed` | an event is reinstated (DET-45), or a new event arrives for the same game (`CL-ALE-14`) | the state ALE-26 gives | reinstatement: entry, no message; new event: a dated section and an `alert_sheet_updated` fact if the sheet was notified, else `alert_sheet_produced` | ALE-22, ALE-26, CL-ALE-14 |
 | any | (deleted) | withdrawal of its only event | — | §1.9 | ALE-30 |
 
@@ -279,7 +279,7 @@ None is owned here. The data an alert or an alert update needs is defined in [no
 - `CL-ALE-10`: every source line shows its title, read from the article.
 - `CL-ALE-11`: one sequence, gaps accepted.
 - `CL-ALE-12`: the outcome's frozen profile and live values with logged changes.
-- `CL-ALE-13`: sheets of upcoming calendar-derived events; the cancellation reason `event_no_longer_applies`.
+- `CL-ALE-13`: sheets of upcoming calendar-derived events; the cancellation reason `event_no_longer_applies`. `CL-SUI-14` also drops an upcoming event whose type stops being validated, which `CL-TAX-20` (after TAX-31) keeps: this model supports either; the remaining difference is the orchestrator's to settle.
 - `CL-ALE-14`: a new event revives a canceled sheet of the same game.
 - ADR 0016: the caveat `confounder_not_separable`.
 
