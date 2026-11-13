@@ -92,6 +92,26 @@ gives no difference.
   condition, an inline callback) goes untested, so keep it trivial; `route.ts` handlers are
   covered.
 
+## Mutation testing
+
+- Stryker mutates the non-test files of the pure core (`src/lib/stats-engine/` and
+  `src/lib/ai-exchange/`), one fault at a time, and runs only their own tests against each
+  mutant. Every mutant must be killed: a run below a 100% mutation score fails.
+- `bun run test:mutation` runs it, under the shared lock. `bun run gate` runs it only when the
+  pure core or the Stryker setup (`stryker.config.ts`, `.github/workflows/mutation.yml`)
+  differs from `origin/main`, and the `mutation` workflow does the same in CI.
+- Runs are incremental: each records its results in `reports/` (git-ignored, cached in CI),
+  and the next tests only the mutants of what changed. After a change to a fixture that these
+  tests import, to the Stryker or Vitest configuration or to a dependency, run
+  `bun run test:mutation --force`.
+- A survivor, shown in `reports/mutation/mutation.html`, is a wrong formula or check that the
+  tests let through: write the test that fails on it, with exact expected values. Prompt and
+  message texts are asserted exactly, which kills their string mutants.
+- Only a genuinely equivalent mutant, which no test can tell from the code, may be spared, on
+  its own line, by the one Stryker comment allowed (see "Never weaken the gate"). It names its
+  mutators, never `all` in any letter case, and its reason says why no test can tell the mutant
+  apart. Never disable a mutator for a whole file.
+
 ## The local loop
 
 - Heavy scripts (`typecheck`, `lint`, `lint:fix`, `test`, `test:coverage`, `build`, `knip`,

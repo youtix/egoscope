@@ -1,0 +1,82 @@
+# Mutation testing of the pure core (CLAUDE.md): Stryker plants one fault at a time
+# in src/lib/stats-engine/ and src/lib/ai-exchange/, and their own tests must catch
+# every one. The workflow always starts, with no path filter, and its final job,
+# `mutation`, always reports a result, because `main` requires it by name. The job
+# that runs Stryker finishes at once when the pull request (or, on main, the push)
+# changes nothing in the mutation scope (scripts/mutation-scope.ts).
+name: Mutation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  stryker:
+    name: stryker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The commit under test and its first parent, which the change is measured
+          # against: the base branch of a pull request's merge commit, or the
+          # previous commit of main.
+          fetch-depth: 2
+      - uses: ./.github/actions/setup-project
+      - name: Restore the results of earlier mutation runs
+        id: incremental
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        env:
+          # Incremental mode cannot see a change of configuration or dependencies, so
+          # these files name the cache: when one of them changes, the run starts afresh.
+          PREFIX: stryker-${{ hashFiles('stryker.config.ts', 'vitest.config.ts', 'tsconfig.json', 'bun.lock') }}-
+        with:
+          path: reports/stryker-incremental.json
+          key: ${{ env.PREFIX }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ env.PREFIX }}
+      - name: Mutation tests, when the mutation scope changed
+        run: bun scripts/mutation-gate.ts HEAD^1
+      # Stryker writes its report only when it runs.
+      - name: Upload the mutation report (HTML and JSON)
+        if: ${{ !cancelled() && hashFiles('reports/mutation/mutation.json') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          retention-days: 14
+      - name: Save the results for later mutation runs
+        if: ${{ !cancelled() && hashFiles('reports/mutation/mutation.json') != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: reports/stryker-incremental.json
+          key: ${{ steps.incremental.outputs.cache-primary-key }}
+
+  mutation:
+    name: mutation
+    if: ${{ always() }}
+    needs: [stryker]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci-ok.sh
+          sparse-checkout-cone-mode: false
+      - name: Require the mutation tests to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
+        run: sh scripts/ci-ok.sh

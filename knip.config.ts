@@ -23,6 +23,9 @@ const config: KnipConfig = {
   ],
   // A system tool from util-linux, not an npm package.
   ignoreBinaries: ['flock'],
+  // Stryker also starts through scripts/with-lock.ts, with a TypeScript
+  // configuration that its plugin does not look for by itself.
+  stryker: { config: ['stryker.config.ts'] },
 };
 
 export default config;
