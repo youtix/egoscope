@@ -1,0 +1,19 @@
+# Exceptions to the lockfile scan of the osv-scanner job (.github/workflows/security.yml).
+# Upgrade the package whenever a fixed version can be installed. Otherwise an advisory is
+# ignored here only with the reason it cannot harm this project and what will fix it,
+# until a date at most three months away, when the scan fails again and it is reviewed.
+
+[[IgnoredVulns]]
+id = "GHSA-gg6h-894w-4m9c"
+ignoreUntil = 2026-12-03
+reason = "re2js 2.8.6, high: quadratic-time denial of service. Development only: markdownlint-cli2 0.24.0 pins markdownlint 0.42.0, which pins re2js 2.8.6 and applies it to this repository's own Markdown; a pull request could at worst slow down its own lint job. markdownlint-cli2 0.24.1 brings re2js 2.9.1 and can be installed from 2026-11-19, once seven days old."
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-13
+reason = "minimatch 10.2.6, moderate: denial of service through crafted glob patterns. Development only: ESLint, typescript-eslint and the ESLint plugins match this repository's own glob patterns with it; a pull request could at worst slow down its own lint job. The fix exists only in minimatch 11, outside the ^10 range of every package that uses it."
+
+[[IgnoredVulns]]
+id = "GHSA-238p-pmpm-9mq7"
+ignoreUntil = 2027-02-13
+reason = "katex 0.16.47, low: an existing prototype pollution can bypass its trust restrictions. Development only and never run: micromark-extension-math imports it in its HTML renderer, and markdownlint only parses Markdown. The fix exists only in katex 0.18.2, outside micromark-extension-math's ^0.16.0 range."
