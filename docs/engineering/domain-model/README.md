@@ -245,6 +245,12 @@ them as they are; every other stored value is defined here, and the lists below 
 module map owns the task and parameter keys. Every other `CHECK` list of the model is a glossary
 set (67c24c2) or a subset of one.
 
+Precedence between the reference documents ([index](../README.md)): the French specifications
+decide behavior; a ruling outranks a reading of a specification; the glossary owns terms, labels
+and the stored values it lists; the data model owns tables, columns and every stored value the
+glossary does not list (a task that displays such a value adds its label to the glossary in its own
+pull request); the module map owns module names, routes, parameter keys and task keys.
+
 | where                    | values the glossary does not have yet                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | players                  | `birthday_origin`: `stats_source`, `owner`                                                                                                                                                                                                                                                                                                                                                                                         |
