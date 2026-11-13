@@ -186,10 +186,12 @@ in its allow-list, the only place for an exception:
 - `.gitleaks.toml`: an `[[allowlists]]` entry for one exact dummy value of `.env.example` or of a
   test fixture, with its description; never a path or a pattern, since recorded answers of real
   services are scanned like code.
+- `.github/zizmor.yml`: an ignore of one audit in one workflow, with a comment giving the reason
+  and the fix it waits for.
 
-The scans honor nothing else: no `gitleaks:allow` comment, no `.gitleaksignore` file, no zizmor
-ignore. A CodeQL result is fixed in the code; if you are sure it is a false positive, say so in the
-pull request and leave the decision to the owner.
+The scans honor nothing else: no `gitleaks:allow` comment, no `.gitleaksignore` file, no inline
+zizmor ignore. A CodeQL result is fixed in the code; if you are sure it is a false positive, say so
+in the pull request and leave the decision to the owner.
 
 ## Git and pull requests
 
