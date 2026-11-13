@@ -1,0 +1,59 @@
+# Requirement traceability (scripts/trace-requirements.ts). On a pull request, each
+# requirement and acceptance criterion that the description lists under
+# "Requirements covered" must have a test that names it, or a waiver. Whatever the
+# event, every ID that a test title cites must exist in the specs, the waiver
+# register must hold, and the criteria index must be up to date. `main` requires the
+# final job, `trace`, which passes only when every other job succeeded
+# (scripts/ci-ok.sh).
+name: Trace
+
+on:
+  pull_request:
+    # `edited` checks the claims again when the description changes.
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  requirements:
+    name: requirements
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      # A push has no description, so it claims nothing and runs the other rules only.
+      - name: Every claimed requirement is tested or waived, and every cited ID exists
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s\n' "$PR_BODY" | bun run trace --require-claimed
+
+  trace:
+    name: trace
+    if: ${{ always() }}
+    needs: [requirements]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci-ok.sh
+          sparse-checkout-cone-mode: false
+      - name: Require every job to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
+        run: sh scripts/ci-ok.sh

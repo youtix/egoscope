@@ -1,0 +1,20 @@
+{
+  "lots": { "1": 384, "2": 243 },
+  "prefixes": {
+    "VUE": { "file": "00", "requirements": 10, "criteria": 10 },
+    "JOU": { "file": "01", "requirements": 28, "criteria": 17 },
+    "TAX": { "file": "02", "requirements": 33, "criteria": 17 },
+    "COL": { "file": "03", "requirements": 50, "criteria": 28 },
+    "DET": { "file": "04", "requirements": 58, "criteria": 39 },
+    "BKT": { "file": "05", "requirements": 30, "criteria": 17 },
+    "IMP": { "file": "06", "requirements": 37, "criteria": 29 },
+    "STA": { "file": "07", "requirements": 48, "criteria": 19 },
+    "SEN": { "file": "08", "requirements": 48, "criteria": 22 },
+    "ALE": { "file": "09", "requirements": 31, "criteria": 22 },
+    "SUI": { "file": "10", "requirements": 30, "criteria": 21 },
+    "TEL": { "file": "11", "requirements": 38, "criteria": 21 },
+    "IHM": { "file": "12", "requirements": 71, "criteria": 24 },
+    "DSN": { "file": "13", "requirements": 35, "criteria": 19 },
+    "TRV": { "file": "14", "requirements": 80, "criteria": 41 }
+  }
+}

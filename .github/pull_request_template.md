@@ -5,9 +5,15 @@
 ## Requirements covered
 
 <!--
-Every requirement this pull request implements or changes, cited exactly as the French
-specifications write it (JOU-04, CA-TRV-12, H-13), with how it is verified: the test that
-carries the ID in its title, or the check that proves it. Write "None" for tooling-only work.
+Every requirement and acceptance criterion this pull request implements or changes, cited
+exactly as the French specifications and docs/engineering/acceptance-criteria-index.md write
+them (JOU-04, CA-TRV-12), with how it is verified: the test that carries the ID in its title, or
+the check that proves it. Hypotheses, questions, decisions and rulings (H-13, Q-04, D-07,
+CL-STA-01) may be cited too; they need no test. Write "None" for tooling-only work.
+
+The trace workflow reads every ID of this section outside this comment, and fails unless each
+requirement and criterion among them has a test that names it, or a waiver in
+docs/engineering/requirement-waivers.md.
 -->
 
 | Requirement | Verified by |
