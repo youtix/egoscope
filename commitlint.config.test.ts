@@ -15,8 +15,12 @@ function lint(message: string): Readonly<{ status: number | null; output: string
 }
 
 describe('commitlint.config.ts', { timeout: 60_000 }, () => {
-  it('accepts a Conventional Commits message', () => {
-    expect(lint('feat: add the player list\n').status).toBe(0);
+  it.each([
+    'feat: add the player list',
+    'chore: merge origin/main into feat/player-list',
+    'revert: add the player list',
+  ])('accepts %j, as CLAUDE.md shows', (message) => {
+    expect(lint(`${message}\n`).status).toBe(0);
   });
 
   it.each([

@@ -166,6 +166,9 @@ urgent security fix that is younger gets an exact `name@version` entry in
 - One task per PR, on a branch named `type/short-slug`, for example `feat/player-list`.
 - Commits and PR titles follow Conventional Commits (`feat: add the player list`); PRs are
   squash-merged with the title as the commit subject. commitlint checks both.
+- Bring a branch up to date with `git fetch origin main` and `git rebase origin/main`. A merge
+  commit, if you must make one, needs a conventional message (`chore: merge origin/main into
+feat/player-list`). Never commit `fixup!` or `squash!` messages: amend the commit instead.
 - Every commit message ends with the `Co-Authored-By:` line of the model that wrote the commit,
   exactly as your own environment specifies it.
 - The PR body follows the template: it lists the requirement IDs covered and how each was verified,
