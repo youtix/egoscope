@@ -33,8 +33,9 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
    no I/O, no Node or browser API, no clock (`Date.now()`, argument-less `new Date()`), no local
    time (local getters and setters, `toLocale*`, date strings), no randomness, no environment and
    no async code: pass such values in as arguments, and use UTC methods on instants.
-   `src/lib/ai-exchange/**` obeys the same rules, except that it may import npm packages and run
-   async code; it imports nothing from `src/`.
+   `src/lib/ai-exchange/**` obeys the same rules, except that it may import `zod` and run async
+   code. The tests of both may also import `vitest`, `fast-check` and fixtures from `@data/`; no
+   other import is allowed, so that no package can bring Node or DOM types into the pure core.
 3. A route never imports from another route. Inside `src/app`, relative imports are `./name` only;
    code that two routes need moves to `src/lib/<module>`.
 4. Other code imports a module only as `@/lib/<module>`. Its `index.ts` only re-exports, by name

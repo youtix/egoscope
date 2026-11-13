@@ -117,9 +117,21 @@ const NO_IMPORT_OUTSIDE_STATS_ENGINE_TESTS: ImportPattern = {
   message:
     'The statistics core imports nothing outside itself; its tests may also import vitest, fast-check and fixtures from @data/ (module rule 2).',
 };
+// The exchange contracts may use zod; no other package, so that no import can
+// bring Node or DOM types (next, react…) into the pure-core type check.
+const NO_IMPORT_OUTSIDE_AI_EXCHANGE: ImportPattern = {
+  regex: String.raw`^(?!\.\.?/|zod(?:/|$))`,
+  message:
+    'src/lib/ai-exchange imports nothing outside itself but zod, so that no Node or DOM type reaches the pure core (module rule 2).',
+};
+const NO_IMPORT_OUTSIDE_AI_EXCHANGE_TESTS: ImportPattern = {
+  regex: String.raw`^(?!\.\.?/|zod(?:/|$)|vitest$|fast-check$|@data/)`,
+  message:
+    'src/lib/ai-exchange imports nothing outside itself but zod; its tests may also import vitest, fast-check and fixtures from @data/ (module rule 2).',
+};
 const NO_SRC_FROM_AI_EXCHANGE: ImportPattern = {
   regex: '^@/',
-  message: 'src/lib/ai-exchange imports nothing from src/; packages only (module rule 2).',
+  message: 'src/lib/ai-exchange imports nothing from src/ (module rule 2).',
 };
 
 const escapeSlashes = (regex: string): string => regex.replaceAll('/', String.raw`\/`);
@@ -361,19 +373,31 @@ const MODULE_AREAS: readonly Area[] = [
   {
     name: 'ai-exchange',
     files: [`src/lib/ai-exchange/*.${TS}`],
-    imports: [NO_SRC_FROM_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_MODULE],
+    imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_MODULE],
     syntax: PURE_SYNTAX,
   },
   {
     name: 'ai-exchange-subfolder',
     files: [`src/lib/ai-exchange/*/*.${TS}`],
-    imports: [NO_SRC_FROM_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
+    imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
+    syntax: PURE_SYNTAX,
+  },
+  {
+    name: 'ai-exchange-tests',
+    files: [`src/lib/ai-exchange/*.test.${TS}`],
+    imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE_TESTS, NO_RELATIVE_EXIT_FROM_MODULE],
+    syntax: PURE_SYNTAX,
+  },
+  {
+    name: 'ai-exchange-subfolder-tests',
+    files: [`src/lib/ai-exchange/*/*.test.${TS}`],
+    imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE_TESTS, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
     syntax: PURE_SYNTAX,
   },
   {
     name: 'ai-exchange-index',
     files: [`src/lib/ai-exchange/index.${TS}`],
-    imports: [NO_SRC_FROM_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_MODULE],
+    imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_MODULE],
     syntax: [...BARREL_SYNTAX, ...PURE_SYNTAX],
   },
   {

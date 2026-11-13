@@ -135,7 +135,7 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
       ).toContain('no-restricted-imports');
     });
 
-    it('lets src/lib/ai-exchange use packages, but no other module and no clock', async () => {
+    it('lets src/lib/ai-exchange use zod, but no other module and no clock', async () => {
       const file = 'src/lib/ai-exchange/probe.ts';
 
       expect(await ruleIds(file, "export { z } from 'zod';\n")).not.toContain(
@@ -146,6 +146,26 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
       );
       expect(await ruleIds(file, 'export const now = (): number => Date.now();\n')).toContain(
         'no-restricted-properties',
+      );
+    });
+
+    it.each([
+      ['src/lib/stats-engine/probe.ts', "import type { NextRequest } from 'next/server';"],
+      ['src/lib/ai-exchange/probe.ts', "import type { NextRequest } from 'next/server';"],
+      ['src/lib/ai-exchange/probe.ts', "import type { ReactNode } from 'react';"],
+      ['src/lib/ai-exchange/probe.test.ts', "import type { NextRequest } from 'next/server';"],
+    ])('keeps Node and DOM types out of the pure core: %s refuses %s', async (file, statement) => {
+      const code = `${statement}\n\nexport type Probe = unknown;\n`;
+
+      expect(await ruleIds(file, code)).toContain('no-restricted-imports');
+    });
+
+    it('lets the ai-exchange tests import vitest, fast-check and fixtures', async () => {
+      const allowed =
+        "export { expect } from 'vitest';\nexport { default as fc } from 'fast-check';\nexport { default as season } from '@data/fixtures/season.json';\nexport { z } from 'zod';\n";
+
+      expect(await ruleIds('src/lib/ai-exchange/probe.test.ts', allowed)).not.toContain(
+        'no-restricted-imports',
       );
     });
   });

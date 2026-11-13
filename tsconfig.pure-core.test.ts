@@ -1,5 +1,6 @@
 // Proves that tsconfig.pure-core.json gives the pure core the ECMAScript library
-// only: a Node.js or DOM global used there is a type error.
+// only: a Node.js or DOM global used there is a type error, and no Node or DOM
+// declaration file is part of the program at all.
 import path from 'node:path';
 
 import ts from 'typescript';
@@ -7,9 +8,16 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = import.meta.dirname;
 const PROBE = path.join(ROOT, 'src/lib/stats-engine/purity-probe.ts');
+const NODE_TYPES = /[/\\]@types[/\\]node[/\\]/u;
+const DOM_LIBRARY = /[/\\]lib\.dom(?:\.[a-z]+)*\.d\.ts$/u;
 
-/** Type-checks `code` as if it were a file of the statistics core. */
-function typeErrors(code: string): readonly string[] {
+const isNodeOrDom = (file: string): boolean => NODE_TYPES.test(file) || DOM_LIBRARY.test(file);
+
+/**
+ * The pure-core program: its real files, or, given `code`, a probe file of the
+ * statistics core holding that code.
+ */
+function pureCoreProgram(code?: string): ts.Program {
   const parsed = ts.getParsedCommandLineOfConfigFile(
     path.join(ROOT, 'tsconfig.pure-core.json'),
     {},
@@ -17,6 +25,9 @@ function typeErrors(code: string): readonly string[] {
   );
   if (parsed === undefined) {
     throw new Error('tsconfig.pure-core.json cannot be read.');
+  }
+  if (code === undefined) {
+    return ts.createProgram({ rootNames: parsed.fileNames, options: parsed.options });
   }
   const base = ts.createCompilerHost(parsed.options);
   const host: ts.CompilerHost = {
@@ -28,11 +39,17 @@ function typeErrors(code: string): readonly string[] {
         ? ts.createSourceFile(file, code, version)
         : base.getSourceFile(file, version, ...rest),
   };
-  const program = ts.createProgram({ rootNames: [PROBE], options: parsed.options, host });
+  return ts.createProgram({ rootNames: [PROBE], options: parsed.options, host });
+}
+
+function typeErrors(code: string): readonly string[] {
   return ts
-    .getPreEmitDiagnostics(program)
+    .getPreEmitDiagnostics(pureCoreProgram(code))
     .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
 }
+
+const fileNames = (program: ts.Program): readonly string[] =>
+  program.getSourceFiles().map((file) => file.fileName);
 
 describe('tsconfig.pure-core.json', () => {
   it.each([
@@ -50,5 +67,19 @@ describe('tsconfig.pure-core.json', () => {
       'export const start = Date.UTC(2025, 2, 14);\nexport const half = Math.round(0.5);\n';
 
     expect(typeErrors(code)).toStrictEqual([]);
+  });
+
+  it('reads no Node or DOM declaration file for the real pure core', () => {
+    const files = fileNames(pureCoreProgram());
+
+    expect(files.filter((file) => file.includes('/src/lib/stats-engine/'))).not.toHaveLength(0);
+    expect(files.filter((file) => isNodeOrDom(file))).toStrictEqual([]);
+  });
+
+  it('would read the Node types through a type import, which the module rules refuse', () => {
+    const code =
+      "import type { NextRequest } from 'next/server';\n\nexport type Probe = NextRequest;\n";
+
+    expect(fileNames(pureCoreProgram(code)).some((file) => isNodeOrDom(file))).toBe(true);
   });
 });

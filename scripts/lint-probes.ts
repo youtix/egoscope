@@ -55,6 +55,7 @@ const PROBE_FILES: readonly string[] = [
   'src/app/probe/helper.ts',
   'src/app/probe/probe-view.tsx',
   'src/lib/Bad_Module/probe.ts',
+  'src/lib/ai-exchange/probe.test.ts',
   'src/lib/ai-exchange/probe.ts',
   'src/lib/env/index.ts',
   'src/lib/env/probe.ts',
