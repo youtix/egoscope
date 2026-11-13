@@ -91,42 +91,52 @@ revisits a game it has derived and checks the fingerprints first, so such an eve
 only through a full derivation run after its fingerprint has expired; the withdrawal screen says so
 and offers the permanent alternative, excluding its case (SEN-17, CL-DSN-19).
 
-Order of a withdrawal of event E, every row of the left column being deleted unless stated:
+Order of a withdrawal of event E. Steps 4 to 12 are the erasure's single transaction, every row
+named being deleted unless stated; no outside call runs inside a transaction (CL-TEL-09):
 
 1. Guards: the owner confirmed after the screen of CL-DSN-19, which lists what disappears and the
    limits, the number of Telegram messages mentioning E included, and says when an import draft of
    the player will be discarded, with the limit of a device left offline.
-2. Upsert the fingerprint of E into `withdrawal_fingerprints` with `created_at = now()`.
-3. Lot 2 sub-steps, in this order, the module map's: notifications — reads the chat and message
-   identifiers of every sent message about E, digests included and whatever its age, then erases
-   their texts and identifiers (CL-TEL-09); alerts — in the sheet holding E, everything about it, or
-   the whole sheet and its alert-history entry if E was its only event, with the outbox facts of
-   its sheets and update entries; tracking — its tracked-case data, with the outbox facts of its
-   tracked game results; detection — the classification results of its articles and their
-   attachments; collection — every article attached to E and to no other event, with no dedup
-   trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the outbox facts of its own
-   objects by `lot2_subject_id` and nulls the journal's `lot2_object_kind` and `lot2_object_id` for
-   what it erases.
-4. `import_event_outcomes` and `import_possible_duplicates` rows whose event is E, so that the
-   import trace, counts included, keeps nothing designating it (IMP-37). In the same step, the import drafts of
-   every backtest request of E's player, since a pasted result may report the withdrawn fact: the
-   server copies here, each device's copy at its next contact with the server and at the latest at
-   the draft's expiry; exploration drafts are not concerned (the orchestrator's ruling, DSN-27,
-   DSN-32; the request ids come from `backtest_requests`, and `drafts_import_key` finds each draft).
-5. `journal_technical_details` of journal entries that concerned only E; the entries' references
+2. A first transaction, committed on its own (Lot 2, notifications): the unsent messages about E
+   are abandoned, so that nothing more can be sent, and the chat and message identifiers of the
+   sent ones, digests included, are read.
+3. Outside any transaction: the app asks Telegram once to delete each of those messages, whatever
+   its age, and keeps the answers in memory.
+4. Upsert the fingerprint of E into `withdrawal_fingerprints` with `created_at = now()`.
+5. Lot 2 sub-steps, in this order, the module map's: notifications — erases the texts and
+   identifiers of every message about E, whatever Telegram answered in step 3; alerts — in the
+   sheet holding E, everything about it, or the whole sheet and its alert-history entry if E was its
+   only event, with the outbox facts of its sheets and update entries; tracking — its tracked-case
+   data, with the outbox facts of its tracked game results; detection — the classification results
+   of its articles and their attachments; collection — every article attached to E and to no other
+   event, with no dedup trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the
+   outbox facts of its own objects by `lot2_subject_id` and nulls the journal's `lot2_object_kind`
+   and `lot2_object_id` for what it erases.
+6. `import_event_outcomes` and `import_possible_duplicates` rows whose event is E, so that the
+   import trace, counts included, keeps nothing designating it (IMP-37). In the same step, the
+   import drafts of every backtest request of E's player, since a pasted result may report the
+   withdrawn fact: the server copies here, each device's copy at its next contact with the server
+   and at the latest at the draft's expiry; exploration drafts are not concerned (the orchestrator's
+   ruling, DSN-27, DSN-32; the request ids come from `backtest_requests`, and `drafts_import_key`
+   finds each draft).
+7. `journal_technical_details` of journal entries that concerned only E; the entries' references
    to E then become null and read "an item that no longer exists" (CL-TRV-10).
-6. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),
+8. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),
    `event_import_warnings`, `event_marks`, `event_status_changes`, `event_corrections` and
    `backtest_request_events`, the outbox facts and restore-report rows that name it.
-7. E's case if it holds no other event, with its criteria, flags, decisions and history.
-8. `withdrawn_event_counter.value + 1`.
-9. A journal entry "an event was withdrawn", with no player, type or date (CL-TRV-10).
-10. A full recalculation job with cause `recalculation`; a profile or trend it leaves with no event
+9. E's case if it holds no other event, with its criteria, flags, decisions and history.
+10. `withdrawn_event_counter.value + 1`.
+11. A journal entry "an event was withdrawn", with no player, type or date (CL-TRV-10).
+12. A full recalculation job with cause `recalculation`; a profile or trend it leaves with no event
     is erased with its verdict history and its historical-view versions (SEN-48, CL-SEN-18).
-11. After the commit, never inside the transaction: one Telegram deletion request per message
-    identifier read in step 3; the ones Telegram refuses or that cannot be reached are listed once
-    to the owner with their send date and time and whether each was a digest, then not kept
-    (CL-DSN-13, CL-TEL-09).
+13. The result screen gives the number of messages deleted and lists, from memory, the ones
+    Telegram refused or could not be reached for, with their send date and time and whether each
+    was a digest; that list is never stored (CL-DSN-13, CL-TEL-09).
+
+If the process stops after step 2 or 3, E still exists and the owner withdraws it again; on that
+second attempt a message Telegram no longer finds counts as deleted. Committing the erasure first
+would instead leave messages in the chat with no record of them if the process stopped before the
+requests were sent.
 
 What remains afterwards: the counter and, for the horizon, the fingerprint. Accepted residual
 limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); backups until they
