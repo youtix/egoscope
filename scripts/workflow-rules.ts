@@ -6,7 +6,10 @@
  *   elsewhere (`e2e` in e2e.yml).
  * - That job runs whatever happened to the others (`if: always()`), needs every
  *   other job of its file, and judges them with scripts/ci-ok.sh, which fails it
- *   when one of them failed or was skipped unexpectedly.
+ *   when one of them failed or was skipped unexpectedly. The step that judges has
+ *   no `if:`, which could skip it and let the job pass unjudged.
+ * - The job's `name:`, if it sets one, is its id: the check reports under that
+ *   name, which branch protection requires.
  * - No trigger of such a workflow is filtered by path, so its final job always
  *   reports a result.
  * - No job or step of any workflow continues on error.
@@ -73,6 +76,21 @@ function isVerdict(step: unknown): boolean {
   );
 }
 
+/** The problems of the steps of the final job `id`: one of them judges, and nothing skips it. */
+function verdictViolations(id: string, steps: readonly unknown[]): readonly string[] {
+  const verdicts = steps.filter((step) => isVerdict(step));
+  if (verdicts.length === 0) {
+    return [
+      `${id} must judge the jobs it needs with \`sh scripts/ci-ok.sh\`, given NEEDS and EVENT as in ci.yml: it fails when one of them failed or was skipped.`,
+    ];
+  }
+  return verdicts.some((step) => isMapping(step) && Object.hasOwn(step, 'if'))
+    ? [
+        `The verdict step of ${id} has an \`if:\`, which could skip it and let ${id} pass without judging the jobs it needs: remove it.`,
+      ]
+    : [];
+}
+
 function finalJobViolations(workflowPath: string, jobs: Mapping): readonly string[] {
   const id = finalJobOf(workflowPath);
   const final = jobs[id];
@@ -87,11 +105,12 @@ function finalJobViolations(workflowPath: string, jobs: Mapping): readonly strin
     ...(typeof condition === 'string' && ALWAYS.test(condition)
       ? []
       : [`${id} must run even when a job it needs fails: give it \`if: always()\`.`]),
-    ...(listOf(final['steps']).some((step) => isVerdict(step))
-      ? []
-      : [
-          `${id} must judge the jobs it needs with \`sh scripts/ci-ok.sh\`, given NEEDS and EVENT as in ci.yml: it fails when one of them failed or was skipped.`,
-        ]),
+    ...(Object.hasOwn(final, 'name') && final['name'] !== id
+      ? [
+          `The name of ${id} must be its id: the check reports under the job's name, and branch protection requires ${id}.`,
+        ]
+      : []),
+    ...verdictViolations(id, listOf(final['steps'])),
     ...Object.keys(jobs)
       .filter((job) => job !== id && !needs.includes(job))
       .map(
