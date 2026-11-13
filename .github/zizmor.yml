@@ -3,6 +3,8 @@
 # job refuses inline ignore comments, which would carry no reason.
 rules:
   self-repository:
+    # Until the workflows load the setup action with GitHub's self-repository syntax, a new
+    # workflow that reuses ./.github/actions/setup-project adds itself below, with its reason.
     ignore:
       # ci.yml belongs to the quality-gate task, and the security task may not edit it. Its
       # uses of ./.github/actions/setup-project move to GitHub's self-repository syntax,
@@ -12,3 +14,7 @@ rules:
       # edit either. Its use of ./.github/actions/setup-project moves to $/... in the same
       # change, which removes this entry too.
       - mutation.yml
+      # trace.yml belongs to the requirement-traceability task, which the security task may
+      # not edit either. Its use of ./.github/actions/setup-project moves to $/... in the
+      # same change, which removes this entry too.
+      - trace.yml
