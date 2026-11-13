@@ -94,11 +94,11 @@ Every owner decision of the kinds SUI-17 lists that made a tracked case leave th
 | `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | — | SUI-17 |
 | `kind` | text | no | — | `CHECK (kind IN ('event_dismissed','event_reinstated','case_excluded','case_reinstated','context_corrected','reference_date_corrected','player_corrected','type_corrected','dating_mark_lifted'))` (`PostTipOffDecisionKind`) | — | SUI-17 |
 | `effect` | text | no | — | `CHECK (effect IN ('exit','entry','measured_game_change'))` (`PostTipOffDecisionEffect`) | — | SUI-17, CL-SUI-10 |
-| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event decided on; null for `case_excluded` and `case_reinstated` | EV | SUI-17 |
+| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE SET NULL`; the event decided on, which may be a historical event of the tracked case (a context correction); null for `case_excluded` and `case_reinstated`, and set to null when a manual deletion or a replacement at import (IMP-29, IMP-33) deletes the historical event decided on: the decision stays on its tracked case, which stays touched | EV | SUI-17 |
 | `decided_at` | timestamptz | no | — | | — | SUI-17, H-SUI-07 |
 
 - **Unique and indexes:** `tracked_case_decisions_case_idx` `(tracked_case_id, decided_at)` — the case's decisions and the latest one (`CL-SUI-10`).
-- **Deletion:** with its tracked case, except that a regrouping first moves them to the surviving case's tracked case when there is one (§1.8); the decisions about a withdrawn event by the withdrawal step; repointed to the kept event when two detected events are merged (§1.8).
+- **Deletion:** with its tracked case, except that a regrouping first moves them to the surviving case's tracked case when there is one (§1.8); the decisions about a withdrawn event by the withdrawal step; repointed to the kept event when two detected events are merged (§1.8); its `player_event_id` set to null when a deletion at import removes the historical event decided on.
 - **TypeScript:** `{ kind: PostTipOffDecisionKind; effect: PostTipOffDecisionEffect; playerEventId: PlayerEventId | null; decidedAt: EpochMs }`; `isPostTipOff` is computed.
 
 ### 1.6 Regrouping exit — `regrouping_exits`
@@ -108,7 +108,7 @@ What remains of a tracked case that a regrouping emptied, or that a merge of two
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
 | `id` | integer identity | no | — | primary key | — | SUI-17 |
-| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; the emptied case's earliest-recorded event, which now belongs to the surviving case, or after a merge the kept event; that event's erasure deletes the row | EV | SUI-17, SUI-30 |
+| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; the emptied case's earliest-recorded event of origin `detected` or `calendar`, which now belongs to the surviving case, or after a merge the kept event; never a historical event, so no deletion at import meets the row; that event's erasure deletes the row | EV | SUI-17, SUI-30 |
 | `player_id` | uuid | no | — | → core `followed_players.id` `ON DELETE RESTRICT`; the emptied case's player, which places the exit in its rows | PI EV | SUI-23 |
 | `event_type_id` | text | no | — | → core `event_types.id` `ON DELETE RESTRICT`; the emptied case's type | EV | SUI-23 |
 | `overall_subrow` | text | yes | null | `CHECK (overall_subrow IN ('probable_profile','possible_profile','general_trend'))` (`OverallSubrowKind`), from the forecast the case had at its last known scheduled start, by the freeze's rule: the stored frozen or late forecast, otherwise the forecast version in force at that start (§2.1); null only when the case had no forecast by that rule | EV | SUI-28, CL-SUI-03, CL-SUI-16 |
@@ -151,11 +151,11 @@ The table has no storage: the pure calculation core computes it on each read fro
 
 The validation table, being derived, no longer counts the case anywhere, separate counts included, and the core's withdrawn-events counter grows by one (DSN-29). Nothing about E remains in these tables.
 
-**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps without the counter. A player-data deletion erases his tracked cases through the withdrawal of each of his events. An upcoming calendar-derived event dropped before its scheduled start is deleted with its case and tracked case, never counts, and is no post-tip-off decision (`CL-SUI-14`); one dropped after its game started is deleted the same way, and the core journals it and counts it in the profile's tally as `no_longer_derived` (`CL-SEN-25`). In both cases tracking's `eraseEventData`, in the derivation reactions (module map §1.10), also deletes the event's `regrouping_exits` rows before the event goes.
+**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps without the counter. A player-data deletion erases his tracked cases through the withdrawal of each of his events; `tracking.erasePlayerData` then deletes the regrouping exits that still name him, those whose event a player correction gave to another player included. An upcoming calendar-derived event dropped before its scheduled start is deleted with its case and tracked case, never counts, and is no post-tip-off decision (`CL-SUI-14`); one dropped after its game started is deleted the same way, and the core journals it and counts it in the profile's tally as `no_longer_derived` (`CL-SEN-25`). In both cases tracking's `eraseEventData`, in the derivation reactions (module map §1.10), also deletes the event's `regrouping_exits` rows before the event goes.
 
-**Regrouping** (core events-and-cases.md §2.5, `CL-SUI-16`). The survivor and origin rules are the core's: the event joins the case that already has the game, and no case changes origin. Before a case emptied by a regrouping is deleted, `tracking.moveCaseReferences(fromCaseId, intoCaseId)` runs last in the regrouping reactions (module map §1.10), after alerts' and notifications':
+**Regrouping** (core events-and-cases.md §2.5, `CL-SUI-16`). The survivor and origin rules are the core's: the event joins the case that already has the game, and no case changes origin. Before a case emptied by a regrouping is deleted, `tracking.moveCaseReferences(fromCaseId, intoCaseId)` runs last in the regrouping reactions (module map §1.10), after notifications':
 
-1. if the emptied case is tracked and its measured game's last known scheduled start has passed, one `regrouping_exits` row records it, whatever the surviving case's origin, with the forecast the case had at that start by the freeze's rule — the stored frozen or late forecast, otherwise the forecast version in force at that start — and the gap the case had when it was emptied;
+1. if the emptied case is tracked, its measured game's last known scheduled start has passed and it still holds an event of origin `detected` or `calendar`, one `regrouping_exits` row records it, tied to the earliest-recorded such event, whatever the surviving case's origin, with the forecast the case had at that start by the freeze's rule — the stored frozen or late forecast, otherwise the forecast version in force at that start — and the gap the case had when it was emptied;
 2. if the surviving case is tracked, the emptied case's decisions move to the surviving tracked case, which then shows by its latest decision (`CL-SUI-10`);
 3. the emptied tracked case's other rows then cascade with the case; an unconsumed `tracked_result_ready` fact whose result no longer exists is dropped by the dispatch as stale (TEL-23).
 
@@ -168,6 +168,8 @@ A regrouping before the scheduled start records no exit: no result was known.
 3. the absorbed case's other tracked-case rows cascade when the core's erasure step deletes that case.
 
 Before the scheduled start, or when the absorbed event shares its case with another event, step 1 records nothing.
+
+**Limit** (`CL-SUI-16`). A tracked case whose remaining events are all imported or entered by hand, and which the deletion or the replacement of its last event later removes (IMP-29, IMP-33), leaves no regrouping exit: that Lot 1 path runs no Lot 2 step, the tracked-case rows cascade with the case, and the profile's tally still counts the deletion (`CL-SEN-25`). For the same reason a regrouping that empties such a case records no exit, having no detected or calendar event to tie it to.
 
 **Purge.** None: tracked cases are case data and last as long as their case.
 
@@ -326,4 +328,4 @@ erDiagram
 6. **Read values**: the withdrawn-events counter (DSN-29); the date of the last change of a parameter that affects calculations (TRV-35, `CL-SUI-04`); the parameters `tracking.categoryThreshold`, `tracking.minTrackedCasesForAssessment`, `sensitivity.possibleSignalToNoise` and the case threshold of SEN-23, `sensitivity.minValidCases`.
 7. **Cases spreadsheet export** (TRV-52): for a tracked case, add the recording timing, the frozen forecast (source, level, direction, announced gap, late or not) and the category.
 8. **Task due rule** (decision record 0025): `game-tracking` is due after each statistics ingestion (chained to `statistics-update` or `statistics-fetch`) and at a game's expected availability, never as a query at every tick; its freezes use the last forecast version before each scheduled start, so the run's timing changes no forecast.
-9. **Regrouping** (`CL-SUI-16`): events-and-cases.md §2.5 adds that the regrouping reactions — alerts, notifications, then tracking `moveCaseReferences(fromCaseId, intoCaseId)` — run while the emptied case and its gap are still readable, before the tracked-case rows cascade; the module map's regrouping reactions list gains the tracking slot.
+9. **Regrouping** (`CL-SUI-16`): events-and-cases.md §2.5 adds that the regrouping reactions — notifications, then tracking `moveCaseReferences(fromCaseId, intoCaseId)` — run while the emptied case and its gap are still readable, before the tracked-case rows cascade; the module map's regrouping reactions list gains the tracking slot.

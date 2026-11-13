@@ -96,7 +96,7 @@ The fact a message notifies (TEL-02, TEL-34), one row per fact; an incident mess
 | `deadline_game_id` | integer | yes | null | → core `games.id` `ON DELETE RESTRICT`; the request's deadline game, for `deadline_changed` and `deadline_reminder` | — | TEL-10, CL-TEL-18 |
 | `alert_sheet_id` | integer | yes | null | → `alert_sheets.id` `ON DELETE RESTRICT` | EV | TEL-11 |
 | `alert_sheet_update_id` | integer | yes | null | → `alert_sheet_updates.id` `ON DELETE RESTRICT` | EV | TEL-12 |
-| `case_id` | integer | yes | null | → core `cases.id` `ON DELETE RESTRICT` | EV | TEL-13 |
+| `case_id` | integer | yes | null | → core `cases.id` `ON DELETE CASCADE`: a regrouping or a merge moves the fact first (below); any other deletion of the case — a manual deletion or a replacement at import of its last event (IMP-29, IMP-33), a derivation drop — takes the fact with it | EV | TEL-13 |
 | `event_type_id` | text | yes | null | → core `event_types.id` `ON DELETE RESTRICT`; a new proposal | — | TEL-14 |
 | `incident_id` | integer | yes | null | → core `incidents.id` `ON DELETE CASCADE`; for a start or a reminder, the first incident of the cycle; for an end, the incident whose closing it follows (§1.7) | — | TEL-15, CL-TEL-08 |
 | `reminder_number` | smallint | yes | null | `incident_reminder` only: 1, 2, …; `CHECK ((message_kind = 'incident_reminder') = (reminder_number IS NOT NULL))` | — | TEL-15 |
@@ -119,8 +119,8 @@ The fact a message notifies (TEL-02, TEL-34), one row per fact; an incident mess
   | `notification_facts_export_reminder_uq` | `(incident_id)` | `message_kind = 'export_reminder'` |
 
   Plus `notification_facts_message_idx` `(message_id)` and `notification_facts_case_idx` `(case_id) WHERE case_id IS NOT NULL` — `moveCaseReferences`.
-- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and `notifications.moveCaseReferences(fromCaseId, intoCaseId)`, run by the recalculation's regrouping reactions (module map §1.10) after alerts' and before the emptied case is deleted, moves its `tracked_game_result` fact to the surviving case when that case has none — both cases end on the same measured game, so one result was already notified for it — and otherwise deletes the emptied case's fact, discarding its message as moot if it is unsent. One result per case still holds, and any other path that deletes a referenced case fails instead of losing a notified fact. A merge of two detected events applies the same code to the absorbed event's case when that case goes with it (§1.8).
-- **Deletion:** with its message; with its incident when the core purges it.
+- **Case merge** (core events-and-cases.md §2.5): `notifications.moveCaseReferences(fromCaseId, intoCaseId)`, run first by the recalculation's regrouping reactions (module map §1.10), before tracking's and before the emptied case is deleted, moves its `tracked_game_result` fact to the surviving case when that case has none — both cases end on the same measured game, so one result was already notified for it — and otherwise deletes the emptied case's fact, discarding its message as moot if it is unsent. One result per case still holds. Any other path that deletes a case deletes its fact by `ON DELETE CASCADE`: the case being gone, one result per case has nothing left to protect; a sent message keeps its text, and an unsent one left without facts is discarded as moot when it is due. A merge of two detected events applies the same code to the absorbed event's case when that case goes with it (§1.8).
+- **Deletion:** with its message; with its incident when the core purges it; with its case when the core deletes it otherwise than by a regrouping or a merge (§1.4).
 - **TypeScript:** `type MessageFact = { requestId: BacktestRequestId; deadlineGameId?: GameId } | { alertSheetId: AlertSheetId } | { alertSheetUpdateId: AlertSheetUpdateId } | { caseId: CaseId } | { eventTypeId: EventTypeId } | { incidentId: IncidentId; reminderNumber?: number }`.
 
 ### 1.5 Message event — `notification_message_events`
@@ -131,7 +131,7 @@ Every event a message designates (TEL-06): the events of the alert's sheet at co
 | --- | --- | --- | --- | --- | --- | --- |
 | `id` | integer identity | no | — | primary key | — | TEL-38 |
 | `message_id` | integer | no | — | → `notification_messages.id` `ON DELETE CASCADE` | — | TEL-38 |
-| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT` | EV | TEL-06, TEL-38 |
+| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; an event of origin `detected` or `calendar` only, never a historical one — a tracked result names its case's detected and calendar events — so that no deletion at import (IMP-29, IMP-33) meets it | EV | TEL-06, TEL-38 |
 
 - **Unique and indexes:** `notification_message_events_uq` unique `(message_id, player_event_id)`; `notification_message_events_event_idx` `(player_event_id)` — dismissal and withdrawal lookups.
 - **Deletion:** with its message; at a merge of two detected events, repointed to the kept event, or deleted when the message already names it (§1.8).
@@ -183,7 +183,7 @@ If the process stops after step 1 or 2, E still exists and the owner withdraws a
 
 Sent messages keep their text, and nothing is asked of Telegram.
 
-**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the withdrawal steps. A player-data deletion (CL-JOU-06), after the withdrawal of each of his events, applies the same four steps to every remaining message with his `player_id` (backtest requests, reminders). An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is no erasure: unsent messages that name it are discarded as moot, its `notification_message_events` rows are deleted and sent messages keep their text, which holds no press content (`CL-DSN-20`); the alert update of `CL-TEL-21` follows.
+**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the withdrawal steps. A player-data deletion (CL-JOU-06), after the withdrawal of each of his events, applies the same four steps to every remaining message with his `player_id` (backtest requests, reminders). An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is no erasure: unsent messages that name it are discarded as moot, its `notification_message_events` rows are deleted and sent messages keep their text, which holds no press content (`CL-DSN-20`); the alert update of `CL-TEL-21` follows. One dropped after its game started goes the same way through `discardPendingFor` in the derivation reactions, with no alert update; its case's result fact goes with the case.
 
 **Daily purge.** Deletes the messages created more than `journal.retentionDays` ago whose status is final (`sent`, `grouped`, `discarded`, `failed`), the text being kept for the journal's retention (11 "Données manipulées"), the link codes that are expired or used, and the daily counts of days before the owner's previous day (§1.6).
 
@@ -488,7 +488,7 @@ Modeling choices of this file:
 9. **An end message's fact is the closing incident**, not the cycle's first: each closing gets its own pending end message, so a reopening discards one without blocking the next under the one-fact-one-message index.
 10. **An event designation's `origin` takes the glossary's `EventOrigin` values** (`detected`, `calendar`), and the composer writes the glossary's Telegram label "From the calendar" (`CL-TEL-21`).
 11. **`last_update_id` on the link row**, not a table of processed updates: Telegram's update identifiers increase, so one number deduplicates webhook redeliveries and gives the polling offset; the webhook's `max_connections` 1 keeps them in order and the value only moves forward.
-12. **Merged cases keep `ON DELETE RESTRICT`**: `moveCaseReferences` moves or deletes the facts of the emptied case (§1.4), so a result is never notified twice and no other path can delete a notified case silently.
+12. **A result fact's case is `ON DELETE CASCADE`**: regroupings and merges move or delete it first through `moveCaseReferences` (§1.4), so a result is never notified twice, and a Lot 1 deletion of a case (IMP-29, IMP-33) is never blocked by a notifications row.
 
 ## 7. Entity-relationship diagram
 
