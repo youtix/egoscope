@@ -70,7 +70,8 @@ no date).
 
 Every removal of an event row goes through one step, run in one transaction with the operation
 that calls it; each Lot 2 module adds its own sub-step with a test (CL-DSN-16). Lot 2 tables point
-at `events`, `cases` and `followed_players` with `ON DELETE RESTRICT`, so the Lot 2 sub-steps run
+at `events`, `cases`, `followed_players` and `event_types` with `ON DELETE RESTRICT` (for example
+`regrouping_exits`, tracking-and-validation.md), so the Lot 2 sub-steps run
 first, before the core deletes anything, as the event erasers of the module map's reaction lists
 (section 1.10): notifications, alerts, tracking, then detection, whose step also erases, through
 collection, the articles it leaves without a role; every variant below that runs them keeps that
@@ -109,7 +110,7 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
    identifiers of every message about E, whatever Telegram answered in step 3; alerts — in the
    sheet holding E, everything about it, or the whole sheet and its alert-history entry if E was its
    only event, with the outbox facts of its sheets and update entries; tracking — its tracked-case
-   data, with the outbox facts of its tracked game results; detection — the classification results
+   data and its regrouping exits, with the outbox facts of its tracked game results; detection — the classification results
    of its articles and their attachments, then, through collection's eraser, every article attached
    to E and to no other event, with no dedup trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the
    outbox facts of its own objects by `lot2_subject_id` and nulls the journal's `lot2_object_kind`

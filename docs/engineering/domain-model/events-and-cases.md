@@ -567,12 +567,16 @@ run, for each player and type:
    earliest-recorded event (CL-VUE-03).
 3. Cases left without events are deleted with their history, criteria, flags and decisions; their
    events now belong to the surviving case, whose `created_at` and origin do not change (SUI-04,
-   CL-VUE-03). In Lot 2, before an emptied case is deleted, the recalculation
-   (`sensitivity.processRecalculationJobs`) runs the regrouping reactions of the module map
-   (section 1.10) with the emptied and the surviving case, alerts then notifications
-   (`moveCaseReferences`): each moves the rows that point at the emptied case — which keep
-   `ON DELETE RESTRICT` — to the surviving case, or deletes them when that case already has one; the
-   emptied case's tracked-case rows cascade (`tracking-and-validation.md`).
+   CL-VUE-03). In Lot 2 the recalculation (`sensitivity.processRecalculationJobs`) runs the
+   regrouping reactions of the module map (section 1.10), in order alerts, notifications, then
+   tracking: `moveCaseReferences(fromCaseId, intoCaseId)`. They run in the regrouping's
+   transaction, after the events have joined the surviving case and before the emptied case is
+   deleted, while the emptied case's row is still readable with its measured game and its gap as
+   they were before the regrouping; the emptied case is not recalculated in between. Each moves the
+   rows that point at the emptied case — which keep `ON DELETE RESTRICT` — to the surviving case, or
+   deletes them when that case already has one; tracking first records the emptied tracked case's
+   exit (`regrouping_exits`, CL-SUI-16). Only after tracking's reaction does the deletion of the
+   emptied case cascade to its tracked-case rows (`tracking-and-validation.md`).
 4. Events of other types on the same game keep their own cases, co-occurring (SEN-06).
 
 ## 3. Invariants
