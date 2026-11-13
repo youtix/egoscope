@@ -17,6 +17,21 @@ async function closedPort(): Promise<number> {
 const urlOf = (port: number): string =>
   `postgresql://app@127.0.0.1:${String(port)}/egoscope?sslmode=verify-full`;
 
+// Where the shell's connection strings lead in these tests: a port where nothing listens.
+const SHELL_DATABASE_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full';
+
+/**
+ * Exports what a developer's shell may, for example the production connection
+ * strings to run pg_dump. CI exports no database variable, so every test here
+ * starts as if the shell did, and a test that read them would fail instead of
+ * migrating the database they name (TRV-76).
+ */
+function exportShellVariables(): void {
+  vi.stubEnv('DATABASE_URL', SHELL_DATABASE_URL);
+  vi.stubEnv('DATABASE_URL_UNPOOLED', SHELL_DATABASE_URL);
+  vi.stubEnv('VERCEL_ENV', 'production');
+}
+
 /** An empty project root of its own as the working directory, and its drizzle/ folder. */
 function projectFolder(): string {
   const folder = mkdtempSync(path.join(tmpdir(), 'egoscope-deploy-'));
@@ -43,6 +58,12 @@ describe('migrateDatabase', { timeout: 60_000 }, () => {
   beforeEach(() => {
     // The environment is read once per server process, so each test loads a fresh one.
     vi.resetModules();
+    exportShellVariables();
+    // Whatever the shell exports, each test starts outside Vercel with no
+    // database configured, then stubs what it needs.
+    vi.stubEnv('DATABASE_URL', '');
+    vi.stubEnv('DATABASE_URL_UNPOOLED', '');
+    vi.stubEnv('VERCEL_ENV', '');
   });
 
   it('[TRV-76] migrates through the direct connection string, never the pooled one', async () => {
