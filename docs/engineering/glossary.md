@@ -22,11 +22,12 @@ The functional specifications in `docs/` are written in French and stay the refe
 
 - Types, interfaces, classes and enumeration type names in PascalCase: `FollowedPlayer`, `CaseStatus`.
 - Properties, variables and functions in camelCase: `displayName`, `withdrawEvent()`.
-- Acronyms are written as words: `NbaTeam`, `statsSourceId`, `pwaManifest`.
+- Acronyms are written as words: `firstNbaGameOn`, `statsSourceId`, `pwaManifest`.
 - Enumeration values are lowercase `snake_case` strings, stored as text: `awaiting_game`, `to_do`. Use string-literal unions, never numeric enums.
 - The French word « état » and its synonym « statut » are rendered "status": property `status`, type suffix `Status` (`PlayerStatus`, `GameStatus`, `HealthStatus`).
 - Time (decision of 2026-11-11): a property holding an absolute instant (epoch milliseconds, `timestamptz`) ends in `At` (`createdAt`); a property holding a calendar date (`YYYY-MM-DD`, `date`) ends in `On` (`lastGamePlayedOn`); a property that the specs define as "a date, or a date and time" ends in `Date` and travels with its precision (`referenceDate`, `publicDate`, `publicationDate`).
-- A foreign key is the camelCase entity name plus `Id`: `eventTypeId`, `alertSheetId`, `playerEventId`. Every stored player is a followed player, so the key to a `FollowedPlayer` is `playerId`.
+- A foreign key is the camelCase entity name plus `Id`: `eventTypeId`, `alertSheetId`, `playerEventId`. Every stored player is a followed player, so the key to a `FollowedPlayer` is `playerId`; every stored team is an NBA team, so the type is `Team`, keyed by `teamId`.
+- Route parameters are the module map's and use the short name of the screen's object: `[eventId]`, `[typeId]`, `[sheetId]`, `[requestId]`. A URL names what the owner sees, and no type name is involved; the handler reads `[eventId]` into `playerEventId`.
 - Reserved words are never identifiers on their own: a variable holding one case is `caseItem` (or `trackedCase`, `historicalCase`), one import `importItem`, one export `exportItem`.
 - No domain type takes the name of a browser built-in, because a forgotten import would then type-check against the wrong thing (orchestrator ruling). An event is the code type `PlayerEvent`, held in variables `playerEvent` / `playerEvents`, keyed by `playerEventId`; the English term stays "event", the UI label "Event", the table `events` and the route segment `events`. Names derived from the bare word follow it (`PlayerEventSource`, since `EventSource` is a browser built-in too); compound names that are already unambiguous stay as they are (`EventType`, `EventOrigin`, `EventMark`, `DetectedEventStatus`, `withdrawEvent()`). Telegram messages are `NotificationMessage`, never `Notification`, another built-in.
 - French words never appear in identifiers. Requirement IDs (`JOU-08`, `CA-SEN-03`, `D-12`, `H-SEN-04`, `Q-DSN-01`) keep their French prefixes everywhere, including test names.
@@ -181,7 +182,7 @@ Decisions:
 | effacé, effacement (requalification, scission) | erased, erasure | `erased` | Erased | Removal with a withdrawal's scope, counted on the type sheet, not in the withdrawn-events counter. | TAX-25, TAX-29 |
 | fusion, fusionner | type merge, merge | `mergeEventTypes()`; route `/types/merge` | Merge | Two or more validated types into a surviving one. | TAX-27 |
 | type subsistant | surviving type | `survivingTypeId` | Surviving type | Type kept by a merge; its sheet gets a new version. | TAX-27 |
-| type absorbé | absorbed type | `mergedIntoTypeId` | — | Type withdrawn by a merge; its ID is attached to the survivor at import. | TAX-27, TAX-28 |
+| type absorbé | absorbed type | `mergedIntoTypeId` | — | Type withdrawn by a merge; an import attaches its ID to the surviving type. | TAX-27, TAX-28 |
 | scission, scinder, type scindé | split, split type | `splitEventType()`; `splitIntoTypeIds`; route `/types/[typeId]/split` | Split | One validated type into several validated in one act. | TAX-29, TAX-30 |
 | répartir, « à répartir », répartition | distribute, to distribute, distribution | `to_distribute` | To distribute | Assigning a split type's events one by one to the new types. | TAX-29 |
 | fiches transmises | transmitted sheets | — | — | Current versions of validated sheets, in full, sent to prompt, import, calculation, classification. | TAX-33 |
@@ -241,9 +242,9 @@ Decisions:
 | confiance de la recherche | research confidence | `researchConfidence`; JSON `confidence` | Research confidence | high, medium or low, set by the research AI per prompt rule 2.8. | BKT prompt 2.8, IMP-15 |
 | version de fiche (de l'événement) | sheet version | `sheetVersion` | Sheet version | Version of the type sheet the event was qualified under. | TAX-23, DET-53, IMP-30 |
 | qualifier, qualifié (sous une version) | qualify, qualified | — | — | Recognize a fact as an event of a type under one sheet version. | TAX-23 |
-| marque | mark | `EventMark` | — | Flag set on a detected event, later lifted or upheld (section 4); calendar-derived events carry none. | DET-32, DET-33, DET-58, CL-VUE-12 |
+| marque | mark | `EventMark` | — | Flag set on a detected event, later lifted (section 4); "detected after tip-off" is computed instead; calendar-derived events carry none. | DET-32, DET-33, DET-58, CL-VUE-12, CL-DET-16 |
 | « datation à vérifier » | dating to verify | `dating_to_verify` | Dating to verify | The article places the fact before its own publication and a game may have been played in between. | DET-32, SEN-45 |
-| « détecté après le coup d'envoi » | detected after tip-off | `detected_after_tip_off` | Detected after tip-off | The expected game's tip-off had passed when the event was created. | DET-33 |
+| « détecté après le coup d'envoi » | detected after tip-off | `detected_after_tip_off` | Detected after tip-off | Computed, never stored: once the measured game is established, shown when its scheduled start is at or before the event's creation instant (it then matches "recorded after tip-off"); before that, the same test against the expected game. | DET-33, CL-DET-16 |
 | antériorité | precedence | `Precedence` | Precedence | Of a historical event: its oldest source compared with the measured game's tip-off. | IMP-18, SEN-44 |
 | écarter, écartement, écarté, événements écartables | dismiss, dismissal, dismissed, dismissable events | `dismissEvent()`; status `dismissed` | Dismiss; Dismissed | Owner corrects a wrong detection; the event is kept, leaves all calculations, reversible. | DET-43–DET-46, H-08 |
 | réintégrer, réintégré, réintégration (d'un événement) | reinstate, reinstated, event reinstatement | `reinstateEvent()` | Reinstate | Undo a dismissal; the event re-enters calculations. | DET-45 |
@@ -251,7 +252,7 @@ Decisions:
 | compteur des événements retirés, compteur global des événements retirés | withdrawn-events counter | `withdrawnEventCount` | Withdrawn events | Global, anonymous count since go-live; also counts events declined for sensitive data. | DSN-29, VUE-09 |
 | supprimer, suppression (d'un événement historique) | delete, deletion | `deleteHistoricalEvent()` | Delete | Removal of a historical event for an error, with a reason; traced. | IMP-33 |
 | corriger, correction (d'un événement) | correct, correction | `correctEvent()`; route `/events/[eventId]/edit` | Correct | Change of type, date, description, sources, context, confidence or note. | IMP-32, DET-47, DET-48 |
-| historique des corrections | correction history | `correctionHistory` | Correction history | What changed and when; never the old value of a description. | DET-52, IMP-32, D-20 |
+| historique des corrections | correction history | `EventCorrection` | Correction history | Each correction's instant and the fields it changed. A historical event keeps nothing else, never an old value (IMP-32, D-20); a detected event, and a calendar-derived event's context corrections, also keep the before and after values of the structured fields (type, player, dates, context), never an earlier description or other free text (DET-52). | DET-52, IMP-32, D-20, CL-DSN-15 |
 | cas | case | `Case`; key `caseId` | Case | One event (or several of the same type) and its measured game; the unit of calculation. | SEN-05, SEN-07 |
 | match mesuré | measured game | `measuredGameId` | Measured game | First game the player plays after the event became public. | H-02, SEN-03 |
 | rattacher, rattachement (au match mesuré) | attach, attachment | `attachToMeasuredGame()` | — | Linking an event to its measured game. | SEN-01–SEN-05 |
@@ -407,7 +408,7 @@ Decisions:
 | doublon d'un événement détecté | duplicate of a detected event | — | — | Never added; a dismissed one is reinstated instead. | IMP-27 |
 | sondage des sources | source spot check | `SourceSpotCheck` | Spot-check sources | Optional: open 3 random sources and judge each. | IMP-23, H-IMP-09 |
 | « conforme », « non conforme », « inaccessible » | consistent, inconsistent, inaccessible | `SpotCheckVerdict` | Consistent; Inconsistent; Inaccessible | Spot-check verdict on a source. | IMP-23 |
-| vérification des liens, « introuvable » | link check, not found | `LinkStatus` `not_found` | Not found | After saving, each link is opened; a dead page is marked, nothing deleted. | IMP-17, H-IMP-08 |
+| vérification des liens, « introuvable » | link check, not found | `LinkStatus` `not_found`; `imports.linkCheckTimeoutSeconds` | Not found | After saving, each new or corrected link is opened once (10-second timeout, no retry); only a 404, a 410 or an unresolvable host marks it, nothing is deleted. | IMP-17, H-IMP-08, CL-IMP-25 |
 | domaines non admis | disallowed domains | `imports.disallowedSourceDomains` | Disallowed domains | Social networks, forums, collaborative encyclopedias, video platforms (parameter). | IMP-14, H-IMP-13 |
 | avance tolérée (d'une source sur la date publique) | tolerated source lead | `imports.maxSourceLeadDays` | — | How much earlier than the public date a source may be. | IMP-14, TRV-38 |
 | taille maximale du texte collé | maximum pasted size | `imports.maxPastedTextMegabytes` | — | Parameter (default 2 MB). | IMP-02 |
@@ -505,7 +506,9 @@ Decisions:
 | mise à jour quotidienne, mise à jour des statistiques, tâche de statistiques | daily stats update | task `statistics-update` | Statistics update | Daily from 15:00 Paris time: waits until the source has refreshed after the past competition day's last scheduled tip-off plus 3 h, checking every hour, until the 20:00 cut-off, which ends the run "source late". | STA-32, TRV-25, CL-STA-10, CL-TRV-23 |
 | fenêtre de correction | correction window | `games.correctionWindowDays` | — | 7 days during which box scores are re-requested. | STA-33 |
 | consolidé | consolidated | `consolidated` | Consolidated | Game past its correction window; never re-requested. | STA-33, STA-42 |
-| journal des corrections | stats correction journal | `StatCorrection` | Corrections | Every changed element with old and new values; unlike event corrections, old values are kept. | STA-33, STA-34 |
+| journal des corrections | stats correction journal | `StatCorrection` | Corrections | Every changed element with old and new values; a store separate from the events' correction history (CL-STA-26). | STA-33, STA-34, CL-STA-26 |
+| — (term of the league and the stats source) | game log | `gameLog` | — | A player's games with his box-score lines, as the NBA and the stats source call it; the map's read keeps the name, which is no « journal ». | STA-08, STA-46 |
+| équipe, équipe NBA | team | `Team`; key `teamId` | Team | One NBA franchise, identified by the stats source's stable team identifier; every stored team is an NBA team, so the code says `Team`. | STA-05, CL-JOU-18 |
 | relance manuelle, forcer la récupération | manual refetch | `refetch()` | Refetch | Owner forces fetching a game, a season or a career; uses quota. | STA-34, STA-44 |
 | file de récupération | fetch queue | `FetchQueueItem` | — | Pending source requests with priority (1 to 5), attempts and waiting reason. | STA-36, STA-40 |
 | niveau de priorité | priority level | `priority` (1–5) | — | Order in which requests are served under quota. | STA-40 |
@@ -618,7 +621,7 @@ Decisions:
 | fonctionnelle | working | `working` | Working | Reads bring articles. | COL-43 |
 | en panne | down | `down` | Down since {date} | 2 consecutive failed runs (default). | COL-41 |
 | muette | silent | `silent` | Silent since {date} | Reads succeed but bring nothing new for the silence period. | COL-42 |
-| délai de silence | silence period | `collection.silenceDelayDays` | Silent after | Per source, default 3 days. | COL-42, H-COL-04 |
+| délai de silence | silence period | `collection.silencePeriodDays` | Silent after | Per source, default 3 days. | COL-42, H-COL-04 |
 | lecture, lecture réussie, lecture en échec | read, successful read, failed read | — | — | One reading of a feed during a run. | COL-11, COL-41 |
 | exécution (de collecte) | collection run | `CollectionRun`; route `/collection/runs/[runId]` | Run | One execution, scheduled or on demand. | COL-13–COL-16 |
 | tentative (de lecture) | read attempt | `collection.readAttempts` | — | Up to 3 per run. | COL-13 |
@@ -682,7 +685,7 @@ Decisions:
 | décompte d'exposition | exposure count | `ExposureCount` | — | Per player and day, articles citing him; feeds the exposure indicator. | DET-57, JOU-03 |
 | file d'attente (de classification), file d'attente de classification, file, élément de la file | classification queue, queue item | `ClassificationQueueItem`; route `/collection/queue` | Classification queue | Articles waiting for the model, in priority order within quota; empty when no item has a pending part without "classification failed". | DET-08, DET-09, CL-DET-04 |
 | horizon de priorité | priority horizon | `detection.priorityHorizonHours` | — | Parameter ordering the queue by next game. | DET-09 |
-| reprise de la file, tâche de reprise | queue resumption | task `classification-resume` | — | Resumes the queue every 6 h while it is not empty. | DET-10 |
+| reprise de la file, tâche de reprise | queue resumption | task `classification-resume` | — | Due 6 h after the end of the last run that processed the queue, or at the provider's quota reset when that comes first, while an item is eligible; an owner's retry or reclassification makes it due at once. | DET-10, CL-DET-04 |
 | quota, palier gratuit | quota, free tier | — | Quota | Limits of the free language-model service. | DET-08, TRV-03 |
 | incident « quota atteint » (classification) | quota reached | `quota_reached` | Quota reached | Opened or kept open when a run stops at a call refused for quota, refused before the declared limit or not answered, with items left; the message names the cause (section 9.2); closes at the end of the first run after which the queue is empty. | DET-11, CL-DET-04 |
 | modèle, modèle de langage | language model | — | Language model | Free model that classifies articles; designated by its function only. | DET-08, TRV-09 |
@@ -697,7 +700,7 @@ Decisions:
 | fait, fait nouveau, fait ancien | fact, new fact, old fact | `isNewFact` | New fact; Old fact | An old fact is a rehash of something public before the grouping window. | DET-16, DET-20 |
 | justification, justification d'une classification | justification | `justification` | Justification | One sentence citing the satisfied criterion; same wording rules as a description. | DET-16, DET-21 |
 | seuil de détection, « sous le seuil » | detection threshold, below threshold | `detection.threshold` | Detection threshold; Below threshold | 70/100 by default; below it no event is created. | DET-24, H-DET-03 |
-| tranche de confiance | confidence band | — | — | Band of detection confidence used to show dismissal rates: 10 points wide (0–9 … 90–100), set by the parameter of section 9.3; only bands holding an event are shown, plus the user-origin row. | DET-25, CL-DET-24 |
+| tranche de confiance | confidence band | `detection.confidenceBandWidth` | — | Band of detection confidence used to show dismissal rates: 10 points wide by default (0–9 … 90–100); only bands holding an event are shown, plus the user-origin row. | DET-25, CL-DET-24 |
 | description type | template description | — | — | Neutral description that replaces a non-compliant one. | DET-21 |
 | « description à revoir » | description to review | `description_to_review` | Description to review | Notice until the owner corrects the description. | DET-21, DET-47 |
 | « texte non conservé » | text not kept | — | Text not kept | Replaces a non-compliant justification. | DET-21 |
@@ -720,7 +723,7 @@ Decisions:
 | raison de la non-correspondance | no-fit reason | `noFitReason` | Why no type fits | Sent with each proposal. | DET-34, TAX-18 |
 | repêcher, repêchage | rescue | `rescueArticle()` | Rescue | Owner turns a not-relevant article into an event of his choice. | DET-49 |
 | corriger, fusionner (des événements détectés) | correct, merge events | `correctEvent()`, `mergeEvents()` | Correct; Merge | Wrong player, type or duplicate: corrected, not dismissed. | DET-47 |
-| journal de détection | detection journal | `DetectionJournalEntry`; route `/collection/detection-log` | Detection journal | One entry per run with the counters of the next row. | DET-55 |
+| journal de détection | detection journal | `DetectionJournalEntry`; route `/collection/detection-journal` | Detection journal | One entry per run with the counters of the next row. | DET-55 |
 | articles reçus, non retenus par le préfiltrage, classés, classés sans fait, rattachés à un événement existant, sous le seuil, faits anciens, faits déjà rapportés par un backtest, propositions transmises, occurrences ajoutées, descriptions remplacées, classifications en échec, événements créés, articles restant en file, quota consommé et restant | articles received, not prefiltered in, classified, classified without fact, attached to an existing event, below threshold, old facts, already reported by a backtest, proposals submitted, occurrences added, descriptions replaced, failed classifications, events created, still queued, quota used and left | `DetectionCounters` | (same) | Detection journal counters: per article (received, not prefiltered in, classified, classified without fact, failed classifications, still queued), per fact (the others), quota in calls (used in the run, left for the period). | DET-55, CL-DET-25 |
 | indicateurs de qualité | quality indicators | — | — | Dismissal rates by confidence band and other detection measures. | DET-25, DET-56 |
 | « réponse sur le terrain » | "answer on the court" | — | — | Outcome narrative the classifier must ignore. | DET-19 |
@@ -894,7 +897,7 @@ Decisions:
 | en échec | failed | `failed` | Failed | After the last retry; Home shows a banner. | TEL-36 |
 | échec temporaire, échec définitif | temporary failure, permanent failure | `SendFailureKind` | — | Retry with growing intervals, or stop and mark the link broken. | TEL-35, TEL-37 |
 | intervalles de nouvelle tentative | retry intervals | `notifications.retryIntervalsMinutes` | — | 1, 5, 15, 30, 60 minutes. | TEL-35 |
-| message de rattrapage | catch-up message | `catch_up` | Catch-up | One message listing still-current facts not received, with the period; tried at most once per catch-up interval while a message is failed. | TEL-36, CL-TEL-12 |
+| message de rattrapage | catch-up message | `catch_up`; `notifications.catchUpIntervalMinutes` | Catch-up | One message listing still-current facts not received, with the period; tried at most once per catch-up interval (60 min by default) while a message is failed. | TEL-36, CL-TEL-12 |
 | « événement sensible » | sensitive event | — | sensitive event | Replaces the type name of an intimate-subject type in messages. | TEL-06, DSN-35 |
 | après le coup d'envoi (mention) | after tip-off | — | after tip-off | Notice on a still-useful message whose game has started. | TEL-23 |
 
@@ -945,12 +948,12 @@ Decisions:
 | copie en un toucher | one-tap copy | — | Copy prompt | The whole prompt in one tap. | IHM-39 |
 | outil de recherche, adresse de l'outil de recherche | research tool, research tool URL | `display.researchToolUrl` | Open research tool | Optional address the owner sets; no tool is imposed. | IHM-44 |
 | correction avec l'IA | correction with the AI | — | — | Copying the correction message back to the AI. | IHM-43 |
-| « échéance proche » | deadline soon | — | Deadline soon | Under 24 h (parameter). | IHM-20 |
+| « échéance proche » | deadline soon | `display.deadlineSoonHours` | Deadline soon | Under 24 h (parameter). | IHM-20 |
 | incidents masqués | hidden incidents | `hiddenIncidentIds` | Hidden incidents | Incident hidden by the owner; still journaled and counted. | IHM-20 |
 | masquer (un incident) | hide | `hideIncident()` | Hide | The owner's only action on an incident: it leaves the to-do list, stays open while its cause lasts, and counts among the hidden incidents until it closes. | IHM-20, CL-IHM-20 |
 | tranches (de liste) | list pages | `display.listPageSize` | — | Lists load 50 items at a time. | IHM-18 |
 | compte unique, authentification minimale | single account, minimal authentication | — | — | One owner, no sign-up. | IHM-05, H-10 |
-| connexion, se connecter | login, log in | route `/sign-in` | Log in | Password only. | IHM-06 |
+| connexion, se connecter | login, log in | route `/log-in` | Log in | Password only. | IHM-06 |
 | déconnexion | logout, log out | — | Log out; Log out of all devices | This device or all devices. | IHM-08 |
 | mot de passe initial | initial password | — | — | From the deployment configuration; forces "Choose your password". | IHM-06, TRV-57 |
 | « Choisir votre mot de passe » | choose your password | route `/choose-password` | Choose your password | Only screen open with the initial password. | IHM-06 |
@@ -1063,7 +1066,7 @@ Decisions:
 | valeur par défaut, « Rétablir la valeur par défaut » | default value, restore default | `defaultValue` | Restore default | — | TRV-34, TRV-35 |
 | valeurs admises | allowed values | `allowedValues` | Allowed values | Out-of-range input is refused with an explanation. | TRV-35 |
 | origine (d'un paramètre) | parameter origin | `ParameterOrigin` | Origin | journal decision, journal hypothesis, local hypothesis to confirm. | TRV-34 |
-| date du dernier changement de paramètre | last parameter change | `lastCalculationParameterChangeAt` | Last parameter change | Of a parameter that affects calculations; shown with profiles and the validation table. | TRV-35, SEN-37, SUI-25 |
+| date du dernier changement de paramètre | last parameter change | `lastCalculationChange()`, `noteCalculationChange()` | Last parameter change | Of a parameter that affects calculations or of a type's criterion switch; shown with profiles and the validation table. The map's names say "calculation change" because the switch moves the date too (CL-TRV-17). | TRV-35, SEN-37, SUI-25, CL-TRV-17 |
 | configuration de déploiement | deployment configuration | — | — | Service addresses, keys, bot token, initial password, trigger secret; never in the app. | TRV-37, TRV-64 |
 | valeurs secrètes | secrets | — | — | Never displayed, journaled or exported. | TRV-64 |
 | journal d'activité, journal | activity journal | `JournalEntry` | Activity journal | Every pass, recalculation, failure, incident, data-changing action, parameter change, refused login, message. | TRV-41 |
@@ -1072,6 +1075,7 @@ Decisions:
 | niveau | level | `JournalLevel` | Level | info, warning or incident. | TRV-43 |
 | désignation d'un événement | event reference | `playerEventRef` | — | Player, type and reference date: the only way an entry names an event; erased on withdrawal. | TRV-41 |
 | détails techniques, réponse brute, réponses brutes des services | technical details, raw response | `technicalDetails` | Technical details | Stored apart, hidden by default, no secret and no event text. | TRV-44, DSN-11 |
+| — (operations term) | server log | module `log` | — | The host's diagnostic log of the server process, for whoever operates the host; never shown to the owner, never a « journal ». | TRV-44, TRV-64 |
 | incident | incident | `Incident` | Incident | A function no longer does its job; opened once per cause, closed automatically when the cause disappears; the owner can only hide it. | TRV-45, CL-TRV-11, CL-IHM-20 |
 | incident ouvert, clos, clore | open, closed, close | `IncidentStatus` | Open; Closed | Closing is never an owner action. | TRV-45, CL-TRV-11 |
 | écran d'état | status screen | route `/status` | App status | See section 3.13. | TRV-46, IHM-70 |
@@ -1130,6 +1134,7 @@ Decisions:
 | lot initial | initial batch | — | — | A first batch of backtests for all players; rejected by D-36, unrelated to Lot 1. | D-36 |
 | idée d'origine | original idea | — | — | Betting-oriented starting point, refocused by D-08. | 00, 90 |
 | validation par l'historique | validation by history | — | — | The hypothesis is checked against past events and real statistics (backtest). | D-01 |
+| états communs | common states | `wording/states.ts` | — | The statuses whose labels VUE-08 fixes for every screen. "States" stays in this name only, because it is the spec's name for the set; each value is a status (section 2). | VUE-08 |
 | ligne d'un bookmaker, ligne de bookmaker | bookmaker line | — | — | Out of scope and banned wording (section 8). | D-07, VUE-02 |
 | population choisie | selected population | — | — | Followed players are chosen for talent and exposure; trends describe them, not all NBA players. | 00 caution notes |
 | profils nombreux | many profiles | — | — | With many player-type pairs, some verdicts appear by chance alone. | 00 caution notes, Q-VUE-01 |
@@ -1168,7 +1173,7 @@ Decisions:
 Decisions:
 
 - « état » and « statut » are synonyms in the specs: both are "status". « motif » and « raison » are both "reason". « origine » and « provenance » are both "origin".
-- Every « journal » keeps the word "journal" (pre-decided), so "log" is not used for any of them.
+- Every « journal » keeps the word "journal" (pre-decided), so "log" is not used for any of them. "Log" names only what is no « journal »: the server log of the `log` module (3.15) and the league's game log (3.6).
 
 ## 4. Enumerations
 
@@ -1368,7 +1373,6 @@ Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the
 | --- | --- | --- |
 | marque posée | `set` | (the mark's label) |
 | marque levée | `lifted` | — |
-| marque confirmée (détecté après le coup d'envoi, une fois le match mesuré établi) | `upheld` | (the mark's label) |
 
 `DatePrecision` — COL-20, DET-30, DSN-06
 
@@ -1676,6 +1680,7 @@ Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the
 | — (CL-IMP-08) | `time_ignored` | Time ignored | event |
 | — (CL-IMP-07) | `possible_citation_marker` | Possible citation marker in {field} | event |
 | un nom différent | `player_name_differs` | Player name differs from the request's | result |
+| — (CL-BKT-20) | `other_request_to_do` | This player has another request to do, {reference}, which this import does not change. | result |
 | le champ `format` ou le champ `version_format` manque | `format_or_version_missing` | Format or version missing: version 1.0 assumed | result |
 | — (CL-IMP-06) | `version_normalized` | Format version read as 1.0 | result |
 | listes `pistes_non_verifiees` et `limites` absentes | `lists_missing` | Leads or limitations missing, taken as empty | result |
@@ -2446,7 +2451,7 @@ Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the
 | partielle | `partial` | Partial |
 | non réalisée | `not_done` | Not done |
 
-`OutboxFactKind` — TEL-02, TEL-09–TEL-15 (one notifiable fact recorded in the app; the module map writes them dotted)
+`OutboxFactKind` — TEL-02, TEL-09–TEL-15 (one notifiable fact recorded in the app; the export reminder is the incident kind `export_reminder`, notified through `incident_opened`)
 
 | French | Code value | UI label |
 | --- | --- | --- |
@@ -2458,7 +2463,6 @@ Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the
 | proposition de nouveau type à valider | `type_proposal_new` | — |
 | incident (début) | `incident_opened` | — |
 | fin d'incident | `incident_closed` | — |
-| rappel d'export | `export_reminder_due` | — (provisional, section 11) |
 
 ### 4.2 Near-synonyms that must stay distinct
 
@@ -2992,6 +2996,9 @@ Wording the specs quote and require as written. The English is the approved text
 | Ce résultat concerne le joueur B, alors que cette demande concerne le joueur A. | This result is about player B, but this request is about player A. | IMP-20 |
 | Aucun résultat reconnaissable : vérifiez que vous avez copié toute la réponse de l'IA. | No recognizable result: check that you copied the AI's whole answer. | 06 edge cases |
 | N événements refusés manqueront au backtest tant qu'ils n'auront pas été corrigés et réimportés | N refused events will be missing from the backtest until they are corrected and imported again | IMP-24 |
+| — (résultat coupé, récupération proposée) | The answer stops during event {n}. {k} complete events can be recovered: the covered period then ends on {date}, and the leads and limitations are lost. To get the rest instead, copy the correction message for the AI. | IMP-05, CL-IMP-18, CL-IMP-04 |
+| — (bouton d'enregistrement d'une récupération) | Save {k} recovered events | IMP-05, CL-IMP-18 |
+| — (complément en attente de la demande à faire) | Available once the current request is imported or canceled. | BKT-05, BKT-07 |
 | aucun événement nouveau | no new event | 06 edge cases |
 | vers le 12e événement | around event 12 | IMP-04 |
 | (texte trop volumineux) | The pasted text is {size} MB, over the {limit} MB limit. | IMP-02, CL-IMP-27 |
@@ -3044,6 +3051,7 @@ Expected correction per refusal reason (`ImportRefusalReason`, section 4):
 | échéance proche | deadline soon | IHM-20 |
 | incidents masqués | hidden incidents | IHM-20 |
 | Ajouter un joueur | Add a player | IHM-54 |
+| — (annuaire des joueurs en cours de chargement) | The stats source's player directory is still loading. Candidates appear once it is ready. | IHM-66, JOU-10, STA-03 |
 | Explorer de nouveaux types | Explore new types | IHM-31 |
 | aucun type validé | no validated type | IHM-55 |
 | la détection ne peut pas fonctionner | detection cannot work | IHM-55 |
@@ -3052,7 +3060,10 @@ Expected correction per refusal reason (`ImportRefusalReason`, section 4):
 | Écarter / Réintégrer | Dismiss / Reinstate | IHM-32 |
 | Retirer (un joueur, un type, une source) | Withdraw | JOU-19, TAX-31, COL-10 |
 | Retirer (un événement) ; bouton de l'écran de retrait | Withdraw and erase | IHM-67, IHM-68, CL-VUE-04 |
+| — (confirmation du retrait, brouillon d'import du joueur) | The import draft in progress for {player} will be discarded. | DSN-27, DSN-32 |
+| — (écran de retrait, copie du brouillon sur un appareil) | A device keeps its copy of that draft until it next connects, and at most until the draft expires. | DSN-32, IHM-42 |
 | Rétablir la valeur par défaut | Restore default | IHM-37 |
+| — (paramètre réglé sur un autre écran) | Change it in {screen} | IHM-37, TRV-34 |
 | tous les profils seront recalculés | all profiles will be recalculated | IHM-37 |
 | tout afficher | show all | IHM-27 |
 | Choisir votre mot de passe | Choose your password | IHM-06 |
@@ -3232,7 +3243,7 @@ The keys are the module map's (`docs/engineering/module-map.md`, section 4); thi
 | `backup` | Backup | sauvegarde | 1 | Every Monday at 05:00. | 14, TRV-50 |
 | `news-collection` | News collection | collecte des actualités | 2 | Every day at 16:30 and 23:00 Paris time (record 0019, CL-TRV-09); on demand. | 03, COL-12 |
 | `detection` | Event detection | détection | 2 | Chained after each collection, in the same pass. | 04, COL-16 |
-| `classification-resume` | Classification queue resumption | reprise de la file de classification | 2 | 6 hours after the last run that processed the queue, while an item is eligible (CL-DET-04). | 04, DET-10 |
+| `classification-resume` | Classification queue resumption | reprise de la file de classification | 2 | 6 hours after the end of the last run that processed the queue, or at the provider's quota reset when that comes first, while an item is eligible; an owner's retry or reclassification makes it due at once (CL-DET-04). | 04, DET-10 |
 | `game-tracking` | Game tracking | suivi des matchs des événements détectés | 2 | Chained after each statistics update; forecasts frozen at tip-off. | 10, SUI-12 |
 | `notification-dispatch` | Notification sending | envoi des notifications différées, des rappels avant échéance et des nouvelles tentatives d'envoi | 2 | At the end of each pass and at every wake-up. | 11 |
 
@@ -3247,7 +3258,7 @@ Incidents, and the warnings and reminders handled like them. The key is the `Inc
 | `press_source_down` | Press source down | « flux en panne », source de presse en panne | incident | A source has 2 consecutive failed runs, not counting a "collection impossible" run. | A read brings articles again. | COL-41, COL-43, CL-COL-05 |
 | `collection_impossible` | Collection impossible | « collecte impossible » | incident | Every active source failed in the same run, at least two being active. | At the end of the first later run in which at least one active source is read successfully. | COL-44, CL-COL-05 |
 | `press_source_silent` | Silent press source | source muette (avertissement) | warning, notified | No new article for the source's silence delay. | A read brings articles again. | COL-42, COL-43, CL-TEL-17 |
-| `feed_too_short` | Add a collection time | avertissement (trou de collecte sans exécution manquée) | warning, not notified | A collection gap is recorded although the previous run read the source. | Not stated by the specs (section 11). | COL-46, CL-COL-13, CL-TEL-17 |
+| `feed_too_short` | Add a collection time | avertissement (trou de collecte sans exécution manquée) | warning, not notified | A collection gap is recorded although the previous run read the source. | At the end of the first later successful read of the source that runs the gap test and records no gap; adding a collection time does not close it by itself. | COL-46, CL-COL-13, CL-COL-24, CL-TEL-17 |
 | `quota_reached` | Quota reached — {service function} | « quota atteint », quota de classification atteint | incident | A service stops work for one of the causes below. | Classification: no queue item is eligible; stats source: requests resume; other services: the owner saves a new limit, or a full period passes without refusal. | DET-11, STA-39, TRV-05, TRV-06, CL-TRV-11, CL-DET-04 |
 | `quota_warning` | Quota warning — {service function} | avertissement de quota | warning, not notified | 80 % of a limit is used. | The period renews. | TRV-05, CL-TEL-17 |
 | `database_volume_warning` | Database volume warning | avertissement de volume | warning, not notified | 80 % of the free capacity is used. | Usage falls below the share. | TRV-07, CL-TEL-17 |
@@ -3271,7 +3282,7 @@ The failed-messages banner of TEL-36 ("Messages failed") is a banner, not an inc
 
 ### 9.3 Parameters
 
-The keys are the module map's (section 6). Defaults and bounds are those of CL-TRV-16 and stay in the owning requirements. A key marked "not in the module map" is a parameter the rulings define that the map does not list yet; the architect adds its key.
+The keys are the module map's (section 6). Defaults and bounds are those of CL-TRV-16 and stay in the owning requirements.
 
 | Family | Key (module map) | English name | French | IDs |
 | --- | --- | --- | --- | --- |
@@ -3288,13 +3299,13 @@ The keys are the module map's (section 6). Defaults and bounds are those of CL-T
 | 03 News collection | `collection.dedupTraceRetentionDays` | Dedup trace retention | durée de conservation des traces de dédoublonnage | COL-34 |
 | 03 News collection | `collection.notRelevantRetentionDays` | Not-relevant article retention | durée de conservation des articles non pertinents | COL-36 |
 | 03 News collection | `collection.failedRunsBeforeDown` | Failed runs before "down" | nombre d'exécutions en échec avant l'état « en panne » | COL-41 |
-| 03 News collection | `collection.silenceDelayDays` | Silence period (default for each source) | délai de silence, propre à chaque source | COL-42 |
+| 03 News collection | `collection.silencePeriodDays` | Silence period (default for each source) | délai de silence, propre à chaque source | COL-42 |
 | 04 Detection | `detection.priorityHorizonHours` | Queue priority horizon | horizon de priorité de la file | DET-09 |
 | 04 Detection | `detection.queueResumeIntervalHours` | Queue resumption interval | intervalle de reprise de la file | DET-10 |
 | 04 Detection | `detection.classificationAttempts` | Classification attempts | nombre de tentatives de classification | DET-22 |
 | 04 Detection | `detection.threshold` | Detection threshold | seuil de détection | DET-24 |
 | 04 Detection | `detection.groupingWindowHours` | Grouping window | fenêtre de regroupement | DET-29 |
-| 04 Detection | not in the module map | Confidence band width | — (CL-DET-24) | DET-25, CL-DET-24 |
+| 04 Detection | `detection.confidenceBandWidth` | Confidence band width | — (CL-DET-24) | DET-25, CL-DET-24 |
 | 04 Detection | `languageModel.primaryModel` | Primary language model | — (detection-model service sheet) | DET-08 |
 | 04 Detection | `languageModel.fallbackModel` | Fallback language model | — (detection-model service sheet) | DET-08 |
 | 05 Backtest request | `backtests.maxSourcesPerEvent` | Maximum sources per event | nombre maximal de sources par événement | H-BKT-09 |
@@ -3302,7 +3313,7 @@ The keys are the module map's (section 6). Defaults and bounds are those of CL-T
 | 06 Import | `imports.maxSourceLeadDays` | Tolerated source lead | avance tolérée d'une source sur la date publique | IMP-14 |
 | 06 Import | `imports.disallowedSourceDomains` | Disallowed source domains | liste des domaines non admis comme sources | IMP-14, H-IMP-13 |
 | 06 Import | `imports.linkCheckEnabled` | Link check | vérification de l'accessibilité des liens | IMP-17 |
-| 06 Import | not in the module map | Link-check timeout | — (CL-IMP-25) | IMP-17, CL-IMP-25 |
+| 06 Import | `imports.linkCheckTimeoutSeconds` | Link-check timeout | — (CL-IMP-25) | IMP-17, CL-IMP-25 |
 | 06 Import | `imports.spotCheckSources` | Sources offered for the spot check | nombre de sources proposées au sondage | IMP-23 |
 | 06 Import | `imports.duplicateMaxDateGapDays` | Correspondence window | écart maximal entre dates publiques de deux événements correspondants | IMP-25, H-IMP-02, CL-IMP-34 |
 | 07 Game statistics | `games.minutesFloor` | Playing-time floor | plancher de temps de jeu | STA-14 |
@@ -3312,12 +3323,12 @@ The keys are the module map's (section 6). Defaults and bounds are those of CL-T
 | 07 Game statistics | `games.partialBaselineShare` | Partial baseline threshold | seuil de référence partielle | STA-24 |
 | 07 Game statistics | `games.dailyUpdateDelayHours` | Delay after the last tip-off | délai minimal de la mise à jour quotidienne après le dernier coup d'envoi | STA-32 |
 | 07 Game statistics | `games.correctionWindowDays` | Correction window | fenêtre de correction | STA-33 |
-| 07 Game statistics | `games.sheetUnavailableAfterDays` | Delay before a box score is unavailable | délai avant feuille indisponible | STA-35 |
+| 07 Game statistics | `games.boxScoreUnavailableAfterDays` | Delay before a box score is unavailable | délai avant feuille indisponible | STA-35 |
 | 07 Game statistics | `games.retryFirstDelayHours`, `games.retryIntervalHours` | Retry delays | délais de nouvelle tentative | STA-36 |
 | 07 Game statistics | `games.incidentAfterHours` | Delay before an incident | délai avant incident | STA-37 |
 | 07 Game statistics | `games.quotaReserveShare` | Quota reserve | réserve de quota | STA-39 |
 | 08 Sensitivity and verdict | `sensitivity.maxAttachmentDays` | Attachment window | délai maximal de rattachement | SEN-04 |
-| 08 Sensitivity and verdict | `sensitivity.concurrentCasesDoubtful` | Treat co-occurring cases as doubtful | traitement des cas concomitants comme douteux | SEN-06 |
+| 08 Sensitivity and verdict | `sensitivity.coOccurringCasesDoubtful` | Treat co-occurring cases as doubtful | traitement des cas concomitants comme douteux | SEN-06 |
 | 08 Sensitivity and verdict | `sensitivity.injuryReturnFirstGames` | Games after an absence (return from injury) | nombre de premiers matchs (critère calculé de retour de blessure) | SEN-13 |
 | 08 Sensitivity and verdict | `sensitivity.injuryReturnMinGamesMissed` | Absence length (return from injury) | durée d'absence (critère calculé de retour de blessure) | SEN-13 |
 | 08 Sensitivity and verdict | `sensitivity.allPlayoffGamesUnusualStakes` | Treat every playoff game as unusual stakes | traitement de tout match de phases finales comme enjeu inhabituel | SEN-14 |
@@ -3345,14 +3356,14 @@ The keys are the module map's (section 6). Defaults and bounds are those of CL-T
 | 11 Telegram notifications | `notifications.dailyCap` | Daily cap | plafond quotidien | TEL-22, CL-TEL-07 |
 | 11 Telegram notifications | `notifications.linkCodeValidityMinutes` | Link code validity | durée de validité du code de liaison | TEL-29 |
 | 11 Telegram notifications | `notifications.retryIntervalsMinutes` | Retry intervals | intervalles de nouvelle tentative | TEL-35 |
-| 11 Telegram notifications | not in the module map | Catch-up interval | — (CL-TEL-12) | TEL-36, CL-TEL-12 |
+| 11 Telegram notifications | `notifications.catchUpIntervalMinutes` | Catch-up interval | — (CL-TEL-12) | TEL-36, CL-TEL-12 |
 | 12 Interface and access | `display.timeZone` | Time zone | fuseau horaire de l'utilisateur | IHM-14, CL-IHM-05 |
 | 12 Interface and access | `display.listPageSize` | List page size | taille des tranches de liste | IHM-18 |
-| 12 Interface and access | `display.deadlineNearHours` | "Deadline soon" delay | délai de la mention « échéance proche » | IHM-20 |
+| 12 Interface and access | `display.deadlineSoonHours` | "Deadline soon" delay | délai de la mention « échéance proche » | IHM-20 |
 | 12 Interface and access | `display.draftRetentionDays` | Draft retention | durée de conservation d'un brouillon | IHM-42, CL-IHM-11 |
 | 12 Interface and access | `display.researchToolUrl` | Research tool address | adresse de l'outil de recherche | IHM-44 |
 | 13 Sensitive data | `events.maxDescriptionLength` | Maximum description length | longueur maximale d'une description | DSN-20 |
-| 14 Cross-cutting | `quotas.statsSource.requestsPerDay`, `.megabytesPerDay`; `quotas.workersAi.neuronsPerDay`, `.requestsPerMinute`; `quotas.groq.requestsPerMinute`, `.requestsPerDay`, `.tokensPerMinute`, `.tokensPerDay`; `quotas.database.capacityMegabytes`, `.computeHoursPerMonth`, `.transferMegabytesPerMonth`; `quotas.hosting.functionMaxDurationSeconds`, `.invocationsPerMonth`, `.activeCpuHoursPerMonth`, `.memoryGbHoursPerMonth`, `.runtimeCacheReadsPerMonth`, `.runtimeCacheWritesPerMonth`, `.schedulesRunsPerMonth`; `quotas.telegram.messagesPerSecond`, `.maxMessageLength`; `quotas.backupStorage.maxFileMegabytes`, `.requestsPerHour` | Quota limits per service | limites de quota de chaque service | TRV-03, CL-TRV-12 |
+| 14 Cross-cutting | `quotas.statsSource.requestsPerDay`, `.megabytesPerDay`; `quotas.workersAi.neuronsPerDay`, `.requestsPerMinute`; `quotas.groq.requestsPerMinute`, `.requestsPerDay`, `.tokensPerMinute`, `.tokensPerDay`; `quotas.database.capacityMegabytes`, `.computeHoursPerMonth`, `.transferMegabytesPerMonth`; `quotas.hosting.invocationsPerMonth`, `.activeCpuHoursPerMonth`, `.memoryGbHoursPerMonth`, `.runtimeCacheReadsPerMonth`, `.runtimeCacheWritesPerMonth`, `.schedulesRunsPerMonth`; `quotas.telegram.messagesPerSecond`; `quotas.backupStorage.maxFileMegabytes`, `.requestsPerHour` | Quota limits per service | limites de quota de chaque service | TRV-03, CL-TRV-12 |
 | 14 Cross-cutting | `quotas.warningShare` | Quota warning share | part de la limite qui déclenche l'avertissement de quota | TRV-05 |
 | 14 Cross-cutting | `quotas.databaseWarningShare` | Database volume warning share | part de la capacité de la base qui déclenche l'avertissement de volume | TRV-07 |
 | 14 Cross-cutting | `scheduler.statsUpdateTime` | Statistics update start | horaire de la mise à jour des statistiques | TRV-25, CL-TRV-23 |
@@ -3370,7 +3381,13 @@ The keys are the module map's (section 6). Defaults and bounds are those of CL-T
 | 14 Cross-cutting | `auth.loginFailureThreshold`, `auth.loginFailureWindowMinutes`, `auth.lockoutMinutes` | Login failures, observation period, lockout duration | nombre d'échecs, période d'observation, durée du blocage de connexion | TRV-61 |
 | 14 Cross-cutting | `auth.sessionIdleDays` | Idle session duration | durée de session sans utilisation | TRV-62 |
 
-Settings kept on an object, not in the registry: on a type sheet, the coverage threshold (CL-TAX-14, "Coverage threshold") and the switched-off criterion (CL-TAX-17, "Criterion switched off"); on a press source, its silence period and outlet time zone. Not parameters (TRV-38): the press languages, the daily frequency of collection and detection, the historical depth of a backtest. The fingerprint horizon is derived, backups kept times the backup interval (CL-DSN-07).
+Settings kept on an object, not in the registry: on a type sheet, the coverage threshold (CL-TAX-14, "Coverage threshold") and the switched-off criterion (CL-TAX-17, "Criterion switched off"); on a press source, its silence period and outlet time zone. Not parameters (TRV-38): the press languages, the daily frequency of collection and detection, the historical depth of a backtest. The fingerprint horizon is derived, backups kept times the backup interval (CL-DSN-07, `fingerprintHorizon()`). The hosting function limit and Telegram's message length are code constants, not parameters (CL-TRV-07, CL-TEL-14).
+
+Keys whose word differs from the glossary term, kept by the map:
+
+- `imports.duplicateMaxDateGapDays`: the key keeps H-IMP-02's own words, "maximum gap between public dates", and its first use, the duplicate checks; the term stays "correspondence window".
+- `sensitivity.confidence*`: the `sensitivity` family already says whose confidence it is; the term and the labels stay "profile confidence", never "confidence" alone.
+- `notifications.reminderEnabled`: the deadline reminder is the only reminder that can be turned off (TEL-24); the label stays "Reminder before the deadline".
 
 ## 10. Terms from decisions and rulings with no French source
 
@@ -3398,13 +3415,10 @@ The owner's decisions and the rulings add concepts the French specs do not name.
 | Article and recognized player of a classification | part | `ClassificationPart` | — | CL-DET-01 |
 | Count of verdicts chance alone would produce | chance verdict count | `ExpectedFalseSignals` | Verdicts chance alone would produce | SEN-41, CL-SEN-20 |
 | Result of a statistics update that waited until the cut-off | source late | `TaskRunResult` `source_late` | Source late | CL-TRV-23 |
-| Interval between two catch-up attempts | catch-up interval | not in the module map | Catch-up interval | CL-TEL-12 |
-| Width of the bands of detection confidence | confidence band width | not in the module map | Confidence band width | CL-DET-24 |
-| Time the link check waits for a page | link-check timeout | not in the module map | Link-check timeout | CL-IMP-25 |
+| Interval between two catch-up attempts | catch-up interval | `notifications.catchUpIntervalMinutes` | Catch-up interval | CL-TEL-12 |
+| Width of the bands of detection confidence | confidence band width | `detection.confidenceBandWidth` | Confidence band width | CL-DET-24 |
+| Time the link check waits for a page | link-check timeout | `imports.linkCheckTimeoutSeconds` | Link-check timeout | CL-IMP-25 |
 
 ## 11. Not settled
 
-Points the specs, the decisions and the rulings leave open; each keeps the provisional name given.
-
-1. **When "Add a collection time" closes.** COL-46 and CL-COL-13 say when the warning is raised, not when it ends. Provisional: when a later read of the source records no gap.
-2. **Outbox fact of the export reminder.** TEL-15 and TRV-54 notify the reminder in Lot 2; the module map's list of fact kinds lacks it. Provisional: `export_reminder_due` (section 4).
+Points the specs, the decisions and the rulings leave open, each with its provisional name. None is open at present: the closing of "Add a collection time" is ruled by CL-COL-24 (section 9.2), and the export reminder is the incident kind `export_reminder`, with no outbox fact of its own.
