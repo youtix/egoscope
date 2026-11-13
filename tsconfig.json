@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig.json",
+  "compilerOptions": {
+    // Environment: Node 22 on the server, current browsers on the client.
+    "target": "es2024",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "types": ["node"],
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "paths": { "@/*": ["./src/*"], "@data/*": ["./data/*"] },
+    "plugins": [{ "name": "next" }],
+
+    // Type-check only: Next.js, Vitest and Bun do the transpiling. vitest.config.ts
+    // imports local modules with their .ts extension, which Vite's native config
+    // loader (Node itself) needs.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/typescript/tsbuildinfo",
+    "allowJs": false,
+    // Skips third-party and generated declarations only, as @tsconfig/strictest
+    // does: Next.js 16.4 generates .next/types/link.d.ts against the global JSX
+    // namespace that React 19 removed. Our own sources hold no .d.ts files (the
+    // structure check rejects them), so every line we write is fully checked.
+    "skipLibCheck": true,
+
+    // Module syntax that every tool reads the same way. Next.js requires esModuleInterop.
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "noUncheckedSideEffectImports": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // Strictness: everything TypeScript offers. Never relax these to get green.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.mts",
+    "**/*.cts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  // .claude/ holds the other agents' worktrees: see scripts/ignored-folders.ts. The
+  // `**` of `include` never enters a dot folder anyway; this says so explicitly.
+  "exclude": ["node_modules", ".claude"]
+}

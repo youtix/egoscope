@@ -1,0 +1,14 @@
+{
+  // The pure core type-checked against the ECMAScript library alone, so that any
+  // Node.js or DOM global (process, setTimeout, fetch, document…) is a type error
+  // there. `bun run typecheck` runs it after the main project.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["es2024"],
+    "types": [],
+    "plugins": [],
+    "tsBuildInfoFile": "node_modules/.cache/typescript/pure-core.tsbuildinfo"
+  },
+  "include": ["src/lib/stats-engine/**/*.ts", "src/lib/ai-exchange/**/*.ts"],
+  "exclude": ["**/*.test.ts"]
+}

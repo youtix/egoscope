@@ -10,6 +10,7 @@ next-env.d.ts
 
 # test and analysis output
 coverage/
+.vitest/
 playwright-report/
 test-results/
 reports/
@@ -24,10 +25,11 @@ reports/
 *.pglite/
 .pglite/
 
-# tooling caches
+# tooling caches and personal tool settings
 .eslintcache
 .turbo/
 .vercel/
+lefthook-local.yml
 
 # agent worktrees and local assistant settings
 .claude/worktrees/

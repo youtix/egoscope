@@ -1,0 +1,13 @@
+# Bun settings shared by every checkout and by CI.
+[install]
+# Pin exact versions on `bun add`; upgrades are deliberate, reviewed changes.
+exact = true
+# A flat node_modules, which Next.js and the ESLint plugin loader expect.
+linker = "hoisted"
+# Supply-chain guard: never resolve a version, direct or transitive, published
+# less than seven days ago (in seconds). Compromised releases are usually caught
+# and pulled within days.
+minimumReleaseAge = 604800
+# Exceptions, for an urgent security fix only: exact `name@version` entries,
+# justified in the pull request and removed once the version is seven days old.
+minimumReleaseAgeExcludes = []
