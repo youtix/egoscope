@@ -20,13 +20,22 @@ const createRule = ESLintUtils.RuleCreator<{ requiresTypeChecking?: boolean }>(
   (name) => `scripts/eslint-plugin.ts#${name}`,
 );
 
-// The coverage hints of V8 and c8, Istanbul and Node's test runner, in any case and
-// spacing. (These comments name them without spelling a hint, which this very rule
-// would refuse.) ast-v8-to-istanbul, behind @vitest/coverage-v8, reads the ignore
-// hints with if, else, next or file in comments, and those with start or stop on
-// any line of a covered file, strings included. Node's runner reads its own
-// disable, enable and ignore-next comments, all with the same prefix.
-const COVERAGE_HINT = /\b(?:v8|c8|istanbul)\s+ignore\b|\bnode:coverage\b/iu;
+// The coverage hints of V8 and c8, Istanbul and Node's test runner. (These comments
+// name them without spelling a hint, which this very rule would refuse.)
+//
+// ast-v8-to-istanbul, behind @vitest/coverage-v8, reads them with three expressions:
+// the hints with if, else, next or file in comments, and those with start or stop
+// on any line of a covered file, strings included. All three begin with this core,
+// with no anchor or word boundary in front, so the rule refuses whatever the
+// remapper honours; eslint-plugin.test.ts compares it with the remapper's source.
+// The rule also ignores case, which the remapper does not.
+/** The expression that every coverage hint of ast-v8-to-istanbul begins with. */
+export const REMAPPER_HINT = /(?:istanbul|[cv]8|node:coverage)\s+ignore/iu;
+// Node's own test runner also reads its disable and enable comments, with the same prefix.
+const NODE_RUNNER_HINT = /node:coverage/iu;
+
+const isCoverageHint = (text: string): boolean =>
+  REMAPPER_HINT.test(text) || NODE_RUNNER_HINT.test(text);
 
 // Comments that the gate's other tools obey: Prettier skips the next node,
 // Stryker stops mutating, and knip never reports an export tagged this way.
@@ -71,15 +80,15 @@ const LOCAL_TIME_METHODS: ReadonlySet<string> = new Set([
 const isNamed = (node: TSESTree.Node, name: string): boolean =>
   node.type === AST_NODE_TYPES.Identifier && node.name === name;
 
-/** Reports each comment that matches `pattern`, and returns the lines they cover. */
+/** Reports each comment whose text `isMatch` accepts, and returns the lines they cover. */
 function reportComments(
   sourceCode: Readonly<TSESLint.SourceCode>,
-  pattern: RegExp,
+  isMatch: (text: string) => boolean,
   report: (comment: TSESTree.Comment) => void,
 ): ReadonlySet<number> {
   const lines = new Set<number>();
   for (const comment of sourceCode.getAllComments()) {
-    if (!pattern.test(comment.value)) {
+    if (!isMatch(comment.value)) {
       continue;
     }
     report(comment);
@@ -98,7 +107,7 @@ function reportHintLines(
 ): void {
   for (const [index, text] of sourceCode.lines.entries()) {
     const line = index + 1;
-    if (skipped.has(line) || !COVERAGE_HINT.test(text)) {
+    if (skipped.has(line) || !isCoverageHint(text)) {
       continue;
     }
     report({ start: { line, column: 0 }, end: { line, column: text.length } });
@@ -126,7 +135,7 @@ const noCoverageHints = createRule<[{ text: boolean }], 'hint' | 'text'>({
   create(context, [{ text }]) {
     return {
       Program(): void {
-        const reported = reportComments(context.sourceCode, COVERAGE_HINT, (comment) => {
+        const reported = reportComments(context.sourceCode, isCoverageHint, (comment) => {
           context.report({ loc: comment.loc, messageId: 'hint' });
         });
         if (text) {
@@ -157,7 +166,8 @@ const noToolPragmas = createRule({
     return {
       Program(): void {
         for (const { pattern, messageId } of TOOL_PRAGMAS) {
-          reportComments(context.sourceCode, pattern, (comment) => {
+          const isMatch = (text: string): boolean => pattern.test(text);
+          reportComments(context.sourceCode, isMatch, (comment) => {
             context.report({ loc: comment.loc, messageId });
           });
         }

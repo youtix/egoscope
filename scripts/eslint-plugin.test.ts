@@ -2,10 +2,15 @@
 // egoscope plugin bites where eslint.config.ts applies it, and so do the preset
 // rules configured for the other switches. Deliberate violations are linted in
 // the probe project of lint-probes.ts.
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { afterAll, describe, expect, it } from 'vitest';
 
+import { REMAPPER_HINT } from './eslint-plugin';
 import { createProbes } from './lint-probes';
 
+const ROOT = path.join(import.meta.dirname, '..');
 const { ruleIds, remove } = createProbes();
 
 /** A test file whose suite holds `body`. */
@@ -103,6 +108,11 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
       '/* node:coverage ignore start */',
       '/* node:coverage disable */',
       '/* node:coverage enable */',
+      '// zv8 ignore start',
+      '// zv8 ignore stop',
+      '/* _istanbul ignore next */',
+      '// 9c8 ignore next',
+      '// Notes for the xnode:coverage ignore start of this helper.',
     ])('rejects the hint %s', async (hint) => {
       expect(
         await ruleIds('src/lib/probe/probe.ts', `${hint}\nexport const probe = 1;\n`),
@@ -120,8 +130,24 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
     it.each([
       ['a string', "export const note = 'v8 ignore start';\n"],
       ['a template literal', 'export const note = `node:coverage disable`;\n'],
+      ['a string, glued to a word', "export const note = 'zv8 ignore start';\n"],
     ])('rejects a hint that the remapper reads in %s of covered code', async (_kind, code) => {
       expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain('egoscope/no-coverage-hints');
+    });
+
+    it("refuses with the remapper's own expression, so that it refuses all that the remapper honours", () => {
+      const remapper = readFileSync(
+        path.join(ROOT, 'node_modules/ast-v8-to-istanbul/dist/index.mjs'),
+        'utf8',
+      );
+      const start = remapper.indexOf('//#region src/ignore-hints.ts');
+      const region = remapper.slice(start, remapper.indexOf('//#endregion', start));
+      const expressions = region.match(/\/[^\n/]*ignore[^\n/]*\//gu) ?? [];
+
+      expect(expressions).toHaveLength(3);
+      expect(
+        expressions.filter((expression) => !expression.includes(REMAPPER_HINT.source)),
+      ).toStrictEqual([]);
     });
 
     it('lets a test hold a hint as data, since coverage never measures tests', async () => {
