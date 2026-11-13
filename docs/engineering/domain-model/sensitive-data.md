@@ -8,8 +8,9 @@ files; the classes are defined in the [README](README.md) section 3.
 
 ## 1. Entities: the withdrawal ledger
 
-Fingerprints and deleted-player entries form the withdrawal ledger, with the withdrawn-events
-counter (CL-DSN-08). No backup and no export contains a ledger entry; the counter's value is written
+Fingerprints and deleted-player entries form the withdrawal ledger (`WithdrawalLedger`), with the
+withdrawn-events counter (CL-DSN-08); their code types are `WithdrawalFingerprint` and
+`DeletedPlayerEntry`. No backup and no export contains a ledger entry; the counter's value is written
 into each backup and full export. A restore never overwrites the ledger and re-applies it
 ([operations.md](operations.md) section 2.5, CL-TRV-06). Every hash is HMAC-SHA-256 with the
 fingerprint secret of the deployment configuration (TRV-37, ADR 0017); a hash is never displayed,
@@ -105,7 +106,9 @@ Order of a withdrawal of event E, every row of the left column being deleted unl
    every article attached to E and to no other event, with no dedup trace and no other record
    (DSN-34, CL-DSN-10).
 4. `import_event_outcomes` and `import_possible_duplicates` rows whose event is E, so that the
-   import trace, counts included, keeps nothing designating it (IMP-37).
+   import trace, counts included, keeps nothing designating it (IMP-37). In the same step, the import drafts of
+   every backtest request of E's player, server copies, since a pasted result may report the
+   withdrawn fact (the orchestrator's ruling of this pass; `drafts_import_key` finds them).
 5. `journal_technical_details` of journal entries that concerned only E; the entries' references
    to E then become null and read "an item that no longer exists" (CL-TRV-10).
 6. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),

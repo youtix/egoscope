@@ -119,17 +119,17 @@ they use:
 
 Every column carries one or more classes (`docs/13-donnees-sensibles.md`).
 
-| class | meaning                                                                                                    | erased by                                                          | in backups and full exports | shown, logged                                            |
-| ----- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------- | -------------------------------------------------------- |
-| —     | no personal or press-derived content                                                                       | —                                                                  | yes                         | yes                                                      |
-| PI    | about a followed player: identity, statistics, requests, imports, profiles (JOU-08)                        | the player-data deletion (JOU-24, CL-JOU-06)                       | yes                         | in the app; the journal names him by reference only      |
-| BD    | his day and month of birth, never a year (CL-DSN-21)                                                       | the player-data deletion; the owner removing it                    | yes                         | in the app; never sent to an AI, never logged as a value |
-| EV    | designates or reveals one event: the event row, anything tied to it, any reference to it (DSN-06)          | the event's withdrawal and the other erasures (sensitive-data 2.1) | yes                         | in the app; the journal by reference only (CL-TRV-10)    |
-| TX    | a free text under the wording rules: description, unverified note, comments, reasons, limitations (DSN-10) | with its row                                                       | yes                         | in the app; never in the journal (DSN-11)                |
-| PR    | a press reference kept as published: link, outlet, title (DSN-08)                                          | with its row                                                       | yes                         | in the app; never in the journal (DSN-11)                |
-| SE    | credential material: password hash, initial-password fingerprint, session token hash (TRV-60, TRV-63)      | password change, reset, logout                                     | no (CL-TRV-05)              | never (TRV-64)                                           |
-| WL    | a withdrawal-ledger hash (ADR 0017, CL-DSN-08)                                                             | the daily purge at its horizon                                     | no (CL-DSN-08)              | never                                                    |
-| DR    | a pasted text in a draft (DSN-32, CL-DSN-17)                                                               | save, discard, expiry, restore                                     | no (CL-DSN-17)              | in the import or exploration screen only; never logged   |
+| class | meaning                                                                                                    | erased by                                                                          | in backups and full exports | shown, logged                                            |
+| ----- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------------------- |
+| —     | no personal or press-derived content                                                                       | —                                                                                  | yes                         | yes                                                      |
+| PI    | about a followed player: identity, statistics, requests, imports, profiles (JOU-08)                        | the player-data deletion (JOU-24, CL-JOU-06)                                       | yes                         | in the app; the journal names him by reference only      |
+| BD    | his day and month of birth, never a year (CL-DSN-21)                                                       | the player-data deletion; the owner removing it                                    | yes                         | in the app; never sent to an AI, never logged as a value |
+| EV    | designates or reveals one event: the event row, anything tied to it, any reference to it (DSN-06)          | the event's withdrawal and the other erasures (sensitive-data 2.1)                 | yes                         | in the app; the journal by reference only (CL-TRV-10)    |
+| TX    | a free text under the wording rules: description, unverified note, comments, reasons, limitations (DSN-10) | with its row                                                                       | yes                         | in the app; never in the journal (DSN-11)                |
+| PR    | a press reference kept as published: link, outlet, title (DSN-08)                                          | with its row                                                                       | yes                         | in the app; never in the journal (DSN-11)                |
+| SE    | credential material: password hash, initial-password fingerprint, session token hash (TRV-60, TRV-63)      | password change, reset, logout                                                     | no (CL-TRV-05)              | never (TRV-64)                                           |
+| WL    | a withdrawal-ledger hash (ADR 0017, CL-DSN-08)                                                             | the daily purge at its horizon                                                     | no (CL-DSN-08)              | never                                                    |
+| DR    | a pasted text in a draft (DSN-32, CL-DSN-17)                                                               | save, discard, expiry, restore, a withdrawal of the player's event (import drafts) | no (CL-DSN-17)              | in the import or exploration screen only; never logged   |
 
 What a withdrawal erases, in which order, and what remains; what each purge removes and when; what
 exports and backups contain: [sensitive-data.md](sensitive-data.md).
@@ -150,82 +150,82 @@ the glossary's values; rows with per-origin columns are discriminated unions (`P
 
 ## 5. Index of entities
 
-| entity (code type)                | table                                                | file                                                       | lot  |
-| --------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------- | ---- |
-| `FollowedPlayer`                  | `followed_players`                                   | [players.md](players.md)                                   | 1    |
-| `NameVariant`                     | `player_name_variants`                               | [players.md](players.md)                                   | 1    |
-| `PlayerStatusChange`              | `player_status_changes`                              | [players.md](players.md)                                   | 1    |
-| `PlayerTeamChange`                | `player_team_changes`                                | [players.md](players.md)                                   | 1    |
-| `StatsSourceMapping`              | `stats_source_mappings`                              | [players.md](players.md)                                   | 1    |
-| `MappingCandidate`                | `mapping_candidates`                                 | [players.md](players.md)                                   | 1    |
-| `Team`                            | `teams`                                              | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| team source identifiers           | `team_source_refs`                                   | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `Game`                            | `games`                                              | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `Series`                          | `series`                                             | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `BoxScore`                        | `box_scores`                                         | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `StatCorrection`                  | `stat_corrections`                                   | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `PlayerIndicators`                | `player_indicators`                                  | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `FetchQueueItem`                  | `fetch_queue_items`                                  | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| source versions                   | `stats_source_versions`                              | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `Season` and its coverage         | `seasons`                                            | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `TeamSeason`                      | `team_seasons`                                       | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `DirectoryEntry`                  | `player_directory_entries`, `player_directory_teams` | [games-and-statistics.md](games-and-statistics.md)         | 1    |
-| `EventType` and its `TypeSheet`   | `event_types`                                        | [event-types.md](event-types.md)                           | 1    |
-| type status history               | `event_type_status_changes`                          | [event-types.md](event-types.md)                           | 1    |
-| `TypeSheetVersion`                | `type_sheet_versions`                                | [event-types.md](event-types.md)                           | 1    |
-| `TypeSheetChange`                 | `type_sheet_changes`                                 | [event-types.md](event-types.md)                           | 1    |
-| `IllustrationSource`              | `type_illustration_sources`                          | [event-types.md](event-types.md)                           | 1    |
-| `TypeOccurrence`                  | `type_occurrences`                                   | [event-types.md](event-types.md)                           | 2    |
-| `PlayerEvent`                     | `events`                                             | [events-and-cases.md](events-and-cases.md)                 | both |
-| `PlayerEventSource`               | `event_sources`                                      | [events-and-cases.md](events-and-cases.md)                 | both |
-| `ImportWarning`                   | `event_import_warnings`                              | [events-and-cases.md](events-and-cases.md)                 | 1    |
-| `EventMark`                       | `event_marks`                                        | [events-and-cases.md](events-and-cases.md)                 | 2    |
-| dismissal history                 | `event_status_changes`                               | [events-and-cases.md](events-and-cases.md)                 | 2    |
-| correction history                | `event_corrections`                                  | [events-and-cases.md](events-and-cases.md)                 | both |
-| `Case`                            | `cases`                                              | [events-and-cases.md](events-and-cases.md)                 | both |
-| triggered criteria                | `case_triggered_criteria`                            | [events-and-cases.md](events-and-cases.md)                 | both |
-| `ReviewFlag`                      | `case_review_flags`                                  | [events-and-cases.md](events-and-cases.md)                 | both |
-| `ManualDecision`                  | `case_manual_decisions`                              | [events-and-cases.md](events-and-cases.md)                 | both |
-| `CaseHistoryEntry`                | `case_history_entries`                               | [events-and-cases.md](events-and-cases.md)                 | both |
-| `TallyExit`, `EventDeletionTrace` | `tally_exits`                                        | [events-and-cases.md](events-and-cases.md)                 | both |
-| `DerivationRequest`               | `calendar_derivation_requests`                       | [events-and-cases.md](events-and-cases.md)                 | both |
-| `BacktestRequest`                 | `backtest_requests`                                  | [backtest-and-import.md](backtest-and-import.md)           | both |
-| requested types                   | `backtest_request_types`                             | [backtest-and-import.md](backtest-and-import.md)           | 1    |
-| attached detected events          | `backtest_request_events`                            | [backtest-and-import.md](backtest-and-import.md)           | 2    |
-| `BacktestCoverage`                | `backtest_coverage_periods`                          | [backtest-and-import.md](backtest-and-import.md)           | 1    |
-| `Import`, `ImportTrace`           | `imports`                                            | [backtest-and-import.md](backtest-and-import.md)           | 1    |
-| import outcomes                   | `import_event_outcomes`                              | [backtest-and-import.md](backtest-and-import.md)           | 1    |
-| `PossibleDuplicate` answers       | `import_possible_duplicates`                         | [backtest-and-import.md](backtest-and-import.md)           | 1    |
-| `SensitivityProfile`              | `sensitivity_profiles`                               | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
-| `GeneralTrend`                    | `general_trends`                                     | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
-| `VerdictHistoryEntry`             | `verdict_history_entries`                            | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
-| recalculation jobs                | `recalculation_jobs`                                 | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
-| `ProfileValueVersion`             | `profile_value_versions`                             | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
-| `WithdrawalFingerprint`           | `withdrawal_fingerprints`                            | [sensitive-data.md](sensitive-data.md)                     | 1    |
-| deleted-player entry              | `deleted_player_entries`                             | [sensitive-data.md](sensitive-data.md)                     | 1    |
-| `withdrawnEventCount`             | `withdrawn_event_counter`                            | [sensitive-data.md](sensitive-data.md)                     | 1    |
-| parameter overrides               | `parameter_overrides`                                | [operations.md](operations.md)                             | both |
-| parameter changes                 | `parameter_changes`                                  | [operations.md](operations.md)                             | both |
-| parameter snapshots               | `parameter_snapshots`                                | [operations.md](operations.md)                             | both |
-| `JournalEntry`                    | `journal_entries`                                    | [operations.md](operations.md)                             | both |
-| technical details                 | `journal_technical_details`                          | [operations.md](operations.md)                             | both |
-| `Incident`                        | `incidents`                                          | [operations.md](operations.md)                             | both |
-| `QuotaUsage`                      | `quota_usage`                                        | [operations.md](operations.md)                             | both |
-| `TaskRun`                         | `task_runs`                                          | [operations.md](operations.md)                             | both |
-| `Backup`                          | `backups`                                            | [operations.md](operations.md)                             | 1    |
-| export downloads                  | `export_downloads`                                   | [operations.md](operations.md)                             | 1    |
-| first start                       | `installation`                                       | [operations.md](operations.md)                             | 1    |
-| the single account                | `accounts`                                           | [operations.md](operations.md)                             | 1    |
-| `Session`                         | `sessions`                                           | [operations.md](operations.md)                             | 1    |
-| `LoginFailure`                    | `login_failures`                                     | [operations.md](operations.md)                             | 1    |
-| `ImportDraft`, exploration draft  | `drafts`                                             | [operations.md](operations.md)                             | 1    |
-| `UiSettings` (`Preference`)       | `ui_state`                                           | [operations.md](operations.md)                             | 1    |
-| gapless counters                  | `sequence_counters`                                  | [operations.md](operations.md)                             | 1    |
-| `OutboxFact`                      | `outbox_facts`                                       | [operations.md](operations.md)                             | both |
-| the tick lease (`TaskLease`)      | `scheduler_lease`                                    | [operations.md](operations.md)                             | both |
-| database activity                 | `database_activity_minutes`                          | [operations.md](operations.md)                             | both |
-| measured volumes                  | `database_size_samples`                              | [operations.md](operations.md)                             | 1    |
-| `RestoreReport`                   | `restore_reports`, `restore_report_events`           | [operations.md](operations.md)                             | 1    |
+| entity (code type)                            | table                                                | file                                                       | lot  |
+| --------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------- | ---- |
+| `FollowedPlayer`                              | `followed_players`                                   | [players.md](players.md)                                   | 1    |
+| `NameVariant`                                 | `player_name_variants`                               | [players.md](players.md)                                   | 1    |
+| `PlayerStatusChange`                          | `player_status_changes`                              | [players.md](players.md)                                   | 1    |
+| `PlayerTeamChange`                            | `player_team_changes`                                | [players.md](players.md)                                   | 1    |
+| `StatsSourceMapping`                          | `stats_source_mappings`                              | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `MappingCandidate`                            | `mapping_candidates`                                 | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `Team`                                        | `teams`                                              | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| team source identifiers                       | `team_source_refs`                                   | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `Game`                                        | `games`                                              | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `Series`                                      | `series`                                             | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `BoxScore`                                    | `box_scores`                                         | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `StatCorrection`                              | `stat_corrections`                                   | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `PlayerIndicators`                            | `player_indicators`                                  | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `FetchQueueItem`                              | `fetch_queue_items`                                  | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| source versions                               | `stats_source_versions`                              | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `Season` and its coverage                     | `seasons`                                            | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `TeamSeason`                                  | `team_seasons`                                       | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `DirectoryEntry`                              | `player_directory_entries`, `player_directory_teams` | [games-and-statistics.md](games-and-statistics.md)         | 1    |
+| `EventType` and its `TypeSheet`               | `event_types`                                        | [event-types.md](event-types.md)                           | 1    |
+| type status history                           | `event_type_status_changes`                          | [event-types.md](event-types.md)                           | 1    |
+| `TypeSheetVersion`                            | `type_sheet_versions`                                | [event-types.md](event-types.md)                           | 1    |
+| `TypeSheetChange`                             | `type_sheet_changes`                                 | [event-types.md](event-types.md)                           | 1    |
+| `IllustrationSource`                          | `type_illustration_sources`                          | [event-types.md](event-types.md)                           | 1    |
+| `TypeOccurrence`                              | `type_occurrences`                                   | [event-types.md](event-types.md)                           | 2    |
+| `PlayerEvent`                                 | `events`                                             | [events-and-cases.md](events-and-cases.md)                 | both |
+| `PlayerEventSource`                           | `event_sources`                                      | [events-and-cases.md](events-and-cases.md)                 | both |
+| `ImportWarning`                               | `event_import_warnings`                              | [events-and-cases.md](events-and-cases.md)                 | 1    |
+| `EventMark`                                   | `event_marks`                                        | [events-and-cases.md](events-and-cases.md)                 | 2    |
+| dismissal history                             | `event_status_changes`                               | [events-and-cases.md](events-and-cases.md)                 | 2    |
+| correction history                            | `event_corrections`                                  | [events-and-cases.md](events-and-cases.md)                 | both |
+| `Case`                                        | `cases`                                              | [events-and-cases.md](events-and-cases.md)                 | both |
+| triggered criteria                            | `case_triggered_criteria`                            | [events-and-cases.md](events-and-cases.md)                 | both |
+| `ReviewFlag`                                  | `case_review_flags`                                  | [events-and-cases.md](events-and-cases.md)                 | both |
+| `ManualDecision`                              | `case_manual_decisions`                              | [events-and-cases.md](events-and-cases.md)                 | both |
+| `CaseHistoryEntry`                            | `case_history_entries`                               | [events-and-cases.md](events-and-cases.md)                 | both |
+| `TallyExit`, `EventDeletionTrace`             | `tally_exits`                                        | [events-and-cases.md](events-and-cases.md)                 | both |
+| `DerivationRequest`                           | `calendar_derivation_requests`                       | [events-and-cases.md](events-and-cases.md)                 | both |
+| `BacktestRequest`                             | `backtest_requests`                                  | [backtest-and-import.md](backtest-and-import.md)           | both |
+| requested types                               | `backtest_request_types`                             | [backtest-and-import.md](backtest-and-import.md)           | 1    |
+| attached detected events                      | `backtest_request_events`                            | [backtest-and-import.md](backtest-and-import.md)           | 2    |
+| `BacktestCoverage`                            | `backtest_coverage_periods`                          | [backtest-and-import.md](backtest-and-import.md)           | 1    |
+| `Import`, `ImportTrace`                       | `imports`                                            | [backtest-and-import.md](backtest-and-import.md)           | 1    |
+| import outcomes                               | `import_event_outcomes`                              | [backtest-and-import.md](backtest-and-import.md)           | 1    |
+| `PossibleDuplicate` answers                   | `import_possible_duplicates`                         | [backtest-and-import.md](backtest-and-import.md)           | 1    |
+| `SensitivityProfile`                          | `sensitivity_profiles`                               | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
+| `GeneralTrend`                                | `general_trends`                                     | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
+| `VerdictHistoryEntry`                         | `verdict_history_entries`                            | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
+| recalculation jobs                            | `recalculation_jobs`                                 | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
+| `ProfileValueVersion`                         | `profile_value_versions`                             | [sensitivity-and-profiles.md](sensitivity-and-profiles.md) | both |
+| `WithdrawalFingerprint`                       | `withdrawal_fingerprints`                            | [sensitive-data.md](sensitive-data.md)                     | 1    |
+| `DeletedPlayerEntry`                          | `deleted_player_entries`                             | [sensitive-data.md](sensitive-data.md)                     | 1    |
+| withdrawn-events counter (`WithdrawalLedger`) | `withdrawn_event_counter`                            | [sensitive-data.md](sensitive-data.md)                     | 1    |
+| parameter overrides                           | `parameter_overrides`                                | [operations.md](operations.md)                             | both |
+| parameter changes                             | `parameter_changes`                                  | [operations.md](operations.md)                             | both |
+| parameter snapshots                           | `parameter_snapshots`                                | [operations.md](operations.md)                             | both |
+| `JournalEntry`                                | `journal_entries`                                    | [operations.md](operations.md)                             | both |
+| technical details                             | `journal_technical_details`                          | [operations.md](operations.md)                             | both |
+| `Incident`                                    | `incidents`                                          | [operations.md](operations.md)                             | both |
+| `QuotaUsage`                                  | `quota_usage`                                        | [operations.md](operations.md)                             | both |
+| `TaskRun`                                     | `task_runs`                                          | [operations.md](operations.md)                             | both |
+| `Backup`, `BackupRegister`                    | `backups`                                            | [operations.md](operations.md)                             | 1    |
+| `Export`, the exports downloaded              | `export_downloads`                                   | [operations.md](operations.md)                             | 1    |
+| first start                                   | `installation`                                       | [operations.md](operations.md)                             | 1    |
+| the single account                            | `accounts`                                           | [operations.md](operations.md)                             | 1    |
+| `Session`                                     | `sessions`                                           | [operations.md](operations.md)                             | 1    |
+| `LoginFailure`                                | `login_failures`                                     | [operations.md](operations.md)                             | 1    |
+| `ImportDraft`, exploration draft              | `drafts`                                             | [operations.md](operations.md)                             | 1    |
+| `UiSettings`                                  | `ui_state`                                           | [operations.md](operations.md)                             | 1    |
+| gapless counters                              | `sequence_counters`                                  | [operations.md](operations.md)                             | 1    |
+| `OutboxFact`                                  | `outbox_facts`                                       | [operations.md](operations.md)                             | both |
+| the tick lease                                | `scheduler_lease`                                    | [operations.md](operations.md)                             | both |
+| database activity                             | `database_activity_minutes`                          | [operations.md](operations.md)                             | both |
+| measured volumes                              | `database_size_samples`                              | [operations.md](operations.md)                             | 1    |
+| `RestoreSummary`                              | `restore_reports`, `restore_report_events`           | [operations.md](operations.md)                             | 1    |
 
 Lot 2 files, written by the other modeler: `collection.md`, `detection.md`, `alert-sheets.md`,
 `tracking-and-validation.md` and `notifications.md`. No table of this model references one of
@@ -234,17 +234,26 @@ theirs; the prose names some of them (`articles`, `article_attachments`, `tracke
 
 ## 6. Code names this model adds to the glossary
 
-The glossary is the naming authority; these values are new and wait for it to absorb them.
+The glossary owns every stored enumeration value and every code name; the module map owns the task
+and parameter keys. The values below are the model's own, not in the glossary (c406312) yet; every
+other `CHECK` list of the model is a glossary set or a subset of one.
 
-| where                    | new names                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| players                  | `birthday_origin`: `stats_source`, `owner`; statistics-source key `sportsdataverse_espn`                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| games and statistics     | `FetchUnitKind`: `publication_probe`, `season_games`, `season_lines`, `season_players`, `player_profiles`; `stats_source_versions.resource`: `publication`, `season_games`, `season_lines`, `season_players`; `series.round`: `first_round`, `conference_semifinals`, `conference_finals`, `finals`, `play_in_7_vs_8`, `play_in_9_vs_10`, `play_in_8th_seed`; `failed_checks`: `negative_value`, `made_above_attempted`, `points_mismatch`, `minutes_above_game_length`, `statistic_without_minutes`; `Participation`: `played`, `not_played`, `unknown` |
-| event types              | `TypeSheetVersionKind`: `validation`, `substantive_change`, `merge`; `TypeSheetChangeKind`: `formal`, `substantive`, `criterion_switch`; `CalendarDerivation`: `birthday`, `former_team`                                                                                                                                                                                                                                                                                                                                                                 |
-| events and cases         | `ImportWarningKind` (sixteen values, events-and-cases 1.3); `event_corrections.field` values; `EventOrigin` `calendar` (replacing the glossary's `schedule`); `reference_date_rule`: `earliest_source`, `coverage_threshold` (CL-DET-27); `DerivationRequestKind`: `regular`, `full`, and the nine `DerivationCause` values; `ReviewFlag` `manual_decision_to_review` (CL-SEN-12); `TallyExitReason` `no_longer_derived` (CL-SEN-25)                                                                                                                     |
-| backtest and import      | coverage `origin`: `import`, `merge`, `split`; ignore reasons (`type_not_validated`, `type_not_requested`, `type_derived_from_calendar`, `split_type_ignored`, `outside_requested_period`, `before_first_nba_game`) and refusal reasons (ten values); whole-result warning kinds                                                                                                                                                                                                                                                                         |
-| sensitivity and profiles | `VerdictChangeCause`: `event_corrected_or_removed`, `event_reinstated`, `taxonomy_changed` (CL-SEN-17); `ProfileValueVersion` (the historical-only history, a name other than `ProfileSnapshot`); `ProfileNotice` `birthday_not_recorded` (CL-SEN-26); recalculation `scope`: `import`, `statistics_update`, `event_or_case_change`, `full`; job status `pending`, `running`, `done`                                                                                                                                                                     |
-| operations               | `TaskRunStatus` `source_late` (CL-TRV-23); `IncidentKind` `stats_source_schema_changed` (CL-STA-15); `BackupKind`: `weekly`, `manual`, `before_update`; backup failure causes; `ExportKind`: `full`, `players`, `events`, `cases`, `profiles`; `DraftKind`: `import`, `exploration`; parameters `scheduler.statsUpdateCutoff`, `scheduler.statsProbeIntervalMinutes`, `scheduler.statsLateDaysBeforeIncident`; export format `egoscope-export`; `OutboxFactKind` (eight values, from Lot 2's request); restore `source_kind`: `backup`, `full_export`    |
+| where                    | values the glossary does not have yet                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| players                  | `birthday_origin`: `stats_source`, `owner`                                                                                                                                                                                                                                                                                                                                                                                |
+| games and statistics     | statistics-source key `sportsdataverse_espn`; `FetchUnitKind`: `publication_probe`, `season_games`, `season_lines`, `season_players`, `player_profiles`; `stats_source_versions.resource`: `publication`, `season_games`, `season_lines`, `season_players`; `series.round` (seven values); `failed_checks` (five values); `stat_corrections.element` (sixteen values); `Participation`: `played`, `not_played`, `unknown` |
+| event types              | `TypeSheetVersionKind`: `validation`, `substantive_change`, `merge`; `TypeSheetChangeKind`: `formal`, `substantive`, `criterion_switch`; `CalendarDerivation`: `birthday`, `former_team`                                                                                                                                                                                                                                  |
+| events and cases         | `event_corrections.field` (thirteen values); `reference_date_rule`: `earliest_source`, `coverage_threshold` (CL-DET-27); `DerivationRequestKind`: `regular`, `full`; `DerivationCause` (nine values)                                                                                                                                                                                                                      |
+| backtest and import      | coverage `origin`: `import`, `merge`, `split`                                                                                                                                                                                                                                                                                                                                                                             |
+| sensitivity and profiles | recalculation `scope`: `import`, `statistics_update`, `event_or_case_change`, `full`; job status `pending`, `running`, `done`; the code type `ProfileValueVersion`                                                                                                                                                                                                                                                        |
+| operations               | `BackupKind`: `weekly`, `manual`, `before_update`; backup failure causes (six values); `ExportKind`: `full`, `players`, `events`, `cases`, `profiles`; restore `source_kind`: `backup`, `full_export`; `lot2_object_kind`: `press_source`, `article`, `alert_sheet`, `notification_message`; export format `egoscope-export`                                                                                              |
+
+Stored subsets of glossary sets: `EventMark` without `detected_after_tip_off` and
+`EventMarkStatus` without `upheld` (both derived, CL-DET-16); `ContextIndicationOrigin` without
+`calculation` on events (a calculated condition is a case criterion); `ImportOutcome` without
+`not_recorded_sensitive_data` (never stored, IMP-37); `DatePrecision` without `none` for an
+owner-added source. The glossary's provisional `OutboxFactKind` `export_reminder_due` is not
+stored: the export reminder is the incident `export_reminder` (the orchestrator's decision).
 
 ## 7. Overview
 

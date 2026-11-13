@@ -1,7 +1,8 @@
 # Games and statistics
 
 Schedules, results and box scores fetched from the statistics source (`docs/07-statistiques-de-match.md`),
-the fetch queue that brings them in under quota, and the indicators the player page shows. The
+the fetch queue that brings them in under quota, the indicators the player page shows, and each
+followed player's statistics-source mapping with its candidates (JOU-10, STA-03). The
 chosen source is the SportsDataverse release of ESPN data (`docs/services/statistics-source.md`):
 season files from 1993-94, whole minutes, no ejection data, no score columns used for records.
 Everything computed from these rows — Game Score, index, usable status, season baselines, team
@@ -266,7 +267,7 @@ interface PlayerIndicators {
 ### 1.8 `fetch_queue_items` — `FetchQueueItem`
 
 Pending source requests with their priority, attempts and waiting reason (STA-36, STA-39, STA-40),
-as resumable units of work (TRV-30; the module map's `FetchUnit`): the publication probe, a
+as resumable units of work (TRV-30; `FetchQueueItem`): the publication probe, a
 season's games with its teams and coverage, a season's lines of the followed players together with
 its player directory (the source's file is read once), a past season's directory alone (the
 one-time backfill, newest first), and the followed players' profiles (current team, birthday). A
@@ -404,6 +405,64 @@ interface DirectoryEntry {
 }
 ```
 
+### 1.13 `stats_source_mappings` — `StatsSourceMapping`
+
+The owner-confirmed link between a followed player and his identity in one statistics source; no
+statistic is fetched for that source before it is established (JOU-10, STA-03). One row per player
+and source in use (CL-JOU-21); with the chosen source there is one source (CL-STA-23).
+
+| column              | type        | null | default          | constraint or reference                                                                   | class | spec IDs                     |
+| ------------------- | ----------- | ---- | ---------------- | ----------------------------------------------------------------------------------------- | ----- | ---------------------------- |
+| `id`                | integer     | no   | identity         | primary key                                                                               | —     | —                            |
+| `player_id`         | uuid        | no   | —                | `REFERENCES followed_players(id) ON DELETE CASCADE`                                       | PI    | JOU-10                       |
+| `stats_source`      | text        | no   | —                | `CHECK (stats_source IN ('sportsdataverse_espn'))`; a replacement source extends the list | —     | STA-02, CL-JOU-21, CL-STA-23 |
+| `status`            | text        | no   | `'to_establish'` | `CHECK (status IN ('to_establish','established'))`                                        | PI    | JOU-10, STA-03               |
+| `source_player_ref` | text        | yes  | —                | the source's stable player identifier                                                     | PI    | STA-02, STA-03               |
+| `established_at`    | timestamptz | yes  | —                | date of the owner's confirmation                                                          | PI    | 07 « Données manipulées »    |
+| `last_searched_at`  | timestamptz | yes  | —                | last candidate search (retried at each statistics update while to establish)              | —     | JOU-10, STA-03               |
+
+Unique: `stats_source_mappings_player_source_key (player_id, stats_source)` (CL-JOU-21);
+`stats_source_mappings_source_ref_key (stats_source, source_player_ref)` — an identity can be
+linked to one followed player only, whatever his status (JOU-10, CL-JOU-04, CA-JOU-08); nulls do
+not collide.
+
+Row check: `(status = 'established') = (source_player_ref IS NOT NULL AND established_at IS NOT NULL)`.
+
+Indexes: the two unique indexes serve every lookup (by player for the fetch gate, by source
+reference when ingesting box-score lines).
+
+```ts
+type StatsSourceMappingStatus = 'to_establish' | 'established';
+type StatsSourceKey = 'sportsdataverse_espn'; // the port's ProviderId values, snake_case
+```
+
+### 1.14 `mapping_candidates` — `MappingCandidate`
+
+The source identities offered for confirmation while a mapping is to establish, with what tells
+namesakes apart: name, teams, seasons played (JOU-10, STA-03, 07 « Données manipulées »). The
+search runs in the stored player directory (`player_directory_entries`, 1.12), never through the source, so adding a player never waits for it
+(module map, choice 31); it runs at the addition and again after every statistics update while
+the mapping is to establish.
+
+| column              | type        | null | default  | constraint or reference                                              | class | spec IDs       |
+| ------------------- | ----------- | ---- | -------- | -------------------------------------------------------------------- | ----- | -------------- |
+| `id`                | integer     | no   | identity | primary key                                                          | —     | —              |
+| `mapping_id`        | integer     | no   | —        | `REFERENCES stats_source_mappings(id) ON DELETE CASCADE`             | PI    | JOU-10         |
+| `source_player_ref` | text        | no   | —        | the candidate's identifier in the source                             | PI    | STA-03         |
+| `display_name`      | text        | no   | —        | as the source writes it                                              | PI    | JOU-10         |
+| `current_team_id`   | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`                            | PI    | JOU-10         |
+| `first_season`      | text        | yes  | —        | `CHECK (first_season ~ '^[0-9]{4}-[0-9]{2}$')`                       | PI    | JOU-10, STA-03 |
+| `last_season`       | text        | yes  | —        | same check                                                           | PI    | JOU-10, STA-03 |
+| `team_ids`          | integer[]   | no   | `'{}'`   | teams of his lines in the directory, most recent first; display only | PI    | JOU-10, STA-03 |
+| `found_at`          | timestamptz | no   | `now()`  | —                                                                    | —     | JOU-10         |
+
+Unique: `mapping_candidates_mapping_ref_key (mapping_id, source_player_ref)`.
+
+Lifetime: replaced at each search; all rows of a mapping are deleted when it becomes established
+(store less). Candidates may describe NBA players who are not followed; they never leave this
+table. "Already followed as {name}" is derived by joining `source_player_ref` with established
+mappings (CL-JOU-04).
+
 ## 2. Lifecycles
 
 ### 2.1 Game status (STA-05, CL-STA-17)
@@ -427,14 +486,14 @@ interface DirectoryEntry {
 
 ### 2.3 Box-score status (STA-09, STA-10, STA-35, CL-STA-04, CL-STA-11)
 
-| from                            | to                              | trigger                                                                                                                                                              | guard                                                                                           | side effects                                                              |
-| ------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| (no row, participation unknown) | complete, incomplete or suspect | a fetch brings a played line                                                                                                                                         | mapping established                                                                             | checks run before any calculation; the case recalculated                  |
-| (no row, participation unknown) | (no row, not played)            | a fetch brings his team's lines without a played line for him                                                                                                        | —                                                                                               | `*_lines_published` set; the walk skips the game as an absence            |
-| (no row, participation unknown) | unavailable                     | first statistics update after more than `games.sheetUnavailableAfterDays` counted days since the game's US date; at once for a past-season game listed without lines | a day counts unless a `stats_source_unavailable` or `quota_reached` incident was open during it | placeholder row; the case becomes not measurable, `box_score_unavailable` |
-| incomplete or suspect           | complete                        | a later fetch makes it complete and consistent                                                                                                                       | in the window, or a manual refetch                                                              | corrections traced; recalculation                                         |
-| complete                        | incomplete or suspect           | a correction                                                                                                                                                         | as above                                                                                        | corrections traced; recalculation                                         |
-| unavailable                     | complete, incomplete or suspect | a manual refetch supplies the line                                                                                                                                   | —                                                                                               | the case can become measurable again (STA-35)                             |
+| from                            | to                              | trigger                                                                                                                                                                 | guard                                                                                           | side effects                                                              |
+| ------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| (no row, participation unknown) | complete, incomplete or suspect | a fetch brings a played line                                                                                                                                            | mapping established                                                                             | checks run before any calculation; the case recalculated                  |
+| (no row, participation unknown) | (no row, not played)            | a fetch brings his team's lines without a played line for him                                                                                                           | —                                                                                               | `*_lines_published` set; the walk skips the game as an absence            |
+| (no row, participation unknown) | unavailable                     | first statistics update after more than `games.boxScoreUnavailableAfterDays` counted days since the game's US date; at once for a past-season game listed without lines | a day counts unless a `stats_source_unavailable` or `quota_reached` incident was open during it | placeholder row; the case becomes not measurable, `box_score_unavailable` |
+| incomplete or suspect           | complete                        | a later fetch makes it complete and consistent                                                                                                                          | in the window, or a manual refetch                                                              | corrections traced; recalculation                                         |
+| complete                        | incomplete or suspect           | a correction                                                                                                                                                            | as above                                                                                        | corrections traced; recalculation                                         |
+| unavailable                     | complete, incomplete or suspect | a manual refetch supplies the line                                                                                                                                      | —                                                                                               | the case can become measurable again (STA-35)                             |
 
 ### 2.4 Fetch queue item (STA-36, STA-39, STA-40)
 
@@ -447,23 +506,36 @@ interface DirectoryEntry {
 | leased  | pending | quota answer or ceiling reached                                            | —                                                              | `wait_reason = 'quota'`; `next_attempt_at` = the quota reset; `quota_reached` incident (STA-39, CL-STA-15)                                                                      |
 | leased  | pending | lease expires (crashed run)                                                | —                                                              | resumes from `cursor` (TRV-30)                                                                                                                                                  |
 
+### 2.5 Statistics-source mapping (JOU-10, JOU-12, STA-03)
+
+| from         | to           | trigger                                                                                               | guard                                                                         | side effects                                                                                                                                                                                                                                    |
+| ------------ | ------------ | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)       | to_establish | player added                                                                                          | —                                                                             | candidate search; candidates stored                                                                                                                                                                                                             |
+| to_establish | to_establish | statistics update, or the owner's search                                                              | —                                                                             | `last_searched_at` set; candidates replaced; new candidates shown in the to-do list (JOU-10)                                                                                                                                                    |
+| to_establish | established  | owner confirms a candidate                                                                            | the reference is linked to no other followed player (unique index; CL-JOU-04) | candidates deleted; fetch units queued in STA-40 order; birthday filled from the source if empty (CL-JOU-16); current team observed (CL-STA-27); a full derivation for him (CL-TAX-19)                                                          |
+| established  | to_establish | owner changes the mapping (JOU-12), or the source no longer knows the identifier (07 « Cas limites ») | —                                                                             | nothing fetched for the player; his cases wait with `mapping_not_established` (SEN-07)                                                                                                                                                          |
+| to_establish | established  | owner confirms a different identity after a change                                                    | as above                                                                      | box-score lines of the former identity deleted; new lines fetched; every case of the player recalculated; a birthday from the source replaced, an owner-entered one kept; current team observed again; a full derivation (CL-JOU-11, CL-TAX-19) |
+
 ## 3. Invariants
 
-| rule                                                                                                                     | spec IDs                                | enforced by                                         |
-| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- | --------------------------------------------------- |
-| Only official games are stored; All-Star games and the NBA Cup final are flagged by the adapter and dropped at ingestion | STA-04, CL-STA-16                       | statistics adapter and ingestion service            |
-| Candidate search reads the stored directory, never the source; team history never reads the directory                    | JOU-10, CL-JOU-18, module map choice 31 | player and games services                           |
-| One row per source game, a make-up folded into its postponed original                                                    | STA-05, CL-STA-17                       | unique indexes on `games`                           |
-| A game's season comes from its date and the seasons' start dates, never from the file                                    | STA-48, CL-STA-28                       | ingestion service                                   |
-| All data of a season — schedule, results, series, lines — comes from the one source assigned to it                       | CL-STA-23                               | ingestion service; `stats_source` on every row      |
-| No missing value is replaced by zero, an average or an estimate                                                          | STA-10                                  | adapter; nullable element columns                   |
-| A sheet failing a check is suspect, and a suspect or incomplete sheet enters no calculation                              | STA-09, STA-10                          | row check on `failed_checks`; engine reads `status` |
-| Lines exist only for followed players with an established mapping of that source                                         | JOU-10, STA-03                          | ingestion service                                   |
-| Consolidated games are never requested again, except by a manual refetch                                                 | STA-42, STA-44                          | fetch-queue service                                 |
-| Recalculations never call the source                                                                                     | STA-43, SEN-36                          | engine purity (`src/lib/stats-engine` is pure)      |
-| A late source is not an outage: only failed requests count toward STA-36 and STA-37                                      | CL-STA-10, CL-TRV-23                    | statistics update service                           |
-| A placeholder game with undetermined teams is no team's game                                                             | CL-STA-14                               | row check (status scheduled); engine                |
-| The did-not-play reason is never stored                                                                                  | JOU-21, DSN-15                          | adapter; no column                                  |
+| rule                                                                                                                     | spec IDs                                | enforced by                                            |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------ |
+| Only official games are stored; All-Star games and the NBA Cup final are flagged by the adapter and dropped at ingestion | STA-04, CL-STA-16                       | statistics adapter and ingestion service               |
+| Candidate search reads the stored directory, never the source; team history never reads the directory                    | JOU-10, CL-JOU-18, module map choice 31 | player and games services                              |
+| One row per source game, a make-up folded into its postponed original                                                    | STA-05, CL-STA-17                       | unique indexes on `games`                              |
+| A game's season comes from its date and the seasons' start dates, never from the file                                    | STA-48, CL-STA-28                       | ingestion service                                      |
+| All data of a season — schedule, results, series, lines — comes from the one source assigned to it                       | CL-STA-23                               | ingestion service; `stats_source` on every row         |
+| No missing value is replaced by zero, an average or an estimate                                                          | STA-10                                  | adapter; nullable element columns                      |
+| A sheet failing a check is suspect, and a suspect or incomplete sheet enters no calculation                              | STA-09, STA-10                          | row check on `failed_checks`; engine reads `status`    |
+| Lines exist only for followed players with an established mapping of that source                                         | JOU-10, STA-03                          | ingestion service                                      |
+| Consolidated games are never requested again, except by a manual refetch                                                 | STA-42, STA-44                          | fetch-queue service                                    |
+| Recalculations never call the source                                                                                     | STA-43, SEN-36                          | engine purity (`src/lib/stats-engine` is pure)         |
+| A late source is not an outage: only failed requests count toward STA-36 and STA-37                                      | CL-STA-10, CL-TRV-23                    | statistics update service                              |
+| A placeholder game with undetermined teams is no team's game                                                             | CL-STA-14                               | row check (status scheduled); engine                   |
+| The did-not-play reason is never stored                                                                                  | JOU-21, DSN-15                          | adapter; no column                                     |
+| A statistics identity is linked to at most one followed player, whatever his status                                      | JOU-10, CL-JOU-04                       | unique index `stats_source_mappings_source_ref_key`    |
+| A player has one mapping per statistics source                                                                           | CL-JOU-21                               | unique index `stats_source_mappings_player_source_key` |
+| Nothing is fetched for a source whose mapping is not established                                                         | JOU-10, STA-03                          | fetch-queue service                                    |
 
 ## 4. Stored or derived
 
@@ -494,14 +566,14 @@ No format of the application's own. Data enters through the source-neutral `stat
 the module map (section 5; the adapter's field mapping is in the statistics-source evaluation,
 section 12):
 
-| port operation      | stored in                                                                                                                                                                                                                                                                                                                        |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `getPublication`    | `stats_source_versions` (`publication`: last refresh instant and version)                                                                                                                                                                                                                                                        |
-| `getSeasonGames`    | `games` (tip-off instant, "time known", the game's day, teams, status, score, overtimes, series round and number, make-up link), `series`, `teams`, `team_source_refs`, `team_seasons` (the season's team list) and `seasons` (its coverage); excluded games are dropped; the neutral-site flag is not stored (no rule reads it) |
-| `getSeasonLines`    | `box_scores` of the followed players (did-not-play lines and their reason never stored; an unknown ejection stays null) and the lines flags of `games`                                                                                                                                                                           |
-| `getSeasonPlayers`  | `player_directory_entries` and `player_directory_teams`                                                                                                                                                                                                                                                                          |
-| `getPlayerProfiles` | the current-team and birthday observations of [players.md](players.md) (day and month only)                                                                                                                                                                                                                                      |
-| `mapPlayers`        | nothing until a replacement, then `stats_source_mappings` of the new source (CL-TRV-14)                                                                                                                                                                                                                                          |
+| port operation       | stored in                                                                                                                                                                                                                                                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getPublication`     | `stats_source_versions` (`publication`: last refresh instant and version)                                                                                                                                                                                                                                                        |
+| `getSeasonGames`     | `games` (tip-off instant, "time known", the game's day, teams, status, score, overtimes, series round and number, make-up link), `series`, `teams`, `team_source_refs`, `team_seasons` (the season's team list) and `seasons` (its coverage); excluded games are dropped; the neutral-site flag is not stored (no rule reads it) |
+| `getSeasonBoxScores` | `box_scores` of the followed players (did-not-play lines and their reason never stored; an unknown ejection stays null) and the lines flags of `games`                                                                                                                                                                           |
+| `getSeasonPlayers`   | `player_directory_entries` and `player_directory_teams`                                                                                                                                                                                                                                                                          |
+| `getPlayerRecords`   | the current-team and birthday observations of [players.md](players.md) (day and month only)                                                                                                                                                                                                                                      |
+| `mapPlayers`         | nothing until a replacement, then `stats_source_mappings` of the new source (CL-TRV-14)                                                                                                                                                                                                                                          |
 
 Every read records its version in `stats_source_versions`; instants cross the port as epoch
 milliseconds and dates as `YYYY-MM-DD`, a game's day being its US Eastern date (CL-TRV-03).
@@ -520,11 +592,8 @@ milliseconds and dates as `YYYY-MM-DD`, a game's day being its US Eastern date (
 - CL-TRV-03, CL-STA-14, CL-IHM-07: the day of a game is its US Eastern date for every rule and
   display, the venue's local date included; no venue time zone, venue date or venue table is
   stored; a time to be determined is deemed to start at 00:00 US Eastern time on that day.
-- CL-STA-16: excluded games are dropped at ingestion and never stored. The clarifications README
-  ("Storage consequences") and the module map speak of a stored "never counts" flag; dropping them
-  satisfies every "never" of the ruling without a filter in every query, and an All-Star game's
-  teams are not franchises, so it could not be stored without pseudo-teams in the team list
-  (JOU-08) or null teams on a final game. To be confirmed by the orchestrator.
+- CL-STA-16: All-Star games and the NBA Cup final are dropped at ingestion and never stored: no
+  flag, no row (an All-Star game's teams are not franchises in any case).
 - CL-STA-17: one game, with the make-up identifier as an alias.
 - CL-STA-18: `series` and the nullable elimination flag.
 - CL-STA-19: records from stored scores only.
@@ -538,9 +607,9 @@ milliseconds and dates as `YYYY-MM-DD`, a game's day being its US Eastern date (
 - Module map (choice 31, section 5): the team list, the coverage and the player directory come with
   each season's reads; candidate search runs in the stored directory; series round and game number
   missing in old seasons are derived when the series are rebuilt.
-- CL-STA-26: `stat_corrections` keeps old values; event corrections never do.
-- CL-STA-28 asks for seasons written "2024-2025" in data; the glossary's code value is `2024-25`.
-  The model stores the glossary's form, so data and display share one spelling. Flagged.
+- CL-STA-26: `stat_corrections` keeps old values; event corrections keep them only as CL-DSN-15
+  says.
+- CL-STA-28: seasons are written `2024-25` in data and on screen, from the date.
 - Own choice: lines for "not played" are not stored; participation is derived from the published
   flags, which is all CL-STA-04 needs (store less).
 - Own choice: `failed_checks` keeps the STA-09 anomaly on the line itself, so the case can say why
@@ -551,6 +620,12 @@ milliseconds and dates as `YYYY-MM-DD`, a game's day being its US Eastern date (
   values. These lists are new to the glossary.
 - Own choice: `games.schedule_changed_at` serves the "changes since an instant" read that the
   next game, dependent cases and Lot 2's expected games need (STA-28, ALE-23).
+- CL-JOU-11: consequences of a mapping change.
+- CL-JOU-21, CL-STA-23: one mapping per source; one source today.
+- Own choice: candidates are rows rather than a snapshot, because "already followed as {name}"
+  joins them with the established mappings.
+- Module map: `games` writes the mapping and its candidates, so they are described here (schema
+  file `games.ts`); `players` reads them.
 
 ## 7. Diagram
 
@@ -573,4 +648,6 @@ erDiagram
   seasons ||--o{ player_directory_entries : "directory"
   player_directory_entries ||--o{ player_directory_teams : "teams of his lines"
   teams ||--o{ player_directory_teams : "stint"
+  followed_players ||--o{ stats_source_mappings : "one per source"
+  stats_source_mappings ||--o{ mapping_candidates : "while to establish"
 ```

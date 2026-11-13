@@ -134,9 +134,11 @@ and their opening and closing rules are glossary section 9.2.
 | `opened_at`    | timestamptz | no   | `now()`  | —                                                                                                                                                                                                                                                                                                                  | —     | TRV-45                                  |
 | `closed_at`    | timestamptz | yes  | —        | —                                                                                                                                                                                                                                                                                                                  | —     | TRV-45                                  |
 | `hidden_at`    | timestamptz | yes  | —        | hidden from Home and the to-do list by the owner; still open, journaled and counted among the hidden incidents                                                                                                                                                                                                     | —     | IHM-20, CL-IHM-20                       |
+| `quota_causes` | text[]      | no   | `'{}'`   | `quota_reached` only: `CHECK (quota_causes <@ ARRAY['limit_reached','refused_before_limit','not_answering'])`, the glossary's `QuotaIncidentCause` values named in its message                                                                                                                                     | —     | TRV-05, TRV-06, CL-TRV-11, CL-DET-04    |
 | `details`      | jsonb       | no   | `'{}'`   | counts only (pending requests, waiting articles), never a player or an event                                                                                                                                                                                                                                       | —     | STA-37, DET-11                          |
 
-Row check: `(status = 'closed') = (closed_at IS NOT NULL)`.
+Row checks: `(status = 'closed') = (closed_at IS NOT NULL)`;
+`(kind = 'quota_reached') = (quota_causes <> '{}')`.
 
 Unique: `incidents_open_cause_key (kind, cause_key) WHERE status = 'open'` — one open incident per
 cause (TRV-45).
@@ -173,54 +175,62 @@ one key per service, unit and period — `quotas.statsSource.requestsPerDay`,
 fallback language-model providers each with their own — whose period and reset (instant and zone)
 the service sheet gives.
 
-| column             | type        | null | default  | constraint or reference                                                                                                                                | class | spec IDs          |
-| ------------------ | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | ----------------- |
-| `id`               | integer     | no   | identity | primary key                                                                                                                                            | —     | —                 |
-| `limit_key`        | text        | no   | —        | the limit's parameter key, for example `quotas.statsSource.requestsPerDay`                                                                             | —     | TRV-03, CL-TRV-12 |
-| `period_start_at`  | timestamptz | no   | —        | start of the fixed period instance; for a rolling window, the start of a one-minute bucket                                                             | —     | TRV-04, CL-TRV-12 |
-| `used`             | bigint      | no   | `0`      | calls, requests, tokens, bytes or files, per the limit's unit                                                                                          | —     | TRV-04            |
-| `warning_given_at` | timestamptz | yes  | —        | the 80 % warning, once per limit and period instance                                                                                                   | —     | TRV-05, CL-TRV-12 |
-| `reached_at`       | timestamptz | yes  | —        | the limit is reached for the period, or a refusal for quota came first (TRV-06: `used` then stays below the limit, which tells an early refusal apart) | —     | TRV-05, TRV-06    |
+| column             | type        | null | default  | constraint or reference                                                                                                                                                                                                          | class | spec IDs                        |
+| ------------------ | ----------- | ---- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------- |
+| `id`               | integer     | no   | identity | primary key                                                                                                                                                                                                                      | —     | —                               |
+| `limit_key`        | text        | no   | —        | the limit's parameter key, for example `quotas.statsSource.requestsPerDay`                                                                                                                                                       | —     | TRV-03, CL-TRV-12               |
+| `period_start_at`  | timestamptz | no   | —        | start of the fixed period instance; for a rolling window, the start of a one-minute bucket                                                                                                                                       | —     | TRV-04, CL-TRV-12               |
+| `used`             | bigint      | no   | `0`      | calls, requests, tokens, bytes or files, per the limit's unit                                                                                                                                                                    | —     | TRV-04                          |
+| `warning_given_at` | timestamptz | yes  | —        | the 80 % warning, once per limit and period instance                                                                                                                                                                             | —     | TRV-05, CL-TRV-12               |
+| `reached_at`       | timestamptz | yes  | —        | the limit is reached for the period, or a refusal for quota came first (TRV-06: `used` then stays below the limit, which tells an early refusal apart)                                                                           | —     | TRV-05, TRV-06                  |
+| `resets_at`        | timestamptz | yes  | —        | the instant the provider says the limit resets: its declared boundary, or the rate-limit headers of a refusal (Groq `x-ratelimit-reset`); serves `quotas.nextAvailableAt` and the classification resumption due at a known reset | —     | CL-TRV-12, CL-DET-04, CL-DET-05 |
 
 Unique: `quota_usage_key (limit_key, period_start_at)`.
 
 ### 1.5 `task_runs` — `TaskRun`
 
-One execution of a scheduled task, or a due occurrence that was postponed or missed (TRV-26 to
-TRV-33, CL-TRV-07, CL-TRV-08). Task definitions — key, name, owner, schedule parameter or parent —
+One run of a scheduled task, or an on-demand run requested and not started yet (TRV-26 to TRV-33,
+CL-TRV-07, CL-TRV-08, CL-COL-20). A run without a result is running, or waiting to start when it
+has no start; a postponement (TRV-28) and a missed occurrence (TRV-31) are journal entries, never
+rows or states (CL-TRV-07). Task definitions — key, name, owner, schedule parameter or parent —
 are code: the task registry of the module map, section 4, which owns the keys; a pass is a run plus
 the runs chained to it (TRV-26).
 
-| column               | type        | null | default  | constraint or reference                                                                                                                                                                                                                                                            | class | spec IDs                     |
-| -------------------- | ----------- | ---- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------- |
-| `id`                 | integer     | no   | identity | primary key                                                                                                                                                                                                                                                                        | —     | —                            |
-| `task_key`           | text        | no   | —        | `CHECK (task_key IN ('statistics-update','statistics-fetch','calendar-derivation','recalculation','link-check','purge','backup','news-collection','detection','classification-resume','game-tracking','notification-dispatch'))`; the execution check is not a task and has no row | —     | TRV-25, module map section 4 |
-| `trigger`            | text        | no   | —        | `CHECK (trigger IN ('scheduled','on_demand'))`                                                                                                                                                                                                                                     | —     | TRV-33                       |
-| `status`             | text        | no   | —        | `CHECK (status IN ('postponed','running','succeeded','failed','interrupted','missed','source_late'))`                                                                                                                                                                              | —     | TRV-26 to TRV-31, CL-TRV-23  |
-| `due_at`             | timestamptz | yes  | —        | the occurrence's due time; null for an on-demand run                                                                                                                                                                                                                               | —     | TRV-31, CL-TRV-08            |
-| `started_at`         | timestamptz | yes  | —        | null while postponed and for a missed occurrence                                                                                                                                                                                                                                   | —     | TRV-26                       |
-| `progress_at`        | timestamptz | yes  | —        | the progress mark written at the end of each portion                                                                                                                                                                                                                               | —     | TRV-30, CL-TRV-07            |
-| `finished_at`        | timestamptz | yes  | —        | —                                                                                                                                                                                                                                                                                  | —     | TRV-26                       |
-| `parent_run_id`      | integer     | yes  | —        | `REFERENCES task_runs(id) ON DELETE SET NULL`; the run this one is chained to                                                                                                                                                                                                      | —     | TRV-26                       |
-| `pass_id`            | uuid        | yes  | —        | the pass the run belongs to: drawn when the pass's first run starts, carried by the runs chained to it and by the outbox facts emitted during it (TEL-19); null for a postponed or missed occurrence that never started                                                            | —     | TRV-26, TEL-19               |
-| `competition_day_on` | date        | yes  | —        | `statistics-update`: the competition day D it handles (US date)                                                                                                                                                                                                                    | —     | STA-32, CL-STA-10            |
-| `cursor`             | text        | yes  | —        | technical: where an interrupted run resumes                                                                                                                                                                                                                                        | —     | TRV-30                       |
-| `summary`            | jsonb       | no   | `'{}'`   | counts shown on the status screen; never content                                                                                                                                                                                                                                   | —     | TRV-26, TRV-46               |
+| column                 | type        | null | default  | constraint or reference                                                                                                                                                                                                                                                      | class | spec IDs                     |
+| ---------------------- | ----------- | ---- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------- |
+| `id`                   | integer     | no   | identity | primary key                                                                                                                                                                                                                                                                  | —     | —                            |
+| `task_key`             | text        | no   | —        | `CHECK (task_key IN ('statistics-update','statistics-fetch','calendar-derivation','recalculation','link-check','purge','backup','news-collection','detection','classification-resume','game-tracking','notification-dispatch'))`; the run check is not a task and has no row | —     | TRV-25, module map section 4 |
+| `trigger`              | text        | no   | —        | `CHECK (trigger IN ('scheduled','on_demand'))`, the glossary's `TaskRunTrigger`; a catch-up run after a missed occurrence is `scheduled` (CL-TRV-08)                                                                                                                         | —     | TRV-33, CL-TRV-08            |
+| `due_at`               | timestamptz | no   | —        | the occurrence's due time, or the instant an on-demand run was requested                                                                                                                                                                                                     | —     | TRV-31, CL-TRV-08            |
+| `started_at`           | timestamptz | yes  | —        | null only for a requested on-demand run that waits for the running pass to end                                                                                                                                                                                               | —     | TRV-26, CL-COL-20            |
+| `progress_at`          | timestamptz | yes  | —        | the progress mark written at the end of each portion                                                                                                                                                                                                                         | —     | TRV-30, CL-TRV-07            |
+| `finished_at`          | timestamptz | yes  | —        | set with the result                                                                                                                                                                                                                                                          | —     | TRV-26                       |
+| `result`               | text        | yes  | —        | `CHECK (result IN ('succeeded','failed','interrupted','source_late'))`, the glossary's `TaskRunResult`; null while the run runs or waits                                                                                                                                     | —     | TRV-26, CL-TRV-07, CL-TRV-23 |
+| `parent_run_id`        | integer     | yes  | —        | `REFERENCES task_runs(id) ON DELETE SET NULL`; the run this one is chained to                                                                                                                                                                                                | —     | TRV-26                       |
+| `pass_id`              | uuid        | yes  | —        | the pass the run belongs to: drawn when the pass's first run starts, carried by the runs chained to it and by the outbox facts emitted during it (TEL-19); null until the run starts                                                                                         | —     | TRV-26, TEL-19               |
+| `competition_day_on`   | date        | yes  | —        | `statistics-update`: the competition day D of its one run (US date)                                                                                                                                                                                                          | —     | STA-32, CL-TRV-23            |
+| `probe_count`          | smallint    | yes  | —        | `statistics-update`: the probes of the source made while the run waited, flushed from the host's cache; probes are never rows of their own                                                                                                                                   | —     | CL-TRV-23, record 0025       |
+| `last_refresh_seen_at` | timestamptz | yes  | —        | `statistics-update`: the source's last refresh instant the probes saw, for the status line "not refreshed since …"                                                                                                                                                           | —     | CL-TRV-23                    |
+| `cursor`               | text        | yes  | —        | technical: where an interrupted run resumes                                                                                                                                                                                                                                  | —     | TRV-30                       |
+| `summary`              | jsonb       | no   | `'{}'`   | counts shown on the status screen; never content                                                                                                                                                                                                                             | —     | TRV-26, TRV-46               |
 
-Row checks: `(status = 'postponed' OR status = 'missed') = (started_at IS NULL)`;
-`started_at IS NULL OR pass_id IS NOT NULL`; `competition_day_on IS NULL OR task_key = 'statistics-update'`.
+Row checks: `(finished_at IS NULL) = (result IS NULL)`; `started_at IS NULL` implies
+`trigger = 'on_demand' AND result IS NULL`; `started_at IS NULL OR pass_id IS NOT NULL`;
+`competition_day_on`, `probe_count` and `last_refresh_seen_at` are null unless
+`task_key = 'statistics-update'`; `result <> 'source_late' OR task_key = 'statistics-update'`.
 
-Unique: `task_runs_one_running_key (task_key) WHERE status = 'running'` — no overlap (TRV-28);
-`task_runs_one_pending_on_demand_key (task_key) WHERE status = 'postponed' AND trigger = 'on_demand'`
-— at most one deferred on-demand run per task, started when the running pass ends (COL-14,
+Unique: `task_runs_one_running_key (task_key) WHERE started_at IS NOT NULL AND result IS NULL` — no
+overlap (TRV-28); `task_runs_one_requested_key (task_key) WHERE started_at IS NULL` — at most one
+requested on-demand run that has not started, started when the running pass ends (COL-14,
 CL-COL-20).
 
 Indexes: `task_runs_task_started_idx (task_key, started_at)` — last run, last result and next run
-on the status screen (TRV-26, TRV-46); `task_runs_task_due_idx (task_key, due_at)` — the missed-run
-check (CL-TRV-08); `task_runs_day_idx (competition_day_on) WHERE task_key = 'statistics-update'` —
-"once per D", each day's result and the count of consecutive late days of CL-TRV-23, counted from
-these rows rather than stored; `task_runs_pass_idx (pass_id)` — the runs of a pass and the outbox
-facts grouped by it.
+on the status screen (TRV-26, TRV-46); `task_runs_task_due_idx (task_key, due_at)` — the run check
+(CL-TRV-08); `task_runs_day_idx (competition_day_on) WHERE task_key = 'statistics-update'` — the
+one run of each competition day (a resumption after an interruption continues it in a new row),
+its result and the count of consecutive late days of CL-TRV-23, computed from these rows and never
+stored; `task_runs_pass_idx (pass_id)` —
+the runs of a pass and the outbox facts grouped by it.
 
 Retention: deleted by the daily purge after `journal.retentionDays`, never earlier, because Lot 2
 rows depend on them (`collection_source_reads` and `detection_runs` cascade from a run;
@@ -243,11 +253,11 @@ type TaskKey =
   | 'game-tracking'
   | 'notification-dispatch';
 type PassId = Brand<string, 'PassId'>; // uuid
-type TaskRunStatus =
-  'postponed' | 'running' | 'succeeded' | 'failed' | 'interrupted' | 'missed' | 'source_late';
+type TaskRunTrigger = 'scheduled' | 'on_demand';
+type TaskRunResult = 'succeeded' | 'failed' | 'interrupted' | 'source_late'; // null: running or waiting
 ```
 
-### 1.6 `backups` — `Backup`, the backup register
+### 1.6 `backups` — `Backup`, the backup register (`BackupRegister`)
 
 Each backup attempt, the stored object it produced and its deletion by rotation (TRV-50, ADR 0018,
 CL-TRV-04). The register also tells the fingerprint purge whether a stored backup is older than a
@@ -271,7 +281,7 @@ Row checks: `(status = 'done') = (object_name IS NOT NULL)`; `(status = 'failed'
 Index: `backups_stored_idx (started_at) WHERE status = 'done' AND deleted_at IS NULL` — the stored
 backups for rotation (`backups.kept`), the status screen and the fingerprint purge.
 
-### 1.7 `export_downloads` — the exports downloaded
+### 1.7 `export_downloads` — `Export`, the exports downloaded
 
 | column          | type        | null | default  | constraint or reference                                          | class | spec IDs          |
 | --------------- | ----------- | ---- | -------- | ---------------------------------------------------------------- | ----- | ----------------- |
@@ -281,6 +291,7 @@ backups for rotation (`backups.kept`), the status screen and the fingerprint pur
 
 ### 1.8 `installation` — first start
 
+Owned by module `db`, created by the database task (module map section 2.1).
 One row (`id smallint PRIMARY KEY CHECK (id = 1)`) with `first_started_at timestamptz NOT NULL`:
 go-live, from which the withdrawn-events counter counts (DSN-29) and the export reminder starts when
 no full export was ever downloaded (CL-TRV-22). Written at the first start, with the seeding of the
@@ -297,7 +308,7 @@ One row (H-10, TRV-57); never in a backup or an export (CL-TRV-05).
 | `password_status`              | text        | no   | —       | `CHECK (password_status IN ('initial','chosen'))`                              | —     | TRV-57, TRV-63, IHM-06 |
 | `initial_password_fingerprint` | text        | no   | —       | non-readable fingerprint of the configured initial password, to detect a reset | SE    | TRV-63                 |
 | `password_changed_at`          | timestamptz | no   | `now()` | —                                                                              | —     | TRV-60                 |
-| `login_locked_until`           | timestamptz | yes  | —       | while in the future, no password is examined                                   | —     | TRV-61, IHM-07         |
+| `login_locked_until`           | timestamptz | yes  | —       | while in the future, no password is examined (`LoginLockout`)                  | —     | TRV-61, IHM-07         |
 
 ### 1.10 `sessions` — `Session`
 
@@ -331,22 +342,25 @@ journal entry holds a draft's text.
 | column                      | type        | null | default  | constraint or reference                                                                            | class | spec IDs                  |
 | --------------------------- | ----------- | ---- | -------- | -------------------------------------------------------------------------------------------------- | ----- | ------------------------- |
 | `id`                        | integer     | no   | identity | primary key                                                                                        | —     | —                         |
-| `kind`                      | text        | no   | —        | `CHECK (kind IN ('import','exploration'))`                                                         | —     | IHM-42, TAX-17, CL-DSN-17 |
+| `kind`                      | text        | no   | —        | `CHECK (kind IN ('research_result','exploration_response'))`, the glossary's `DraftKind`           | —     | IHM-42, TAX-17, CL-DSN-17 |
 | `backtest_request_id`       | integer     | yes  | —        | `REFERENCES backtest_requests(id) ON DELETE CASCADE`; required for an import draft                 | PI    | IHM-42                    |
 | `exploration_event_type_id` | text        | yes  | —        | `REFERENCES event_types(id) ON DELETE CASCADE`; the targeted proposal, null for the general screen | —     | TAX-16, CL-DSN-17         |
 | `text`                      | text        | no   | —        | the pasted text, at most `imports.maxPastedTextMegabytes`                                          | DR    | IHM-42, DSN-32, CL-IMP-27 |
 | `updated_at`                | timestamptz | no   | `now()`  | the last change; "draft saved at …"; the expiry counts from it                                     | —     | IHM-42, CL-IHM-11         |
 | `origin_device`             | text        | no   | —        | —                                                                                                  | —     | IHM-42                    |
 
-Row checks: `(kind = 'import') = (backtest_request_id IS NOT NULL)`;
-`exploration_event_type_id IS NULL OR kind = 'exploration'`.
+Row checks: `(kind = 'research_result') = (backtest_request_id IS NOT NULL)`;
+`exploration_event_type_id IS NULL OR kind = 'exploration_response'`.
 
-Unique: `drafts_import_key (backtest_request_id) WHERE kind = 'import'`;
-`drafts_exploration_key (exploration_event_type_id) NULLS NOT DISTINCT WHERE kind = 'exploration'`.
+Unique: `drafts_import_key (backtest_request_id) WHERE kind = 'research_result'` — also finds the
+import draft of a request, for the withdrawal step;
+`drafts_exploration_key (exploration_event_type_id) NULLS NOT DISTINCT WHERE kind = 'exploration_response'`.
 
 Lifetime: erased when its import or its proposals are saved, when discarded, `display.draftRetentionDays`
 after its last change, when its request, proposal or player disappears, and at every restore
-(CL-DSN-17).
+(CL-DSN-17). A withdrawal of one of a player's events also discards the import drafts of every
+backtest request of that player, server copies in the withdrawal's transaction, since a pasted
+result may report the withdrawn fact ([sensitive-data.md](sensitive-data.md) section 2.1).
 
 ```ts
 type ImportDraftStatus = 'kept' | 'request_already_imported'; // derived from the request's status
@@ -355,7 +369,7 @@ type ImportDraftStatus = 'kept' | 'request_already_imported'; // derived from th
 ### 1.13 `ui_state` — interface state kept by the application
 
 One row (`id = 1`) for the interface settings that are not parameters (IHM-20, IHM-40, IHM-53),
-the module map's `Preference`:
+the glossary's `UiSettings`, written through the `params` ui-settings functions:
 
 | column                         | type        | null | default | constraint or reference                                                          | class | spec IDs          |
 | ------------------------------ | ----------- | ---- | ------- | -------------------------------------------------------------------------------- | ----- | ----------------- |
@@ -371,6 +385,8 @@ refresh and erased at logout (IHM-57, DSN-33, CL-DSN-18), the declined offer to 
 time zone (CL-IHM-05), and the device copy of a draft.
 
 ### 1.14 `sequence_counters` — gapless numbers
+
+Owned by module `db`, created by the database task; `backtests` and `imports` draw from it.
 
 | column       | type    | null | default | constraint or reference                                                                 | class | spec IDs          |
 | ------------ | ------- | ---- | ------- | --------------------------------------------------------------------------------------- | ----- | ----------------- |
@@ -388,22 +404,23 @@ the Lot 2 dispatch, grouped by pass (TEL-02, TEL-17, TEL-19, TRV-29). The table 
 Lot 2 object carries that object's identifier without a foreign key, so that no core table points
 at a Lot 2 table; Lot 2's erasers delete the facts of their objects.
 
-| column                | type        | null | default  | constraint or reference                                                                                                                                                                    | class | spec IDs          |
-| --------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | ----------------- |
-| `id`                  | integer     | no   | identity | primary key                                                                                                                                                                                | —     | —                 |
-| `kind`                | text        | no   | —        | `CHECK (kind IN ('backtest_request_to_do','deadline_changed','alert_sheet_produced','alert_sheet_updated','tracked_game_result','new_type_proposal','incident_opened','incident_closed'))` | —     | TEL-09 to TEL-15  |
-| `backtest_request_id` | integer     | yes  | —        | `REFERENCES backtest_requests(id) ON DELETE CASCADE`; `backtest_request_to_do`, `deadline_changed`                                                                                         | PI    | TEL-09, BKT-18    |
-| `deadline_game_id`    | integer     | yes  | —        | `REFERENCES games(id) ON DELETE RESTRICT`; `deadline_changed`: the new deadline game                                                                                                       | —     | TEL-09, CL-TEL-18 |
-| `player_event_id`     | integer     | yes  | —        | `REFERENCES events(id) ON DELETE CASCADE`; `deadline_changed`: the event that moved the deadline, so that its withdrawal removes the fact                                                  | EV    | TEL-09, DSN-27    |
-| `event_type_id`       | text        | yes  | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`; `new_type_proposal`                                                                                                                       | —     | TEL-14            |
-| `incident_id`         | integer     | yes  | —        | `REFERENCES incidents(id) ON DELETE CASCADE`; `incident_opened`, `incident_closed`                                                                                                         | —     | TEL-15            |
-| `lot2_subject_id`     | integer     | yes  | —        | the Lot 2 object, no foreign key: the sheet (`alert_sheet_produced`), the update entry (`alert_sheet_updated`), the tracked game result (`tracked_game_result`)                            | EV    | TEL-11 to TEL-13  |
-| `pass_id`             | uuid        | yes  | —        | the pass that emitted it (`task_runs.pass_id`); null for an owner's action outside a pass                                                                                                  | —     | TEL-19, TRV-26    |
-| `created_at`          | timestamptz | no   | `now()`  | —                                                                                                                                                                                          | —     | TEL-02            |
-| `consumed_at`         | timestamptz | yes  | —        | set by the Lot 2 dispatch when its messages are composed                                                                                                                                   | —     | TEL-17            |
+| column                | type        | null | default  | constraint or reference                                                                                                                                                                                      | class | spec IDs          |
+| --------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | ----------------- |
+| `id`                  | integer     | no   | identity | primary key                                                                                                                                                                                                  | —     | —                 |
+| `kind`                | text        | no   | —        | `CHECK (kind IN ('backtest_request_to_do','backtest_request_deadline_changed','alert_sheet_produced','alert_sheet_updated','tracked_result_ready','type_proposal_new','incident_opened','incident_closed'))` | —     | TEL-09 to TEL-15  |
+| `backtest_request_id` | integer     | yes  | —        | `REFERENCES backtest_requests(id) ON DELETE CASCADE`; `backtest_request_to_do`, `backtest_request_deadline_changed`                                                                                          | PI    | TEL-09, BKT-18    |
+| `deadline_game_id`    | integer     | yes  | —        | `REFERENCES games(id) ON DELETE RESTRICT`; `backtest_request_deadline_changed`: the new deadline game                                                                                                        | —     | TEL-09, CL-TEL-18 |
+| `player_event_id`     | integer     | yes  | —        | `REFERENCES events(id) ON DELETE CASCADE`; `backtest_request_deadline_changed`: the event that moved the deadline, so that its withdrawal removes the fact                                                   | EV    | TEL-09, DSN-27    |
+| `event_type_id`       | text        | yes  | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`; `type_proposal_new`                                                                                                                                         | —     | TEL-14            |
+| `incident_id`         | integer     | yes  | —        | `REFERENCES incidents(id) ON DELETE CASCADE`; `incident_opened`, `incident_closed`                                                                                                                           | —     | TEL-15            |
+| `lot2_subject_id`     | integer     | yes  | —        | the Lot 2 object, no foreign key: the sheet (`alert_sheet_produced`), the update entry (`alert_sheet_updated`), the tracked game result (`tracked_result_ready`)                                             | EV    | TEL-11 to TEL-13  |
+| `pass_id`             | uuid        | yes  | —        | the pass that emitted it (`task_runs.pass_id`); null for an owner's action outside a pass                                                                                                                    | —     | TEL-19, TRV-26    |
+| `created_at`          | timestamptz | no   | `now()`  | —                                                                                                                                                                                                            | —     | TEL-02            |
+| `consumed_at`         | timestamptz | yes  | —        | set by the Lot 2 dispatch when its messages are composed                                                                                                                                                     | —     | TEL-17            |
 
 Row check: each kind sets exactly its columns — `backtest_request_to_do`: the request;
-`deadline_changed`: the request, the game and the event; `new_type_proposal`: the type;
+`backtest_request_deadline_changed`: the request, the game and the event; `type_proposal_new`: the
+type;
 `incident_opened` and `incident_closed`: the incident; the three Lot 2 kinds: `lot2_subject_id`.
 
 Unique: `outbox_facts_fact_key (kind, backtest_request_id, deadline_game_id, player_event_id, event_type_id, incident_id, lot2_subject_id) NULLS NOT DISTINCT`
@@ -421,13 +438,13 @@ the Lot 2 erasers for `lot2_subject_id`).
 ```ts
 type OutboxFactKind =
   | 'backtest_request_to_do'
-  | 'deadline_changed'
+  | 'backtest_request_deadline_changed'
   | 'alert_sheet_produced'
   | 'alert_sheet_updated'
-  | 'tracked_game_result'
-  | 'new_type_proposal'
+  | 'tracked_result_ready'
+  | 'type_proposal_new'
   | 'incident_opened'
-  | 'incident_closed'; // the module map's `backtest-request.to-do` … `incident.closed`, one to one
+  | 'incident_closed'; // the glossary's `OutboxFactKind`; the export reminder has no fact (an incident)
 ```
 
 ### 1.16 `scheduler_lease` — the tick lease
@@ -436,7 +453,7 @@ One row (`id smallint PRIMARY KEY CHECK (id = 1)`) with `pass_id uuid` and `expi
 timestamptz`, both null while free: the database pass of a tick holds it, so that two trigger calls
 never run passes side by side (TRV-28, TRV-29); an expired lease is free again after a crashed
 invocation (TRV-30). A transaction-scoped advisory lock would not span the several transactions of
-a pass, hence a row. It is the module map's `TaskLease`.
+a pass, hence a row: one row for every pass, as the module map adopted.
 
 ### 1.17 `database_activity_minutes` — the compute estimate
 
@@ -453,7 +470,7 @@ size read once a day by the purge, so the app measures its real volume (TRV-07, 
 `journal.retentionDays`. Daily counts of articles, model calls and statistics requests are already
 in Lot 2's daily counts and `quota_usage`.
 
-### 1.19 `restore_reports` and `restore_report_events` — `RestoreReport`
+### 1.19 `restore_reports` and `restore_report_events` — `RestoreSummary`
 
 What the last restores did, for the status screen (TRV-53, CA-TRV-16, CL-TRV-06): the restore runs
 as a command, and the app shows its summary afterwards.
@@ -490,17 +507,21 @@ deleted by the purge.
 
 ### 2.2 Task run (TRV-26 to TRV-33, CL-TRV-07, CL-TRV-08, CL-TRV-23)
 
-| from      | to          | trigger                                                                                             | guard                                     | side effects                                                                                                                                                                                                  |
-| --------- | ----------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (none)    | running     | an occurrence is due at a wake-up, or on demand                                                     | no run of the task running (unique index) | `started_at`; the next scheduled occurrence is kept for an on-demand run (TRV-33)                                                                                                                             |
-| (none)    | postponed   | an occurrence is due while the previous run runs                                                    | —                                         | one journal entry per postponed occurrence (CL-TRV-07)                                                                                                                                                        |
-| postponed | running     | the previous run ends                                                                               | —                                         | —                                                                                                                                                                                                             |
-| running   | running     | a portion ends                                                                                      | —                                         | `progress_at` and `cursor` written                                                                                                                                                                            |
-| running   | succeeded   | the work ends                                                                                       | —                                         | chained tasks become due (CL-TRV-08); journal entry `task_pass`                                                                                                                                               |
-| running   | failed      | an error ends the run                                                                               | —                                         | journal entry                                                                                                                                                                                                 |
-| running   | source_late | `statistics-update` reaches the cut-off without a refresh                                           | —                                         | warning entry; after `scheduler.statsLateDaysBeforeIncident` consecutive late competition days, counted from these rows, `stats_source_unavailable`, which closes when a refresh lands (CL-TRV-23, CL-STA-10) |
-| running   | interrupted | found stale at a wake-up (twice the host's maximum invocation time)                                 | —                                         | warning entry; the lock released; the next portion resumes from `cursor`                                                                                                                                      |
-| (none)    | missed      | no run started at or after the due time succeeded by due time plus `scheduler.missedRunMarginHours` | —                                         | journal entry per missed occurrence; one `task_not_run` incident per task; one catch-up run, recorded with `trigger = 'scheduled'`, standing for the missed occurrences                                       |
+The state is read from the row: waiting (no start), running (a start and no result), or its
+result.
+
+| from    | to          | trigger                                                                                                                                     | guard                                     | side effects                                                                                                                                                                                                  |
+| ------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)  | running     | an occurrence is due at a wake-up, or the owner asks for a run while none of the task runs                                                  | no run of the task running (unique index) | `started_at`, `pass_id`; an on-demand run keeps the next scheduled occurrence (TRV-33)                                                                                                                        |
+| (none)  | waiting     | the owner asks for a run while the task runs                                                                                                | no requested run waiting (unique index)   | the screen says the run is deferred (COL-14, CL-COL-20)                                                                                                                                                       |
+| (none)  | (no row)    | a scheduled occurrence is due while the previous run runs                                                                                   | —                                         | one journal entry for the postponement (TRV-28, CL-TRV-07)                                                                                                                                                    |
+| waiting | running     | the running pass ends                                                                                                                       | —                                         | `started_at`, `pass_id`                                                                                                                                                                                       |
+| running | running     | a portion ends; for `statistics-update`, a probe that sees no refresh yet                                                                   | —                                         | `progress_at` and `cursor`; `probe_count` and `last_refresh_seen_at` (CL-TRV-23)                                                                                                                              |
+| running | succeeded   | the work ends; for `statistics-update`, a probe sees the refresh and the data is ingested                                                   | —                                         | chained tasks become due (CL-TRV-08); journal entry `task_pass`                                                                                                                                               |
+| running | failed      | an error ends the run                                                                                                                       | —                                         | journal entry                                                                                                                                                                                                 |
+| running | source_late | `statistics-update` reaches the cut-off without a refresh and fetches what is published                                                     | —                                         | warning entry; after `scheduler.statsLateDaysBeforeIncident` consecutive late competition days, counted from these rows, `stats_source_unavailable`, which closes when a refresh lands (CL-TRV-23, CL-STA-10) |
+| running | interrupted | found stale at a wake-up: no progress for twice the host's maximum invocation time, except while the statistics update waits between probes | —                                         | warning entry; the lock released; a new run resumes from `cursor`, in the same wake-up if the task is still due                                                                                               |
+| (none)  | (no row)    | an occurrence has no successful run by its due time plus `scheduler.missedRunMarginHours`                                                   | —                                         | journal entry per missed occurrence; one `task_not_run` incident per task; one catch-up run at once, recorded with `trigger = 'scheduled'` (CL-TRV-08)                                                        |
 
 ### 2.3 Backup (TRV-50, TRV-55, CL-TRV-04, CL-TRV-19)
 
@@ -645,25 +666,30 @@ details, if any, indented. It holds nothing DSN-11 forbids.
 - CL-TRV-05, CL-TRV-06: what backups hold, and the restore.
 - CL-TRV-10: references by identifier; the scrubbing.
 - CL-TRV-11, CL-IHM-20: the owner only hides an incident; every incident closes automatically; one
-  quota incident per service, a TRV-06 refusal being one of its causes, closed as its service's file
+  quota incident per service with its `QuotaIncidentCause` values, closed as its service's file
   rules, otherwise when the owner saves a new limit or after a full period without refusal.
-- CL-TRV-08: a catch-up run is recorded as a scheduled run.
-- CL-STA-15 and the statistics service sheet open an incident when a source file is missing or its
-  columns changed; the glossary has no kind for it, so the model adds `stats_source_schema_changed`
-  (the module map names the same cause).
-- CL-TRV-12: quota limits as a parameter with periods and resets; usage per period instance.
+- CL-TRV-07, CL-TRV-08: a run records its start, progress marks, end and `TaskRunResult`; without a
+  result it is running or, unstarted, a requested on-demand run; postponements and missed
+  occurrences are journal entries; a catch-up run is recorded as a scheduled run.
+- CL-COL-20: at most one requested on-demand run per task that has not started.
+- CL-STA-15: the incident `stats_source_schema_changed` when a source file is missing or its columns
+  changed.
+- CL-TRV-12, CL-DET-04, CL-DET-05: quota limits as parameters with periods and resets; usage per
+  period instance; the reset instant a provider gives (`resets_at`).
 - CL-TRV-16, CL-TRV-17: bounds in the registry; the flag "affects calculations".
 - CL-TRV-22: the export reminder from the first start.
-- CL-TRV-23: the result `source_late`, each competition day's run and the late days counted from
-  `task_runs`; the parameters `scheduler.statsUpdateCutoff`, `scheduler.statsProbeIntervalMinutes`
-  and `scheduler.statsLateDaysBeforeIncident`.
-- CL-DSN-17, CL-IHM-10, CL-IHM-11: the draft store.
+- CL-TRV-23: one run of the statistics update per competition day, with its result (`succeeded` or
+  `source_late`), its probe count and the last refresh instant seen; the late days counted from
+  these rows; the parameters `scheduler.statsUpdateCutoff`, `scheduler.statsProbeIntervalMinutes` and
+  `scheduler.statsLateDaysBeforeIncident`.
+- CL-DSN-17, CL-IHM-10, CL-IHM-11: the draft store; the orchestrator's ruling that a withdrawal
+  discards the import drafts of every request of the event's player.
 - CL-IHM-05: the declined time-zone offer stays on the device, as the ruling says, although the
   module map lists it among the server preferences.
 - CL-IHM-13, CL-IHM-18: the banner state; `row_version` everywhere the owner edits.
 - Module map: the parameter and task keys are its own (sections 4 and 6); `outbox_facts`
-  (`OutboxFact`), `scheduler_lease` (`TaskLease`), `database_activity_minutes`
-  (`DatabaseActivity`), `restore_reports` (`RestoreReport`) and `ui_state` (`Preference`) are the
+  (`OutboxFact`), `scheduler_lease` (the single-row tick lease), `database_activity_minutes`
+  (`DatabaseActivity`), `restore_reports` (`RestoreSummary`) and `ui_state` (`UiSettings`) are the
   tables of its machinery; the wake plan lives in the host's cache and has no table; sessions are
   random tokens stored hashed.
 - Lot 2 requests (collection.md, detection.md and notifications.md, section 8): a pass identifier

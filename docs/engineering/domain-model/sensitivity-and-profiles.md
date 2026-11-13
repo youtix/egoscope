@@ -15,8 +15,9 @@ The calculation for one player, one type and one view (SEN-19 to SEN-27, SEN-21)
 for a validated type, or a withdrawn one shown archived, while its tally holds at least one event,
 the events that left the count included and withdrawn ones excepted (SEN-19, CL-SEN-26). While the
 birthday type is validated, a followed player without a recorded birthday also has a birthday
-profile: an empty tally, every count 0, the verdict inconclusive, whose page only says why (record
-0015, CL-SEN-26, CL-JOU-16). Every view is computed in full at each recalculation (CL-SEN-19); in
+profile: an empty tally, every count 0, the verdict inconclusive, whose page only says why, with the mention
+"birthday not recorded: no birthday events" (glossary section 7.2; record 0015, CL-SEN-26,
+CL-JOU-16). Every view is computed in full at each recalculation (CL-SEN-19); in
 Lot 1 every case is historical.
 
 | column                          | type             | null | default  | constraint or reference                                                                                                 | class | spec IDs                          |
@@ -250,13 +251,12 @@ interface ProfileValueVersion {
 
 ### 2.2 Profile and trend presentation states — `ProfileNotice`, derived
 
-| state                 | when                                                                                | spec IDs             |
-| --------------------- | ----------------------------------------------------------------------------------- | -------------------- |
-| below_threshold       | `valid_count < valid_case_threshold`: the SEN-31 presentation with the type's trend | SEN-31               |
-| archived              | the player or the type is withdrawn                                                 | SEN-19               |
-| recalculating         | a pending or running job covers it                                                  | SEN-36, CL-SEN-16    |
-| awaiting_statistics   | its cases all wait with `statistics_pending` or `mapping_not_established`           | 12 « Cas limites »   |
-| birthday_not_recorded | a birthday profile whose player has no recorded birthday: only the reason is shown  | CL-SEN-26, CL-JOU-16 |
+| state               | when                                                                                | spec IDs           |
+| ------------------- | ----------------------------------------------------------------------------------- | ------------------ |
+| below_threshold     | `valid_count < valid_case_threshold`: the SEN-31 presentation with the type's trend | SEN-31             |
+| archived            | the player or the type is withdrawn                                                 | SEN-19             |
+| recalculating       | a pending or running job covers it                                                  | SEN-36, CL-SEN-16  |
+| awaiting_statistics | its cases all wait with `statistics_pending` or `mapping_not_established`           | 12 « Cas limites » |
 
 ## 3. Invariants
 
