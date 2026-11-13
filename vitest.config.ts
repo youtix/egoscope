@@ -2,22 +2,19 @@ import path from 'node:path';
 
 import { configDefaults, defineConfig } from 'vitest/config';
 
-import type { ViteUserConfig } from 'vitest/config';
+// The extensions let Vite's native config loader, Node itself, import the files.
+import { IGNORED_FOLDERS } from './scripts/ignored-folders.ts';
+import { ROUTE_SHELLS } from './scripts/route-shells.ts';
 
-// Files that Next.js renders itself. Lint keeps them unable to hold logic (see the
-// route-shell rules in eslint.config.ts), and they are left out of unit coverage.
-// Route handlers (route.ts) are not shells: they are covered.
-const ROUTE_SHELLS =
-  'src/app/**/{page,layout,template,loading,error,global-error,not-found,global-not-found,forbidden,unauthorized,default}.{ts,tsx}';
+import type { ViteUserConfig } from 'vitest/config';
 
 // Several agents share one small machine: locally, tests use at most half the
 // cores. CI runners are dedicated, so CI keeps Vitest's default.
 const isCi = process.env['CI'] === 'true';
 
-// The other agents' worktrees (the folders of scripts/ignored-folders.ts, repeated
-// here because Vite's native config loader takes no extensionless imports). The
-// include globs below never enter a dot folder anyway; this says so explicitly.
-const exclude = [...configDefaults.exclude, '.claude/**'];
+// The other agents' worktrees. The include globs below never enter a dot folder
+// anyway; this says so explicitly.
+const exclude = [...configDefaults.exclude, ...IGNORED_FOLDERS.map((folder) => `${folder}**`)];
 
 const config: ViteUserConfig = defineConfig({
   resolve: {
@@ -56,7 +53,8 @@ const config: ViteUserConfig = defineConfig({
       provider: 'v8',
       // Listing every source file makes untested files count as uncovered.
       include: ['src/**/*.{ts,tsx,mts,cts}'],
-      exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.d.ts', ROUTE_SHELLS],
+      // Route shells are left out: scripts/route-shells.ts says which, and why.
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.d.ts', ...ROUTE_SHELLS],
       reporter: ['text', 'html', 'json-summary'],
       thresholds: {
         // Never lower these: add the missing tests instead.

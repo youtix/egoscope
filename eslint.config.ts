@@ -35,6 +35,7 @@ import tseslint from 'typescript-eslint';
 
 import { egoscopePlugin } from './scripts/eslint-plugin';
 import { IGNORED_FOLDERS } from './scripts/ignored-folders';
+import { ROUTE_SHELLS, SHELL_KINDS } from './scripts/route-shells';
 
 import type { Linter } from 'eslint';
 
@@ -52,36 +53,8 @@ const SCRIPT_FILES = [`scripts/**/*.${TS}`];
 const SRC_FILES = [`src/**/*.${TS}`];
 const PURE_CORE_FILES = [`src/lib/{stats-engine,ai-exchange}/**/*.${TS}`];
 
-// Next.js special files that coverage leaves out (vitest.config.ts): lint keeps
-// them unable to hold logic. Each kind may export only what Next.js reads from it.
-const SHELL_KINDS = [
-  {
-    glob: 'src/app/**/{page,layout}.{ts,tsx}',
-    exports: [
-      'metadata',
-      'generateMetadata',
-      'viewport',
-      'generateViewport',
-      'generateStaticParams',
-      'dynamicParams',
-      'runtime',
-      'preferredRegion',
-      'maxDuration',
-      'ensureStatic',
-      'prefetch',
-      'instant',
-    ],
-  },
-  {
-    glob: 'src/app/**/{not-found,global-not-found}.{ts,tsx}',
-    exports: ['metadata', 'generateMetadata'],
-  },
-  {
-    glob: 'src/app/**/{template,loading,error,global-error,forbidden,unauthorized,default}.{ts,tsx}',
-    exports: [],
-  },
-] as const;
-const ROUTE_SHELLS = SHELL_KINDS.map((kind) => kind.glob);
+// Route shells (scripts/route-shells.ts) and the other Next.js files that Next.js
+// loads through their default export.
 const NEXT_DEFAULT_EXPORT_FILES = [
   ...ROUTE_SHELLS,
   'src/app/**/{opengraph-image,twitter-image,icon,apple-icon,sitemap,robots,manifest}.{ts,tsx}',
@@ -838,7 +811,7 @@ const composed = defineConfig(
     // Route shells are excluded from unit coverage (vitest.config.ts), so these
     // caps keep every function in them too small to hide logic.
     name: 'egoscope/route-shells',
-    files: ROUTE_SHELLS,
+    files: [...ROUTE_SHELLS],
     rules: {
       complexity: ['error', { max: 3 }],
       'max-depth': ['error', { max: 1 }],

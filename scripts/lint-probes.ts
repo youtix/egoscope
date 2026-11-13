@@ -21,6 +21,7 @@ import { ESLint } from 'eslint';
 import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript';
 
 import { layerZones } from '../eslint.config';
+import { SHELL_KINDS } from './route-shells';
 
 import type { Linter } from 'eslint';
 
@@ -39,17 +40,19 @@ export type Probes = Readonly<{
 
 const ROOT = path.join(import.meta.dirname, '..');
 const TS_FILES = ['**/*.{ts,tsx,mts,cts}'];
+/** One probe path per route-shell file name, such as src/app/probe/page.tsx. */
+export const SHELL_PROBES: readonly string[] = SHELL_KINDS.flatMap((kind) =>
+  kind.names.map((name) => `src/app/probe/${name}.tsx`),
+);
 
 // Every path a probe lints. Each exists on disk before the first lint, so that the
 // TypeScript project service sees it.
 const PROBE_FILES: readonly string[] = [
+  ...SHELL_PROBES,
   'src/app/page-helper.ts',
   'src/app/players/[playerId]/page.tsx',
   'src/app/players/page.tsx',
   'src/app/probe/helper.ts',
-  'src/app/probe/loading.tsx',
-  'src/app/probe/not-found.tsx',
-  'src/app/probe/page.tsx',
   'src/app/probe/probe-view.tsx',
   'src/lib/Bad_Module/probe.ts',
   'src/lib/ai-exchange/probe.ts',

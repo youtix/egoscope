@@ -12,8 +12,11 @@
     "paths": { "@/*": ["./src/*"], "@data/*": ["./data/*"] },
     "plugins": [{ "name": "next" }],
 
-    // Type-check only: Next.js, Vitest and Bun do the transpiling.
+    // Type-check only: Next.js, Vitest and Bun do the transpiling. vitest.config.ts
+    // imports local modules with their .ts extension, which Vite's native config
+    // loader (Node itself) needs.
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "incremental": true,
     "tsBuildInfoFile": "node_modules/.cache/typescript/tsbuildinfo",
     "allowJs": false,

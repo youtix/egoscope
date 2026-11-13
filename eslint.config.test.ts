@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { createProbes } from './scripts/lint-probes';
+import { createProbes, SHELL_PROBES } from './scripts/lint-probes';
 
 const { project, eslint, lint, ruleIds, remove } = createProbes();
 
@@ -276,6 +276,13 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
 
   describe('route shells hold no logic', () => {
     const page = 'export default function Page(): null {\n  return null;\n}\n';
+
+    it.each(SHELL_PROBES)('applies the shell rules to %s', async (file) => {
+      const code =
+        'export default function Shell(): null {\n  for (const item of [1]) {\n    void item;\n  }\n  return null;\n}\n';
+
+      expect(await ruleIds(file, code)).toContain('no-restricted-syntax');
+    });
 
     it.each([
       [
