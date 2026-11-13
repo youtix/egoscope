@@ -105,7 +105,7 @@ The app is built as each ruling says. The owner may answer any row differently; 
 | CL-SUI-06 | Should a game measured for two types count twice in the player and overall rows? | Yes, marked co-occurring. | Each game counts once. |
 | CL-SUI-11 | Should withdrawn players' and types' rows stay in an archived part of the table? | Yes; their cases stay in the overall row. | Withdrawing after seeing results changes the table. |
 | CL-SUI-14 | Should upcoming calendar-derived events be tracked cases that cannot be dismissed? | Yes. | As for CL-VUE-13. |
-| CL-SUI-16 | Should a tracked case emptied by a regrouping after tip-off keep counting among the cases now out of the counts, with the gap it had then? | Yes, until its event is erased; the surviving tracked case takes its decisions. | It leaves the table without a trace, and a sort made after the result is lost. |
+| CL-SUI-16 | Should a tracked case emptied by a regrouping or a merge of events after tip-off keep counting among the cases now out of the counts, with the gap it had then? | Yes, until its event is erased; the surviving tracked case takes its decisions. | It leaves the table without a trace, and a sort made after the result is lost. |
 | CL-TEL-07 | Once the daily cap is reached, should the day's later messages, urgent ones included, be dropped? | Yes; their facts stay in the app. | They are sent the next day. |
 | CL-TEL-08 | Should an incident's end message wait for the incident recurrence window? | Yes, 6 hours by default. | It leaves at once, possibly before a new outage. |
 | CL-TEL-09 | Should the list of messages Telegram refused to delete be shown once and never kept? | Yes. | A stored list becomes a trace of the withdrawal. |
@@ -223,7 +223,7 @@ Each line names something a ruling requires the app to store that the specs do n
 - CL-ALE-07, CL-ALE-12: frozen snapshots per section; the outcome's profile snapshot frozen at closure; each later change of gap, baseline or category in the update log with its earlier value.
 - CL-SUI-03: forecast versions with their instants, from the case's creation to the measured game's scheduled start.
 - CL-SUI-10: per case, its post-tip-off decisions with their kind (exit, entry, change of measured game).
-- CL-SUI-16: per tracked case emptied by a regrouping after its game's scheduled start, an exit: its earliest-recorded event, player and type, the overall sub-row of its forecast and its gap in the forecast direction, never recalculated, with no date and no game.
+- CL-SUI-16: per tracked case emptied by a regrouping or a merge of events after its game's scheduled start, an exit: the event it is tied to (the emptied case's earliest-recorded event, or the kept event of a merge), its player and type, the overall sub-row of its forecast and its gap in the forecast direction, never recalculated, with no date and no game.
 - CL-TEL-07: per day of the owner's time zone, the number of messages sent; the cap message, once a day; the status « abandonné » with the reason "daily cap".
 - CL-TEL-08: the pending end message of a notified incident until the incident recurrence window has passed.
 - CL-TEL-09: per sent message, its chat identifier and Telegram's message identifier, erased with its text.
