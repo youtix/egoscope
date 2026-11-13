@@ -96,8 +96,9 @@ derivation drop (CL-TAX-19), a merge of detected events (DET-47, Lot 2) and a pl
 `event_status_changes`, `event_corrections` and `backtest_request_events`, and sets to null the
 import outcomes, possible-duplicate answers and journal references that point to it; a withdrawal
 deletes those designating rows first, so that no trace keeps the event (DSN-27, IMP-37,
-CL-TRV-10). The step deletes the case when the event was its last one, and writes a tally exit for
-every reason but a withdrawal (SEN-33).
+CL-TRV-10). The step deletes the case when the event was its last one, and writes the tally exit its
+variant names: `merged` for a merge of detected events, none for a withdrawal, a player-data
+deletion or the drop of an upcoming calendar-derived event (SEN-33).
 
 ```ts
 type PlayerEventId = Brand<number, 'PlayerEventId'>;
