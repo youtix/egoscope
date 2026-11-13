@@ -111,11 +111,11 @@ What remains of a tracked case that a regrouping emptied after its measured game
 | `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; the emptied case's earliest-recorded event, which now belongs to the surviving case; that event's erasure deletes the row | EV | SUI-17, SUI-30 |
 | `player_id` | uuid | no | — | → core `followed_players.id` `ON DELETE RESTRICT`; the emptied case's player, which places the exit in its rows | PI EV | SUI-23 |
 | `event_type_id` | text | no | — | → core `event_types.id` `ON DELETE RESTRICT`; the emptied case's type | EV | SUI-23 |
-| `overall_subrow` | text | yes | null | `CHECK (overall_subrow IN ('probable_profile','possible_profile','general_trend'))` (`OverallSubrowKind`), from the case's frozen or late forecast; null when it had none | EV | SUI-28 |
+| `overall_subrow` | text | yes | null | `CHECK (overall_subrow IN ('probable_profile','possible_profile','general_trend'))` (`OverallSubrowKind`), from the forecast the case had at its last known scheduled start, by the freeze's rule: the stored frozen or late forecast, otherwise the forecast version in force at that start (§2.1); null only when the case had no forecast by that rule | EV | SUI-28, CL-SUI-03, CL-SUI-16 |
 | `gap_in_forecast_direction` | double precision | yes | null | the case's measured gap, or its opposite for a forecast of decrease, when it had both; `CHECK (gap_in_forecast_direction IS NULL OR overall_subrow IS NOT NULL)` | EV | SUI-22, CL-SUI-10 |
 
 - **Unique and indexes:** `regrouping_exits_pair_idx` `(player_id, event_type_id)` — the rows of the validation table; `regrouping_exits_event_idx` `(player_event_id)` — the erasers.
-- **Deletion:** by the erasure of its event — withdrawal, requalification or split erasure, player-data deletion — as if the emptied case had never existed (SEN-48, SUI-30); repointed to the kept event when two detected events are merged; never purged.
+- **Deletion:** by the erasure of its event — withdrawal, requalification or split erasure, player-data deletion, or the drop of a calendar-derived event by a derivation (tracking's `eraseEventData` in the derivation reactions, which the `RESTRICT` link requires) — as if the emptied case had never existed (SEN-48, SUI-30); repointed to the kept event when two detected events are merged; never purged.
 - **TypeScript:** `interface RegroupingExit { playerEventId: PlayerEventId; playerId: PlayerId; eventTypeId: EventTypeId; overallSubrow: OverallSubrowKind | null; gapInForecastDirection: number | null }`.
 
 ### 1.7 Validation table (derived) — `ValidationTable`, `ValidationRow`
@@ -151,11 +151,11 @@ The table has no storage: the pure calculation core computes it on each read fro
 
 The validation table, being derived, no longer counts the case anywhere, separate counts included, and the core's withdrawn-events counter grows by one (DSN-29). Nothing about E remains in these tables.
 
-**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps without the counter. A player-data deletion erases his tracked cases through the withdrawal of each of his events. An upcoming calendar-derived event dropped before its scheduled start is deleted with its case and tracked case, never counts, and is no post-tip-off decision (`CL-SUI-14`); one dropped after its game started is deleted the same way, and the core journals it and counts it in the profile's tally as `no_longer_derived` (`CL-SEN-25`).
+**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps without the counter. A player-data deletion erases his tracked cases through the withdrawal of each of his events. An upcoming calendar-derived event dropped before its scheduled start is deleted with its case and tracked case, never counts, and is no post-tip-off decision (`CL-SUI-14`); one dropped after its game started is deleted the same way, and the core journals it and counts it in the profile's tally as `no_longer_derived` (`CL-SEN-25`). In both cases tracking's `eraseEventData`, in the derivation reactions (module map §1.10), also deletes the event's `regrouping_exits` rows before the event goes.
 
 **Regrouping** (core events-and-cases.md §2.5, `CL-SUI-16`). The survivor and origin rules are the core's: the event joins the case that already has the game, and no case changes origin. Before a case emptied by a regrouping is deleted, `tracking.moveCaseReferences(fromCaseId, intoCaseId)` runs last in the regrouping reactions (module map §1.10), after alerts' and notifications':
 
-1. if the emptied case is tracked and its measured game's scheduled start has passed, one `regrouping_exits` row records it, whatever the surviving case's origin;
+1. if the emptied case is tracked and its measured game's last known scheduled start has passed, one `regrouping_exits` row records it, whatever the surviving case's origin, with the forecast the case had at that start by the freeze's rule — the stored frozen or late forecast, otherwise the forecast version in force at that start — and the gap the case had when it was emptied;
 2. if the surviving case is tracked, the emptied case's decisions move to the surviving tracked case, which then shows by its latest decision (`CL-SUI-10`);
 3. the emptied tracked case's other rows then cascade with the case; an unconsumed `tracked_result_ready` fact whose result no longer exists is dropped by the dispatch as stale (TEL-23).
 
