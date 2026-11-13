@@ -2,7 +2,7 @@
 
 Alert sheets, their dated sections, frozen profile and trend snapshots, expected-game history, caveats, update log and outcome: file 09 (ALE-01 to ALE-31) as ruled by `CL-ALE-01` to `CL-ALE-14`, with ADR 0015 and ADR 0016. Events, cases, profiles, games, teams and players belong to the core model; tracked cases and forecasts are in [tracking-and-validation.md](tracking-and-validation.md); the alert message's data is in [notifications.md](notifications.md).
 
-**Conventions.** As in [collection.md](collection.md). Volumes are small — a few sheets a week (H-TRV-04) — so indexes are named only where a list or a hook needs them.
+**Conventions.** As in [collection.md](collection.md). Volumes are small — a few sheets a week (H-TRV-04) — so indexes are named only where a list or a task's read needs them.
 
 **Sensitive-data classes:** the core model's (`—`, `PI`, `EV`, `TX`, `PR`; README §3) and the two Lot 2 classes `EX` and `OW`, as the top of [collection.md](collection.md) says. A sheet exists only because of its events, so its rows are erased by their withdrawal (ALE-30); no column of this file holds an article's title, excerpt or an event's description (09 "Données manipulées").
 
@@ -43,9 +43,9 @@ The block of one event type on a sheet: the initial content, a dated section for
 | `frozen_at` | timestamptz | yes | null | `CHECK ((profile_state = 'frozen') = (frozen_at IS NOT NULL))` | — | ALE-19 |
 | `profile_status_notice` | text | yes | null | `CHECK (profile_status_notice IN ('recalculation_in_progress','no_measured_case_yet'))`; only on a frozen section | — | ALE-05, 09 edge cases |
 | `type_not_covered` | boolean | no | false | the player's coverage lacked the type when the section was added | — | ALE-14, DET-40 |
-| `profile_changed_since_issue_at` | timestamptz | yes | null | first instant the current default-view profile differed from the frozen values | — | ALE-19, CL-ALE-07 |
+| `profile_changed_since_issue_at` | timestamptz | yes | null | the calculation instant of the first default-view profile found to differ from the frozen values, set by `game-tracking` after a recalculation | — | ALE-19, CL-ALE-07 |
 
-- **Unique and indexes:** `alert_sheet_sections_uq` unique `(alert_sheet_id, event_type_id)` — two events of the same type share one section (ALE-20); `alert_sheet_sections_type_idx` `(event_type_id)` — the history filtered by type (IHM-33) and the "profile changed" hook after a recalculation.
+- **Unique and indexes:** `alert_sheet_sections_uq` unique `(alert_sheet_id, event_type_id)` — two events of the same type share one section (ALE-20); `alert_sheet_sections_type_idx` `(event_type_id)` — the history filtered by type (IHM-33) and the "profile changed" read of `game-tracking` after a recalculation.
 - **Deletion cascades to:** `alert_sheet_snapshots`, `alert_sheet_events`, and update entries of the section.
 - **TypeScript:** `type AlertSheetSection = { profileState: 'pending' } | { profileState: 'frozen'; frozenAt: EpochMs; profileStatusNotice: ProfileStatusNotice | null; profile: ProfileSnapshot; trend: TrendSnapshot | null }`.
 
@@ -166,8 +166,8 @@ The outcome of one case of the sheet at closure (ALE-27). Its profile after the 
 | `case_id` | integer | no | — | → core `cases.id` `ON DELETE RESTRICT` | EV | ALE-27, ALE-29 |
 | `recorded_at` | timestamptz | no | — | the closure that recorded it | — | ALE-27 |
 
-- **Unique and indexes:** `alert_sheet_outcomes_uq` unique `(alert_sheet_id, case_id)`; `alert_sheet_outcomes_case_idx` `(case_id)` — the case-merge hook and the erasers.
-- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and the case-merge hook, called before the emptied case is deleted, moves its outcome rows to the surviving case, or deletes them with their snapshot when the sheet already has an outcome for the surviving case. Both cases' events end on the same measured game, so the outcome describes the same game; any other path that deletes a case still referenced here fails instead of silently losing a sheet's outcome.
+- **Unique and indexes:** `alert_sheet_outcomes_uq` unique `(alert_sheet_id, case_id)`; `alert_sheet_outcomes_case_idx` `(case_id)` — `moveCaseReferences` and the erasers.
+- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and `alerts.moveCaseReferences(fromCaseId, intoCaseId)`, run by the recalculation's regrouping reactions (module map §1.10) before the emptied case is deleted and before notifications' own, moves its outcome rows to the surviving case, or deletes them with their snapshot when the sheet already has an outcome for the surviving case. Both cases' events end on the same measured game, so the outcome describes the same game; any other path that deletes a case still referenced here fails instead of silently losing a sheet's outcome.
 - **Deletion cascades to:** its snapshot.
 - **TypeScript:** `AlertSheetOutcome = { caseId; recordedAt; profileAfter: ProfileSnapshot }` joined with the case's live values.
 
@@ -182,7 +182,7 @@ The outcome of one case of the sheet at closure (ALE-27). Its profile after the 
 
 What may remain: the sheet of the other events, with its other sections, snapshots, outcomes and log entries.
 
-**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps. A player-data deletion (CL-JOU-06) erases every sheet of the player through the withdrawal of each of his events, then deletes any sheet of his left without events, such as one canceled by an attachment correction. A merge of two detected events (DET-47) removes the absorbed event's sheet-event row with an `attachment_corrected` entry, as ALE-31 does. An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is not an erasure: its sheet-event row goes, an `event_no_longer_applies` entry records its type, game and reason, the sheet is canceled with that reason when no other non-dismissed event remains (`CL-ALE-13`), and its sections and snapshots stay. A calendar-derived event dropped after its game started (`CL-TAX-19`, `CL-SEN-25`) goes the same way, its case's outcome row deleted with its snapshot; no message follows (`CL-TEL-21` only covers drops known before the scheduled start), and the core journals the drop and counts it in the profile's tally as `no_longer_derived`. A case merge moves or deletes outcome rows as §1.8 says.
+**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps. A player-data deletion (CL-JOU-06) erases every sheet of the player through the withdrawal of each of his events, then deletes any sheet of his left without events, such as one canceled by an attachment correction. A merge of two detected events (DET-47) removes the absorbed event's sheet-event row with an `attachment_corrected` entry, as ALE-31 does. An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is not an erasure (`alerts.onCalendarEventDropped`, in the derivation reactions of module map §1.10): its sheet-event row goes, an `event_no_longer_applies` entry records its type, game and reason, the sheet is canceled with that reason when no other non-dismissed event remains (`CL-ALE-13`), and its sections and snapshots stay. A calendar-derived event dropped after its game started (`CL-TAX-19`, `CL-SEN-25`) goes the same way, its case's outcome row deleted with its snapshot; no message follows (`CL-TEL-21` only covers drops known before the scheduled start), and the core journals the drop and counts it in the profile's tally as `no_longer_derived`. A case merge moves or deletes outcome rows as §1.8 says.
 
 **Purge.** None: the alert history is kept (ALE-28).
 
@@ -214,6 +214,8 @@ What may remain: the sheet of the other events, with its other sections, snapsho
 | `pending` | `frozen` | the profile values become available | — | snapshots; `profile_values_entered_at` on the sheet; `profile_values_entered` entry; `is_late` recomputed; the alert fact is emitted now (TEL-11, CL-TEL-13) | ALE-05, CL-ALE-04 |
 
 A frozen snapshot never changes; a later change of the profile sets `profile_changed_since_issue_at` once, with a `profile_changed_since_issue` entry (ALE-19).
+
+The triggers of this section's rules that come from Lot 1 work — profile values that become available, a changed profile, a case that leaves awaiting its game or whose gap, baseline or category changes — are read, not pushed: `game-tracking`, chained after the statistics tasks, `calendar-derivation` and `recalculation` (module map §4, §1.10), applies these rules from what the core then holds. No Lot 1 module calls `alerts`.
 
 ### 2.3 Expected-game entry (`ExpectedGameState`)
 
@@ -256,10 +258,10 @@ The caveat set is recomputed as a whole whenever one of its inputs changes befor
 | Status | stored | recomputed by the alerts service when an event's state, a case's state or an attachment changes (§2.1) |
 | Late mark | stored | §2.1 |
 | Caveats | stored | §2.4 |
-| "Profile changed since issue" | stored instant | set by the hook that runs after a recalculation, for the sections of the pairs whose default-view values changed |
+| "Profile changed since issue" | stored instant | set by `game-tracking`, chained after `recalculation`, which compares each open sheet's frozen sections with the current default-view profiles; dated with the profile's calculation instant |
 | Related sheets ("see also") | derived: other sheets of the player whose current expected game is the same game | — |
 | Subject notices (player paused or withdrawn, type withdrawn) | derived from the player's and the type's current state | — |
-| Outcome block | profile after the case stored (snapshot); measured game, index, baseline, gap, case status and reason, category, frozen forecast and source, "recorded after tip-off" and "late forecast" read live; each later change of gap, baseline or category is an `outcome_value_changed` entry keeping the earlier value | entry written by the tracking hook when a closed sheet's case changes (CL-ALE-12) |
+| Outcome block | profile after the case stored (snapshot); measured game, index, baseline, gap, case status and reason, category, frozen forecast and source, "recorded after tip-off" and "late forecast" read live; each later change of gap, baseline or category is an `outcome_value_changed` entry keeping the earlier value | entry written by `game-tracking` when it finds that a closed sheet's case changed (CL-ALE-12) |
 | Hand-off to validation | derived: the validation table reads cases and tracked cases, never the sheet's values (ALE-29) | — |
 | Time remaining | derived at display | — |
 
@@ -321,10 +323,10 @@ erDiagram
 ## 8. Requests to the core model
 
 1. **Profile read model at freeze time** (default view, SEN-21): for a player and type, the values ALE-09 lists — mean gap, plausible range, valid cases split historical and tracked, excluded cases with reasons, verdict level and direction, profile confidence with its reasons, the fragile flag, coverage and version warnings (SEN-46), the confounder warning (ADR 0016), the threshold in force, the calculation date and the "recalculating" state (SEN-36); for a type, the general trend with its player count (SEN-28, SEN-29).
-2. **Recalculation hook**: after each recalculation, the list of player–type pairs whose default-view values changed, so the composition layer can call `alerts.onProfileChanged` (ALE-19); and the moment a profile being computed for a player becomes available (ALE-05).
+2. **Profile reads, no hook** (ALE-05, ALE-19): the current default-view profile of a pair with its calculation instant, which `game-tracking`, chained after the statistics tasks, `calendar-derivation` and `recalculation` (module map §4, §1.10), reads to complete the profile values of the sheets waiting for them and to mark "profile changed since issue"; the core keeps no `alerts.onProfileChanged` side effect.
 3. **Events**: their state and dismissal data, marks, context indications with origin, description and sources (the read view of DSN-06); for a calendar-derived event, its `derived_game_id` (`CL-DSN-20`).
-4. **Cases**: read access to the case of an event — measured game, status and reason, gap and its status, baseline used, performance index — and a hook when a case of origin `tracked` leaves awaiting its game or changes gap, baseline or category after that (ALE-26, CL-ALE-12).
+4. **Cases**: read access to the case of an event — measured game, status and reason, gap and its status, baseline used, performance index — read by `game-tracking` after each statistics task and recalculation, which records closures and outcome changes (`outcome_recorded`, `outcome_value_changed`) from what the core then holds; no hook (ALE-26, CL-ALE-12).
 5. **Games and teams**: scheduled start as last known, US date, opponent, home or away, status (postponed, canceled), and the schedule changes since a given instant (STA-28), for ALE-23; the player's current team at production.
 6. **Backtests**: whether the player is profiled and whether his coverage includes the type (BKT-10), and the complementary request a detection created or found (BKT-04, BKT-07, ALE-14).
 7. **Glossary**: add the enumerations and values of modeling choice 4.
-8. **Case-merge hook** (events-and-cases.md §2.5, met by the core model): before an emptied case is deleted, the recalculation service calls the Lot 2 hooks with the emptied and the surviving case, alerts first (§1.8), then notifications (notifications.md §1.4); tracking's rows cascade.
+8. **Regrouping reactions** (module map §1.10, events-and-cases.md §2.5): inside `sensitivity.processRecalculationJobs`, before a case emptied by a regrouping is deleted, `alerts.moveCaseReferences(fromCaseId, intoCaseId)` (§1.8), then `notifications.moveCaseReferences` (notifications.md §1.4); tracking's rows cascade.

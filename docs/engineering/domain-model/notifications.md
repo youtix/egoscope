@@ -20,11 +20,12 @@ The single link between the app and one private chat (TEL-01, TEL-28 to TEL-32).
 | `chat_id` | bigint | yes | null | the linked private chat; `CHECK ((status IN ('linked','broken')) = (chat_id IS NOT NULL))` | OW | TEL-01, TEL-29 |
 | `linked_at` | timestamptz | yes | null | `CHECK ((chat_id IS NULL) = (linked_at IS NULL))` | — | TEL-32 |
 | `last_successful_send_at` | timestamptz | yes | null | | — | TEL-32 |
+| `inbound_mode` | text | no | `'webhook'` | `CHECK (inbound_mode IN ('webhook','polling'))`; written by the webhook registration of the installation check (`notifications.registerWebhook`): `polling` when Telegram refuses the webhook or reports a delivery error, `webhook` once one is registered with `max_connections` 1 | — | TEL-29, TEL-30 |
 | `last_update_id` | bigint | yes | null | technical: the highest Telegram `update_id` handled, by webhook or by polling; an update at or below it is a redelivery and is ignored, and polling asks for `last_update_id + 1` onward; set in the transaction that handles the update, and it only moves forward. Telegram numbers a bot's updates in increasing order, and the webhook is registered with `max_connections` 1 so that they arrive in that order | — | TEL-31, CL-TRV-21 |
 | `row_version` | integer | no | 1 | incremented at every save | — | CL-IHM-18 |
 
 - **Deletion:** never deleted; unlinking empties it, except `last_update_id`, which keeps counting the bot's updates.
-- **TypeScript:** `type TelegramLink = { status: 'not_linked' | 'awaiting_confirmation' } | { status: 'linked' | 'broken'; chatId: TelegramChatId; linkedAt: EpochMs }`, with `statusChangedAt`, `lastSuccessfulSendAt` and `lastUpdateId: number | null`; the failed-message count is derived.
+- **TypeScript:** `type TelegramLink = { status: 'not_linked' | 'awaiting_confirmation' } | { status: 'linked' | 'broken'; chatId: TelegramChatId; linkedAt: EpochMs }`, with `statusChangedAt`, `lastSuccessfulSendAt`, `inboundMode: 'webhook' | 'polling'` and `lastUpdateId: number | null`; the failed-message count is derived.
 
 ### 1.2 Link code — `telegram_link_codes`
 
@@ -117,8 +118,8 @@ The fact a message notifies (TEL-02, TEL-34), one row per fact; an incident mess
   | `notification_facts_incident_end_uq` | `(incident_id)` | `message_kind = 'incident_end'` |
   | `notification_facts_export_reminder_uq` | `(incident_id)` | `message_kind = 'export_reminder'` |
 
-  Plus `notification_facts_message_idx` `(message_id)` and `notification_facts_case_idx` `(case_id) WHERE case_id IS NOT NULL` — the case-merge hook.
-- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and the case-merge hook, called after alerts' and before the emptied case is deleted, moves its `tracked_game_result` fact to the surviving case when that case has none — both cases end on the same measured game, so one result was already notified for it — and otherwise deletes the emptied case's fact, discarding its message as moot if it is unsent. One result per case still holds, and any other path that deletes a referenced case fails instead of losing a notified fact.
+  Plus `notification_facts_message_idx` `(message_id)` and `notification_facts_case_idx` `(case_id) WHERE case_id IS NOT NULL` — `moveCaseReferences`.
+- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and `notifications.moveCaseReferences(fromCaseId, intoCaseId)`, run by the recalculation's regrouping reactions (module map §1.10) after alerts' and before the emptied case is deleted, moves its `tracked_game_result` fact to the surviving case when that case has none — both cases end on the same measured game, so one result was already notified for it — and otherwise deletes the emptied case's fact, discarding its message as moot if it is unsent. One result per case still holds, and any other path that deletes a referenced case fails instead of losing a notified fact.
 - **Deletion:** with its message; with its incident when the core purges it.
 - **TypeScript:** `type MessageFact = { requestId: BacktestRequestId; deadlineGameId?: GameId } | { alertSheetId: AlertSheetId } | { alertSheetUpdateId: AlertSheetUpdateId } | { caseId: CaseId } | { eventTypeId: EventTypeId } | { incidentId: IncidentId; reminderNumber?: number }`.
 
@@ -164,10 +165,10 @@ One notified interruption (TEL-15, `CL-TEL-08`), computed from the core's incide
 
 ### 1.8 Withdrawal, dismissal, other erasures, purge, export and backup
 
-**Withdrawal of an event E** (TEL-38, DSN-27, `CL-TEL-09`, `CL-DSN-13`). Before confirmation the withdrawal screen gets the number of sent messages concerned. **Messages concerned** are those with E in `notification_message_events`, those whose fact is E's case, and those whose fact is a sheet that will be erased (its only event is E) or an update of such a sheet; plus every digest or catch-up that grouped one of them. On confirmation, in this order:
+**Withdrawal of an event E** (TEL-38, DSN-27, `CL-TEL-09`, `CL-DSN-13`). Before confirmation the withdrawal screen gets the number of sent messages concerned (`countSentAbout`). **Messages concerned** are those with E in `notification_message_events`, those whose fact is E's case, and those whose fact is a sheet that will be erased (its only event is E) or an update of such a sheet; plus every digest or catch-up that grouped one of them. On confirmation, in this order:
 
-1. **A first step, committed on its own:** the unsent messages concerned (`to_send`, `deferred`, `failed`) are discarded with reason `moot`, so that nothing more about E can be sent, and the chat identifier, Telegram identifier, send instant and digest flag of each sent message concerned are read into the withdrawal's memory.
-2. **Outside any transaction:** the app asks Telegram once to delete each sent message, in the chat it was sent to, whatever its age and even in a chat no longer linked.
+1. **A first step, committed on its own** (`discardPendingFor`): the unsent messages concerned (`to_send`, `deferred`, `failed`) are discarded with reason `moot`, so that nothing more about E can be sent, and the chat identifier, Telegram identifier, send instant and digest flag of each sent message concerned are read into the withdrawal's memory.
+2. **Outside any transaction** (`deleteMessagesAbout(identifiers)`): the app asks Telegram once to delete each sent message, in the chat it was sent to, whatever its age and even in a chat no longer linked.
 3. **The erasure's transaction**, where the notifications eraser runs first among the Lot 2 erasers: every message concerned is deleted, the sent ones with their text and identifiers whatever Telegram answered; a digest is deleted whole, its grouped rows that concern E with it, the others keeping `grouped` with no digest and never sent again; journal entries naming a deleted message (`lot2_object_kind = 'notification_message'`) get the pair set to null, and the core removes their mention of E (`CL-TRV-10`).
 4. **The result screen** gives the number of messages deleted and lists, from memory, those Telegram refused or could not reach — send date and time with the zone, digest or not; the list is never stored.
 
@@ -480,7 +481,7 @@ Modeling choices of this file:
 9. **An end message's fact is the closing incident**, not the cycle's first: each closing gets its own pending end message, so a reopening discards one without blocking the next under the one-fact-one-message index.
 10. **An event designation's `origin` takes the glossary's `EventOrigin` values** (`detected`, `calendar`), and the composer writes the glossary's Telegram label "From the calendar" (`CL-TEL-21`).
 11. **`last_update_id` on the link row**, not a table of processed updates: Telegram's update identifiers increase, so one number deduplicates webhook redeliveries and gives the polling offset; the webhook's `max_connections` 1 keeps them in order and the value only moves forward.
-12. **Merged cases keep `ON DELETE RESTRICT`**: the case-merge hook moves or deletes the facts of the emptied case (§1.4), so a result is never notified twice and no other path can delete a notified case silently.
+12. **Merged cases keep `ON DELETE RESTRICT`**: `moveCaseReferences` moves or deletes the facts of the emptied case (§1.4), so a result is never notified twice and no other path can delete a notified case silently.
 
 ## 7. Entity-relationship diagram
 
