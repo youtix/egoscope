@@ -70,9 +70,9 @@ no date).
 
 Every removal of an event row goes through one step, run in one transaction with the operation
 that calls it; each Lot 2 module adds its own sub-step with a test (CL-DSN-16). Lot 2 tables point
-at `events`, `cases`, `followed_players` and `event_types` with `ON DELETE RESTRICT` (for example
-`regrouping_exits`, tracking-and-validation.md, and `alert_sheet_updates.case_id`, alert-sheets.md), so the Lot 2 sub-steps run
-first, before the core deletes anything, as the event erasers of the module map's reaction lists
+at `events`, `followed_players` and `backtest_requests` with `ON DELETE RESTRICT`, and at `cases`
+only with `ON DELETE CASCADE` (collection.md section 1.12 lists every reference), so the Lot 2
+sub-steps run first, before the core deletes anything, as the event erasers of the module map's reaction lists
 (section 1.10): notifications, alerts, tracking, then detection, whose step also erases, through
 collection, the articles it leaves without a role; every variant below that runs them keeps that
 order.
@@ -88,6 +88,10 @@ The step never completes with part of the event left. Its variants:
 | derivation drop of a calendar-derived event, game started | none        | none          | `no_longer_derived`, a count only | no                             | sheets and tracked case (CL-TAX-19)                                                                                                                                                                                                                  | CL-TAX-19, CL-SEN-25                  |
 | derivation drop of an upcoming calendar-derived event     | none        | none          | none                              | no                             | sheets and tracked case (CL-SUI-14)                                                                                                                                                                                                                  | CL-TAX-19, CL-SEN-25                  |
 | merge of detected events (Lot 2)                          | none        | none          | `merged`                          | no                             | none: called last by `detection.correct`, after the Lot 2 operations moved or deleted every row that points at the absorbed event and its case; deletes that event and, when it was its case's only event, the case, whose tracked-case rows cascade | DET-47, CL-SUI-16                     |
+
+No Lot 1 operation is ever blocked by a Lot 2 row (the orchestrator's rule): the two variants with
+no Lot 2 sub-step, the manual deletion and the replacement at import, delete historical events,
+which no Lot 2 `RESTRICT` reference names, and every Lot 2 reference to a case cascades.
 
 A calendar-derived event can be withdrawn like any other (CL-DSN-09). The regular derivation never
 revisits a game it has derived and checks the fingerprints first, so such an event can come back
@@ -109,7 +113,7 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
 5. Lot 2 sub-steps, in this order, the module map's: notifications — erases the texts and
    identifiers of every message about E, whatever Telegram answered in step 3; alerts — in the
    sheet holding E, everything about it, or the whole sheet and its alert-history entry if E was its
-   only event, and the update entries that name E's case if that case goes, with the outbox facts of its sheets and update entries; tracking — its tracked-case
+   only event, with the outbox facts of its sheets and update entries; tracking — its tracked-case
    data and its regrouping exits, with the outbox facts of its tracked game results; detection — the classification results
    of its articles and their attachments, then, through collection's eraser, every article attached
    to E and to no other event, with no dedup trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the

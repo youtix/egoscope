@@ -90,8 +90,9 @@ that a player's deletion goes through it.
 
 **Lot boundary.** No core table references a Lot 2 table: a core row that must name a Lot 2 object
 (an outbox fact) holds its identifier without a foreign key. Lot 2 tables reference core tables,
-mostly `ON DELETE RESTRICT`, so every erasure runs the Lot 2 erasers first, in the order of
-[sensitive-data.md](sensitive-data.md) section 2.1. Lot 2 reacts to Lot 1 work only through the
+`ON DELETE RESTRICT` except their references to cases, which cascade, so every erasure runs the
+Lot 2 erasers first, in the order of [sensitive-data.md](sensitive-data.md) section 2.1; no Lot 1
+operation is ever blocked by a Lot 2 row. Lot 2 reacts to Lot 1 work only through the
 module map's reaction lists (its section 1.10: erasers, derivation and regrouping reactions) or by
 reading what changed from a chained task; no Lot 1 code calls Lot 2 otherwise.
 
