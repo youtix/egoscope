@@ -189,7 +189,9 @@ in its allow-list, the only place for an exception:
   test fixture, with its description; never a path or a pattern, since recorded answers of real
   services are scanned like code.
 - `.github/zizmor.yml`: an ignore of one audit in one workflow, with a comment giving the reason
-  and the fix it waits for.
+  and the fix it waits for. Until the workflows load the setup action as
+  `$/.github/actions/setup-project`, a new workflow that reuses `./.github/actions/setup-project`
+  adds itself to the `self-repository` entry, or the `zizmor` job fails.
 
 The scans honor nothing else: no `gitleaks:allow` comment, no `.gitleaksignore` file, no inline
 zizmor ignore. A CodeQL result is fixed in the code; if you are sure it is a false positive, say so
