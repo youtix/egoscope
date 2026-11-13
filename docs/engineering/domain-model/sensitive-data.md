@@ -72,7 +72,7 @@ Every removal of an event row goes through one step, run in one transaction with
 that calls it; each Lot 2 module adds its own sub-step with a test (CL-DSN-16). Lot 2 tables point
 at `events`, `cases` and `followed_players` with `ON DELETE RESTRICT`, so the Lot 2 sub-steps run
 first, in the order notifications, alerts, tracking, detection, collection, before the core
-deletes anything (collection.md section 8); every variant below that runs them keeps that order.
+deletes anything (the module map's order, collection.md section 8); every variant below that runs them keeps that order.
 The step never completes with part of the event left. Its variants:
 
 | cause                                                     | fingerprint | counter       | tally exit                        | designating trace rows deleted | Lot 2 sub-steps                     | spec IDs                              |
@@ -97,15 +97,16 @@ Order of a withdrawal of event E, every row of the left column being deleted unl
    limits, the number of Telegram messages mentioning E included, and says when an import draft of
    the player will be discarded, with the limit of a device left offline.
 2. Upsert the fingerprint of E into `withdrawal_fingerprints` with `created_at = now()`.
-3. Lot 2 sub-steps, in this order: notifications — the stored Telegram texts, chat identifiers
-   and message identifiers of the messages mentioning E, digests included, after one deletion
-   request each, the refused or unreachable ones listed once to the owner with their send date and
-   time and whether each was a digest, then not kept (CL-DSN-13, CL-TEL-09), and the outbox facts
-   of its Lot 2 objects; alerts — in the sheet holding E, everything about it, or the whole sheet
-   and its alert-history entry if E was its only event; tracking — its tracked-case data;
-   detection — the classification results of its articles and their attachments; collection —
-   every article attached to E and to no other event, with no dedup trace and no other record
-   (DSN-34, CL-DSN-10).
+3. Lot 2 sub-steps, in this order, the module map's: notifications — reads the chat and message
+   identifiers of every sent message about E, digests included and whatever its age, then erases
+   their texts and identifiers (CL-TEL-09); alerts — in the sheet holding E, everything about it, or
+   the whole sheet and its alert-history entry if E was its only event, with the outbox facts of
+   its sheets and update entries; tracking — its tracked-case data, with the outbox facts of its
+   tracked game results; detection — the classification results of its articles and their
+   attachments; collection — every article attached to E and to no other event, with no dedup
+   trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the outbox facts of its own
+   objects by `lot2_subject_id` and nulls the journal's `lot2_object_kind` and `lot2_object_id` for
+   what it erases.
 4. `import_event_outcomes` and `import_possible_duplicates` rows whose event is E, so that the
    import trace, counts included, keeps nothing designating it (IMP-37). In the same step, the import drafts of
    every backtest request of E's player, since a pasted result may report the withdrawn fact: the
@@ -122,6 +123,10 @@ Order of a withdrawal of event E, every row of the left column being deleted unl
 9. A journal entry "an event was withdrawn", with no player, type or date (CL-TRV-10).
 10. A full recalculation job with cause `recalculation`; a profile or trend it leaves with no event
     is erased with its verdict history and its historical-view versions (SEN-48, CL-SEN-18).
+11. After the commit, never inside the transaction: one Telegram deletion request per message
+    identifier read in step 3; the ones Telegram refuses or that cannot be reached are listed once
+    to the owner with their send date and time and whether each was a digest, then not kept
+    (CL-DSN-13, CL-TEL-09).
 
 What remains afterwards: the counter and, for the horizon, the fingerprint. Accepted residual
 limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); backups until they
@@ -179,14 +184,14 @@ free space (TRV-07).
 
 ## 3. What leaves the database
 
-| destination                           | holds                                                                                                                                           | never holds                                                                                                                                                   | spec IDs                                |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Backup (encrypted, off-site)          | every table of classes —, PI, BD, EV, TX and PR, the activity journal with its technical details, incidents, task runs, and the counter's value | SE rows (account password data, sessions, login failures), WL rows (the ledger), DR rows (drafts, server copies included), any deployment-configuration value | TRV-51, CL-TRV-05, CL-DSN-08, CL-DSN-17 |
-| Full export (unencrypted, owner only) | the same as a backup                                                                                                                            | the same                                                                                                                                                      | TRV-52, CL-TRV-05                       |
-| Spreadsheet exports                   | the columns listed in [operations.md](operations.md) section 5.3                                                                                | free texts beyond the event description, any SE, WL or DR value                                                                                               | TRV-52, CA-TRV-17                       |
-| Journal export for a helper           | journal entries rendered for display, technical details per the CL-DSN-11 allowlist                                                             | descriptions, justifications, titles, links, excerpts, DSN-18 items, the birthday value                                                                       | TRV-49, DSN-11, CL-DSN-11, CL-DSN-21    |
-| Research and exploration prompts      | public names, teams, type sheets                                                                                                                | the birthday, any event, anything about the owner                                                                                                             | DSN-04, CL-DSN-21                       |
-| Telegram (Lot 2)                      | stored data only, private chat only                                                                                                             | an intimate-subject type's name, an article excerpt                                                                                                           | DSN-31, DSN-35                          |
+| destination                           | holds                                                                                                                                                                                               | never holds                                                                                                                                                                             | spec IDs                                |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Backup (encrypted, off-site)          | every table of classes —, PI, BD, EV, TX and PR, Lot 2's EX rows and Telegram chat identifiers (OW), the activity journal with its technical details, incidents, task runs, and the counter's value | SE rows (account password data, sessions, login failures), WL rows (the ledger), DR rows (drafts, server copies included), Telegram link codes (OW), any deployment-configuration value | TRV-51, CL-TRV-05, CL-DSN-08, CL-DSN-17 |
+| Full export (unencrypted, owner only) | the same as a backup                                                                                                                                                                                | the same                                                                                                                                                                                | TRV-52, CL-TRV-05                       |
+| Spreadsheet exports                   | the columns listed in [operations.md](operations.md) section 5.3                                                                                                                                    | free texts beyond the event description, any SE, WL or DR value                                                                                                                         | TRV-52, CA-TRV-17                       |
+| Journal export for a helper           | journal entries rendered for display, technical details per the CL-DSN-11 allowlist                                                                                                                 | descriptions, justifications, titles, links, excerpts, DSN-18 items, the birthday value                                                                                                 | TRV-49, DSN-11, CL-DSN-11, CL-DSN-21    |
+| Research and exploration prompts      | public names, teams, type sheets                                                                                                                                                                    | the birthday, any event, anything about the owner                                                                                                                                       | DSN-04, CL-DSN-21                       |
+| Telegram (Lot 2)                      | stored data only, private chat only                                                                                                                                                                 | an intimate-subject type's name, an article excerpt                                                                                                                                     | DSN-31, DSN-35                          |
 
 ## 4. Lifecycles
 
