@@ -10,18 +10,12 @@
  *   eslint-time-rules.ts: local time in the pure core, the clock, date parsing
  *   and default locales, whose results depend on the machine.
  */
-import {
-  AST_NODE_TYPES,
-  AST_TOKEN_TYPES,
-  ASTUtils,
-  ESLintUtils,
-  TSESLint,
-} from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, AST_TOKEN_TYPES, ESLintUtils } from '@typescript-eslint/utils';
 
 import { noAmbientTime, noDefaultLocale, noLocalTime } from './eslint-time-rules';
-import { vitestNames } from './vitest-names';
+import { contextPart, vitestNames } from './vitest-names';
 
-import type { TSESTree } from '@typescript-eslint/utils';
+import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
 import type { ESLint } from 'eslint';
 
 const createRule = ESLintUtils.RuleCreator<{ requiresTypeChecking?: boolean }>(
@@ -197,25 +191,18 @@ const noToolPragmas = createRule<[{ equivalentMutants: boolean }], 'prettier' | 
   },
 );
 
-/** Says whether `name`, where `node` uses it, is a parameter of a callback given the test context. */
-function isTestContext(scope: TSESLint.Scope.Scope, node: TSESTree.Identifier): boolean {
-  const definition = ASTUtils.findVariable(scope, node)?.defs[0];
-  const owner = definition?.node.parent;
-  return (
-    definition?.type === TSESLint.Scope.DefinitionType.Parameter &&
-    owner?.type === AST_NODE_TYPES.CallExpression &&
-    vitestNames(owner.callee, scope).some((name) => CONTEXT_OWNERS.has(name))
-  );
-}
-
-/** Says whether `callee` is skip() from the test context: `context.skip` or a destructured `skip`. */
+/**
+ * Says whether `callee` is skip() from the test context (vitest-names.ts): `context.skip`,
+ * where `context` holds the whole context, or a destructured `skip`, but not `cursor.skip`
+ * on a fixture.
+ */
 function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope): boolean {
-  const holder =
-    callee.type === AST_NODE_TYPES.MemberExpression && isSkipName(callee.property)
-      ? callee.object
-      : callee;
-  const isSkipCall = holder !== callee || isSkipName(callee);
-  return isSkipCall && holder.type === AST_NODE_TYPES.Identifier && isTestContext(scope, holder);
+  const isMember = callee.type === AST_NODE_TYPES.MemberExpression && isSkipName(callee.property);
+  const holder = isMember ? callee.object : callee;
+  return (
+    holder.type === AST_NODE_TYPES.Identifier &&
+    contextPart(holder, scope, CONTEXT_OWNERS) === (isMember ? 'whole' : 'skip')
+  );
 }
 
 /** The skipping member that `callee` takes from a Vitest object: `skipIf` in `it.skipIf`. */

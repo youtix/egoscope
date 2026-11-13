@@ -4,12 +4,17 @@
  * them: its own (`it.concurrent`), the name it is imported under
  * (`import { it as check }`), a member of the vitest namespace (`vitest.it`), or
  * the name of a variable that holds it (`const databaseTest = it.extend({…})`).
+ * Also what a name holds of the test context, so that the rule knows the context
+ * from the fixtures that come with it.
  */
 import { AST_NODE_TYPES, ASTUtils, TSESLint } from '@typescript-eslint/utils';
 
 import type { TSESTree } from '@typescript-eslint/utils';
 
 const VITEST = 'vitest';
+
+/** What a name holds of a callback's argument, such as the test context: all of it, or its `skip`. */
+type ArgumentPart = 'whole' | 'skip';
 
 /**
  * The node that `node`, a link of a chain of members and calls, reads from, or
@@ -103,4 +108,63 @@ export function vitestNames(node: TSESTree.Node, scope: TSESLint.Scope.Scope): r
     start = chainStart(definition.node.init);
   }
   return [...names];
+}
+
+/** `node`, or the pattern that gives it a default value: `context = {}` around `context`. */
+function withDefault(
+  node: TSESTree.BindingName,
+): TSESTree.AssignmentPattern | TSESTree.BindingName {
+  const { parent } = node;
+  return parent.type === AST_NODE_TYPES.AssignmentPattern && parent.left === node ? parent : node;
+}
+
+/**
+ * What `name`, which `definition` binds as a parameter of a callback, holds of the
+ * callback's argument, default values aside: the whole of it for the parameter
+ * itself (`context`) and for the rest of its object pattern (`{ task, ...context }`),
+ * or its `skip` for the name that the pattern's `skip` key binds (`{ skip }`,
+ * `{ skip: pass }`). A key that cannot be read without running the code counts by
+ * the name it binds (`{ [key]: skip }`). Any other name holds neither, such as a
+ * fixture of a test made by `it.extend()` (`{ cursor }`) or a name in a nested pattern.
+ */
+function argumentPart(
+  definition: TSESLint.Scope.Definitions.ParameterDefinition,
+  name: string,
+): ArgumentPart | undefined {
+  const { parent } = withDefault(definition.name);
+  if (parent === definition.node) {
+    return 'whole';
+  }
+  const pattern = parent.parent;
+  if (
+    pattern?.type !== AST_NODE_TYPES.ObjectPattern ||
+    withDefault(pattern).parent !== definition.node
+  ) {
+    return undefined;
+  }
+  // The entries of an object pattern are its properties and, last, its rest element.
+  if (parent.type !== AST_NODE_TYPES.Property) {
+    return 'whole';
+  }
+  return (ASTUtils.getPropertyName(parent) ?? name) === 'skip' ? 'skip' : undefined;
+}
+
+/**
+ * What `node`, where it is used, holds of the test context (`argumentPart`), if a
+ * parameter binds it of a callback passed to one of `owners`, known by any name it
+ * goes by (`vitestNames`): `context` in `it('…', (context) => …)`. `scope` is the
+ * scope of the whole file.
+ */
+export function contextPart(
+  node: TSESTree.Identifier,
+  scope: TSESLint.Scope.Scope,
+  owners: ReadonlySet<string>,
+): ArgumentPart | undefined {
+  const definition = ASTUtils.findVariable(scope, node)?.defs[0];
+  const owner = definition?.node.parent;
+  return definition?.type === TSESLint.Scope.DefinitionType.Parameter &&
+    owner?.type === AST_NODE_TYPES.CallExpression &&
+    vitestNames(owner.callee, scope).some((name) => owners.has(name))
+    ? argumentPart(definition, node.name)
+    : undefined;
 }
