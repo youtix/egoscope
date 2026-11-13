@@ -13,6 +13,9 @@ import { createProbes } from './lint-probes';
 const ROOT = path.join(import.meta.dirname, '..');
 const { ruleIds, remove } = createProbes();
 
+/** A one-line module under `comment`. */
+const withComment = (comment: string): string => `${comment}\nexport const probe = 1;\n`;
+
 /** A test file whose suite holds `body`. */
 const inTest = (body: string): string =>
   `import { describe, expect, it } from 'vitest';\n\ndescribe('probe', () => {\n${body}\n});\n`;
@@ -189,6 +192,45 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
         'egoscope/no-tool-pragmas',
       );
     });
+  });
+
+  describe("Stryker's one exception: an equivalent mutant in the pure core", () => {
+    const REASON = 'both bounds give the same score at zero minutes';
+
+    it.each([
+      ['src/lib/stats-engine/probe.ts', `// Stryker disable next-line EqualityOperator: ${REASON}`],
+      [
+        'src/lib/stats-engine/probe.ts',
+        `// Stryker disable next-line EqualityOperator,ConditionalExpression: ${REASON}`,
+      ],
+      ['src/lib/ai-exchange/probe.ts', `// Stryker disable next-line StringLiteral: ${REASON}`],
+    ])('allows, in %s, the reasoned next-line form %s', async (file, comment) => {
+      expect(await ruleIds(file, withComment(comment))).not.toContain('egoscope/no-tool-pragmas');
+    });
+
+    it.each([
+      ['the whole file', '// Stryker disable all'],
+      ['every mutator', `// Stryker disable next-line all: ${REASON}`],
+      ['a block that a later comment restores', `// Stryker disable EqualityOperator: ${REASON}`],
+      ['a restore', '// Stryker restore all'],
+      ['no mutator name', `// Stryker disable next-line: ${REASON}`],
+      ['no reason', '// Stryker disable next-line EqualityOperator'],
+      ['a reason under 20 characters', '// Stryker disable next-line EqualityOperator: same score'],
+      ['a block comment', `/* Stryker disable next-line EqualityOperator: ${REASON} */`],
+    ])('refuses %s, even in the pure core', async (_kind, comment) => {
+      expect(await ruleIds('src/lib/stats-engine/probe.ts', withComment(comment))).toContain(
+        'egoscope/no-tool-pragmas',
+      );
+    });
+
+    it.each(['src/lib/stats-engine/probe.test.ts', 'src/lib/probe/probe.ts'])(
+      'refuses the reasoned form in %s, outside the non-test files of the pure core',
+      async (file) => {
+        const comment = `// Stryker disable next-line EqualityOperator: ${REASON}`;
+
+        expect(await ruleIds(file, withComment(comment))).toContain('egoscope/no-tool-pragmas');
+      },
+    );
   });
 
   describe('no-skipped-tests: no test is switched off while it runs', () => {

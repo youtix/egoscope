@@ -11,7 +11,13 @@
  *   that print it, and constructors that parse strings or take local calendar
  *   fields all depend on the machine's time zone. The UTC methods stay allowed.
  */
-import { AST_NODE_TYPES, ASTUtils, ESLintUtils, TSESLint } from '@typescript-eslint/utils';
+import {
+  AST_NODE_TYPES,
+  AST_TOKEN_TYPES,
+  ASTUtils,
+  ESLintUtils,
+  TSESLint,
+} from '@typescript-eslint/utils';
 
 import type { TSESTree } from '@typescript-eslint/utils';
 import type { ESLint } from 'eslint';
@@ -44,6 +50,19 @@ const TOOL_PRAGMAS = [
   { pattern: /\bStryker\s+(?:disable|restore)\b/iu, messageId: 'stryker' },
   { pattern: /(?:^|\s)@(?:public|beta|alias|internal)\b/u, messageId: 'knip' },
 ] as const;
+
+// The one Stryker comment allowed, where the rule's `equivalentMutants` option is on
+// (the non-test files of the pure core): it spares the next line from the named
+// mutators, for a mutant that no test can tell from the code, with the reason why.
+const EQUIVALENT_MUTANT =
+  /^Stryker disable next-line [A-Z][A-Za-z]*(?:,\s*[A-Z][A-Za-z]*)*: (?<reason>.+)$/u;
+const MIN_REASON_LENGTH = 20;
+
+/** Says whether `comment` is the one allowed form for an equivalent mutant. */
+function isEquivalentMutant(comment: TSESTree.Comment): boolean {
+  const reason = EQUIVALENT_MUTANT.exec(comment.value.trim())?.groups?.['reason'] ?? '';
+  return comment.type === AST_TOKEN_TYPES.Line && reason.trim().length >= MIN_REASON_LENGTH;
+}
 
 // Vitest calls that skip a test, run it only under a condition, or turn its
 // failure into a pass, on Vitest's own objects and their chains (`it.concurrent.fails`).
@@ -151,33 +170,46 @@ const noCoverageHints = createRule<[{ text: boolean }], 'hint' | 'text'>({
   },
 });
 
-const noToolPragmas = createRule({
-  name: 'no-tool-pragmas',
-  meta: {
-    type: 'problem',
-    docs: { description: 'Forbid comments that switch another tool of the gate off.' },
-    messages: {
-      prettier:
-        '`prettier-ignore` switches Prettier off for the next node: let Prettier format it.',
-      stryker:
-        '`Stryker disable` and `Stryker restore` switch mutation testing off: test the code until its mutants die.',
-      knip: 'knip never reports an export tagged `@public`, `@beta`, `@alias` or `@internal`: use the export, or delete it.',
-    },
-    schema: [],
-  },
-  create(context) {
-    return {
-      Program(): void {
-        for (const { pattern, messageId } of TOOL_PRAGMAS) {
-          const isMatch = (text: string): boolean => pattern.test(text);
-          reportComments(context.sourceCode, isMatch, (comment) => {
-            context.report({ loc: comment.loc, messageId });
-          });
-        }
+const noToolPragmas = createRule<[{ equivalentMutants: boolean }], 'prettier' | 'stryker' | 'knip'>(
+  {
+    name: 'no-tool-pragmas',
+    meta: {
+      type: 'problem',
+      docs: { description: 'Forbid comments that switch another tool of the gate off.' },
+      messages: {
+        prettier:
+          '`prettier-ignore` switches Prettier off for the next node: let Prettier format it.',
+        stryker:
+          'Stryker comments switch mutation testing off: test the code until its mutants die. The one exception, for an equivalent mutant in the non-test files of the pure core, is `// Stryker disable next-line <Mutator>: <reason of 20 characters or more>` (CLAUDE.md).',
+        knip: 'knip never reports an export tagged `@public`, `@beta`, `@alias` or `@internal`: use the export, or delete it.',
       },
-    };
+      schema: [
+        {
+          type: 'object',
+          properties: { equivalentMutants: { type: 'boolean' } },
+          additionalProperties: false,
+        },
+      ],
+      defaultOptions: [{ equivalentMutants: false }],
+    },
+    create(context, [{ equivalentMutants }]) {
+      return {
+        Program(): void {
+          for (const { pattern, messageId } of TOOL_PRAGMAS) {
+            const isMatch = (text: string): boolean => pattern.test(text);
+            reportComments(context.sourceCode, isMatch, (comment) => {
+              const isAllowed =
+                messageId === 'stryker' && equivalentMutants && isEquivalentMutant(comment);
+              if (!isAllowed) {
+                context.report({ loc: comment.loc, messageId });
+              }
+            });
+          }
+        },
+      };
+    },
   },
-});
+);
 
 /** The identifier a chain of members and calls starts with: `it` in `it.concurrent(…).skip`. */
 function chainRoot(node: TSESTree.Node): string | undefined {

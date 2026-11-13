@@ -838,6 +838,18 @@ const composed = defineConfig(
     },
   },
   {
+    // The one deliberate exception to the comment bans (CLAUDE.md): mutation testing
+    // covers the pure core, where a genuinely equivalent mutant may be spared by the
+    // reasoned next-line form of Stryker's comment (scripts/eslint-plugin.ts), whose
+    // reason reviewers read.
+    name: 'egoscope/equivalent-mutants',
+    files: PURE_CORE_FILES,
+    ignores: TEST_FILES,
+    rules: {
+      'egoscope/no-tool-pragmas': ['error', { equivalentMutants: true }],
+    },
+  },
+  {
     // Coverage measures these files, and its remapper reads hints on any line of
     // them, strings included, not only in comments.
     name: 'egoscope/covered-code',

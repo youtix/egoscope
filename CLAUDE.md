@@ -100,17 +100,24 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
 ## Never weaken the gate
 
 Never weaken a lint rule, a TypeScript option, a coverage threshold or a test to get green, and
-never switch a check off from the source. Two comments are allowed, each with its reason:
-`eslint-disable-next-line` with a `-- reason` (never for the architecture and size rules, nor for
-the bans below) and, in tests only, `@ts-expect-error`. Lint, the structure check and commitlint
-refuse everything else:
+never switch a check off from the source. Three comments are allowed, each with its reason:
+
+- `eslint-disable-next-line` with a `-- reason`, never for the architecture and size rules, nor
+  for the bans below;
+- in tests only, `@ts-expect-error`;
+- the one deliberate exception to the bans: for a genuinely equivalent mutant, in the non-test
+  files of `src/lib/stats-engine/` and `src/lib/ai-exchange/`,
+  `// Stryker disable next-line <Mutator>[,<Mutator>…]: <reason>`, with a reason of at least 20
+  characters. Reviewers read every such reason.
+
+Lint, the structure check and commitlint refuse everything else:
 
 - coverage hints of the whole `v8`, `c8`, `istanbul` and `node:coverage` family (`ignore` with
   `next`, `if`, `else`, `file`, `start` or `stop`, and `disable` or `enable`), in any comment and on
   any line of covered code;
 - `@ts-ignore`, `@ts-nocheck`, triple-slash references and every other ESLint comment;
-- `prettier-ignore`, markdownlint, shellcheck and Stryker comments, and knip's `@public`,
-  `@beta`, `@alias` and `@internal` tags;
+- `prettier-ignore`, markdownlint and shellcheck comments, every other Stryker comment (`all`, a
+  block, no mutator or no reason), and knip's `@public`, `@beta`, `@alias` and `@internal` tags;
 - React's `'use no memo'`, and tests that are skipped, focused, conditional or expected to fail;
 - commit messages and pull request titles that make GitHub skip CI (`[skip ci]` and the like).
 
