@@ -168,6 +168,12 @@ describe('parseTimestamp', () => {
         offset: 0,
       },
       {
+        text: 'Tue, 10 Nov 2026 19:30:00 UTC',
+        on: '2026-11-10',
+        at: '2026-11-10T19:30:00Z',
+        offset: 0,
+      },
+      {
         text: 'Fri, 10 Nov 95 19:30:00 Z',
         on: '1995-11-10',
         at: '1995-11-10T19:30:00Z',

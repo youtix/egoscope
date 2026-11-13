@@ -65,10 +65,13 @@ const MONTH_NAMES = [
   'nov',
   'dec',
 ];
-// The zone names of RFC 822 that carry a reliable offset (RFC 2822, section 4.3).
-// Its military letters, and every other name, say nothing reliable: no offset.
+// The zone names that carry a reliable offset: those of RFC 822 (RFC 2822, section
+// 4.3), and UTC, which RFC 822 does not list but feeds write. Of the military letters,
+// only Z, whose zero offset has no sign to get wrong, is reliable; the other letters,
+// and every other name, say nothing reliable: no offset.
 const ZONE_OFFSETS: ReadonlyMap<string, string> = new Map([
   ['UT', '+0000'],
+  ['UTC', '+0000'],
   ['GMT', '+0000'],
   ['Z', '+0000'],
   ['EST', '-0500'],
