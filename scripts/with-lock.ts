@@ -8,8 +8,10 @@
  *   (`git rev-parse --git-common-dir`); `egoscope-heavy.lock.json` says who holds it.
  * - The command holds the lock itself, on a file descriptor it inherits, so the
  *   lock lasts as long as the command (and anything it leaves running), even when
- *   this wrapper is killed. SIGINT, SIGTERM and SIGHUP sent to the wrapper are
- *   passed on to the command, and the wrapper waits for the command to end.
+ *   this wrapper is killed. The wrapper catches SIGINT, SIGTERM and SIGHUP from its
+ *   first instant: it passes them on to the command and waits for the command to
+ *   end, and one that comes before the command has started ends the run without
+ *   starting it, with status 128 plus the signal's number.
  * - The command's exit code is passed on untouched: whether the lock was free
  *   travels on a pipe of its own, so no exit code makes the command run again.
  * - CI never locks, and neither does a command started by a run that already holds
@@ -33,8 +35,21 @@ import type { ChildProcess } from 'node:child_process';
 export type Holder = Readonly<{ pid: number; startedAt: number; command: string; cwd: string }>;
 
 type Env = Readonly<Record<string, string | undefined>>;
-type Ended = Readonly<{ code: number; received: NodeJS.Signals | undefined }>;
-type Attempt = Readonly<{ state: 'held' | 'busy' | 'unlockable'; ended: Ended }>;
+type Attempt = Readonly<{ state: 'held' | 'busy' | 'unlockable'; code: number }>;
+/**
+ * The termination signals that the wrapper catches during its whole run, and the
+ * process they are passed on to.
+ */
+type Relay = Readonly<{
+  /** 128 plus the number of the first signal caught, or undefined before any. */
+  stopStatus: () => number | undefined;
+  /** Aborts at the first signal, which cuts a wait for the lock short. */
+  stopped: AbortSignal;
+  /** Makes `child` the process that the signals caught from now on are passed on to. */
+  forwardTo: (child: ChildProcess) => void;
+}>;
+/** The lock that a run waits for, since when it waits, and the run's signals. */
+type Lock = Readonly<{ lockPath: string; waitStart: number; relay: Relay }>;
 
 const HELD = 'EGOSCOPE_LOCK_HELD';
 const LOCK_NAME = 'egoscope-heavy.lock';
@@ -174,40 +189,52 @@ const exitCodeFor = (signal: NodeJS.Signals): number =>
   EXIT_SIGNAL_BASE + constants.signals[signal];
 
 /**
- * Waits for `child` to end, passing on to it the termination signals the wrapper
- * receives meanwhile; resolves to its exit code and the first signal received.
+ * Catches SIGINT, SIGTERM and SIGHUP before the wrapper starts any process, so
+ * that none of them can end it unseen: a signal is passed on to the process that
+ * runs at the time, if any, and once one has come, the run starts nothing more.
  */
-async function endOf(child: ChildProcess, program: string): Promise<Ended> {
-  let received: NodeJS.Signals | undefined;
-  const forward = (signal: NodeJS.Signals): void => {
-    received ??= signal;
-    child.kill(signal);
+function catchSignals(): Relay {
+  let caught: NodeJS.Signals | undefined;
+  let target: ChildProcess | undefined;
+  const stop = new AbortController();
+  const onSignal = (signal: NodeJS.Signals): void => {
+    caught ??= signal;
+    stop.abort();
+    // Once that process has ended, `kill` does nothing.
+    target?.kill(signal);
   };
   for (const signal of FORWARDED_SIGNALS) {
-    process.on(signal, forward);
+    process.on(signal, onSignal);
   }
-  try {
-    const code = await new Promise<number>((resolve) => {
-      child.on('error', (error) => {
-        console.error(`[lock] Cannot run ${program}: ${error.message}`);
-        resolve(EXIT_NOT_FOUND);
-      });
-      child.on('close', (exitCode, signal) => {
-        resolve(exitCode ?? (typeof signal === 'string' ? exitCodeFor(signal) : 1));
-      });
-    });
-    return { code, received };
-  } finally {
-    for (const signal of FORWARDED_SIGNALS) {
-      process.off(signal, forward);
-    }
-  }
+  return {
+    stopStatus: () => (caught === undefined ? undefined : exitCodeFor(caught)),
+    stopped: stop.signal,
+    forwardTo: (child) => {
+      target = child;
+    },
+  };
 }
 
-async function runUnlocked(command: readonly string[]): Promise<number> {
+/**
+ * Waits for `child` to end, passing on to it the termination signals the wrapper
+ * catches meanwhile; resolves to its exit code.
+ */
+async function endOf(child: ChildProcess, program: string, relay: Relay): Promise<number> {
+  relay.forwardTo(child);
+  return new Promise<number>((resolve) => {
+    child.on('error', (error) => {
+      console.error(`[lock] Cannot run ${program}: ${error.message}`);
+      resolve(EXIT_NOT_FOUND);
+    });
+    child.on('close', (exitCode, signal) => {
+      resolve(exitCode ?? (typeof signal === 'string' ? exitCodeFor(signal) : 1));
+    });
+  });
+}
+
+async function runUnlocked(command: readonly string[], relay: Relay): Promise<number> {
   const [program = 'true', ...args] = command;
-  const ended = await endOf(spawn(program, args, { stdio: 'inherit' }), program);
-  return ended.code;
+  return endOf(spawn(program, args, { stdio: 'inherit' }), program, relay);
 }
 
 function lockFolder(env: Env): string | undefined {
@@ -225,10 +252,7 @@ function lockFolder(env: Env): string | undefined {
  * Tries once to take the lock and, if it is free, runs the command under it.
  * The state comes from the lock pipe alone, never from an exit code.
  */
-async function attempt(
-  command: readonly string[],
-  lock: Readonly<{ lockPath: string; waitStart: number }>,
-): Promise<Attempt> {
+async function attempt(command: readonly string[], lock: Lock): Promise<Attempt> {
   const infoPath = `${lock.lockPath}.json`;
   const record = JSON.stringify({
     startedAt: Date.now(),
@@ -258,12 +282,12 @@ async function attempt(
       resolve(undefined);
     }
   });
-  const ended = await endOf(child, command[0] ?? 'the command');
+  const code = await endOf(child, command[0] ?? 'the command', lock.relay);
   await pipeClosed;
   if (reply === 'held' && child.pid !== undefined && readRecord(infoPath)?.pid === child.pid) {
     rmSync(infoPath, { force: true });
   }
-  return { state: reply === 'held' || reply === 'busy' ? reply : 'unlockable', ended };
+  return { state: reply === 'held' || reply === 'busy' ? reply : 'unlockable', code };
 }
 
 /** Returns what to tell a waiter now, and whether it must give up. */
@@ -292,30 +316,46 @@ function checkWait(
  */
 async function settle(
   command: readonly string[],
-  { state, ended }: Attempt,
-  lockPath: string,
+  { state, code }: Attempt,
+  lock: Lock,
 ): Promise<number | undefined> {
   if (state === 'held') {
-    return ended.code;
+    return code;
   }
-  if (ended.received !== undefined) {
-    return exitCodeFor(ended.received);
+  const stopStatus = lock.relay.stopStatus();
+  if (stopStatus !== undefined) {
+    return stopStatus;
   }
   if (state === 'unlockable') {
-    console.error(`[lock] Cannot lock ${lockPath}: running without the shared lock.`);
-    return runUnlocked(command);
+    console.error(`[lock] Cannot lock ${lock.lockPath}: running without the shared lock.`);
+    return runUnlocked(command, lock.relay);
   }
   return undefined;
 }
 
-async function waitAndRun(command: readonly string[], folder: string): Promise<number> {
+/** Waits between two attempts, or less when a termination signal aborts `stopped`. */
+async function pause(stopped: AbortSignal): Promise<void> {
+  try {
+    await sleep(POLL_MS, undefined, { signal: stopped });
+  } catch {
+    // Cut short: the run then ends without another attempt.
+  }
+}
+
+async function waitAndRun(
+  command: readonly string[],
+  folder: string,
+  relay: Relay,
+): Promise<number> {
   const lockPath = path.join(folder, LOCK_NAME);
   const waitStart = Date.now();
   const limitSeconds = Number(process.env['EGOSCOPE_LOCK_LIMIT_SECONDS'] ?? DEFAULT_LIMIT_SECONDS);
   const timing = { waitStart, limitMs: limitSeconds * MS_PER_SECOND };
+  const lock = { lockPath, waitStart, relay };
   for (let poll = 0; ; poll += 1) {
-    const tried = await attempt(command, { lockPath, waitStart });
-    const settled = await settle(command, tried, lockPath);
+    // A termination signal caught while waiting ends the run here, before another attempt.
+    const settled =
+      relay.stopStatus() ?? (await settle(command, await attempt(command, lock), lock));
     if (settled !== undefined) {
       return settled;
     }
@@ -326,12 +366,11 @@ async function waitAndRun(command: readonly string[], folder: string): Promise<n
     if (verdict.giveUp) {
       return 1;
     }
-    // A termination signal during this pause ends the wrapper: no command runs yet.
-    await sleep(POLL_MS);
+    await pause(relay.stopped);
   }
 }
 
-async function main(argv: readonly string[]): Promise<number> {
+async function main(argv: readonly string[], relay: Relay): Promise<number> {
   if (argv.length === 0) {
     console.error('[lock] Usage: bun scripts/with-lock.ts <command> [arguments...]');
     return EXIT_USAGE;
@@ -344,20 +383,22 @@ async function main(argv: readonly string[]): Promise<number> {
     return EXIT_USAGE;
   }
   if (!shouldLock(process.env)) {
-    return runUnlocked(argv);
+    return runUnlocked(argv, relay);
   }
   const folder = lockFolder(process.env);
   const hasFlock = spawnSync('flock', ['--version']).status === 0;
   if (folder === undefined || !hasFlock) {
     console.error('[lock] No git directory or no flock here: running without the shared lock.');
-    return runUnlocked(argv);
+    return runUnlocked(argv, relay);
   }
-  return waitAndRun(argv, folder);
+  return waitAndRun(argv, folder, relay);
 }
 
 if (
   process.argv[1] !== undefined &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  process.exitCode = await main(process.argv.slice(2));
+  // Before anything else, so that no process starts before the signals are caught.
+  const relay = catchSignals();
+  process.exitCode = await main(process.argv.slice(2), relay);
 }

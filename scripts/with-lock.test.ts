@@ -15,7 +15,7 @@ import {
   watchMode,
 } from './with-lock';
 
-import type { ChildProcess } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 
 const SCRIPT = path.join(import.meta.dirname, 'with-lock.ts');
 const LOCK = 'egoscope-heavy.lock';
@@ -29,7 +29,7 @@ type Outcome = Readonly<{
   endedAt: number;
 }>;
 type Run = Readonly<{
-  child: ChildProcess;
+  child: ChildProcessWithoutNullStreams;
   stderr: () => string;
   /** Settles when the wrapper process ends, while its command may still write output. */
   exited: Promise<unknown>;
@@ -253,6 +253,8 @@ describe('with-lock', { timeout: 30_000 }, () => {
       'wait "$pid"',
     ].join('\n');
     const run = start(['sh', '-c', script, 'sh', started, cleaned], folder);
+    // The wrapper catches the signals before it starts any process, so a command
+    // that has set its trap shows that both are ready.
     await until(() => existsSync(started));
 
     run.child.kill('SIGTERM');
@@ -260,6 +262,26 @@ describe('with-lock', { timeout: 30_000 }, () => {
 
     expect(outcome.code).toBe(42);
     expect(existsSync(cleaned)).toBe(true);
+  });
+
+  it('ends with status 143 and starts nothing on a SIGTERM that comes before the command has started', async () => {
+    const folder = lockFolder();
+    const ran = path.join(folder, 'ran');
+    // The first run holds the lock until its input ends, so the second one cannot start.
+    const holder = start(['cat'], folder);
+    await untilHeld(folder);
+    const waiter = start(['touch', ran], folder);
+    // The wrapper writes this line once it has caught the signals and found the lock taken.
+    await until(() => waiter.stderr().includes('[lock] Waiting for'));
+
+    waiter.child.kill('SIGTERM');
+    const stopped = await waiter.outcome;
+    holder.child.stdin.end();
+    await holder.outcome;
+
+    expect(stopped.code).toBe(143);
+    expect(stopped.signal).toBeNull();
+    expect(existsSync(ran)).toBe(false);
   });
 
   it('keeps the lock until the command ends, even when every wrapper is killed', async () => {
