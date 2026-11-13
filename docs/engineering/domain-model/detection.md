@@ -196,6 +196,15 @@ What may remain: exposure counts and run counters (numbers, no event), and the r
 
 **Other erasures.** An event erased by a requalification or a split (CL-TAX-09) follows steps 1 to 5. A player-data deletion (CL-JOU-06), after the withdrawal of each of the player's events, deletes the player's remaining parts with their results and facts, then steps 4 and 5; his exposure counts go by cascade.
 
+**Merge of two detected events** (DET-47, module map §1.7). The route first calls `notifications.moveEventReferences(absorbedEventId, keptEventId)` (notifications.md §1.8). Then `detection.correct`, in one transaction and before the absorbed event is erased:
+
+1. moves every attachment of the absorbed event to the kept event, or deletes it and gives its fact `outcome = 'superseded'` when the article already sources the kept event (`article_attachments_uq`); repoints the facts whose `designated_event_id` is the absorbed event to the kept event; recomputes the kept event's reference date, `is_reference` and `events.detection_confidence` (§4); the core traces the merge in `event_corrections` (DET-52);
+2. calls `tracking.moveEventReferences(absorbedEventId, keptEventId)` (tracking-and-validation.md §1.8);
+3. calls `alerts.onAttachmentCorrected` for the merge (alert-sheets.md §1.9);
+4. erases the absorbed event through the erasers below it: `collection.eraseArticlesWithoutRole`, which finds no article without a role since each moved with its attachment, then the core's erasure step in its merge variant (tally exit `merged`, no fingerprint, no counter), which also deletes the absorbed event's case when it goes with it.
+
+Each operation works out by itself whether the absorbed event's case goes: it goes when the absorbed event is its only event and the kept event belongs to another case. No table of this file references a case.
+
 **Purge.** The daily purge deletes detection runs older than `journal.retentionDays` and exposure counts older than 90 days. Parts, results and facts are deleted with their article by collection's purge (DET-54).
 
 **Export and backup** (`CL-TRV-05`). Every table of this file is in each backup and in the full export; none feeds a spreadsheet export.

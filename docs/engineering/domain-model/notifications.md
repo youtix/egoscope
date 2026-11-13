@@ -119,7 +119,7 @@ The fact a message notifies (TEL-02, TEL-34), one row per fact; an incident mess
   | `notification_facts_export_reminder_uq` | `(incident_id)` | `message_kind = 'export_reminder'` |
 
   Plus `notification_facts_message_idx` `(message_id)` and `notification_facts_case_idx` `(case_id) WHERE case_id IS NOT NULL` — `moveCaseReferences`.
-- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and `notifications.moveCaseReferences(fromCaseId, intoCaseId)`, run by the recalculation's regrouping reactions (module map §1.10) after alerts' and before the emptied case is deleted, moves its `tracked_game_result` fact to the surviving case when that case has none — both cases end on the same measured game, so one result was already notified for it — and otherwise deletes the emptied case's fact, discarding its message as moot if it is unsent. One result per case still holds, and any other path that deletes a referenced case fails instead of losing a notified fact.
+- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and `notifications.moveCaseReferences(fromCaseId, intoCaseId)`, run by the recalculation's regrouping reactions (module map §1.10) after alerts' and before the emptied case is deleted, moves its `tracked_game_result` fact to the surviving case when that case has none — both cases end on the same measured game, so one result was already notified for it — and otherwise deletes the emptied case's fact, discarding its message as moot if it is unsent. One result per case still holds, and any other path that deletes a referenced case fails instead of losing a notified fact. A merge of two detected events applies the same code to the absorbed event's case when that case goes with it (§1.8).
 - **Deletion:** with its message; with its incident when the core purges it.
 - **TypeScript:** `type MessageFact = { requestId: BacktestRequestId; deadlineGameId?: GameId } | { alertSheetId: AlertSheetId } | { alertSheetUpdateId: AlertSheetUpdateId } | { caseId: CaseId } | { eventTypeId: EventTypeId } | { incidentId: IncidentId; reminderNumber?: number }`.
 
@@ -134,7 +134,7 @@ Every event a message designates (TEL-06): the events of the alert's sheet at co
 | `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT` | EV | TEL-06, TEL-38 |
 
 - **Unique and indexes:** `notification_message_events_uq` unique `(message_id, player_event_id)`; `notification_message_events_event_idx` `(player_event_id)` — dismissal and withdrawal lookups.
-- **Deletion:** with its message; repointed to the surviving event when two detected events are merged.
+- **Deletion:** with its message; at a merge of two detected events, repointed to the kept event, or deleted when the message already names it (§1.8).
 - **TypeScript:** `{ messageId: NotificationMessageId; playerEventId: PlayerEventId }`.
 
 ### 1.6 Daily sent count — `notification_daily_counts`
@@ -175,6 +175,13 @@ One notified interruption (TEL-15, `CL-TEL-08`), computed from the core's incide
 If the process stops after step 1 or 2, E still exists and the owner withdraws again; a message Telegram no longer finds then counts as deleted. Erasing first would leave messages in the chat with no record of them if the process stopped before the requests went out. After step 3 nothing about E remains in these tables.
 
 **Dismissal of an event** (TEL-38). Every unsent message that designates it is discarded with reason `moot`; sent messages are left as they are.
+
+**Merge of two detected events** (DET-47). `notifications.moveEventReferences(fromEventId, intoEventId)`, which the route calls first, before `detection.correct` and before the absorbed event is erased (module map §1.7):
+
+1. the absorbed event's `notification_message_events` rows are repointed to the kept event, or deleted when the message already names it (`notification_message_events_uq`); an unsent message is composed at send time, so it then names the kept event;
+2. when the absorbed event's case goes with it — it goes when the absorbed event is its only event and the kept event belongs to another case — the same code as `moveCaseReferences(absorbedCaseId, keptCaseId)` moves that case's `tracked_game_result` fact to the kept event's case, or deletes it, discarding an unsent message as moot, when that case already has one (§1.4).
+
+Sent messages keep their text, and nothing is asked of Telegram.
 
 **Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the withdrawal steps. A player-data deletion (CL-JOU-06), after the withdrawal of each of his events, applies the same four steps to every remaining message with his `player_id` (backtest requests, reminders). An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is no erasure: unsent messages that name it are discarded as moot, its `notification_message_events` rows are deleted and sent messages keep their text, which holds no press content (`CL-DSN-20`); the alert update of `CL-TEL-21` follows.
 

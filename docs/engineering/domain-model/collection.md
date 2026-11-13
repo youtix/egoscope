@@ -225,6 +225,7 @@ An erased article that a feed still offers within the maximum age is collected a
 
 - A fact that matches a live withdrawal fingerprint (CL-COL-16, CL-DET-21): the same two steps for its article.
 - An event erased by a requalification or a split (CL-TAX-09): the same two steps.
+- A merge of two detected events (DET-47): no article is erased; detection moves the absorbed event's attachments to the kept event, and `collection.eraseArticlesWithoutRole` then finds no article without a role (detection.md §1.9).
 - A player-data deletion (CL-JOU-06): after detection deletes the player's parts, the same two steps for every article left with no part and no role.
 
 **Daily purge** (task `purge`, COL-39, CL-COL-08, CL-COL-12). Each run, in order:

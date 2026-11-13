@@ -147,11 +147,12 @@ The append-only update log: every dated change the sheet records (ALE-20 to ALE-
 | `occurred_at` | timestamptz | no | — | | — | ALE-20 to ALE-25 |
 | `kind` | text | no | — | `CHECK (kind IN ('event_added','source_added','event_dismissed','event_reinstated','expected_game_changed','late_mark_changed','context_corrected','attachment_corrected','profile_values_entered','profile_changed_since_issue','caveats_changed','status_changed','outcome_recorded','outcome_value_changed','event_no_longer_applies'))` (`AlertSheetUpdateKind`) | — | ALE-20 to ALE-31, CL-ALE-04, CL-ALE-07, CL-ALE-12, CL-ALE-13 |
 | `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event the entry concerns | EV | ALE-20 to ALE-22, ALE-25, ALE-31 |
+| `case_id` | integer | yes | null | → core `cases.id` `ON DELETE RESTRICT`; the case of an `outcome_recorded` or `outcome_value_changed` entry, a column rather than a detail key so that no history names a deleted case; `CHECK ((kind IN ('outcome_recorded','outcome_value_changed')) = (case_id IS NOT NULL))`; rewritten to the surviving or kept case at a regrouping or a merge | EV | ALE-27, CL-ALE-12 |
 | `alert_sheet_section_id` | integer | yes | null | → `alert_sheet_sections.id` `ON DELETE CASCADE`; the section concerned | — | ALE-05, ALE-19, ALE-20 |
 | `detail` | jsonb | no | `'{}'` | immutable values of the entry, read back whole (shapes below); identifiers and closed values only, never a text of an event or an article | — | ALE-31, CL-ALE-12 |
 
-- **Detail by kind:** `source_added` `{ articleId }`; `expected_game_changed` `{ fromEntryId, toEntryId, reason }`; `late_mark_changed` `{ isLate }`; `attachment_corrected` `{ correction: 'player' | 'type' | 'merge', newSheetId? }`; `status_changed` `{ from, to, cancellationReason? }`; `outcome_recorded` `{ caseId }`; `outcome_value_changed` `{ caseId, field: 'gap' | 'baseline' | 'category', previous }`; `event_no_longer_applies` `{ eventTypeId, gameId, reason }`; the other kinds `{}`.
-- **Unique and indexes:** `alert_sheet_updates_sheet_idx` `(alert_sheet_id, occurred_at)` — the log in order; `alert_sheet_updates_event_idx` `(player_event_id) WHERE player_event_id IS NOT NULL` — the withdrawal step.
+- **Detail by kind:** `source_added` `{ articleId }`; `expected_game_changed` `{ fromEntryId, toEntryId, reason }`; `late_mark_changed` `{ isLate }`; `attachment_corrected` `{ correction: 'player' | 'type' | 'merge', newSheetId? }`; `status_changed` `{ from, to, cancellationReason? }`; `outcome_recorded` `{}` (its case in `case_id`); `outcome_value_changed` `{ field: 'gap' | 'baseline' | 'category', previous }`; `event_no_longer_applies` `{ eventTypeId, gameId, reason }`; the other kinds `{}`.
+- **Unique and indexes:** `alert_sheet_updates_sheet_idx` `(alert_sheet_id, occurred_at)` — the log in order; `alert_sheet_updates_event_idx` `(player_event_id) WHERE player_event_id IS NOT NULL` — the withdrawal step and a merge; `alert_sheet_updates_case_idx` `(case_id) WHERE case_id IS NOT NULL` — `moveCaseReferences`, a merge and the erasers.
 - **Deletion:** with its sheet; entries about a withdrawn event by the withdrawal step; entries about an absorbed event are repointed to the kept event at a merge (§1.9). A notification message that names an entry blocks its deletion (notifications.md).
 - **TypeScript:** a union on `kind` with the detail shapes above.
 
@@ -167,7 +168,7 @@ The outcome of one case of the sheet at closure (ALE-27). Its profile after the 
 | `recorded_at` | timestamptz | no | — | the closure that recorded it | — | ALE-27 |
 
 - **Unique and indexes:** `alert_sheet_outcomes_uq` unique `(alert_sheet_id, case_id)`; `alert_sheet_outcomes_case_idx` `(case_id)` — `moveCaseReferences` and the erasers.
-- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and `alerts.moveCaseReferences(fromCaseId, intoCaseId)`, run by the recalculation's regrouping reactions (module map §1.10) before the emptied case is deleted and before notifications' own, moves its outcome rows to the surviving case, or deletes them with their snapshot when the sheet already has an outcome for the surviving case. Both cases' events end on the same measured game, so the outcome describes the same game; any other path that deletes a case still referenced here fails instead of silently losing a sheet's outcome.
+- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and `alerts.moveCaseReferences(fromCaseId, intoCaseId)`, run by the recalculation's regrouping reactions (module map §1.10) before the emptied case is deleted and before notifications' own, moves its outcome rows to the surviving case, or deletes them with their snapshot when the sheet already has an outcome for the surviving case, and rewrites to the surviving case the `case_id` of the update entries that name the emptied case. Both cases' events end on the same measured game, so the outcome describes the same game; any other path that deletes a case still referenced here fails instead of silently losing a sheet's outcome.
 - **Deletion cascades to:** its snapshot.
 - **TypeScript:** `AlertSheetOutcome = { caseId; recordedAt; profileAfter: ProfileSnapshot }` joined with the case's live values.
 
@@ -176,7 +177,7 @@ The outcome of one case of the sheet at closure (ALE-27). Its profile after the 
 **Withdrawal of an event E** (ALE-30, DSN-27). The alerts eraser runs after the notifications eraser, which has already deleted every message about E's sheet that names E (notifications.md §1.8), and before the tracking eraser. In the withdrawal's transaction:
 
 1. if E is the only event of its sheet, the sheet is deleted with everything below it; its number is never reused;
-2. otherwise E's sheet-event row, its update entries and its per-event caveats are deleted, its section too if no other event remains in it, and the caveats are recomputed even when frozen; the outcome of E's case is deleted when that case is erased;
+2. otherwise E's sheet-event row, its update entries and its per-event caveats are deleted, its section too if no other event remains in it, and the caveats are recomputed even when frozen; the outcome of E's case and the update entries naming that case are deleted when that case is erased;
 3. the outbox facts of every deleted sheet and update entry (`outbox_facts.lot2_subject_id`, kinds `alert_sheet_produced` and `alert_sheet_updated`) are deleted, and journal entries naming a deleted sheet (`lot2_object_kind = 'alert_sheet'`) get the pair set to null (`CL-TRV-10`);
 4. no update entry and no message records the withdrawal.
 
@@ -184,13 +185,13 @@ What may remain: the sheet of the other events, with its other sections, snapsho
 
 **Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps. A player-data deletion (CL-JOU-06) erases every sheet of the player through the withdrawal of each of his events, then deletes any sheet of his left without events, such as one canceled by an attachment correction. A merge of two detected events follows the rules below. An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is not an erasure (`alerts.onCalendarEventDropped`, in the derivation reactions of module map §1.10): its sheet-event row goes, an `event_no_longer_applies` entry records its type, game and reason, the sheet is canceled with that reason when no other non-dismissed event remains (`CL-ALE-13`), and its sections and snapshots stay. A calendar-derived event dropped after its game started (`CL-TAX-19`, `CL-SEN-25`) goes the same way, its case's outcome row deleted with its snapshot; no message follows (`CL-TEL-21` only covers drops known before the scheduled start), and the core journals the drop and counts it in the profile's tally as `no_longer_derived`. A case merge moves or deletes outcome rows as §1.8 says.
 
-**Merge of two detected events** (DET-47). `alerts.onAttachmentCorrected`, called by `detection.correct` before the absorbed event is erased (module map §1.7), leaves nothing that points at the absorbed event, table by table:
+**Merge of two detected events** (DET-47). `alerts.onAttachmentCorrected`, called by `detection.correct` after `tracking.moveEventReferences` and before the absorbed event is erased (module map §1.7), leaves nothing that points at the absorbed event, nor at its case when that case goes with it — it goes when the absorbed event is its only event and the kept event belongs to another case — table by table:
 
 - `alert_sheet_events` (state): the absorbed event's row is deleted, never moved — the unique index keeps an event on one sheet and the kept event keeps its own membership (ALE-03); an `attachment_corrected` entry (`correction: 'merge'`, `newSheetId` the kept event's sheet when it has one) records it on the absorbed event's sheet, which is canceled with reason `attachment_corrected` when no other non-dismissed event remains (ALE-31);
-- `alert_sheet_updates` (history): every entry about the absorbed event is repointed to the kept event, which no index forbids, so each sheet's log stays true;
+- `alert_sheet_updates` (history): every entry about the absorbed event is repointed to the kept event, and, when the absorbed case goes, every entry whose `case_id` names it is rewritten to the kept event's case; no index forbids either, and each sheet's log stays true;
 - `alert_sheet_caveats` (state): the absorbed event's per-event caveats are deleted, then the caveats of each sheet concerned are recomputed for the kept event, with a `caveats_changed` entry when the set changes, after `caveats_frozen_at` too, as after a withdrawal (ALE-30);
 - `alert_sheet_expected_games` (state, no event reference): recomputed from the sheet's remaining events when the merge moves the kept event's reference date (ALE-23);
-- `alert_sheet_outcomes` (no event reference): the outcome of the absorbed event's case is deleted when that case is erased with it; a surviving case keeps its outcome, and a regrouping that follows goes through `moveCaseReferences` (§1.8);
+- `alert_sheet_outcomes` (case-level): when the absorbed case goes, its outcome rows are deleted with their snapshots, as in an erasure, since no sheet holds the absorbed event any more; a case that stays keeps its outcome, and a regrouping that follows goes through `moveCaseReferences` (§1.8);
 - sections and snapshots reference no event and stay as issued.
 
 **Purge.** None: the alert history is kept (ALE-28).
@@ -324,6 +325,7 @@ erDiagram
   alert_sheets ||--o{ alert_sheet_updates : "update log"
   alert_sheets ||--o{ alert_sheet_outcomes : "outcomes"
   cases ||--o{ alert_sheet_outcomes : "case"
+  cases ||--o{ alert_sheet_updates : "outcome entry"
   alert_sheet_outcomes ||--|| alert_sheet_snapshots : "profile after"
 ```
 

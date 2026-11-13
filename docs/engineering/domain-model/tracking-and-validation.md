@@ -98,17 +98,17 @@ Every owner decision of the kinds SUI-17 lists that made a tracked case leave th
 | `decided_at` | timestamptz | no | — | | — | SUI-17, H-SUI-07 |
 
 - **Unique and indexes:** `tracked_case_decisions_case_idx` `(tracked_case_id, decided_at)` — the case's decisions and the latest one (`CL-SUI-10`).
-- **Deletion:** with its tracked case, except that a regrouping first moves them to the surviving case's tracked case when there is one (§1.8); the decisions about a withdrawn event by the withdrawal step; repointed to the surviving event when two detected events are merged.
+- **Deletion:** with its tracked case, except that a regrouping first moves them to the surviving case's tracked case when there is one (§1.8); the decisions about a withdrawn event by the withdrawal step; repointed to the kept event when two detected events are merged (§1.8).
 - **TypeScript:** `{ kind: PostTipOffDecisionKind; effect: PostTipOffDecisionEffect; playerEventId: PlayerEventId | null; decidedAt: EpochMs }`; `isPostTipOff` is computed.
 
 ### 1.6 Regrouping exit — `regrouping_exits`
 
-What remains of a tracked case that a regrouping emptied after its measured game's scheduled start (`CL-SUI-16`). The core then deletes the emptied case (events-and-cases.md §2.5) and its tracked-case rows cascade; this row keeps it counted among the cases "now out of the counts" of its rows (`CL-SUI-10`), with its gap in the forecast direction when it had both a measured gap and a forecast. It is written once by `tracking.moveCaseReferences` in the regrouping reactions (module map §1.10), never recalculated, and holds no date and no game.
+What remains of a tracked case that a regrouping emptied, or that a merge of two detected events removed with its absorbed event, after its measured game's scheduled start (`CL-SUI-16`). The core then deletes the emptied case (events-and-cases.md §2.5) and its tracked-case rows cascade; this row keeps it counted among the cases "now out of the counts" of its rows (`CL-SUI-10`), with its gap in the forecast direction when it had both a measured gap and a forecast. It is written once by `tracking.moveCaseReferences` in the regrouping reactions (module map §1.10), never recalculated, and holds no date and no game.
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
 | `id` | integer identity | no | — | primary key | — | SUI-17 |
-| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; the emptied case's earliest-recorded event, which now belongs to the surviving case; that event's erasure deletes the row | EV | SUI-17, SUI-30 |
+| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; the emptied case's earliest-recorded event, which now belongs to the surviving case, or after a merge the kept event; that event's erasure deletes the row | EV | SUI-17, SUI-30 |
 | `player_id` | uuid | no | — | → core `followed_players.id` `ON DELETE RESTRICT`; the emptied case's player, which places the exit in its rows | PI EV | SUI-23 |
 | `event_type_id` | text | no | — | → core `event_types.id` `ON DELETE RESTRICT`; the emptied case's type | EV | SUI-23 |
 | `overall_subrow` | text | yes | null | `CHECK (overall_subrow IN ('probable_profile','possible_profile','general_trend'))` (`OverallSubrowKind`), from the forecast the case had at its last known scheduled start, by the freeze's rule: the stored frozen or late forecast, otherwise the forecast version in force at that start (§2.1); null only when the case had no forecast by that rule | EV | SUI-28, CL-SUI-03, CL-SUI-16 |
@@ -160,6 +160,14 @@ The validation table, being derived, no longer counts the case anywhere, separat
 3. the emptied tracked case's other rows then cascade with the case; an unconsumed `tracked_result_ready` fact whose result no longer exists is dropped by the dispatch as stale (TEL-23).
 
 A regrouping before the scheduled start records no exit: no result was known.
+
+**Merge of two detected events** (DET-47, `CL-SUI-16`). `tracking.moveEventReferences(fromEventId, intoEventId)`, called by `detection.correct` before the absorbed event is erased (module map §1.7):
+
+1. when the absorbed event's case goes with it — it goes when the absorbed event is its only event and the kept event belongs to another case — the same code as `moveCaseReferences(absorbedCaseId, keptCaseId)` runs: one `regrouping_exits` row if that case is tracked and its measured game's last known scheduled start has passed (its rows, the sub-row by the freeze's rule, the gap as it was), and its decisions move to the kept event's tracked case when there is one;
+2. the event-level rows then follow the kept event: decisions about the absorbed event and `regrouping_exits` rows tied to it are repointed to the kept event;
+3. the absorbed case's other tracked-case rows cascade when the core's erasure step deletes that case.
+
+Before the scheduled start, or when the absorbed event shares its case with another event, step 1 records nothing.
 
 **Purge.** None: tracked cases are case data and last as long as their case.
 
@@ -216,7 +224,7 @@ A decision row is recorded by the composed action that makes the decision, in it
 | One tracked-game result message per case in its life. | CL-SUI-09, TEL-17 | notifications' unique index (notifications.md) |
 | The validation table counts exactly the testing set of each row; it writes nothing. | SUI-24, SUI-29 | pure calculation core; no write path |
 | A withdrawn event's case appears in no row, separate counts included. | SUI-30 | eraser of §1.8; the table is derived |
-| A tracked case emptied by a regrouping after its game's scheduled start still counts once among the cases now out of the counts, through later recalculations, until its event is erased. | SUI-17, CL-SUI-10, CL-SUI-16 | `tracking.moveCaseReferences` in the regrouping reactions writes `regrouping_exits`; nothing recalculates it |
+| A tracked case emptied by a regrouping, or removed by a merge of two detected events, after its game's scheduled start still counts once among the cases now out of the counts, through later recalculations, until its event is erased. | SUI-17, CL-SUI-10, CL-SUI-16 | `tracking.moveCaseReferences` in the regrouping reactions writes `regrouping_exits`; nothing recalculates it |
 
 ## 4. Stored or derived
 
@@ -278,7 +286,7 @@ The content stored in `tracked_game_results.content` and handed to notifications
 - `CL-SUI-14`, `CL-TAX-19`: upcoming calendar-derived events become tracked cases, created by the regular derivation runs; their changes and table membership. A withdrawn type deletes nothing (`CL-SUI-14`, `CL-TAX-20`): its upcoming events and their tracked cases stay and are measured, counting only in the type's archived profiles and trend, in the archived part of the table.
 - `CL-SUI-15`: chance-expected counts.
 - `CL-DET-09`, `CL-DET-15`: dismissed cases leave every calculation; only a dismissal at or after tip-off shows in the separate count, measured outside the calculations.
-- `CL-SUI-16`: a tracked case emptied by a regrouping after its game's scheduled start leaves a regrouping exit; the surviving tracked case takes its decisions.
+- `CL-SUI-16`: a tracked case emptied by a regrouping, or removed by a merge of two detected events, after its game's scheduled start leaves a regrouping exit; the surviving or kept event's tracked case takes its decisions.
 
 Modeling choices of this file:
 
