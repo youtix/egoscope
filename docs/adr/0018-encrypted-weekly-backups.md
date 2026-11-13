@@ -18,7 +18,7 @@ Automatic weekly backups, encrypted with a key from the deployment configuration
 
 ## Consequences
 
-- TRV-50 to TRV-55 and H-TRV-09 apply as written, with encryption added. The storage chosen is documented in a service sheet ([0011](0011-choosing-the-remaining-services.md)).
+- TRV-50 to TRV-55 and H-TRV-09 apply as written, with encryption added, except where the Amendments say what a backup leaves out (TRV-51) and what a restore keeps and re-applies (TRV-53). The storage chosen is documented in a service sheet ([0011](0011-choosing-the-remaining-services.md)).
 - Backups use authenticated encryption with the key from the deployment configuration. Neither the key nor the access token ever goes into a backup, a screen, the log or an export (TRV-51, TRV-64).
 - Rotation must really delete the oldest backup. Storing backups as commits in a git history would keep them for good and break TRV-50 and DSN-28; the chosen space must allow true deletion.
 - A restore (TRV-53, TRV-77) asks for the key. The guide warns that a lost key makes every backup unreadable; manual exports (TRV-52) are unaffected and stay readable without the application.

@@ -20,7 +20,7 @@
 
 ## Why
 
-The compute allowance is the only tight resource of the free plan, and exceeding it suspends the database for the rest of the month: a scheduler that queried on every tick would stop the application. With idle ticks kept away from the database, the expected use is 11 to 48 CU-hours a month, which leaves a margin. Accepting GET and POST lets any caller that can send the secret replace the trigger; tolerating the backstop's cadence keeps the application correct when the primary is silent.
+The compute allowance is the only tight resource of the free plan, and exceeding it suspends the database for the rest of the month: a scheduler that queried on every tick would stop the application. With idle ticks kept away from the database, the expected use is about 18 to 30 CU-hours a month in Lot 1 and 20 to 45 in Lot 2 (`docs/services/database.md`; see Amendments), which leaves a margin. Accepting GET and POST lets any caller that can send the secret replace the trigger; tolerating the backstop's cadence keeps the application correct when the primary is silent.
 
 ## Consequences
 
@@ -34,3 +34,10 @@ The compute allowance is the only tight resource of the free plan, and exceeding
 
 - A database plan whose compute does not count idle time, or a larger free allowance: the rule could relax, but the wake plan stays the cheaper design.
 - A trigger that guarantees a fine cadence: designs still keep the backstop's tolerance, as long as a 15-minute backstop exists.
+
+## Amendments
+
+### 2026-11-13 — The expected compute use (database service sheet)
+
+- The database sheet now estimates, pass by pass, about 18 to 30 CU-hours a month in Lot 1 and 20 to 45 in Lot 2, against the allowance of 100 (`docs/services/database.md`, "Our expected use and the margin"). These figures replace the 11 to 48 CU-hours of the sheet's first version, which "Why" quoted; the decision is unchanged.
+- The delays that the cadence turns into minimums — TEL-35's retry intervals, and the notification delays of TRV-25 (TEL-10, TEL-20, TEL-35) — are listed in the deviations register, rows TEL-35 and TRV-25; module map §4.1 gives the lateness to expect with each caller.

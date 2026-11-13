@@ -22,7 +22,7 @@ A withdrawal leaves a temporary keyed fingerprint: a keyed hash of player, type 
 - Before creating an event, detection checks the fingerprints (next to DET-58): a match creates no event, so no case, no alert sheet and no backtest request.
 - An import flags, in the preview, a result event that matches a fingerprint; the owner declines it with the reason « donnée sensible », which increases the counter as IMP-37 already does. Nothing is declined automatically. This flag is one of the two places where the application refers to a withdrawn event again (exception to IHM-68); the other is the restore summary (see Amendments).
 - The withdrawal screen states the new limits (DSN-28): during the horizon, re-collection does not bring the event back and a later import flags it; afterwards the limits of the spec apply again; a restore made within the horizon withdraws the event again, except a restore into a new database without the old one (see Amendments).
-- Within DSN-26 to DSN-35, only DSN-27, DSN-28, DSN-29 and DSN-34 change. DSN-26, DSN-30, DSN-31, DSN-32, DSN-33 and DSN-35 are untouched.
+- Within DSN-26 to DSN-35, the decision changes DSN-27, DSN-28, DSN-29 and DSN-34, and the Amendments extend DSN-26 (a later full derivation can bring back a withdrawn calendar-derived event, open point 6) and DSN-32 (a withdrawal discards the player's import drafts, 2026-11-13). DSN-30, DSN-31, DSN-33 and DSN-35 are untouched.
 
 ## Open points
 

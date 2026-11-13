@@ -15,7 +15,7 @@ Both lots are built in one run, in dependency-ordered waves: the foundation firs
 
 ## Consequences
 
-- H-12 is confirmed as the delivery split, and the manual trigger of Lot 1 requests with it. Lot labels on requirements stay as written.
+- H-12 is confirmed as the delivery split, and the manual trigger of Lot 1 requests with it. Lot labels on requirements stay as written, with the one exception the Amendments record.
 - The Lot 1 milestone is a tag on `main`. Before it is set, the end-to-end suite runs the journey of `00 AC-6` (add a player, validate a type, request a backtest, paste a valid research result, obtain a computed profile) on a build with no Lot 2 configuration: no feed, no language model, no Telegram.
 - Lot 1 code never depends on Lot 2 modules; architecture-boundary lint rules enforce the direction ([0004](0004-quality-bar.md), [0007](0007-next-native-module-layout.md)).
 - Lot 2 pieces that need nothing from Lot 1, such as a feed reader or the Telegram client, may be merged before the milestone, but the milestone journey never requires them.
@@ -24,3 +24,14 @@ Both lots are built in one run, in dependency-ordered waves: the foundation firs
 ## Alternatives considered
 
 - Delivering Lot 1, then stopping for the owner to use it before starting Lot 2. Not retained: the owner tries nothing until everything exists ([0008](0008-autonomous-build-and-end-of-build-handover.md)).
+
+## Amendments
+
+### 2026-11-13 — Tracked calendar-derived cases in Lot 1 (CL-VUE-13, CL-IHM-24)
+
+- The one exception to the lot labels: a calendar-derived event ([0015](0015-calendar-derived-event-types.md)) created before its game's scheduled start gives a tracked case in Lot 1 as in Lot 2. For those cases, the creation of a tracked case (SUI-01), its origin (SUI-05) and its recording on time (SUI-06), all tagged « [Lot 2] », already apply in Lot 1, and IHM-46 applies in Lot 1 without its last sentence (register rows SUI-01, SUI-05 and IHM-46).
+- Everything else those cases receive stays in Lot 2: the alert sheet, the frozen forecast, the validation table and the Telegram messages (CL-VUE-14). Every other requirement keeps its own lot tag (CL-JRN-08).
+
+### 2026-11-13 — No Lot 2 row blocks a Lot 1 operation (CL-TRV-24)
+
+- "Lot 1 code never depends on Lot 2 modules" holds for data as well: no Lot 2 row ever blocks a Lot 1 operation, such as a deletion (IMP-33) or a replacement at import (IMP-29). For each Lot 2 reference to a Lot 1 row, a Lot 2 step runs before the Lot 1 row is deleted, or the reference follows the event instead of the case, or it is deleted or emptied with its target; the data model lists the mechanism of each reference.

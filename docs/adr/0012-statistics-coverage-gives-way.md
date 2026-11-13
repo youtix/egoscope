@@ -45,8 +45,9 @@ From Q-STA-01 and the decision:
 ### 2026-11-11 — Replacing the source (CL-TRV-14, CL-STA-23)
 
 - New: at a source replacement, the stored seasons keep the data and identifiers of the source they came from, except the season in progress, which is fetched again whole from the new source, its consolidated games included — an exception to STA-42. That refetch is a forced refetch in the sense of STA-44: it follows the order of STA-40, and every value that differs from the stored one is replaced and traced as a correction (STA-34), so no old value is lost. A full recalculation follows (SEN-34).
-- Players are mapped to the new source by its published crosswalk where one exists, otherwise by a new JOU-10 confirmation.
+- Each player gets a mapping to the new source, confirmed by the owner through the JOU-10 flow; the new source's published crosswalk only preselects the candidate (see the next amendment).
 
 ### 2026-11-13 — The replacement procedure (CL-TRV-14)
 
 - The replacement is a procedure of the statistics service sheet (TRV-77), with no screen of its own: its steps rest on the forced refetch of one season from the source assigned to it (STA-44) and on the per-season source assignment (CL-STA-23).
+- The owner confirms every player's mapping to the new source, as STA-03 and JOU-10 require (CL-JOU-21): where the new source publishes a crosswalk with a match for the player, that match is only the preselected candidate of the JOU-10 flow. Until the mapping is established, nothing of that player is fetched from the new source and his cases wait, with the reason "stats-source mapping not established" (CL-STA-23). This replaces the mapping by crosswalk first written in the previous amendment, which no requirement allowed.
