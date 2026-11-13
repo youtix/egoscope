@@ -1,6 +1,6 @@
 # Domain model — automatic tracking and validation (Lot 2)
 
-Tracked cases before and after their game — forecast versions, the frozen or late forecast, the category and its history, the results transmitted, the decisions that touch the counts, the exits a regrouping leaves — and the validation table, which is derived: file 10 (SUI-01 to SUI-30) as ruled by `CL-SUI-01` to `CL-SUI-15` and the proposed `CL-SUI-16`, with ADR 0015 and `CL-DET-09`, `CL-DET-15`. The case itself (status, reason, measured game, gap, baseline) belongs to the core model (file 08); this file adds what file 10 lists "en complément de la description du cas donnée par le document 08".
+Tracked cases before and after their game — forecast versions, the frozen or late forecast, the category and its history, the results transmitted, the decisions that touch the counts, the exits a regrouping leaves — and the validation table, which is derived: file 10 (SUI-01 to SUI-30) as ruled by `CL-SUI-01` to `CL-SUI-15` and `CL-SUI-16`, with ADR 0015 and `CL-DET-09`, `CL-DET-15`. The case itself (status, reason, measured game, gap, baseline) belongs to the core model (file 08); this file adds what file 10 lists "en complément de la description du cas donnée par le document 08".
 
 **Conventions.** As in [collection.md](collection.md). Every "tip-off" below is the game's last known scheduled start (`CL-SUI-13`).
 
@@ -103,7 +103,7 @@ Every owner decision of the kinds SUI-17 lists that made a tracked case leave th
 
 ### 1.6 Regrouping exit — `regrouping_exits`
 
-What remains of a tracked case that a regrouping emptied after its measured game's scheduled start (proposed `CL-SUI-16`). The core then deletes the emptied case (events-and-cases.md §2.5) and its tracked-case rows cascade; this row keeps it counted among the cases "now out of the counts" of its rows (`CL-SUI-10`), with its gap in the forecast direction when it had both a measured gap and a forecast. It is written once by `tracking.moveCaseReferences` in the regrouping reactions (module map §1.10), never recalculated, and holds no date and no game.
+What remains of a tracked case that a regrouping emptied after its measured game's scheduled start (`CL-SUI-16`). The core then deletes the emptied case (events-and-cases.md §2.5) and its tracked-case rows cascade; this row keeps it counted among the cases "now out of the counts" of its rows (`CL-SUI-10`), with its gap in the forecast direction when it had both a measured gap and a forecast. It is written once by `tracking.moveCaseReferences` in the regrouping reactions (module map §1.10), never recalculated, and holds no date and no game.
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -153,7 +153,7 @@ The validation table, being derived, no longer counts the case anywhere, separat
 
 **Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps without the counter. A player-data deletion erases his tracked cases through the withdrawal of each of his events. An upcoming calendar-derived event dropped before its scheduled start is deleted with its case and tracked case, never counts, and is no post-tip-off decision (`CL-SUI-14`); one dropped after its game started is deleted the same way, and the core journals it and counts it in the profile's tally as `no_longer_derived` (`CL-SEN-25`).
 
-**Regrouping** (core events-and-cases.md §2.5, proposed `CL-SUI-16`). The survivor and origin rules are the core's: the event joins the case that already has the game, and no case changes origin. Before a case emptied by a regrouping is deleted, `tracking.moveCaseReferences(fromCaseId, intoCaseId)` runs last in the regrouping reactions (module map §1.10), after alerts' and notifications':
+**Regrouping** (core events-and-cases.md §2.5, `CL-SUI-16`). The survivor and origin rules are the core's: the event joins the case that already has the game, and no case changes origin. Before a case emptied by a regrouping is deleted, `tracking.moveCaseReferences(fromCaseId, intoCaseId)` runs last in the regrouping reactions (module map §1.10), after alerts' and notifications':
 
 1. if the emptied case is tracked and its measured game's scheduled start has passed, one `regrouping_exits` row records it, whatever the surviving case's origin;
 2. if the surviving case is tracked, the emptied case's decisions move to the surviving tracked case, which then shows by its latest decision (`CL-SUI-10`);
@@ -216,7 +216,7 @@ A decision row is recorded by the composed action that makes the decision, in it
 | One tracked-game result message per case in its life. | CL-SUI-09, TEL-17 | notifications' unique index (notifications.md) |
 | The validation table counts exactly the testing set of each row; it writes nothing. | SUI-24, SUI-29 | pure calculation core; no write path |
 | A withdrawn event's case appears in no row, separate counts included. | SUI-30 | eraser of §1.8; the table is derived |
-| A tracked case emptied by a regrouping after its game's scheduled start still counts once among the cases now out of the counts, through later recalculations, until its event is erased. | SUI-17, CL-SUI-10, proposed CL-SUI-16 | `tracking.moveCaseReferences` in the regrouping reactions writes `regrouping_exits`; nothing recalculates it |
+| A tracked case emptied by a regrouping after its game's scheduled start still counts once among the cases now out of the counts, through later recalculations, until its event is erased. | SUI-17, CL-SUI-10, CL-SUI-16 | `tracking.moveCaseReferences` in the regrouping reactions writes `regrouping_exits`; nothing recalculates it |
 
 ## 4. Stored or derived
 
@@ -278,7 +278,7 @@ The content stored in `tracked_game_results.content` and handed to notifications
 - `CL-SUI-14`, `CL-TAX-19`: upcoming calendar-derived events become tracked cases, created by the regular derivation runs; their changes and table membership. A withdrawn type deletes nothing (`CL-SUI-14`, `CL-TAX-20`): its upcoming events and their tracked cases stay and are measured, counting only in the type's archived profiles and trend, in the archived part of the table.
 - `CL-SUI-15`: chance-expected counts.
 - `CL-DET-09`, `CL-DET-15`: dismissed cases leave every calculation; only a dismissal at or after tip-off shows in the separate count, measured outside the calculations.
-- Proposed `CL-SUI-16`: a tracked case emptied by a regrouping after its game's scheduled start leaves a regrouping exit; the surviving tracked case takes its decisions.
+- `CL-SUI-16`: a tracked case emptied by a regrouping after its game's scheduled start leaves a regrouping exit; the surviving tracked case takes its decisions.
 
 Modeling choices of this file:
 
@@ -318,4 +318,4 @@ erDiagram
 6. **Read values**: the withdrawn-events counter (DSN-29); the date of the last change of a parameter that affects calculations (TRV-35, `CL-SUI-04`); the parameters `tracking.categoryThreshold`, `tracking.minTrackedCasesForAssessment`, `sensitivity.possibleSignalToNoise` and the case threshold of SEN-23, `sensitivity.minValidCases`.
 7. **Cases spreadsheet export** (TRV-52): for a tracked case, add the recording timing, the frozen forecast (source, level, direction, announced gap, late or not) and the category.
 8. **Task due rule** (decision record 0025): `game-tracking` is due after each statistics ingestion (chained to `statistics-update` or `statistics-fetch`) and at a game's expected availability, never as a query at every tick; its freezes use the last forecast version before each scheduled start, so the run's timing changes no forecast.
-9. **Regrouping** (proposed `CL-SUI-16`): events-and-cases.md §2.5 adds that the regrouping reactions — alerts, notifications, then tracking `moveCaseReferences(fromCaseId, intoCaseId)` — run while the emptied case and its gap are still readable, before the tracked-case rows cascade; the module map's regrouping reactions list gains the tracking slot.
+9. **Regrouping** (`CL-SUI-16`): events-and-cases.md §2.5 adds that the regrouping reactions — alerts, notifications, then tracking `moveCaseReferences(fromCaseId, intoCaseId)` — run while the emptied case and its gap are still readable, before the tracked-case rows cascade; the module map's regrouping reactions list gains the tracking slot.
