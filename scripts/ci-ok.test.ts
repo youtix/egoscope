@@ -37,7 +37,8 @@ function verdict(
   return run(JSON.stringify(needs), event);
 }
 
-describe('ci-ok', () => {
+// Each test starts a shell, which a busy machine can slow down past the default timeout.
+describe('ci-ok', { timeout: 30_000 }, () => {
   it('passes a pull request whose jobs all succeeded', () => {
     expect(verdict('pull_request')).toStrictEqual({
       status: 0,

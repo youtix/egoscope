@@ -1,6 +1,10 @@
 // Proves that tsconfig.pure-core.json gives the pure core the ECMAScript library
 // only: a Node.js or DOM global used there is a type error, and no Node or DOM
 // declaration file is part of the program at all.
+//
+// Each test builds a TypeScript program, which takes seconds when the shared
+// machine is busy: the suite has its own timeout, and the programs share the
+// configuration and the declaration files they parse.
 import path from 'node:path';
 
 import ts from 'typescript';
@@ -13,11 +17,7 @@ const DOM_LIBRARY = /[/\\]lib\.dom(?:\.[a-z]+)*\.d\.ts$/u;
 
 const isNodeOrDom = (file: string): boolean => NODE_TYPES.test(file) || DOM_LIBRARY.test(file);
 
-/**
- * The pure-core program: its real files, or, given `code`, a probe file of the
- * statistics core holding that code.
- */
-function pureCoreProgram(code?: string): ts.Program {
+function readConfig(): ts.ParsedCommandLine {
   const parsed = ts.getParsedCommandLineOfConfigFile(
     path.join(ROOT, 'tsconfig.pure-core.json'),
     {},
@@ -26,20 +26,34 @@ function pureCoreProgram(code?: string): ts.Program {
   if (parsed === undefined) {
     throw new Error('tsconfig.pure-core.json cannot be read.');
   }
-  if (code === undefined) {
-    return ts.createProgram({ rootNames: parsed.fileNames, options: parsed.options });
-  }
-  const base = ts.createCompilerHost(parsed.options);
+  return parsed;
+}
+
+const CONFIG = readConfig();
+const BASE_HOST = ts.createCompilerHost(CONFIG.options);
+const parsedFiles = new Map<string, ts.SourceFile | undefined>();
+
+/**
+ * The pure-core program: its real files, or, given `code`, a probe file of the
+ * statistics core holding that code.
+ */
+function pureCoreProgram(code?: string): ts.Program {
   const host: ts.CompilerHost = {
-    ...base,
-    fileExists: (file) => file === PROBE || base.fileExists(file),
-    readFile: (file) => (file === PROBE ? code : base.readFile(file)),
-    getSourceFile: (file, version, ...rest) =>
-      file === PROBE
-        ? ts.createSourceFile(file, code, version)
-        : base.getSourceFile(file, version, ...rest),
+    ...BASE_HOST,
+    fileExists: (file) => file === PROBE || BASE_HOST.fileExists(file),
+    readFile: (file) => (file === PROBE ? code : BASE_HOST.readFile(file)),
+    getSourceFile: (file, version, ...rest) => {
+      if (file === PROBE) {
+        return ts.createSourceFile(file, code ?? '', version);
+      }
+      if (!parsedFiles.has(file)) {
+        parsedFiles.set(file, BASE_HOST.getSourceFile(file, version, ...rest));
+      }
+      return parsedFiles.get(file);
+    },
   };
-  return ts.createProgram({ rootNames: [PROBE], options: parsed.options, host });
+  const rootNames = code === undefined ? CONFIG.fileNames : [PROBE];
+  return ts.createProgram({ rootNames, options: CONFIG.options, host });
 }
 
 function typeErrors(code: string): readonly string[] {
@@ -51,7 +65,7 @@ function typeErrors(code: string): readonly string[] {
 const fileNames = (program: ts.Program): readonly string[] =>
   program.getSourceFiles().map((file) => file.fileName);
 
-describe('tsconfig.pure-core.json', () => {
+describe('tsconfig.pure-core.json', { timeout: 60_000 }, () => {
   it.each([
     ['process', "export const level = process.env['LOG_LEVEL'];\n"],
     ['setTimeout', 'export const later = setTimeout(() => undefined, 1);\n'],
