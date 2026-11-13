@@ -274,7 +274,7 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
     });
   });
 
-  describe('route shells hold no logic', () => {
+  describe('route shells stay thin', () => {
     const page = 'export default function Page(): null {\n  return null;\n}\n';
 
     it.each(SHELL_PROBES)('applies the shell rules to %s', async (file) => {
@@ -303,6 +303,17 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
       ['a default export that is not a function declaration', 'export default (): null => null;\n'],
     ])('rejects %s in page.tsx', async (_kind, code) => {
       expect(await ruleIds('src/app/probe/page.tsx', code)).toContain('no-restricted-syntax');
+    });
+
+    it('tolerates a condition and an inline callback under the caps, as CLAUDE.md says', async () => {
+      const code = [
+        'export default function Page({ names }: Readonly<{ names: readonly string[] }>): string {',
+        "  return names.length > 0 ? names.map((name) => name.trim()).join(', ') : 'none';",
+        '}',
+        '',
+      ].join('\n');
+
+      expect(await ruleIds('src/app/probe/page.tsx', code)).not.toContain('no-restricted-syntax');
     });
 
     it('accepts the exports that Next.js reads from page.tsx', async () => {

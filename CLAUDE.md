@@ -76,7 +76,11 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
   `@/lib/log`) are tested with `vi.stubEnv`, `vi.resetModules()` and a dynamic `import()`.
 - Coverage counts every file in `src/`: at least 90% per file for lines, branches, functions and
   statements, and 100% in `src/lib/stats-engine/`. Next.js route shells (`page.tsx`, `layout.tsx`
-  and the like) are excluded and kept thin by lint; `route.ts` handlers are covered.
+  and the others listed in `scripts/route-shells.ts`) are excluded, so lint keeps them thin: no
+  loops, `switch` or `try`, no top-level helper or class, only the exports Next.js reads, and at
+  most 60 lines per file and a complexity of 3 per function. What fits under those caps (a
+  condition, an inline callback) goes untested, so keep it trivial; `route.ts` handlers are
+  covered.
 
 ## The local loop
 

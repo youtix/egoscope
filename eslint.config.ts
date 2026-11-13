@@ -172,7 +172,10 @@ const BARREL_SYNTAX: readonly SyntaxRestriction[] = [
   },
 ];
 const SHELL_MESSAGE =
-  'Route shells hold no logic: coverage leaves them out. Move code to a colocated module or to src/lib/<module>, where it is unit-tested.';
+  'Route shells stay thin, because coverage leaves them out: move this code to a colocated module or to src/lib/<module>, where it is unit-tested.';
+// What a route shell may not hold: loops, switch and try; a top-level function,
+// class or helper; an export that Next.js does not read. The size and complexity
+// caps of egoscope/route-shells bound the rest.
 const SHELL_SYNTAX: readonly SyntaxRestriction[] = [
   {
     selector:
@@ -808,8 +811,10 @@ const composed = defineConfig(
   },
 
   {
-    // Route shells are excluded from unit coverage (vitest.config.ts), so these
-    // caps keep every function in them too small to hide logic.
+    // Coverage leaves route shells out (scripts/route-shells.ts), so lint keeps them
+    // thin: SHELL_SYNTAX refuses loops, top-level helpers and stray exports, and
+    // these caps bound the rest. What fits under them, a few conditionals, an
+    // inline callback or a helper inside the component, is tolerated untested.
     name: 'egoscope/route-shells',
     files: [...ROUTE_SHELLS],
     rules: {
