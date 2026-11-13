@@ -267,30 +267,33 @@ interface PlayerIndicators {
 ### 1.8 `fetch_queue_items` — `FetchQueueItem`
 
 Pending source requests with their priority, attempts and waiting reason (STA-36, STA-39, STA-40),
-as resumable units of work (TRV-30; `FetchQueueItem`): the publication probe, a
-season's games with its teams and coverage, a season's lines of the followed players together with
-its player directory (the source's file is read once), a past season's directory alone (the
-one-time backfill, newest first), and the followed players' profiles (current team, birthday). A
+as resumable units of work (TRV-30; `FetchQueueItem`): the publication probe
+(`publication_probe`), a season's games with its teams and coverage (`season_games`), a season's box scores of the followed
+players together with its player directory (`season_box_scores`, the source's file read once), a
+past season's directory alone (`season_players`, the one-time backfill, newest first), and the
+followed players' records, current team and birthday (`player_records`); each kind is named after
+its port operation (`getPublication`, `getSeasonGames`, `getSeasonBoxScores`, `getSeasonPlayers`,
+`getPlayerRecords`). A
 unit is deleted once done; runs are in the journal.
 
-| column              | type        | null | default  | constraint or reference                                                                                  | class | spec IDs               |
-| ------------------- | ----------- | ---- | -------- | -------------------------------------------------------------------------------------------------------- | ----- | ---------------------- |
-| `id`                | integer     | no   | identity | primary key                                                                                              | —     | —                      |
-| `stats_source`      | text        | no   | —        | `CHECK (stats_source IN ('sportsdataverse_espn'))`                                                       | —     | STA-02                 |
-| `kind`              | text        | no   | —        | `CHECK (kind IN ('publication_probe','season_games','season_lines','season_players','player_profiles'))` | —     | STA-32, STA-41, STA-44 |
-| `season`            | text        | yes  | —        | required for the three season kinds                                                                      | —     | STA-40, STA-41         |
-| `game_id`           | integer     | yes  | —        | `REFERENCES games(id) ON DELETE CASCADE`; narrows a manual refetch to one game                           | —     | STA-44                 |
-| `is_manual_refetch` | boolean     | no   | `false`  | forces consolidated data and traces corrections as `manual_refetch`                                      | —     | STA-34, STA-44         |
-| `priority`          | smallint    | no   | —        | `CHECK (priority BETWEEN 1 AND 5)`; the highest need among the cases and players it serves               | —     | STA-40, H-STA-15       |
-| `attempts`          | smallint    | no   | `0`      | —                                                                                                        | —     | STA-36                 |
-| `next_attempt_at`   | timestamptz | no   | `now()`  | —                                                                                                        | —     | STA-36, CL-STA-15      |
-| `wait_reason`       | text        | yes  | —        | `CHECK (wait_reason IN ('outage','quota'))`                                                              | —     | STA-36, STA-39         |
-| `lease_expires_at`  | timestamptz | yes  | —        | technical: an invocation holds the unit until then; an expired lease is free again (TRV-30)              | —     | TRV-29, TRV-30         |
-| `cursor`            | text        | yes  | —        | technical: the port's resume point for a paged source                                                    | —     | TRV-30                 |
-| `requested_at`      | timestamptz | no   | `now()`  | —                                                                                                        | —     | STA-41                 |
+| column              | type        | null | default  | constraint or reference                                                                                      | class | spec IDs               |
+| ------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------ | ----- | ---------------------- |
+| `id`                | integer     | no   | identity | primary key                                                                                                  | —     | —                      |
+| `stats_source`      | text        | no   | —        | `CHECK (stats_source IN ('sportsdataverse_espn'))`                                                           | —     | STA-02                 |
+| `kind`              | text        | no   | —        | `CHECK (kind IN ('publication_probe','season_games','season_box_scores','season_players','player_records'))` | —     | STA-32, STA-41, STA-44 |
+| `season`            | text        | yes  | —        | required for the three season kinds                                                                          | —     | STA-40, STA-41         |
+| `game_id`           | integer     | yes  | —        | `REFERENCES games(id) ON DELETE CASCADE`; narrows a manual refetch to one game                               | —     | STA-44                 |
+| `is_manual_refetch` | boolean     | no   | `false`  | forces consolidated data and traces corrections as `manual_refetch`                                          | —     | STA-34, STA-44         |
+| `priority`          | smallint    | no   | —        | `CHECK (priority BETWEEN 1 AND 5)`; the highest need among the cases and players it serves                   | —     | STA-40, H-STA-15       |
+| `attempts`          | smallint    | no   | `0`      | —                                                                                                            | —     | STA-36                 |
+| `next_attempt_at`   | timestamptz | no   | `now()`  | —                                                                                                            | —     | STA-36, CL-STA-15      |
+| `wait_reason`       | text        | yes  | —        | `CHECK (wait_reason IN ('outage','quota'))`                                                                  | —     | STA-36, STA-39         |
+| `lease_expires_at`  | timestamptz | yes  | —        | technical: an invocation holds the unit until then; an expired lease is free again (TRV-30)                  | —     | TRV-29, TRV-30         |
+| `cursor`            | text        | yes  | —        | technical: the port's resume point for a paged source                                                        | —     | TRV-30                 |
+| `requested_at`      | timestamptz | no   | `now()`  | —                                                                                                            | —     | STA-41                 |
 
-Row check: `kind IN ('season_games','season_lines','season_players')` iff `season IS NOT NULL`;
-`game_id IS NOT NULL` implies `kind = 'season_lines' AND is_manual_refetch`.
+Row check: `kind IN ('season_games','season_box_scores','season_players')` iff `season IS NOT NULL`;
+`game_id IS NOT NULL` implies `kind = 'season_box_scores' AND is_manual_refetch`.
 
 Unique: `fetch_queue_items_scope_key (stats_source, kind, season, game_id, is_manual_refetch) NULLS NOT DISTINCT`
 — one pending unit per scope; a new need raises its priority instead of adding a row.
@@ -302,7 +305,7 @@ units in STA-40 order" (STA-39, STA-40).
 type FetchPriority = 1 | 2 | 3 | 4 | 5;
 type FetchWaitReason = 'outage' | 'quota';
 type FetchUnitKind =
-  'publication_probe' | 'season_games' | 'season_lines' | 'season_players' | 'player_profiles';
+  'publication_probe' | 'season_games' | 'season_box_scores' | 'season_players' | 'player_records';
 ```
 
 ### 1.9 `stats_source_versions` — what was last read of each source resource
@@ -312,15 +315,15 @@ conditional and consolidated data is never requested again (STA-42). The port na
 (module map, section 5): a resource is the publication or one season's games, lines or player
 directory, and the version is the port's opaque `knownVersion`.
 
-| column                | type        | null | default  | constraint or reference                                                              | class | spec IDs             |
-| --------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------ | ----- | -------------------- |
-| `id`                  | integer     | no   | identity | primary key                                                                          | —     | —                    |
-| `stats_source`        | text        | no   | —        | `CHECK (stats_source IN ('sportsdataverse_espn'))`                                   | —     | STA-02               |
-| `resource`            | text        | no   | —        | `CHECK (resource IN ('publication','season_games','season_lines','season_players'))` | —     | STA-42               |
-| `season`              | text        | yes  | —        | required for the three season resources                                              | —     | STA-42, CL-STA-22    |
-| `version`             | text        | yes  | —        | technical: the source version sent back with the next request                        | —     | STA-42               |
-| `source_refreshed_at` | timestamptz | yes  | —        | `publication` only: the source's last refresh instant seen by the probe              | —     | CL-STA-10, CL-TRV-23 |
-| `fetched_at`          | timestamptz | no   | —        | —                                                                                    | —     | STA-42               |
+| column                | type        | null | default  | constraint or reference                                                                   | class | spec IDs             |
+| --------------------- | ----------- | ---- | -------- | ----------------------------------------------------------------------------------------- | ----- | -------------------- |
+| `id`                  | integer     | no   | identity | primary key                                                                               | —     | —                    |
+| `stats_source`        | text        | no   | —        | `CHECK (stats_source IN ('sportsdataverse_espn'))`                                        | —     | STA-02               |
+| `resource`            | text        | no   | —        | `CHECK (resource IN ('publication','season_games','season_box_scores','season_players'))` | —     | STA-42               |
+| `season`              | text        | yes  | —        | required for the three season resources                                                   | —     | STA-42, CL-STA-22    |
+| `version`             | text        | yes  | —        | technical: the source version sent back with the next request                             | —     | STA-42               |
+| `source_refreshed_at` | timestamptz | yes  | —        | `publication` only: the source's last refresh instant seen by the probe                   | —     | CL-STA-10, CL-TRV-23 |
+| `fetched_at`          | timestamptz | no   | —        | —                                                                                         | —     | STA-42               |
 
 Row check: `(resource = 'publication') = (season IS NULL)`;
 `source_refreshed_at IS NULL OR resource = 'publication'`.
