@@ -122,6 +122,10 @@ jobs:
           env_line() { sample "$1" .env.example "$2=$3"; }
           stub_env() { sample "$1" src/lib/env/server-env.test.ts "vi.stubEnv('$2', '$3');"; }
           recorded() { sample "$1" data/fixtures/sample-port/recorded/answers.http "$2"; }
+          # TypeScript outside src/, such as an end-to-end setup, may assign process.env, by
+          # key only (noPropertyAccessFromIndexSignature) and with ??= for a default
+          # (prefer-nullish-coalescing).
+          setup() { sample "$1" e2e/global-setup.ts "$2"; }
           neon_url() { printf '%s://neondb_owner:npg_%s@ep-sample%s.eu-central-1.aws.neon.tech/neondb' postgresql "$(random A-Za-z0-9 12)" "$1"; }
           telegram_token() { printf '%s:AA%s' "$(random 0-9 10)" "$(random A-Za-z0-9 33)"; }
           cloudflare_token() { printf 'cf%st_%s%s' "$1" "$(random A-Za-z0-9 40)" "$(openssl rand -hex 4)"; }
@@ -143,6 +147,10 @@ jobs:
           env_line initial-password INITIAL_PASSWORD "$(password)"
           stub_env generated-secret CRON_SECRET "$(base64url)"
           stub_env initial-password INITIAL_PASSWORD "$(password)"
+          setup generated-secret "process.env['CRON_SECRET'] = '$(base64url)';"
+          setup generated-secret "process.env[\"TELEGRAM_WEBHOOK_SECRET\"] ??= \"$(base64url)\";"
+          setup initial-password "process.env['INITIAL_PASSWORD'] = '$(password)';"
+          setup initial-password "process.env[\"INITIAL_PASSWORD\"] ??= \"$(password)\";"
           recorded telegram-bot-token "GET https://api.telegram.org/bot$(telegram_token)/getUpdates"
           recorded cloudflare-api-token "Authorization: Bearer $(cloudflare_token a)"
           recorded groq-api-key "Authorization: Bearer $(groq_key)"
