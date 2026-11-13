@@ -159,10 +159,15 @@ describe('with-lock', { timeout: 30_000 }, () => {
   });
 
   it('names the holder, where it runs and for how long', () => {
-    expect(describeHolder(HOLDER, HOLDER.startedAt + 90_000)).toBe(
+    expect(describeHolder(HOLDER, HOLDER.startedAt + 90_000, '/git/egoscope-heavy.lock')).toBe(
       '"vitest run" in /work/tree (pid 4242), which has held the lock for 1m 30s',
     );
-    expect(describeHolder(undefined, 0)).toBe('another run');
+  });
+
+  it('says that a process left in the background holds the lock when no run is recorded', () => {
+    expect(describeHolder(undefined, 0, '/git/egoscope-heavy.lock')).toBe(
+      'a process that an earlier command left running in the background, which still holds the lock (find it with `fuser -v /git/egoscope-heavy.lock`)',
+    );
   });
 
   it.each([
@@ -322,6 +327,21 @@ describe('with-lock', { timeout: 30_000 }, () => {
     expect(waiter.code).toBe(1);
     expect(waiter.stderr).toMatch(
       /Gave up after waiting \d+s: "sh -c sleep 3" .* has held the lock for \d+s, more than the 1s limit/u,
+    );
+  });
+
+  it('names a process that a finished command left running with the lock', async () => {
+    const folder = lockFolder();
+    // The command ends at once; the sleep it starts in the background keeps the lock.
+    const leaving = start(['sh', '-c', 'sleep 3 &'], folder);
+    await leaving.exited;
+
+    const waiter = await withLock(['true'], folder, { EGOSCOPE_LOCK_LIMIT_SECONDS: '1' });
+    await leaving.outcome;
+
+    expect(waiter.code).toBe(1);
+    expect(waiter.stderr).toContain(
+      'a process that an earlier command left running in the background, which still holds the lock',
     );
   });
 });

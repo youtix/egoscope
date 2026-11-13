@@ -136,10 +136,14 @@ export function isOverLimit(
   return timing.now - since > timing.limitMs;
 }
 
-/** Describes the run that holds the lock, and for how long it has held it as of `now`. */
-export function describeHolder(holder: Holder | undefined, now: number): string {
+/**
+ * Describes the run that holds the lock at `lockPath`, and for how long it has held
+ * it as of `now`. With no live holder on record, the lock is held by a process that
+ * a finished command left behind, which inherited the lock from it.
+ */
+export function describeHolder(holder: Holder | undefined, now: number, lockPath: string): string {
   return holder === undefined
-    ? 'another run'
+    ? `a process that an earlier command left running in the background, which still holds the lock (find it with \`fuser -v ${lockPath}\`)`
     : `"${holder.command}" in ${holder.cwd} (pid ${String(holder.pid)}), which has held the lock for ${formatDuration(now - holder.startedAt)}`;
 }
 
@@ -268,7 +272,7 @@ function checkWait(
   timing: Readonly<{ now: number; waitStart: number; limitMs: number }>,
 ): Readonly<{ giveUp: boolean; message: string }> {
   const holder = readHolder(`${lockPath}.json`);
-  const who = describeHolder(holder, timing.now);
+  const who = describeHolder(holder, timing.now, lockPath);
   const waited = formatDuration(timing.now - timing.waitStart);
   return isOverLimit(holder, timing)
     ? {
