@@ -319,4 +319,117 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
       expect(rules).not.toContain('no-restricted-properties');
     });
   });
+
+  describe('no-ambient-time: only src/lib/time reads the clock and parses dates', () => {
+    const AMBIENT = [
+      ['the clock', 'export const now = (): number => Date.now();\n'],
+      ['the current date', 'export const today = (): Date => new Date();\n'],
+      ['the date as a string', 'export const today = (): string => Date();\n'],
+      ['a parsed date', "export const at = (): number => Date.parse('2026-11-10');\n"],
+      ['a date string', "export const at = (): Date => new Date('2026-11-10T19:30');\n"],
+      ['local calendar fields', 'export const at = (): Date => new Date(2026, 10, 10);\n'],
+      [
+        "Temporal's clock",
+        "import { Temporal } from 'temporal-polyfill';\n\nexport const now = (): number => Temporal.Now.instant().epochMilliseconds;\n",
+      ],
+    ];
+
+    it.each(AMBIENT)('rejects %s in src/lib', async (_kind, code) => {
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain('egoscope/no-ambient-time');
+    });
+
+    it.each([
+      'src/app/probe/helper.ts',
+      'src/lib/probe/probe.test.ts',
+      'scripts/probe.ts',
+      'e2e/fixtures.ts',
+      'e2e/smoke.spec.ts',
+    ])('rejects the clock in %s too', async (file) => {
+      const code = 'export const now = (): number => Date.now();\n';
+
+      expect(await ruleIds(file, code)).toContain('egoscope/no-ambient-time');
+    });
+
+    it.each(AMBIENT)('lets src/lib/time read %s', async (_kind, code) => {
+      expect(await ruleIds('src/lib/time/probe.ts', code)).not.toContain(
+        'egoscope/no-ambient-time',
+      );
+    });
+
+    it('allows a Date made from an instant, and UTC fields', async () => {
+      const code = [
+        'export const at = (milliseconds: number): Date => new Date(milliseconds);',
+        'export const copy = (instant: Date): Date => new Date(instant);',
+        'export const start = (): number => Date.UTC(2026, 10, 10);',
+        '',
+      ].join('\n');
+
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).not.toContain(
+        'egoscope/no-ambient-time',
+      );
+    });
+  });
+
+  describe('no-default-locale: a result that depends on a locale names it', () => {
+    it.each([
+      ['a date', 'export const text = (at: Date): string => at.toLocaleString();\n'],
+      [
+        'a date, with undefined for the locale',
+        "export const text = (at: Date): string => at.toLocaleDateString(undefined, { weekday: 'long' });\n",
+      ],
+      [
+        'a time, with no locale in the list',
+        'export const text = (at: Date): string => at.toLocaleTimeString([]);\n',
+      ],
+      ['a number', 'export const text = (count: number): string => count.toLocaleString();\n'],
+      ['upper case', 'export const upper = (text: string): string => text.toLocaleUpperCase();\n'],
+      ['lower case', 'export const lower = (text: string): string => text.toLocaleLowerCase();\n'],
+      [
+        'a comparison',
+        'export const order = (left: string, right: string): number => left.localeCompare(right);\n',
+      ],
+      [
+        'an Intl constructor',
+        'export const format = (): Intl.NumberFormat => new Intl.NumberFormat();\n',
+      ],
+      [
+        'an Intl constructor called without new',
+        'export const zone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;\n',
+      ],
+      [
+        'a locale that may be undefined',
+        'export const order = (locale?: string): Intl.Collator => new Intl.Collator(locale);\n',
+      ],
+      [
+        'a spread locale',
+        'export const text = (at: Date, options: [string]): string => at.toLocaleString(...options);\n',
+      ],
+    ])('rejects %s without an explicit locale', async (_kind, code) => {
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain('egoscope/no-default-locale');
+    });
+
+    it.each(['src/lib/time/probe.ts', 'scripts/probe.ts', 'e2e/fixtures.ts'])(
+      'rejects a default locale in %s too',
+      async (file) => {
+        const code = 'export const text = (at: Date): string => at.toLocaleString();\n';
+
+        expect(await ruleIds(file, code)).toContain('egoscope/no-default-locale');
+      },
+    );
+
+    it('allows every call that names its locale', async () => {
+      const code = [
+        "export const text = (at: Date): string => at.toLocaleString('en-US', { timeZone: 'UTC' });",
+        "export const order = (left: string, right: string): number => left.localeCompare(right, 'en');",
+        "export const format = (): Intl.NumberFormat => new Intl.NumberFormat('en-US');",
+        'export const words = (locale: string): Intl.Segmenter => new Intl.Segmenter(locale);',
+        "export const tags = (): string[] => Intl.getCanonicalLocales('EN-us');",
+        '',
+      ].join('\n');
+
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).not.toContain(
+        'egoscope/no-default-locale',
+      );
+    });
+  });
 });

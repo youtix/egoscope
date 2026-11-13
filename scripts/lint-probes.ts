@@ -51,6 +51,7 @@ const PROBE_FILES: readonly string[] = [
   ...SHELL_PROBES,
   'e2e/fixtures.ts',
   'e2e/smoke.spec.ts',
+  'scripts/probe.ts',
   'src/app/page-helper.ts',
   'src/app/players/[playerId]/page.tsx',
   'src/app/players/page.tsx',
@@ -73,6 +74,7 @@ const PROBE_FILES: readonly string[] = [
   'src/lib/stats-engine/probe.test.ts',
   'src/lib/stats-engine/probe.ts',
   'src/lib/stats-engine/view-probe.tsx',
+  'src/lib/time/probe.ts',
 ];
 
 // Two modules that import each other: a cycle needs real files.

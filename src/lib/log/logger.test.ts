@@ -78,7 +78,7 @@ describe('createLogger', () => {
 
     logger.warn('Odd values', {
       failure,
-      tipOff: new Date('2025-03-14T23:30:00.000Z'),
+      tipOff: new Date(Date.UTC(2025, 2, 14, 23, 30)),
       broken: new Date(NaN),
       requests: 12n,
     });
