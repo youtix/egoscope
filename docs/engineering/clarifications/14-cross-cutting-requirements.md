@@ -326,6 +326,19 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Why:** at 15:00 the refresh has landed, or lands within the next hour, on 22 days out of 23 measured; the cut-off bounds the wait and keeps the day's results ahead of the evening run. A probe that finds nothing opens no database connection (record 0025), so it cannot record a run of its own.
 - **Owner review:** yes — the default hour moves from 12:00 to 15:00, tracked results arrive in the afternoon, a late source is shown as a warning and then an incident, and three settings are added.
 
+### CL-TRV-24 — No Lot 1 operation is blocked by a Lot 2 row
+
+- **Affects:** VUE-06, DSN-27, IMP-29, IMP-33, SEN-05, SEN-33, SUI-17, ALE-27, TEL-17; record 0001; CL-DSN-16, CL-SUI-16, CL-ALE-12, CL-SUI-09 (file 13, 10 and 09 rulings)
+- **Problem:** Lot 2 rows refer to Lot 1 rows, events and cases above all, and a Lot 1 operation runs a Lot 2 step only where one is planned. A case can hold a detected event and an imported one; once the detected event has left it, Lot 2 rows could stay on the case and block the later deletion (IMP-33) or replacement at import (IMP-29) of the imported event.
+- **Ruling:** no Lot 1 operation is ever blocked by a Lot 2 row. For every Lot 2 reference to a Lot 1 row, one of these holds:
+  - a Lot 2 step always runs before the Lot 1 row is deleted, as in a withdrawal (CL-DSN-16);
+  - the reference follows the event instead of the case;
+  - the reference is deleted or emptied with its target, when nothing a requirement keeps is lost.
+
+  The data model lists every reference with its mechanism. Consequences: an alert sheet's outcome follows its sheet event and reads its case live (CL-ALE-12); a tracked-game result waiting for Telegram goes with its case (CL-SUI-09); a decision about a deleted event stays on its tracked case without naming the event (SUI-17, CL-SUI-10).
+- **Why:** record 0001 and VUE-06 make Lot 1 work alone and never depend on Lot 2; a Lot 1 deletion that a Lot 2 row could refuse would make it depend on Lot 2.
+- **Owner review:** no
+
 ## Ruled elsewhere
 
 - **The start of a game's day and the waiting rule in 07's terms** — owned by 07 (STA-31, STA-32, STA-36, STA-37): ruled by CL-STA-14 (a game whose time is to be determined is deemed to start at 00:00 US Eastern time on its date, the start of its day under CL-TRV-03) and CL-STA-10 (the wait, the cut-off ending "source late" and the late-source incident of CL-TRV-23, applied as written).

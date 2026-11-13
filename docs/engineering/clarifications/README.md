@@ -49,9 +49,9 @@ Each rule has one owner: the clarification file of the spec file that defines th
 | [11 Notifications Telegram](../../11-notifications-telegram.md) | [11-telegram-notifications.md](11-telegram-notifications.md) | 23 | 5 |
 | [12 Interface et accès](../../12-interface-et-acces.md) | [12-interface-and-access.md](12-interface-and-access.md) | 24 | 2 |
 | [13 Données sensibles](../../13-donnees-sensibles.md) | [13-sensitive-data.md](13-sensitive-data.md) | 22 | 6 |
-| [14 Exigences transverses](../../14-exigences-transverses.md) | [14-cross-cutting-requirements.md](14-cross-cutting-requirements.md) | 23 | 7 |
+| [14 Exigences transverses](../../14-exigences-transverses.md) | [14-cross-cutting-requirements.md](14-cross-cutting-requirements.md) | 24 | 7 |
 | [90 Journal des décisions](../../90-journal-des-decisions.md) | [90-decision-journal.md](90-decision-journal.md) | 11 | 0 |
-| **Total** | | **364** | **67** |
+| **Total** | | **365** | **67** |
 
 ## Owner review
 
@@ -133,6 +133,7 @@ Each row is an amendment to make to the record or to read into the hypothesis. "
 
 | Record or hypothesis | Rulings | What changes |
 | --- | --- | --- |
+| Record 0001, Consequences ("Lot 1 code never depends on Lot 2 modules") | CL-TRV-24 | The same holds for data: no Lot 2 row ever blocks a Lot 1 deletion; each Lot 2 reference to a Lot 1 row has a Lot 2 step that runs first, follows the event instead of the case, or goes with its target, as the data model lists. |
 | Record 0010 (register row CA-TRV-36) | CL-TRV-02, CL-IHM-07 | A game's local time at the venue is never shown; CA-TRV-36 expects "Wednesday 11 November 2026, 04:30 Paris time — Tuesday evening in the US". |
 | Record 0012, open point | CL-STA-23, CL-JOU-21 | Settled as recommended: one source per season, assigned in the service sheet; one confirmed mapping per player and source. |
 | Record 0012 | CL-TRV-14, CL-STA-23 | New: at a source replacement, the season in progress is fetched again whole from the new source, consolidated games included (exception to STA-42), as a forced refetch (STA-44) whose differences are traced as corrections; the replacement is a procedure of the service sheet, with no screen of its own. |
@@ -223,7 +224,7 @@ Each line names something a ruling requires the app to store that the specs do n
 - CL-ALE-07, CL-ALE-12: frozen snapshots per section; the outcome's profile snapshot frozen at closure; each later change of gap, baseline or category in the update log with its earlier value.
 - CL-SUI-03: forecast versions with their instants, from the case's creation to the measured game's scheduled start.
 - CL-SUI-10: per case, its post-tip-off decisions with their kind (exit, entry, change of measured game).
-- CL-SUI-16: per tracked case emptied by a regrouping or a merge of events after its game's scheduled start, an exit: the event it is tied to (the emptied case's earliest-recorded event, or the kept event of a merge), its player and type, the overall sub-row of its forecast and its gap in the forecast direction, never recalculated, with no date and no game.
+- CL-SUI-16: per tracked case emptied by a regrouping or a merge of events after its game's scheduled start, an exit: the event it is tied to (the emptied case's earliest-recorded detected or calendar-derived event, or the kept event of a merge), its player and type, the overall sub-row of its forecast and its gap in the forecast direction, never recalculated, with no date and no game.
 - CL-TEL-07: per day of the owner's time zone, the number of messages sent; the cap message, once a day; the status « abandonné » with the reason "daily cap".
 - CL-TEL-08: the pending end message of a notified incident until the incident recurrence window has passed.
 - CL-TEL-09: per sent message, its chat identifier and Telegram's message identifier, erased with its text.
