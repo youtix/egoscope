@@ -1,8 +1,12 @@
 /**
- * The two rules of the `egoscope` plugin that keep results independent of where
- * the code runs, registered by eslint-plugin.ts and probed in
- * eslint-plugin.test.ts. Both need type information.
+ * The three rules of the `egoscope` plugin that keep results independent of the
+ * machine's clock, time zone and locale, registered by eslint-plugin.ts and probed
+ * in eslint-plugin.test.ts. All three need type information.
  *
+ * - `no-local-time`: in the pure core, a date is an absolute instant. Methods that
+ *   read or write local time, string conversions that print it, and constructors
+ *   that parse strings or take local calendar fields all depend on the machine's
+ *   time zone. The UTC methods stay allowed.
  * - `no-ambient-time`: outside src/lib/time, nothing reads the clock or makes a
  *   Date from anything but an instant, so that tests can fix the time and no
  *   date is parsed by rules of its own.
@@ -19,6 +23,95 @@ const createRule = ESLintUtils.RuleCreator<{ requiresTypeChecking?: boolean }>(
 
 const isNamed = (node: TSESTree.Node, name: string): boolean =>
   node.type === AST_NODE_TYPES.Identifier && node.name === name;
+
+// The Date methods that read or write local time, or print it.
+const LOCAL_TIME_METHODS: ReadonlySet<string> = new Set([
+  'getDate',
+  'getDay',
+  'getFullYear',
+  'getHours',
+  'getMilliseconds',
+  'getMinutes',
+  'getMonth',
+  'getSeconds',
+  'getTimezoneOffset',
+  'getYear',
+  'setDate',
+  'setFullYear',
+  'setHours',
+  'setMilliseconds',
+  'setMinutes',
+  'setMonth',
+  'setSeconds',
+  'setYear',
+  'toDateString',
+  'toLocaleDateString',
+  'toLocaleString',
+  'toLocaleTimeString',
+  'toString',
+  'toTimeString',
+]);
+
+/** Forbids time-zone-dependent Date operations, wherever eslint.config.ts applies it. */
+export const noLocalTime = createRule({
+  name: 'no-local-time',
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Forbid time-zone-dependent Date operations in the pure core.',
+      requiresTypeChecking: true,
+    },
+    messages: {
+      method:
+        '`{{method}}` depends on the time zone of the machine: use the UTC methods (getUTC*, setUTC*, toISOString) on absolute instants (module rule 2).',
+      fields:
+        '`new Date(year, month, …)` reads local calendar fields: build the instant with Date.UTC(…) (module rule 2).',
+      parse:
+        '`new Date(string)` parses with time-zone rules: take the instant in milliseconds instead (module rule 2).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const services = ESLintUtils.getParserServices(context);
+    const checker = services.program.getTypeChecker();
+    const isDate = (node: TSESTree.Node): boolean => {
+      const type = checker.getNonNullableType(services.getTypeAtLocation(node));
+      const parts = type.isUnion() ? type.types : [type];
+      return parts.some((part) => part.getSymbol()?.getName() === 'Date');
+    };
+    const isNumber = (node: TSESTree.Node): boolean =>
+      checker.isTypeAssignableTo(services.getTypeAtLocation(node), checker.getNumberType());
+    return {
+      MemberExpression(node): void {
+        const { property } = node;
+        if (
+          property.type === AST_NODE_TYPES.Identifier &&
+          LOCAL_TIME_METHODS.has(property.name) &&
+          isDate(node.object)
+        ) {
+          context.report({ node: property, messageId: 'method', data: { method: property.name } });
+        }
+      },
+      CallExpression(node): void {
+        const [argument] = node.arguments;
+        if (argument !== undefined && isNamed(node.callee, 'String') && isDate(argument)) {
+          context.report({ node, messageId: 'method', data: { method: 'String(date)' } });
+        }
+      },
+      NewExpression(node): void {
+        if (!isNamed(node.callee, 'Date')) {
+          return;
+        }
+        const [argument, ...others] = node.arguments;
+        if (others.length > 0) {
+          context.report({ node, messageId: 'fields' });
+        } else if (argument !== undefined && !isNumber(argument) && !isDate(argument)) {
+          context.report({ node, messageId: 'parse' });
+        }
+      },
+    };
+  },
+});
 
 // What reads the ambient time, and what parses a date, through a member: `Date.now`
 // and `Temporal.Now` read the clock, `Date.parse` reads a string by rules of its own.

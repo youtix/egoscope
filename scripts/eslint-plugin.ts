@@ -6,12 +6,9 @@
  *   that code out of the coverage gate without anyone noticing.
  * - `no-tool-pragmas`: comments that switch another tool of the gate off.
  * - `no-skipped-tests`: tests switched off while the suite runs.
- * - `no-local-time` (needs type information): in the pure core, a date is an
- *   absolute instant. Methods that read or write local time, string conversions
- *   that print it, and constructors that parse strings or take local calendar
- *   fields all depend on the machine's time zone. The UTC methods stay allowed.
- * - `no-ambient-time` and `no-default-locale`, in eslint-time-rules.ts: the
- *   clock, date parsing and default locales, whose results depend on the machine.
+ * - `no-local-time`, `no-ambient-time` and `no-default-locale`, in
+ *   eslint-time-rules.ts: local time in the pure core, the clock, date parsing
+ *   and default locales, whose results depend on the machine.
  */
 import {
   AST_NODE_TYPES,
@@ -21,7 +18,7 @@ import {
   TSESLint,
 } from '@typescript-eslint/utils';
 
-import { noAmbientTime, noDefaultLocale } from './eslint-time-rules';
+import { noAmbientTime, noDefaultLocale, noLocalTime } from './eslint-time-rules';
 
 import type { TSESTree } from '@typescript-eslint/utils';
 import type { ESLint } from 'eslint';
@@ -85,35 +82,9 @@ const VITEST_OBJECTS: ReadonlySet<string> = new Set(['it', 'test', 'describe', '
 // The calls whose callback receives the test context, whose skip() skips the test.
 const CONTEXT_OWNERS: ReadonlySet<string> = new Set([...VITEST_OBJECTS, 'beforeEach', 'afterEach']);
 
-const LOCAL_TIME_METHODS: ReadonlySet<string> = new Set([
-  'getDate',
-  'getDay',
-  'getFullYear',
-  'getHours',
-  'getMilliseconds',
-  'getMinutes',
-  'getMonth',
-  'getSeconds',
-  'getTimezoneOffset',
-  'getYear',
-  'setDate',
-  'setFullYear',
-  'setHours',
-  'setMilliseconds',
-  'setMinutes',
-  'setMonth',
-  'setSeconds',
-  'setYear',
-  'toDateString',
-  'toLocaleDateString',
-  'toLocaleString',
-  'toLocaleTimeString',
-  'toString',
-  'toTimeString',
-]);
-
-const isNamed = (node: TSESTree.Node, name: string): boolean =>
-  node.type === AST_NODE_TYPES.Identifier && node.name === name;
+/** Says whether `node` is the name `skip`. */
+const isSkipName = (node: TSESTree.Node): boolean =>
+  node.type === AST_NODE_TYPES.Identifier && node.name === 'skip';
 
 /** Reports each comment whose text `isMatch` accepts, and returns the lines they cover. */
 function reportComments(
@@ -250,10 +221,10 @@ function isTestContext(scope: TSESLint.Scope.Scope, node: TSESTree.Identifier): 
 /** Says whether `callee` is skip() from the test context: `context.skip` or a destructured `skip`. */
 function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope): boolean {
   const holder =
-    callee.type === AST_NODE_TYPES.MemberExpression && isNamed(callee.property, 'skip')
+    callee.type === AST_NODE_TYPES.MemberExpression && isSkipName(callee.property)
       ? callee.object
       : callee;
-  const isSkipCall = holder !== callee || isNamed(callee, 'skip');
+  const isSkipCall = holder !== callee || isSkipName(callee);
   return isSkipCall && holder.type === AST_NODE_TYPES.Identifier && isTestContext(scope, holder);
 }
 
@@ -294,66 +265,6 @@ const noSkippedTests = createRule({
         const name = skippingCall(node.callee, context.sourceCode.getScope(node));
         if (name !== undefined) {
           context.report({ node: node.callee, messageId: 'skip', data: { name } });
-        }
-      },
-    };
-  },
-});
-
-const noLocalTime = createRule({
-  name: 'no-local-time',
-  meta: {
-    type: 'problem',
-    docs: {
-      description: 'Forbid time-zone-dependent Date operations in the pure core.',
-      requiresTypeChecking: true,
-    },
-    messages: {
-      method:
-        '`{{method}}` depends on the time zone of the machine: use the UTC methods (getUTC*, setUTC*, toISOString) on absolute instants (module rule 2).',
-      fields:
-        '`new Date(year, month, …)` reads local calendar fields: build the instant with Date.UTC(…) (module rule 2).',
-      parse:
-        '`new Date(string)` parses with time-zone rules: take the instant in milliseconds instead (module rule 2).',
-    },
-    schema: [],
-  },
-  create(context) {
-    const services = ESLintUtils.getParserServices(context);
-    const checker = services.program.getTypeChecker();
-    const isDate = (node: TSESTree.Node): boolean => {
-      const type = checker.getNonNullableType(services.getTypeAtLocation(node));
-      const parts = type.isUnion() ? type.types : [type];
-      return parts.some((part) => part.getSymbol()?.getName() === 'Date');
-    };
-    const isNumber = (node: TSESTree.Node): boolean =>
-      checker.isTypeAssignableTo(services.getTypeAtLocation(node), checker.getNumberType());
-    return {
-      MemberExpression(node): void {
-        const { property } = node;
-        if (
-          property.type === AST_NODE_TYPES.Identifier &&
-          LOCAL_TIME_METHODS.has(property.name) &&
-          isDate(node.object)
-        ) {
-          context.report({ node: property, messageId: 'method', data: { method: property.name } });
-        }
-      },
-      CallExpression(node): void {
-        const [argument] = node.arguments;
-        if (argument !== undefined && isNamed(node.callee, 'String') && isDate(argument)) {
-          context.report({ node, messageId: 'method', data: { method: 'String(date)' } });
-        }
-      },
-      NewExpression(node): void {
-        if (!isNamed(node.callee, 'Date')) {
-          return;
-        }
-        const [argument, ...others] = node.arguments;
-        if (others.length > 0) {
-          context.report({ node, messageId: 'fields' });
-        } else if (argument !== undefined && !isNumber(argument) && !isDate(argument)) {
-          context.report({ node, messageId: 'parse' });
         }
       },
     };
