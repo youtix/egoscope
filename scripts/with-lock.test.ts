@@ -111,7 +111,8 @@ type SlowGit = Readonly<{ path: string; asked: string; answer: () => void }>;
 /**
  * Writes a `git` for the PATH it returns: when the wrapper asks it for the git
  * directory during its start-up checks, it creates `asked`, then runs `reply` only
- * once the test calls `answer`.
+ * once the test calls `answer`. The shells that the wrapper starts from that PATH
+ * ignore SIGTERM, so a signal passed on to them cannot stand in for the go-ahead.
  */
 function slowGit(folder: string, reply: string): SlowGit {
   const bin = path.join(folder, 'bin');
@@ -124,6 +125,9 @@ function slowGit(folder: string, reply: string): SlowGit {
     reply,
   ];
   writeFileSync(path.join(bin, 'git'), `${script.join('\n')}\n`, { mode: 0o755 });
+  writeFileSync(path.join(bin, 'sh'), '#!/bin/sh\ntrap "" TERM\nexec /bin/sh "$@"\n', {
+    mode: 0o755,
+  });
   return {
     path: `${bin}:${process.env['PATH'] ?? ''}`,
     asked,
