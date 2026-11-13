@@ -33,16 +33,18 @@ description = "A Groq API key, which no default rule knows."
 regex = '''\b(gsk_[A-Za-z0-9]{52})\b'''
 keywords = ["gsk_"]
 
+# In TypeScript, this rule and the next one also recognize an assignment by key,
+# process.env['NAME'] = or ??=: noPropertyAccessFromIndexSignature refuses process.env.NAME.
 [[rules]]
 id = "generated-secret"
 description = "A 32-byte secret that the owner generates (43 base64url characters, or 43 base64 characters and one equals sign), where an assignment names it."
-regex = '''(?i)[\w.-]{0,50}?(?:cron_secret|telegram_webhook_secret|fingerprint_key|backup_encryption_key)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([a-z0-9+/_-]{43}=?)(?:[\x60'"\s;]|\\[nr]|$)'''
+regex = '''(?i)[\w.-]{0,50}?(?:cron_secret|telegram_webhook_secret|fingerprint_key|backup_encryption_key)(?:[ \t\w.-]{0,20})[\s'"\]]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?{1,2}=|,)[\x60'"\s=]{0,5}([a-z0-9+/_-]{43}=?)(?:[\x60'"\s;]|\\[nr]|$)'''
 keywords = ["cron_secret", "telegram_webhook_secret", "fingerprint_key", "backup_encryption_key"]
 
 [[rules]]
 id = "initial-password"
 description = "The initial password of the owner's account, where an environment line or a quoted string assigns it; the default generic rule misses passwords with symbols such as ! or #, and passwords of letters only."
-regex = '''(?im)^[ \t]*(?:export[ \t]+)?\w*initial_password[ \t]*=[ \t]*["']?([^\r\n]{12,}?)["']?[ \t]*$|initial_password\w*["'\x60]?[ \t]*(?::|=>?|,)[ \t]*(?:"([^"\r\n]{12,})"|'([^'\r\n]{12,})')'''
+regex = '''(?im)^[ \t]*(?:export[ \t]+)?\w*initial_password[ \t]*=[ \t]*["']?([^\r\n]{12,}?)["']?[ \t]*$|initial_password\w*["'\x60]?\]?[ \t]*(?::|=>?|,|\?\?=)[ \t]*(?:"([^"\r\n]{12,})"|'([^'\r\n]{12,})')'''
 keywords = ["initial_password"]
 
 # Allow-list: exact dummy values of .env.example and of test fixtures only, never a
