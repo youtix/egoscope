@@ -33,6 +33,7 @@ const PURE_CORES = ['src/lib/stats-engine/', 'src/lib/ai-exchange/'];
 const RAW_DATA_EXTENSION = /\.(?:csv|tsv|jsonl?|ndjson|xlsx?|parquet|sqlite|db)$/u;
 const APP_MANIFEST = /^src\/app\/manifest\.(?:json|webmanifest)$/u;
 const TEST_FILE = /^(?<base>.+)\.test\.tsx?$/u;
+const SPEC_FILE = /\.spec\.[cm]?[jt]sx?$/u;
 const LIB = 'src/lib/';
 // A file sits at most in src/lib/<module>/<sub>/.
 const MAX_SEGMENTS_BELOW_LIB = 3;
@@ -132,6 +133,12 @@ const checkTestColocation: Check = (path, files) => {
   return hasSubject ? [] : ['A test sits next to the file it tests: foo.test.ts beside foo.ts.'];
 };
 
+// Coverage counts every file of src/, so a spec there would count as untested code.
+const checkSpecsOutsideSrc: Check = (path) =>
+  path.startsWith('src/') && SPEC_FILE.test(path)
+    ? ['End-to-end specs live in e2e/, outside src/.']
+    : [];
+
 const CHECKS: readonly Check[] = [
   checkSrcRoot,
   checkLibDepth,
@@ -140,6 +147,7 @@ const CHECKS: readonly Check[] = [
   checkCodeAndData,
   checkLanguage,
   checkTestColocation,
+  checkSpecsOutsideSrc,
 ];
 
 function missingModuleIndexes(files: Files): readonly StructureViolation[] {

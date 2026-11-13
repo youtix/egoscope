@@ -65,8 +65,10 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
 ## Tests
 
 - A test sits beside the file it tests: `foo.test.ts` next to `foo.ts`. Component tests are
-  `.test.tsx` files and run in jsdom. Playwright specs must not use the `.test.ts` suffix, which
-  Vitest collects and the structure check pairs with a source file: name them `.spec.ts`.
+  `.test.tsx` files and run in jsdom.
+- End-to-end specs live in `e2e/`, outside `src/` (whose every file coverage counts), and are named
+  `.spec.ts`, never `.test.ts`, which Vitest would collect. Specs and their helpers in `e2e/` may
+  import development dependencies such as `@playwright/test`.
 - A title starts with the requirement IDs it verifies, in square brackets, then states the
   behavior: `it('[JOU-04] rejects a 31st active player', ...)`. Every acceptance criterion you
   implement gets a test that cites it.

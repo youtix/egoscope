@@ -116,4 +116,19 @@ describe('findStructureViolations', () => {
       'src/lib/env/parse.test.ts: A test sits next to the file it tests: foo.test.ts beside foo.ts.',
     ]);
   });
+
+  it('accepts end-to-end specs and their helpers in e2e/', () => {
+    const paths = [...VALID_LAYOUT, 'e2e/players.spec.ts', 'e2e/fixtures.ts'];
+
+    expect(findStructureViolations(paths)).toStrictEqual([]);
+  });
+
+  it.each(['src/app/players/players.spec.ts', 'src/lib/env/server-env.spec.tsx'])(
+    'keeps end-to-end specs out of src/, where coverage would count them: rejects %s',
+    (path) => {
+      expect(problemsFor([...VALID_LAYOUT, path]).join('\n')).toContain(
+        `${path}: End-to-end specs live in e2e/, outside src/.`,
+      );
+    },
+  );
 });

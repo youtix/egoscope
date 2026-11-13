@@ -49,6 +49,8 @@ export const SHELL_PROBES: readonly string[] = SHELL_KINDS.flatMap((kind) =>
 // TypeScript project service sees it.
 const PROBE_FILES: readonly string[] = [
   ...SHELL_PROBES,
+  'e2e/fixtures.ts',
+  'e2e/smoke.spec.ts',
   'src/app/page-helper.ts',
   'src/app/players/[playerId]/page.tsx',
   'src/app/players/page.tsx',

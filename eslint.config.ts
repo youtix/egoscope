@@ -50,6 +50,8 @@ const TEST_FILES = [`**/*.test.${TS}`];
 const COMPONENT_TEST_FILES = ['**/*.test.tsx'];
 const CONFIG_FILES = ['*.config.ts', 'vitest.dom-setup.ts'];
 const SCRIPT_FILES = [`scripts/**/*.${TS}`];
+// End-to-end specs and their helpers, which live in e2e/, outside src/ (structure check).
+const E2E_FILES = [`e2e/**/*.${TS}`, `**/*.spec.${TS}`];
 const SRC_FILES = [`src/**/*.${TS}`];
 const PURE_CORE_FILES = [`src/lib/{stats-engine,ai-exchange}/**/*.${TS}`];
 
@@ -663,7 +665,7 @@ const composed = defineConfig(
       'import-x/no-extraneous-dependencies': [
         'error',
         {
-          devDependencies: [...TEST_FILES, ...CONFIG_FILES, ...SCRIPT_FILES],
+          devDependencies: [...TEST_FILES, ...CONFIG_FILES, ...SCRIPT_FILES, ...E2E_FILES],
           optionalDependencies: false,
           peerDependencies: false,
         },

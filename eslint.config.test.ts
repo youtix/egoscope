@@ -439,6 +439,25 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
     });
   });
 
+  describe('end-to-end specs', () => {
+    it.each(['e2e/smoke.spec.ts', 'e2e/fixtures.ts'])(
+      'let %s import a development dependency',
+      async (file) => {
+        const code = "import { expect } from 'vitest';\n\nexport const check = expect;\n";
+
+        expect(await ruleIds(file, code)).not.toContain('import-x/no-extraneous-dependencies');
+      },
+    );
+
+    it('still keeps development dependencies out of src/', async () => {
+      const code = "import { expect } from 'vitest';\n\nexport const check = expect;\n";
+
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(
+        'import-x/no-extraneous-dependencies',
+      );
+    });
+  });
+
   describe('secrets, logging and documentation', () => {
     it('reads process.env only inside src/lib/env', async () => {
       const code = "export const level = (): unknown => process.env['LOG_LEVEL'];\n";
