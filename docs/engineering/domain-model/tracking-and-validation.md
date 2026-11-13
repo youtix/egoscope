@@ -169,7 +169,7 @@ A regrouping before the scheduled start records no exit: no result was known.
 
 Before the scheduled start, or when the absorbed event shares its case with another event, step 1 records nothing.
 
-**Limit** (`CL-SUI-16`). A tracked case whose remaining events are all imported or entered by hand, and which the deletion or the replacement of its last event later removes (IMP-29, IMP-33), leaves no regrouping exit: that Lot 1 path runs no Lot 2 step, the tracked-case rows cascade with the case, and the profile's tally still counts the deletion (`CL-SEN-25`). For the same reason a regrouping that empties such a case records no exit, having no detected or calendar event to tie it to.
+**Limit** (`CL-SUI-16`). A tracked case whose remaining events are all imported or entered by hand, and which the deletion or the replacement of its last event later removes (IMP-29, IMP-33), leaves no regrouping exit: that Lot 1 path runs no Lot 2 step (`CL-TRV-24`), the tracked-case rows cascade with the case, and the profile's tally still counts the deletion or the replacement (SEN-33). For the same reason a regrouping that empties such a case records no exit, having no detected or calendar event to tie it to; the tally counts the grouping (SEN-32).
 
 **Purge.** None: tracked cases are case data and last as long as their case.
 

@@ -451,7 +451,7 @@ Nothing else is sent: no team, no source of an event, nothing about the owner (D
 
 Modeling choices of this file:
 
-1. **`novelty` has three values, `new_fact`, `old_fact` and `known_event`.** `CL-DET-02` lists "new fact" or a designated event, but DET-20, DET-55 and the reason `old_fact` need the model to say that an article rehashes a fact public before the grouping window; nothing else in the answer could carry it (glossary: `isNewFact`, "New fact; Old fact"). Flagged for the orchestrator.
+1. **`novelty` has three values, `new_fact`, `old_fact` and `known_event`.** `CL-DET-02` lists "new fact" or a designated event, but DET-20, DET-55 and the reason `old_fact` need the model to say that an article rehashes a fact public before the grouping window; nothing else in the answer could carry it (glossary: `isNewFact`, "New fact; Old fact"); the third value goes beyond `CL-DET-02`'s list for DET-20 and DET-55.
 2. **One array per fact kind** in the answer instead of a field that switches the kind: strict mode needs no `anyOf`, and "a fact mixing kinds" (CL-DET-02) cannot be expressed.
 3. **Identifiers sent as strings of the application's own identifiers**, so the checks of DET-22 are lookups in the request.
 4. **The queue item is derived from pending parts**, not a table: the parts already hold the entry kind, instant, attempts and failed mark, and two copies would drift.
