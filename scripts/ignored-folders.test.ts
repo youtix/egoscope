@@ -1,9 +1,20 @@
 // Proves that no tool reads .claude/, where the other agents' worktrees live. The
 // probe is a simulated nested worktree whose files would break each tool. It sits
-// in .claude/ but outside .claude/worktrees/, which .gitignore already hides, so
-// that each tool's own ignore setting is what gets tested.
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+// under .claude/ in a throwaway copy of the project, so that the real checkout is
+// never written to, and outside .claude/worktrees/, which .gitignore already hides,
+// so that each tool's own ignore setting is what gets tested.
+import { execFileSync, spawnSync } from 'node:child_process';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { compile } from '@tailwindcss/node';
@@ -11,12 +22,12 @@ import { Scanner } from '@tailwindcss/oxide';
 import { ESLint } from 'eslint';
 import { getFileInfo } from 'prettier';
 import ts from 'typescript';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import { IGNORED_FOLDERS, isIgnoredPath } from './ignored-folders';
 
 const ROOT = path.join(import.meta.dirname, '..');
-const NESTED = `.claude/ignore-probe-${String(process.pid)}`;
+const NESTED = '.claude/ignore-probe';
 // A class that the build would generate CSS for if Tailwind scanned the probe. It is
 // made at run time, so that no scanned file, this one included, contains it.
 const PROBE_CLASS = `bg-[#${process.pid.toString(16).padStart(6, '0').slice(-6)}]`;
@@ -34,12 +45,46 @@ const BROKEN_FILES: Readonly<Record<string, string>> = {
   // A component whose class name would end up in the built stylesheet.
   [`${NESTED}/src/app/probe-view.tsx`]: `export const className = '${PROBE_CLASS}';\n`,
 };
-const PROBE_TS = path.join(ROOT, `${NESTED}/src/lib/broken/index.ts`);
-const STYLESHEET = path.join(ROOT, 'src/app/globals.css');
 const BIN = (name: string): string => path.join(ROOT, 'node_modules/.bin', name);
 
 /**
- * Scans the project for class names as the build does: @tailwindcss/turbopack
+ * A throwaway copy of the project, with the probe in place: the files that git
+ * would commit, a link to node_modules, and a git repository of its own, which the
+ * structure check lists its files with.
+ */
+function copyProject(): string {
+  const copy = mkdtempSync(path.join(tmpdir(), 'egoscope-ignore-'));
+  const listed = execFileSync(
+    'git',
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+    {
+      cwd: ROOT,
+      encoding: 'utf8',
+    },
+  );
+  const files = listed
+    .split('\0')
+    .filter((file) => file !== '' && !isIgnoredPath(file) && existsSync(path.join(ROOT, file)));
+  for (const [file, content] of [
+    ...files.map((name) => [name, readFileSync(path.join(ROOT, name))] as const),
+    ...Object.entries(BROKEN_FILES),
+  ]) {
+    mkdirSync(path.dirname(path.join(copy, file)), { recursive: true });
+    writeFileSync(path.join(copy, file), content);
+  }
+  symlinkSync(path.join(ROOT, 'node_modules'), path.join(copy, 'node_modules'), 'dir');
+  execFileSync('git', ['init', '--quiet'], { cwd: copy });
+  // To git the link is a file, which `node_modules/` in .gitignore does not cover.
+  appendFileSync(path.join(copy, '.git/info/exclude'), 'node_modules\n');
+  return copy;
+}
+
+const PROJECT = copyProject();
+const PROBE_TS = path.join(PROJECT, `${NESTED}/src/lib/broken/index.ts`);
+const STYLESHEET = path.join(PROJECT, 'src/app/globals.css');
+
+/**
+ * Scans the copy for class names as the build does: @tailwindcss/turbopack
  * compiles the stylesheet, then scans the automatic source (the project root, where
  * the build runs) together with the stylesheet's own `@source` entries.
  */
@@ -49,35 +94,30 @@ async function tailwindScan(): Promise<Readonly<{ files: string[]; classes: stri
     base: path.dirname(STYLESHEET),
     onDependency: () => undefined,
   });
-  const automatic = compiler.root === null ? [{ base: ROOT, pattern: '**/*', negated: false }] : [];
+  const automatic =
+    compiler.root === null ? [{ base: PROJECT, pattern: '**/*', negated: false }] : [];
   const scanner = new Scanner({ sources: [...automatic, ...compiler.sources] });
   const classes = scanner.scan();
   return { files: scanner.files, classes };
 }
 
-/** Runs a project tool from the repository root, outside the shared lock. */
+/** Runs a project tool in the copy, outside the shared lock. */
 function tool(
   command: string,
   args: readonly string[],
 ): Readonly<{ status: number | null; output: string }> {
   const result = spawnSync(command, args, {
-    cwd: ROOT,
+    cwd: PROJECT,
     encoding: 'utf8',
     env: { ...process.env, CI: 'true' },
   });
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
-describe('ignored folders', { timeout: 60_000 }, () => {
-  beforeAll(() => {
-    for (const [file, content] of Object.entries(BROKEN_FILES)) {
-      mkdirSync(path.dirname(path.join(ROOT, file)), { recursive: true });
-      writeFileSync(path.join(ROOT, file), content);
-    }
-  });
-
+describe('ignored folders', { timeout: 120_000 }, () => {
   afterAll(() => {
-    rmSync(path.join(ROOT, NESTED), { recursive: true, force: true });
+    // The link goes with the copy; what it points at stays.
+    rmSync(PROJECT, { recursive: true, force: true });
   });
 
   it('lists .claude/ and recognizes the paths inside it', () => {
@@ -87,23 +127,23 @@ describe('ignored folders', { timeout: 60_000 }, () => {
   });
 
   it('is ignored by ESLint', async () => {
-    await expect(new ESLint({ cwd: ROOT }).isPathIgnored(PROBE_TS)).resolves.toBe(true);
+    await expect(new ESLint({ cwd: PROJECT }).isPathIgnored(PROBE_TS)).resolves.toBe(true);
   });
 
   it('is ignored by Prettier', async () => {
-    const ignorePath = [path.join(ROOT, '.gitignore'), path.join(ROOT, '.prettierignore')];
+    const ignorePath = [path.join(PROJECT, '.gitignore'), path.join(PROJECT, '.prettierignore')];
 
     await expect(getFileInfo(PROBE_TS, { ignorePath })).resolves.toMatchObject({ ignored: true });
   });
 
   it('is left out of the TypeScript project', () => {
     const parsed = ts.getParsedCommandLineOfConfigFile(
-      path.join(ROOT, 'tsconfig.json'),
+      path.join(PROJECT, 'tsconfig.json'),
       {},
       { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => undefined },
     );
 
-    const inside = parsed?.fileNames.filter((file) => isIgnoredPath(path.relative(ROOT, file)));
+    const inside = parsed?.fileNames.filter((file) => isIgnoredPath(path.relative(PROJECT, file)));
 
     expect(inside).toStrictEqual([]);
   });
@@ -112,8 +152,8 @@ describe('ignored folders', { timeout: 60_000 }, () => {
     const { files, classes } = await tailwindScan();
 
     // The scan read the project, so the absence of the probe is meaningful.
-    expect(files).toContain(path.join(ROOT, 'src/app/page.tsx'));
-    expect(files.filter((file) => isIgnoredPath(path.relative(ROOT, file)))).toStrictEqual([]);
+    expect(files).toContain(path.join(PROJECT, 'src/app/page.tsx'));
+    expect(files.filter((file) => isIgnoredPath(path.relative(PROJECT, file)))).toStrictEqual([]);
     expect(classes).not.toContain(PROBE_CLASS);
   });
 
@@ -128,5 +168,9 @@ describe('ignored folders', { timeout: 60_000 }, () => {
     // The tool ran to completion, so the absence of the probe is meaningful.
     expect(status).toBe(0);
     expect(output).not.toContain('ignore-probe');
+  });
+
+  it('leaves the real checkout untouched', () => {
+    expect(existsSync(path.join(ROOT, NESTED))).toBe(false);
   });
 });
