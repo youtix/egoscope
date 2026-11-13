@@ -10,6 +10,7 @@
  *
  * Never weaken a rule to get green: fix the code, or raise the problem in the PR.
  */
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import eslintJs from '@eslint/js';
@@ -38,7 +39,32 @@ import { GENERATED_FOLDERS } from './scripts/generated-files';
 import { IGNORED_FOLDERS } from './scripts/ignored-folders';
 import { ROUTE_SHELLS, SHELL_KINDS } from './scripts/route-shells';
 
-import type { Linter } from 'eslint';
+import type { ESLint, Linter } from 'eslint';
+
+// ---------------------------------------------------------------------------
+// Drizzle: a `delete` or an `update` without `.where(...)` changes every row of
+// its table. The rules look at the objects named like a Drizzle database or
+// transaction, `db` and `tx`, since every Map, Set and hash has a `delete` or an
+// `update` too.
+// ---------------------------------------------------------------------------
+
+const DRIZZLE_OBJECTS = ['db', 'tx'];
+
+// eslint-plugin-drizzle ships no type declarations, which an import needs: it
+// is required untyped instead, and checked to be a plugin.
+const require = createRequire(import.meta.url);
+const drizzlePlugin: unknown = require('eslint-plugin-drizzle');
+
+const isPlugin = (value: unknown): value is ESLint.Plugin =>
+  typeof value === 'object' && value !== null && 'rules' in value;
+
+/** The plugin that `value` must be, which a failed check reports at once. */
+function asPlugin(value: unknown): ESLint.Plugin {
+  if (!isPlugin(value)) {
+    throw new TypeError('eslint-plugin-drizzle no longer exports an ESLint plugin.');
+  }
+  return value;
+}
 
 // ---------------------------------------------------------------------------
 // File sets. Every TypeScript extension is covered; the structure check then
@@ -773,6 +799,16 @@ const composed = defineConfig(
     rules: {
       // Pages Router rule; this project only has the App Router.
       '@next/next/no-html-link-for-pages': 'off',
+    },
+  },
+
+  {
+    name: 'egoscope/drizzle',
+    files: SRC_FILES,
+    plugins: { drizzle: asPlugin(drizzlePlugin) },
+    rules: {
+      'drizzle/enforce-delete-with-where': ['error', { drizzleObjectName: DRIZZLE_OBJECTS }],
+      'drizzle/enforce-update-with-where': ['error', { drizzleObjectName: DRIZZLE_OBJECTS }],
     },
   },
 

@@ -146,6 +146,46 @@ neither a test nor a waiver.
   names that part and its manual check, and the ID keeps its tests.
 - Reviewers read every waiver and every limit, as they read every disable comment.
 
+## Database
+
+- Postgres is reached only through `@/lib/db`: `getDb()` for everything the application does
+  (Neon's pooled connection, PgBouncer in transaction mode), `getDirectDb()` for migrations and
+  long reads such as the backup export. Both are async and return `{ ok: true, db }` or
+  `{ ok: false, error }`: on Vercel without a URL the database is "not configured", never PGlite.
+  Outside Vercel without a URL, both give one PGlite database, on disk in `.pglite/` under
+  `next dev` and in memory otherwise, migrated on first use.
+- Nothing connects at import or start-up: call `getDb()` where a query follows, never at module
+  level. The free plan bills compute for five minutes after each query and allows 100
+  compute-hours a month, so code that does not query (an idle tick, `/api/health`, the request
+  proxy) never asks for the database.
+- The pooled connection keeps no session state: never `SET` or `RESET`, `LISTEN` or `NOTIFY`,
+  SQL-level `PREPARE`, temporary tables or session-level advisory locks. Interactive transactions
+  work (`db.transaction`, one client from `BEGIN` to `COMMIT`); a single-run lock is a lease row or
+  `pg_advisory_xact_lock` inside a transaction.
+- Name a Drizzle database `db` and a transaction `tx`: lint refuses a `delete` or an `update` on
+  them without `.where(...)`.
+- The schema follows the data model: one file per owning module, `src/lib/db/schema/<module>.ts`,
+  re-exported by `schema/index.ts` and, table by table, by `src/lib/db/index.ts`. Tables are
+  snake_case plurals and columns snake_case, each named explicitly; `id` is an integer identity
+  primary key unless a spec demands another identifier (a random uuid for followed players, the
+  slug for event types, `id = 1` for singletons); instants are `timestamptz` and calendar dates
+  `date`; enumerations are `text` with a `CHECK` built from one `as const` array, never Postgres
+  enum types; every foreign key states its `on delete`; `created_at` and `updated_at` exist where
+  the specs need them.
+- After a schema change, run `bun run db:generate` and commit `drizzle/`. `bun run db:check`, the
+  drift check of CI, fails when the schema and `drizzle/` differ or when the migrations do not
+  build the schema from an empty database. Nobody migrates by hand (TRV-76): the production build
+  runs `db:migrate` (`scripts/migrate.ts`) before `next build`, through the direct connection, and
+  only when `VERCEL_ENV` is `production`.
+- A test gets a database of its own from `createTestDatabase()`: in memory, every migration
+  applied. Close it when the test ends, `onTestFinished(database.close)`, since an open one holds
+  about 200 MB.
+- No test reaches the database that the shell running it points to, which may export the
+  production connection strings (TRV-76). `createTestDatabase()` reads no variable; a test of
+  `getDb()`, `getDirectDb()`, `ping()` or `migrateDatabase()` first stubs `DATABASE_URL`,
+  `DATABASE_URL_UNPOOLED` and `VERCEL_ENV` to `''`, then what it needs, as the tests of
+  `src/lib/db/` do.
+
 ## The local loop
 
 - Heavy scripts (`typecheck`, `lint`, `lint:fix`, `test`, `test:coverage`, `build`, `knip`,

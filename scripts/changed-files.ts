@@ -22,7 +22,7 @@ export type CheckPlan = Readonly<{
   frozen: readonly string[];
   /** Present sources, tests and fixtures, for `vitest related`. */
   related: readonly string[];
-  /** Why the whole test suite must run instead: changed tooling, removed sources. */
+  /** Why the whole test suite must run instead: changed tooling or migrations, removed sources. */
   wholeSuite: readonly string[];
 }>;
 
@@ -34,6 +34,8 @@ const CODE = /\.[cm]?[jt]sx?$/u;
 const TOOLING = /^(?:scripts\/|\.github\/|[^/]+$)/u;
 const PROSE = /^[^/]+\.md$/u;
 const SOURCE_OR_DATA = /^(?:src|data)\//u;
+// Every test database is built from the migrations, so a changed one may break any test.
+const MIGRATIONS = 'drizzle/';
 // In `git diff --name-status -z` output: the status, then one or two paths.
 const FIELDS_OF_ONE_PATH = 2;
 const FIELDS_OF_TWO_PATHS = 3;
@@ -87,6 +89,7 @@ export function planCheck(changes: readonly Change[]): CheckPlan {
     related: files.filter((file) => SOURCE_OR_DATA.test(file)),
     wholeSuite: [
       ...all.filter((file) => TOOLING.test(file) && !PROSE.test(file)),
+      ...all.filter((file) => file.startsWith(MIGRATIONS)),
       ...removed.filter((file) => SOURCE_OR_DATA.test(file)),
     ],
   };

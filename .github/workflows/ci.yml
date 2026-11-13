@@ -91,6 +91,20 @@ jobs:
       - name: Unit tests with coverage thresholds
         run: bun run test:coverage
 
+  migrations:
+    name: migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: The migrations match the schema and build it from an empty database
+        run: bun run db:check
+
   build:
     name: build
     runs-on: ubuntu-24.04
@@ -125,7 +139,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: ${{ always() }}
-    needs: [lint, actionlint, typecheck, test, build, pr-title]
+    needs: [lint, actionlint, typecheck, test, migrations, build, pr-title]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
