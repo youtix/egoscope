@@ -54,14 +54,23 @@ const TOOL_PRAGMAS = [
 // The one Stryker comment allowed, where the rule's `equivalentMutants` option is on
 // (the non-test files of the pure core): it spares the next line from the named
 // mutators, for a mutant that no test can tell from the code, with the reason why.
+// Stryker reads mutator names in any letter case, and `all` names every mutator, so
+// `All` or `ALL` is refused too.
 const EQUIVALENT_MUTANT =
-  /^Stryker disable next-line [A-Z][A-Za-z]*(?:,\s*[A-Z][A-Za-z]*)*: (?<reason>.+)$/u;
+  /^Stryker disable next-line (?<mutators>[A-Z][A-Za-z]*(?:,\s*[A-Z][A-Za-z]*)*): (?<reason>.+)$/u;
+const EVERY_MUTATOR = 'all';
 const MIN_REASON_LENGTH = 20;
 
 /** Says whether `comment` is the one allowed form for an equivalent mutant. */
 function isEquivalentMutant(comment: TSESTree.Comment): boolean {
-  const reason = EQUIVALENT_MUTANT.exec(comment.value.trim())?.groups?.['reason'] ?? '';
-  return comment.type === AST_TOKEN_TYPES.Line && reason.trim().length >= MIN_REASON_LENGTH;
+  const groups = EQUIVALENT_MUTANT.exec(comment.value.trim())?.groups;
+  const mutators = (groups?.['mutators'] ?? '').split(',').map((name) => name.trim().toLowerCase());
+  const reason = groups?.['reason'] ?? '';
+  return (
+    comment.type === AST_TOKEN_TYPES.Line &&
+    !mutators.includes(EVERY_MUTATOR) &&
+    reason.trim().length >= MIN_REASON_LENGTH
+  );
 }
 
 // Vitest calls that skip a test, run it only under a condition, or turn its
@@ -180,7 +189,7 @@ const noToolPragmas = createRule<[{ equivalentMutants: boolean }], 'prettier' | 
         prettier:
           '`prettier-ignore` switches Prettier off for the next node: let Prettier format it.',
         stryker:
-          'Stryker comments switch mutation testing off: test the code until its mutants die. The one exception, for an equivalent mutant in the non-test files of the pure core, is `// Stryker disable next-line <Mutator>: <reason of 20 characters or more>` (CLAUDE.md).',
+          'Stryker comments switch mutation testing off: test the code until its mutants die. The one exception, for an equivalent mutant in the non-test files of the pure core, is `// Stryker disable next-line <Mutator>: <reason of 20 characters or more>`, which names each mutator, never `all` (CLAUDE.md).',
         knip: 'knip never reports an export tagged `@public`, `@beta`, `@alias` or `@internal`: use the export, or delete it.',
       },
       schema: [

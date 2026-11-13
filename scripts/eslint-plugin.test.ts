@@ -211,6 +211,13 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
     it.each([
       ['the whole file', '// Stryker disable all'],
       ['every mutator', `// Stryker disable next-line all: ${REASON}`],
+      // Stryker reads mutator names in any letter case: `All` and `ALL` mean `all`.
+      ['every mutator, capitalized', `// Stryker disable next-line All: ${REASON}`],
+      ['every mutator, in capitals', `// Stryker disable next-line ALL: ${REASON}`],
+      [
+        'every mutator, among named ones',
+        `// Stryker disable next-line EqualityOperator, All: ${REASON}`,
+      ],
       ['a block that a later comment restores', `// Stryker disable EqualityOperator: ${REASON}`],
       ['a restore', '// Stryker restore all'],
       ['no mutator name', `// Stryker disable next-line: ${REASON}`],

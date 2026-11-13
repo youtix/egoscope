@@ -71,6 +71,7 @@ const config: ViteUserConfig = defineConfig({
         functions: 90,
         statements: 90,
         'src/lib/stats-engine/**': { 100: true, perFile: true },
+        'src/lib/ai-exchange/**': { 100: true, perFile: true },
       },
     },
   },

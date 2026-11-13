@@ -25,11 +25,12 @@
     "format:check": "prettier --check .",
     "test": "bun scripts/with-lock.ts vitest run",
     "test:coverage": "bun scripts/with-lock.ts vitest run --coverage",
+    "test:mutation": "bun scripts/with-lock.ts stryker run stryker.config.ts",
     "knip": "bun scripts/with-lock.ts knip --treat-config-hints-as-errors",
     "check": "bun run format:check && bun run lint && bun run knip && bun run lint:workflows && bun run typecheck",
     "check:changed": "bun scripts/with-lock.ts bun scripts/check-changed.ts",
     "gate": "bun scripts/with-lock.ts bun run gate:ci",
-    "gate:ci": "bun run check && bun run test:coverage && bun run build",
+    "gate:ci": "bun run check && bun run test:coverage && bun run build && bun scripts/mutation-gate.ts",
     "prepare": "if git rev-parse --git-dir >/dev/null 2>&1; then lefthook install; fi"
   },
   "dependencies": {
@@ -47,6 +48,8 @@
     "@eslint-react/eslint-plugin": "5.28.8",
     "@eslint/js": "10.0.1",
     "@next/eslint-plugin-next": "16.4.5",
+    "@stryker-mutator/core": "10.1.1",
+    "@stryker-mutator/vitest-runner": "10.1.1",
     "@tailwindcss/node": "4.3.4",
     "@tailwindcss/oxide": "4.3.4",
     "@tailwindcss/turbopack": "4.3.4",
