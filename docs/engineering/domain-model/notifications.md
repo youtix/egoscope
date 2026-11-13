@@ -20,7 +20,7 @@ The single link between the app and one private chat (TEL-01, TEL-28 to TEL-32).
 | `chat_id` | bigint | yes | null | the linked private chat; `CHECK ((status IN ('linked','broken')) = (chat_id IS NOT NULL))` | OW | TEL-01, TEL-29 |
 | `linked_at` | timestamptz | yes | null | `CHECK ((chat_id IS NULL) = (linked_at IS NULL))` | — | TEL-32 |
 | `last_successful_send_at` | timestamptz | yes | null | | — | TEL-32 |
-| `last_update_id` | bigint | yes | null | technical: the highest Telegram `update_id` handled, by webhook or by polling; an update at or below it is a redelivery and is ignored, and polling asks for `last_update_id + 1` onward; set in the transaction that handles the update. Telegram numbers a bot's updates in increasing order, and the webhook is registered with one connection so that they arrive in that order | — | TEL-31, CL-TRV-21 |
+| `last_update_id` | bigint | yes | null | technical: the highest Telegram `update_id` handled, by webhook or by polling; an update at or below it is a redelivery and is ignored, and polling asks for `last_update_id + 1` onward; set in the transaction that handles the update, and it only moves forward. Telegram numbers a bot's updates in increasing order, and the webhook is registered with `max_connections` 1 so that they arrive in that order | — | TEL-31, CL-TRV-21 |
 | `row_version` | integer | no | 1 | incremented at every save | — | CL-IHM-18 |
 
 - **Deletion:** never deleted; unlinking empties it, except `last_update_id`, which keeps counting the bot's updates.
@@ -164,18 +164,18 @@ One notified interruption (TEL-15, `CL-TEL-08`), computed from the core's incide
 
 ### 1.8 Withdrawal, dismissal, other erasures, purge, export and backup
 
-**Withdrawal of an event E** (TEL-38, DSN-27, `CL-TEL-09`, `CL-DSN-13`). The notifications eraser runs first among the Lot 2 erasers. Before confirmation the withdrawal screen gets the number of sent messages concerned. No call to Telegram runs inside the transaction. In the withdrawal's transaction:
+**Withdrawal of an event E** (TEL-38, DSN-27, `CL-TEL-09`, `CL-DSN-13`). Before confirmation the withdrawal screen gets the number of sent messages concerned. **Messages concerned** are those with E in `notification_message_events`, those whose fact is E's case, and those whose fact is a sheet that will be erased (its only event is E) or an update of such a sheet; plus every digest or catch-up that grouped one of them. On confirmation, in this order:
 
-1. **Messages concerned** are those with E in `notification_message_events`, those whose fact is E's case, and those whose fact is a sheet that will be erased (its only event is E) or an update of such a sheet; plus every digest or catch-up that grouped one of them.
-2. **Unsent ones** (`to_send`, `deferred`, `failed`) are deleted: they hold no text.
-3. **Sent ones:** their chat identifier, Telegram identifier, send instant and whether each is a digest are read into the withdrawal's memory, then the rows are deleted — text and identifiers included. A digest is deleted whole: its grouped rows that concern E are deleted, the others keep `grouped` with no digest and are not sent again.
-4. Journal entries naming a deleted message (`lot2_object_kind = 'notification_message'`) get the pair set to null; the core removes their mention of E (`CL-TRV-10`).
+1. **A first step, committed on its own:** the unsent messages concerned (`to_send`, `deferred`, `failed`) are discarded with reason `moot`, so that nothing more about E can be sent, and the chat identifier, Telegram identifier, send instant and digest flag of each sent message concerned are read into the withdrawal's memory.
+2. **Outside any transaction:** the app asks Telegram once to delete each sent message, in the chat it was sent to, whatever its age and even in a chat no longer linked.
+3. **The erasure's transaction**, where the notifications eraser runs first among the Lot 2 erasers: every message concerned is deleted, the sent ones with their text and identifiers whatever Telegram answered; a digest is deleted whole, its grouped rows that concern E with it, the others keeping `grouped` with no digest and never sent again; journal entries naming a deleted message (`lot2_object_kind = 'notification_message'`) get the pair set to null, and the core removes their mention of E (`CL-TRV-10`).
+4. **The result screen** gives the number of messages deleted and lists, from memory, those Telegram refused or could not reach — send date and time with the zone, digest or not; the list is never stored.
 
-After the erasure is committed, one deletion request per sent message goes to Telegram, in the chat it was sent to, even a chat no longer linked, whatever the message's age. The messages Telegram refused or could not reach — send date and time with the zone, digest or not — are returned to the withdrawal screen once; the list exists only in memory and is never stored. If the process stops before the requests, the erasure stands and the identifiers are gone: nothing about E remains in these tables either way.
+If the process stops after step 1 or 2, E still exists and the owner withdraws again; a message Telegram no longer finds then counts as deleted. Erasing first would leave messages in the chat with no record of them if the process stopped before the requests went out. After step 3 nothing about E remains in these tables.
 
 **Dismissal of an event** (TEL-38). Every unsent message that designates it is discarded with reason `moot`; sent messages are left as they are.
 
-**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the withdrawal steps. A player-data deletion (CL-JOU-06), after the withdrawal of each of his events, applies steps 2 to 4 and the requests after commit to every remaining message with his `player_id` (backtest requests, reminders). An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is no erasure: unsent messages that name it are discarded as moot, its `notification_message_events` rows are deleted and sent messages keep their text, which holds no press content (`CL-DSN-20`); the alert update of `CL-TEL-21` follows.
+**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the withdrawal steps. A player-data deletion (CL-JOU-06), after the withdrawal of each of his events, applies the same four steps to every remaining message with his `player_id` (backtest requests, reminders). An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is no erasure: unsent messages that name it are discarded as moot, its `notification_message_events` rows are deleted and sent messages keep their text, which holds no press content (`CL-DSN-20`); the alert update of `CL-TEL-21` follows.
 
 **Daily purge.** Deletes the messages created more than `journal.retentionDays` ago whose status is final (`sent`, `grouped`, `discarded`, `failed`), the text being kept for the journal's retention (11 "Données manipulées"), the link codes that are expired or used, and the daily counts of days before the owner's previous day (§1.6).
 
@@ -233,6 +233,7 @@ A message is created only when the chat is linked, the master switch (`notificat
 | A day's counted sends never exceed `notifications.dailyCap`, and erasing a sent message does not lower the count. | TEL-22, CL-TEL-07 | `notification_daily_counts`, locked by every sender from the cap check to the recorded send, never decremented |
 | An incident cycle sends at most one end message, after its last incident has stayed closed for the recurrence window. | TEL-15, CL-TEL-08 | the pending `incident_end` discarded at a reopening (§1.7); `notification_facts_incident_end_uq` |
 | A link code is single-use and expires; its value is never stored or journaled. | TEL-29, TEL-31, CL-TEL-23 | `code_sha256` only; `used_at`; the journal entry holds no code |
+| A Telegram update is handled once, in `update_id` order; `last_update_id` only moves forward. | TEL-31, CL-TRV-21 | the webhook registered with `max_connections` 1; the handling transaction sets it with `WHERE last_update_id IS NULL OR last_update_id < :update_id` and ignores the update when no row changes |
 | The link row is unique; a linked or broken link has its chat. | TEL-01, TEL-30 | `CHECK (id = 1)`; `CHECK` on `chat_id` |
 | A withdrawn event leaves no message in the app. | TEL-38, DSN-27 | eraser of §1.8; `ON DELETE RESTRICT` from `notification_message_events` forces it to run first |
 
@@ -450,7 +451,7 @@ The other service messages follow `CL-TEL-07` (cap), `CL-TEL-11` (pass digest), 
 - `CL-TEL-06`, `CL-TRV-21`: no reply to anyone but the linked chat.
 - `CL-TEL-07`: what the cap counts, the stored daily count, the cap message and the discards after it.
 - `CL-TEL-08`: the end message waits for the recurrence window, stored pending from each closing; the derived cycle.
-- `CL-TEL-09`, `CL-DSN-13`: chat and Telegram identifiers kept with each sent message, erased with its text; one deletion request per message after the erasure is committed, whatever its age; the list of failures shown once and never stored.
+- `CL-TEL-09`, `CL-DSN-13`: chat and Telegram identifiers kept with each sent message, erased with its text; a committed first step that stops sending, then one deletion request per message outside any transaction, whatever its age, then the erasure's transaction; the list of failures shown once and never stored.
 - `CL-TEL-10`: a detection-born proposal is sent with its name and definition.
 - `CL-TEL-11`: alerts beyond the threshold join the pass digest; digest titles and line order.
 - `CL-TEL-12`: the catch-up's tries, contents and statuses; `first_failure_at` and `last_failure_at`; the new parameter `notifications.catchUpIntervalMinutes`.
@@ -478,7 +479,7 @@ Modeling choices of this file:
 8. **New enumeration `NotificationDiscardReason`** (`moot`, `category_disabled`, `notifications_suspended`, `unlinked`, `daily_cap`), to add to the glossary.
 9. **An end message's fact is the closing incident**, not the cycle's first: each closing gets its own pending end message, so a reopening discards one without blocking the next under the one-fact-one-message index.
 10. **An event designation's `origin` takes the glossary's `EventOrigin` values** (`detected`, `calendar`), and the composer writes the glossary's Telegram label "From the calendar" (`CL-TEL-21`).
-11. **`last_update_id` on the link row**, not a table of processed updates: Telegram's update identifiers increase, so one number deduplicates webhook redeliveries and gives the polling offset; one webhook connection keeps them in order.
+11. **`last_update_id` on the link row**, not a table of processed updates: Telegram's update identifiers increase, so one number deduplicates webhook redeliveries and gives the polling offset; the webhook's `max_connections` 1 keeps them in order and the value only moves forward.
 12. **Merged cases keep `ON DELETE RESTRICT`**: the case-merge hook moves or deletes the facts of the emptied case (§1.4), so a result is never notified twice and no other path can delete a notified case silently.
 
 ## 7. Entity-relationship diagram
