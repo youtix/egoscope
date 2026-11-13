@@ -1,9 +1,11 @@
 /**
- * Finds the IDs that test and suite titles cite in square brackets, for the
- * traceability check (trace-requirements.ts): `it('[STA-11] [H-13] scores 25.9', …)`,
- * `describe('[JOU-04] the list cap', …)`, `it.each(rows)('[STA-11] weighs %s', …)` and
- * Playwright's `test.describe('[IHM-02] …', …)`. Titles are read from the syntax tree,
- * so a title quoted inside a string, as the fixtures of a test do, cites nothing.
+ * Finds the IDs that test and suite titles cite in the square brackets they start
+ * with, for the traceability check (trace-requirements.ts):
+ * `it('[STA-11] [H-13] scores 25.9', …)`, `describe('[JOU-04] the list cap', …)`,
+ * `it.each(rows)('[STA-11] weighs %s', …)` and Playwright's
+ * `test.describe('[IHM-02] …', …)`. The rest of a title cites nothing, so that it may
+ * name UTF-8 or SHA-256, bracketed or not. Titles are read from the syntax tree, so a
+ * title quoted inside a string, as the fixtures of a test do, cites nothing.
  */
 import ts from 'typescript';
 
@@ -23,6 +25,8 @@ const UNTITLED_MEMBERS: ReadonlySet<string> = new Set([
   'afterAll',
   'afterEach',
 ]);
+// The square brackets that a title starts with: `[STA-11] [H-13]` of `[STA-11] [H-13] scores…`.
+const LEADING_BRACKETS = /^(?:\s*\[[^[\]]*\])+/u;
 const TAG = /\[(?<id>[A-Z]+(?:-[A-Z]+)*-\d+(?: bis)?)\]/gu;
 // Stands for an interpolation, so that no tag spans one: `[JOU-${n}]` cites nothing.
 const INTERPOLATION = '…';
@@ -77,7 +81,8 @@ export function findTitleTags(path: string, text: string): readonly TitleTag[] {
     const title = ts.isCallExpression(node) ? titleOf(node) : undefined;
     if (title !== undefined) {
       const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
-      for (const match of title.matchAll(TAG)) {
+      const leading = LEADING_BRACKETS.exec(title)?.[0] ?? '';
+      for (const match of leading.matchAll(TAG)) {
         tags.push({ id: match.groups?.['id'] ?? '', where: `${path}:${String(line)}`, title });
       }
     }

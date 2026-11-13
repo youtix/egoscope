@@ -28,9 +28,10 @@ const SPECS: Readonly<Record<string, string>> = {
   ].join('\n'),
   'docs/90-journal-des-decisions.md': "- **H-13 — Formule de l'indicateur.** Le Game Score.\n",
 };
-const INDEX = await criteriaIndex(
-  readSpecIds(Object.entries(SPECS).map(([path, text]) => ({ path, text }))).criteria,
-);
+const SPEC_FILES = Object.entries(SPECS).map(([path, text]) => ({ path, text }));
+// They define IDs of the prefixes JOU, CA and H only.
+const SPEC_IDS = readSpecIds(SPEC_FILES);
+const INDEX = await criteriaIndex(SPEC_IDS.criteria);
 
 /** The waiver register, with these rows in its table. */
 const register = (...rows: readonly string[]): string =>
@@ -183,6 +184,52 @@ describe('runTrace', () => {
     expect([none.code, push.code]).toStrictEqual([0, 0]);
   });
 
+  it('requires only the real ID of a section that also names UTF-8, SHA-256, AES-256 and HMAC-SHA-256', async () => {
+    const result = await run(
+      ['--require-claimed'],
+      { [TEST]: testOf('[JOU-04] refuses a 31st active player') },
+      body(
+        '| JOU-04 | Decodes UTF-8 input, checks its SHA-256 digest, encrypts with AES-256 and signs with HMAC-SHA-256 |',
+      ),
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.errors).toStrictEqual([]);
+    expect(
+      result.info.slice(
+        result.info.indexOf('Required by name:'),
+        result.info.indexOf(`Full report: ${REPORT_PATH}`),
+      ),
+    ).toStrictEqual(['Required by name:', `  JOU-04: covered by ${TEST}:1`]);
+  });
+
+  it('fails on a claimed typo of a known prefix, such as JOU-4, JOU-999 or CA-JOU-99', async () => {
+    const result = await run(
+      ['--require-claimed'],
+      {},
+      body('| JOU-4, JOU-999, CA-JOU-99 | The cap test, on UTF-8 input |'),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.errors.slice(0, -1)).toStrictEqual([
+      'Required IDs: JOU-4 is required, but the specs define no such ID.',
+      'Required IDs: JOU-999 is required, but the specs define no such ID.',
+      'Required IDs: CA-JOU-99 is required, but the specs define no such ID.',
+    ]);
+  });
+
+  it('passes a title that names UTF-8 and SHA-256 after its brackets, bracketed or not', async () => {
+    const result = await run([], {
+      [TEST]: testOf('[JOU-04] [H-13] stores UTF-8 names with their [SHA-256] digest'),
+    });
+
+    expect(result.code).toBe(0);
+    expect(result.errors).toStrictEqual([]);
+    expect(result.written.get(REPORT_PATH)).toContain(
+      `| JOU-04 | 01-joueurs-suivis.md | covered | ${TEST}:1 [JOU-04] [H-13] stores UTF-8 names with their [SHA-256] digest |`,
+    );
+  });
+
   it('requires the IDs that --require lists, separated by commas or spaces', async () => {
     const result = await run(['--require', 'JOU-04, CA-JOU-02', '--require', 'JOU-05'], {
       [TEST]: testOf('[JOU-04] [CA-JOU-02] refuses a 31st active player'),
@@ -251,18 +298,50 @@ describe('claimedIds', () => {
       'TRV-64 is untouched.',
     ].join('\r\n');
 
-    expect(claimedIds(description)).toStrictEqual(['JOU-05', 'CA-JOU-01', 'H-13']);
+    expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['JOU-05', 'CA-JOU-01', 'H-13']);
   });
 
   it('claims nothing without the section, or when the section says None', () => {
-    expect(claimedIds('## Summary\n\nTooling only, JOU-04 untouched.\n')).toStrictEqual([]);
-    expect(claimedIds(body('None.'))).toStrictEqual([]);
+    const tooling = '## Summary\n\nTooling only, JOU-04 untouched.\n';
+
+    expect(claimedIds(tooling, SPEC_IDS)).toStrictEqual([]);
+    expect(claimedIds(body('None.'), SPEC_IDS)).toStrictEqual([]);
   });
 
   it('keeps a subsection inside the section', () => {
     expect(
-      claimedIds(body('### Lot 1\r\n\r\n- JOU-04\r\n\r\n### Lot 2\r\n\r\n- COL-01')),
-    ).toStrictEqual(['JOU-04', 'COL-01']);
+      claimedIds(body('### Lot 1\r\n\r\n- JOU-04\r\n\r\n### Lot 2\r\n\r\n- JOU-05'), SPEC_IDS),
+    ).toStrictEqual(['JOU-04', 'JOU-05']);
+  });
+
+  it('claims the real ID only, beside UTF-8, SHA-256, AES-256 and HMAC-SHA-256', () => {
+    const description = body(
+      '| JOU-04 | [JOU-04] decodes UTF-8 input, checks its SHA-256 digest, encrypts with AES-256 and signs with HMAC-SHA-256 |',
+    );
+
+    expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['JOU-04']);
+  });
+
+  it('claims a token only when the specs or the rulings define an ID of its prefix, typos included', () => {
+    const description = body('JOU-4, CA-JOU-99, H-99, COL-01 and CL-JOU-01, on UTF-8 input');
+    // The same specs, with a requirement of prefix COL and a ruling.
+    const more = readSpecIds([
+      ...SPEC_FILES,
+      { path: 'docs/03-collecte-des-actualites.md', text: '- **COL-01** [Lot 1] — Une source.\n' },
+      {
+        path: 'docs/engineering/clarifications/01-tracked-players.md',
+        text: '### CL-JOU-01 — The cap\n',
+      },
+    ]);
+
+    expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['JOU-4', 'CA-JOU-99', 'H-99']);
+    expect(claimedIds(description, more)).toStrictEqual([
+      'JOU-4',
+      'CA-JOU-99',
+      'H-99',
+      'COL-01',
+      'CL-JOU-01',
+    ]);
   });
 });
 

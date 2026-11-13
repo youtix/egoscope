@@ -70,6 +70,23 @@ describe('findTitleTags', () => {
     expect(tagsOf(source)).toStrictEqual([]);
   });
 
+  it('reads only the brackets a title starts with, so UTF-8 and SHA-256 after them cite nothing', () => {
+    const source = [
+      "it('[IMP-04] decodes UTF-8 input and checks its SHA-256 digest', () => {});",
+      "it('[IMP-05] [H-13] signs with [HMAC-SHA-256], not [AES-256], unlike [IMP-06]', () => {});",
+      "it(' [IMP-07]  [IMP-08] tolerates spaces around its brackets', () => {});",
+      "it('decodes [IMP-09] input that a later bracket names', () => {});",
+    ];
+
+    expect(tagsOf(source)).toStrictEqual([
+      'IMP-04@1',
+      'IMP-05@2',
+      'H-13@2',
+      'IMP-07@3',
+      'IMP-08@3',
+    ]);
+  });
+
   it('reads the titles of a component test, JSX included', () => {
     const source = [
       "it('[IHM-01] renders one column', () => {",

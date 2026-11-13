@@ -36,7 +36,7 @@ import { REPORT_PATH, reportMarkdown, summaryLines } from './trace-report';
 import { traceIds } from './trace-rules';
 import { readRegister, REGISTER_PATH } from './waiver-register';
 
-import type { Criterion, MarkdownFile, Problem } from './spec-ids';
+import type { Criterion, MarkdownFile, Problem, SpecIds } from './spec-ids';
 import type { Required } from './trace-report';
 import type { Trace } from './trace-rules';
 import type { Register } from './waiver-register';
@@ -68,18 +68,36 @@ const EXIT_USAGE = 2;
 const CLAIMS_HEADING = /^#{1,6}\s+Requirements covered\s*$/iu;
 const HEADING = /^(?<hashes>#{1,6})\s/u;
 const COMMENT = /<!--[\s\S]*?-->/gu;
+// A token shaped like an ID: CA-JOU-02, and also UTF-8 or HMAC-SHA-256.
 const ID = /\b[A-Z]+(?:-[A-Z]+)*-\d+\b/gu;
+const PREFIX = /^[A-Z]+/u;
 const ID_SEPARATORS = /[\s,]+/u;
 
 /** The level of a heading line; any other line ranks below every heading. */
 const headingLevel = (line: string): number =>
   HEADING.exec(line)?.groups?.['hashes']?.length ?? Infinity;
 
+/** The prefix of an ID, or of a token shaped like one: CA of CA-JOU-02, HMAC of HMAC-SHA-256. */
+const prefixOf = (token: string): string => PREFIX.exec(token)?.[0] ?? '';
+
+/**
+ * The prefixes of the IDs that the specs and the rulings define: those of the
+ * requirements, CA of the criteria, H, Q and D of the hypotheses, questions and
+ * decisions, CL of the rulings.
+ */
+function prefixesOf(specs: SpecIds): ReadonlySet<string> {
+  const defined = [...specs.requirements, ...specs.criteria].map(({ id }) => id);
+  return new Set([...defined, ...specs.citable].map((id) => prefixOf(id)));
+}
+
 /**
  * The IDs that a pull request body claims: every ID of its "Requirements covered"
- * section, up to the next heading of the same level, outside HTML comments.
+ * section, up to the next heading of the same level, outside HTML comments. A token
+ * shaped like an ID is one only when `specs` define an ID of its prefix, so that
+ * UTF-8 or SHA-256 claims nothing, while a typo such as JOU-4 is claimed, and fails as
+ * an ID that the specs do not define.
  */
-export function claimedIds(body: string): readonly string[] {
+export function claimedIds(body: string, specs: SpecIds): readonly string[] {
   const lines = body.replaceAll(COMMENT, '').split(/\r?\n/u);
   const start = lines.findIndex((line) => CLAIMS_HEADING.test(line));
   if (start === -1) {
@@ -89,7 +107,8 @@ export function claimedIds(body: string): readonly string[] {
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((line) => headingLevel(line) <= level);
   const section = (end === -1 ? rest : rest.slice(0, end)).join('\n');
-  return [...new Set(section.match(ID))];
+  const prefixes = prefixesOf(specs);
+  return [...new Set(section.match(ID))].filter((token) => prefixes.has(prefixOf(token)));
 }
 
 /** The options that `args` give, or what is wrong with them. */
@@ -184,7 +203,7 @@ export async function runTrace(args: readonly string[], io: TraceIo): Promise<nu
   const tags = io.paths
     .filter((file) => isTestFile(file))
     .flatMap((file) => findTitleTags(file, io.read(file)));
-  const required = [...options.required, ...(options.claimed ? claimedIds(io.input()) : [])];
+  const required = [...options.required, ...(options.claimed ? claimedIds(io.input(), specs) : [])];
   const trace = traceIds(
     { specs, tags, entries: register.entries },
     { strict: options.strict, required },
