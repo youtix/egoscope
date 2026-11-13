@@ -87,9 +87,9 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 ### CL-SUI-10 — Showing the post-tip-off decisions
 
-- **Affects:** SUI-17, SUI-25, CA-SUI-13, CA-SUI-14
+- **Affects:** SUI-17, SUI-25, CA-SUI-13, CA-SUI-14; CL-SUI-16
 - **Problem:** decisions are recorded with three effects — exit, entry, change of measured game — but rows only separate exits from entries, and one case can be touched several times.
-- **Ruling:** each row shows three counts of touched cases, each with its mean gap in the forecast direction over those that have both a measured gap and a forecast: cases now out of the counts (exits); cases now in the counts whose latest decision was an entry (entries); cases now in the counts whose latest decision changed the measured game. A case appears once, by its present situation and latest decision; its full list of decisions stays on the case.
+- **Ruling:** each row shows three counts of touched cases, each with its mean gap in the forecast direction over those that have both a measured gap and a forecast: cases now out of the counts (exits), the regrouping exits of CL-SUI-16 included; cases now in the counts whose latest decision was an entry (entries); cases now in the counts whose latest decision changed the measured game. A case appears once, by its present situation and latest decision; its full list of decisions stays on the case.
 - **Why:** the owner sees where each touched case now stands, which is what SUI-17 must keep visible.
 - **Owner review:** no
 
@@ -140,11 +140,25 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** this gives the spec's 40/40/20 at the default and stays right when t changes, as SEN-41 does for verdicts.
 - **Owner review:** no
 
+### CL-SUI-16 — A tracked case emptied by a regrouping
+
+- **Affects:** SUI-07, SUI-17, SUI-23, SUI-25, SUI-28, SUI-30, SEN-48; CL-SUI-10, CL-SUI-13, CL-VUE-03 (file 00 ruling)
+- **Problem:** a correction after tip-off can move a tracked case's only event onto a game where a case of the same player and type exists. The event then joins that case (CL-VUE-03) — a regrouping — and the emptied case is deleted with its result and decisions, so a tracked case, perhaps a refutation, leaves the validation table without a trace. SUI-17 exists to keep that visible.
+- **Ruling:** the core's rule for which case survives, the one that already has the game, and the rule that a case's origin never changes (SUI-07) both stand.
+  - When a regrouping empties a tracked case after its measured game's scheduled start, the last known one (CL-SUI-13), every row it belonged to keeps counting it once among the cases now out of the counts (CL-SUI-10): the rows of its type, of its player and of the pair, the overall row and, when it had a forecast, the overall sub-row of that forecast (SUI-28).
+  - This exit carries the case's gap in the forecast direction when it had both a measured gap and a forecast, and holds no date and no game. Stated limit: the gap is the one the case had when it was emptied, and later recalculations and statistics corrections do not change it.
+  - If the surviving case is tracked, the emptied case's decisions move to it, and it shows by its latest decision. Only the decisions move: the surviving case keeps its own forecast, category and results, and the emptied case's forecast versions, category history and transmitted results are deleted.
+  - The exit is tied to the emptied case's earliest-recorded event. An erasure of that event — its withdrawal, its erasure by requalification or split, the deletion of the player's data — removes the exit, as if the case had never existed; when two detected events are merged, the exit follows the kept event.
+  - A regrouping before the scheduled start leaves nothing, since no result was known.
+- **Why:** a sort made after the result was known stays visible, as SUI-17 requires, without inventing a case. Erasing the exit with the event keeps SEN-48 and SUI-30.
+- **Owner review:** yes — a case that no longer exists keeps counting in the table, with the gap it had when it was emptied.
+
 ## Passed to the glossary
 
 - « pronostic », « pronostic figé », « pronostic tardif », « sans pronostic »: the English word must carry no betting sense (ALE-18, TEL-05); the register and ADR 0015 already use both "forecast" and "prognosis".
 - Case categories « confirmé », « démenti », « neutre », « sans pronostic » and row assessments « confirmé », « confirmé, effet plus faible qu'annoncé », « démenti », « indécis »: same French words, two lists to keep apart.
 - « enregistré à temps », « enregistré après le coup d'envoi », « concomitant », « archivé », « trop peu de cas suivis pour conclure (k sur 10) »; the three reading rules of SUI-28; the labels of the three post-tip-off counts (CL-SUI-10).
+- "Regrouping", an event joining an existing case of its game after a correction, and the regrouping exit it leaves (CL-SUI-16).
 - « coup d'envoi »: "tip-off" in these rulings, "kick-off" in the register and ADR 0015.
 
 ## Ruled elsewhere

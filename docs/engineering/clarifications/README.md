@@ -45,13 +45,13 @@ Each rule has one owner: the clarification file of the spec file that defines th
 | [07 Statistiques de match](../../07-statistiques-de-match.md) | [07-game-statistics.md](07-game-statistics.md) | 29 | 4 |
 | [08 Sensibilité et verdict](../../08-sensibilite-et-verdict.md) | [08-sensitivity-and-verdict.md](08-sensitivity-and-verdict.md) | 28 | 7 |
 | [09 Fiche d'alerte](../../09-fiche-d-alerte.md) | [09-alert-sheet.md](09-alert-sheet.md) | 15 | 3 |
-| [10 Suivi automatique et validation](../../10-suivi-automatique-et-validation.md) | [10-automatic-tracking-and-validation.md](10-automatic-tracking-and-validation.md) | 15 | 5 |
+| [10 Suivi automatique et validation](../../10-suivi-automatique-et-validation.md) | [10-automatic-tracking-and-validation.md](10-automatic-tracking-and-validation.md) | 16 | 6 |
 | [11 Notifications Telegram](../../11-notifications-telegram.md) | [11-telegram-notifications.md](11-telegram-notifications.md) | 23 | 5 |
 | [12 Interface et accès](../../12-interface-et-acces.md) | [12-interface-and-access.md](12-interface-and-access.md) | 24 | 2 |
 | [13 Données sensibles](../../13-donnees-sensibles.md) | [13-sensitive-data.md](13-sensitive-data.md) | 22 | 6 |
 | [14 Exigences transverses](../../14-exigences-transverses.md) | [14-cross-cutting-requirements.md](14-cross-cutting-requirements.md) | 23 | 7 |
 | [90 Journal des décisions](../../90-journal-des-decisions.md) | [90-decision-journal.md](90-decision-journal.md) | 11 | 0 |
-| **Total** | | **363** | **66** |
+| **Total** | | **364** | **67** |
 
 ## Owner review
 
@@ -105,6 +105,7 @@ The app is built as each ruling says. The owner may answer any row differently; 
 | CL-SUI-06 | Should a game measured for two types count twice in the player and overall rows? | Yes, marked co-occurring. | Each game counts once. |
 | CL-SUI-11 | Should withdrawn players' and types' rows stay in an archived part of the table? | Yes; their cases stay in the overall row. | Withdrawing after seeing results changes the table. |
 | CL-SUI-14 | Should upcoming calendar-derived events be tracked cases that cannot be dismissed? | Yes. | As for CL-VUE-13. |
+| CL-SUI-16 | Should a tracked case emptied by a regrouping after tip-off keep counting among the cases now out of the counts, with the gap it had then? | Yes, until its event is erased; the surviving tracked case takes its decisions. | It leaves the table without a trace, and a sort made after the result is lost. |
 | CL-TEL-07 | Once the daily cap is reached, should the day's later messages, urgent ones included, be dropped? | Yes; their facts stay in the app. | They are sent the next day. |
 | CL-TEL-08 | Should an incident's end message wait for the incident recurrence window? | Yes, 6 hours by default. | It leaves at once, possibly before a new outage. |
 | CL-TEL-09 | Should the list of messages Telegram refused to delete be shown once and never kept? | Yes. | A stored list becomes a trace of the withdrawal. |
@@ -222,6 +223,7 @@ Each line names something a ruling requires the app to store that the specs do n
 - CL-ALE-07, CL-ALE-12: frozen snapshots per section; the outcome's profile snapshot frozen at closure; each later change of gap, baseline or category in the update log with its earlier value.
 - CL-SUI-03: forecast versions with their instants, from the case's creation to the measured game's scheduled start.
 - CL-SUI-10: per case, its post-tip-off decisions with their kind (exit, entry, change of measured game).
+- CL-SUI-16: per tracked case emptied by a regrouping after its game's scheduled start, an exit: its earliest-recorded event, player and type, the overall sub-row of its forecast and its gap in the forecast direction, never recalculated, with no date and no game.
 - CL-TEL-07: per day of the owner's time zone, the number of messages sent; the cap message, once a day; the status « abandonné » with the reason "daily cap".
 - CL-TEL-08: the pending end message of a notified incident until the incident recurrence window has passed.
 - CL-TEL-09: per sent message, its chat identifier and Telegram's message identifier, erased with its text.
@@ -348,4 +350,4 @@ The glossary (`docs/engineering/glossary.md`) and the rulings now use the same t
 - **Incident kinds** (section 9.2): CL-TEL-17 now gives the full list of what is notified: every incident kind, `stats_source_schema_changed` and `logins_refused` included, except `telegram_link_broken`, which shows only in the app (TEL-37); the silent-source warning and the export reminder; the three warnings the glossary marks "not notified" stay so.
 - **"Add a collection time"** (section 11, point 1): settled by CL-COL-24 as the glossary's provisional reading — the warning closes at the first later read of the source that records no gap.
 - **Correction history** (row « historique des corrections »): the glossary says "never the old value of a description"; CL-DSN-15 keeps the values before and after of structured fields for detected and calendar-derived events, and, as IMP-32 says, no old value at all for a historical event.
-- **New labels and sentences** the glossary does not hold yet: the mention that a BKT-05 proposal waits for the player's request to do (CL-BKT-26); the recovery notice and the save label of a recovered cut result (CL-IMP-18); "player directory" and the add-player screen's "directory still loading" state (CL-STA-29); the Help screen's documentation link and its offline sentence (CL-IHM-09); the read-only mention of a parameter edited in another section (CL-IHM-23); the withdrawal confirmation's sentence on a discarded import draft (CL-DSN-22).
+- **New labels and sentences** the glossary does not hold yet: the mention that a BKT-05 proposal waits for the player's request to do (CL-BKT-26); the recovery notice and the save label of a recovered cut result (CL-IMP-18); "player directory" and the add-player screen's "directory still loading" state (CL-STA-29); the Help screen's documentation link and its offline sentence (CL-IHM-09); the read-only mention of a parameter edited in another section (CL-IHM-23); the withdrawal confirmation's sentence on a discarded import draft (CL-DSN-22); "regrouping" and the regrouping exit (CL-SUI-16).
