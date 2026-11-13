@@ -94,7 +94,8 @@ and offers the permanent alternative, excluding its case (SEN-17, CL-DSN-19).
 Order of a withdrawal of event E, every row of the left column being deleted unless stated:
 
 1. Guards: the owner confirmed after the screen of CL-DSN-19, which lists what disappears and the
-   limits, the number of Telegram messages mentioning E included.
+   limits, the number of Telegram messages mentioning E included, and says when an import draft of
+   the player will be discarded, with the limit of a device left offline.
 2. Upsert the fingerprint of E into `withdrawal_fingerprints` with `created_at = now()`.
 3. Lot 2 sub-steps, in this order: notifications — the stored Telegram texts, chat identifiers
    and message identifiers of the messages mentioning E, digests included, after one deletion
@@ -107,8 +108,10 @@ Order of a withdrawal of event E, every row of the left column being deleted unl
    (DSN-34, CL-DSN-10).
 4. `import_event_outcomes` and `import_possible_duplicates` rows whose event is E, so that the
    import trace, counts included, keeps nothing designating it (IMP-37). In the same step, the import drafts of
-   every backtest request of E's player, server copies, since a pasted result may report the
-   withdrawn fact (the orchestrator's ruling of this pass; `drafts_import_key` finds them).
+   every backtest request of E's player, since a pasted result may report the withdrawn fact: the
+   server copies here, each device's copy at its next contact with the server and at the latest at
+   the draft's expiry; exploration drafts are not concerned (the orchestrator's ruling, DSN-27,
+   DSN-32; the request ids come from `backtest_requests`, and `drafts_import_key` finds each draft).
 5. `journal_technical_details` of journal entries that concerned only E; the entries' references
    to E then become null and read "an item that no longer exists" (CL-TRV-10).
 6. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),
