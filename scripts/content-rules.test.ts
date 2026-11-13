@@ -160,6 +160,22 @@ describe('pragmaViolations', () => {
   it('leaves TypeScript to ESLint', () => {
     expect(pragmaViolations('src/app/page.tsx', '// prettier-ignore\n')).toStrictEqual([]);
   });
+
+  it('reads no comment inside a JSON string, such as a recorded link', () => {
+    const fixture = JSON.stringify({
+      source: 'https://example.com/blog/why-we-dropped-prettier-ignore',
+      note: 'a /* prettier-ignore */ inside a string, and an escaped \\" quote // prettier-ignore',
+    });
+
+    expect(pragmaViolations('data/fixtures/stats-source/season.json', fixture)).toStrictEqual([]);
+  });
+
+  it.each([
+    ['tsconfig.json', '{\n  /* prettier-ignore */\n  "compilerOptions": {}\n}\n'],
+    ['data/fixtures/stats-source/season.json', '{\n  "a": 1 // prettier-ignore\n}\n'],
+  ])('still rejects a real comment in %s', (file, text) => {
+    expect(problems(pragmaViolations(file, text))).toContain('Prettier');
+  });
 });
 
 describe('unguardedJobs', () => {

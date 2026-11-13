@@ -135,25 +135,68 @@ const FILE_PRAGMAS = [
   },
 ] as const;
 
-type CommentSyntax = Readonly<{ comment: RegExp; content?: (text: string) => string }>;
+type CommentReader = (text: string) => readonly string[];
 
-const HASH_COMMENTS: CommentSyntax = { comment: /(?:^|\s)#.*/gmu };
-const C_COMMENTS: CommentSyntax = { comment: /\/\/.*|\/\*[\s\S]*?\*\//gu };
+const matchesOf =
+  (pattern: RegExp): CommentReader =>
+  (text) =>
+    Array.from(text.matchAll(pattern), ([match]) => match);
+
+/** The index just past the JSON string that opens at `start`, escapes included. */
+function endOfString(text: string, start: number): number {
+  let index = start + 1;
+  while (index < text.length && text[index] !== '"') {
+    index += text[index] === '\\' ? 2 : 1;
+  }
+  return index + 1;
+}
+
+/** The comment that opens at `start`, and the index just past it, if one opens there. */
+function commentAt(
+  text: string,
+  start: number,
+): Readonly<{ comment: string; end: number }> | undefined {
+  const closer = text.startsWith('//', start) ? '\n' : text.startsWith('/*', start) && '*/';
+  if (closer === false) {
+    return undefined;
+  }
+  const close = text.indexOf(closer, start + 2);
+  const end = close === -1 ? text.length : close + closer.length;
+  return { comment: text.slice(start, end), end };
+}
+
+/**
+ * The comments of a JSON file, read outside its strings: plain JSON holds none,
+ * but tsconfig.json and the .jsonc files do, and a string holds links (`//`).
+ */
+function jsonComments(text: string): readonly string[] {
+  const comments: string[] = [];
+  for (let index = 0; index < text.length;) {
+    const found = text[index] === '"' ? undefined : commentAt(text, index);
+    if (found !== undefined) {
+      comments.push(found.comment);
+    }
+    index = text[index] === '"' ? endOfString(text, index) : (found?.end ?? index + 1);
+  }
+  return comments;
+}
+
+const hashComments = matchesOf(/(?:^|\s)#.*/gmu);
 // The comment syntax of each kind of file that ESLint does not lint.
-const COMMENT_SYNTAX: ReadonlyMap<string, CommentSyntax> = new Map([
-  ['.md', { comment: /<!--[\s\S]*?-->/gu, content: proseOf }],
-  ['.yml', HASH_COMMENTS],
-  ['.yaml', HASH_COMMENTS],
-  ['.sh', HASH_COMMENTS],
-  ['.toml', HASH_COMMENTS],
-  ['.css', { comment: /\/\*[\s\S]*?\*\//gu }],
-  ['.json', C_COMMENTS],
-  ['.jsonc', C_COMMENTS],
+const COMMENT_READERS: ReadonlyMap<string, CommentReader> = new Map([
+  ['.md', (text: string): readonly string[] => matchesOf(/<!--[\s\S]*?-->/gu)(proseOf(text))],
+  ['.yml', hashComments],
+  ['.yaml', hashComments],
+  ['.sh', hashComments],
+  ['.toml', hashComments],
+  ['.css', matchesOf(/\/\*[\s\S]*?\*\//gu)],
+  ['.json', jsonComments],
+  ['.jsonc', jsonComments],
 ]);
 
 /** Says whether `file` is of a kind whose comments `pragmaViolations` reads. */
 export function hasCommentSyntax(file: string): boolean {
-  return COMMENT_SYNTAX.has(path.posix.extname(file));
+  return COMMENT_READERS.has(path.posix.extname(file));
 }
 
 /**
@@ -161,14 +204,7 @@ export function hasCommentSyntax(file: string): boolean {
  * in the kinds of file that ESLint does not lint. Markdown code is left out.
  */
 export function pragmaViolations(file: string, text: string): readonly StructureViolation[] {
-  const syntax = COMMENT_SYNTAX.get(path.posix.extname(file));
-  if (syntax === undefined) {
-    return [];
-  }
-  const comments = Array.from(
-    (syntax.content?.(text) ?? text).matchAll(syntax.comment),
-    ([comment]) => comment,
-  );
+  const comments = COMMENT_READERS.get(path.posix.extname(file))?.(text) ?? [];
   return FILE_PRAGMAS.filter(({ pattern }) =>
     comments.some((comment) => pattern.test(comment)),
   ).map(({ problem }) => ({ path: file, problem }));
