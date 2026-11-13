@@ -66,7 +66,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** TEL-15, TEL-24, CA-TEL-16
 - **Problem:** an incident that restarts within 6 hours is not notified again, but its end message may already be out, leaving the owner to believe it is resolved.
-- **Ruling:** the end message of a notified incident is sent only once the incident has stayed closed for the incident recurrence window (default 6 hours). If an incident of the same nature and the same object opens again within that delay, neither an end message nor a new start message is sent, and the reminder cycle goes on from the first start. The end message gives the whole interruption, from the first start to the final end. Quiet hours and the « fin d'incident » sub-option apply as usual.
+- **Ruling:** the end message of a notified incident is sent only once the incident has stayed closed for the incident recurrence window (default 6 hours). If an incident of the same kind and the same object opens again within that delay, neither an end message nor a new start message is sent, and the reminder cycle goes on from the first start. The end message gives the whole interruption, from the first start to the final end. Quiet hours and the « fin d'incident » sub-option apply as usual.
 - **Why:** a "resolved" message followed by silence during a new outage would mislead; a late end message misleads no one.
 - **Owner review:** yes
 
@@ -77,7 +77,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:**
   - Each sent message keeps its chat identifier and Telegram's message identifier; both are erased with its text.
   - Before confirmation, the withdrawal screen states how many messages already sent mention the event, as a number only, and that Telegram may refuse to delete older ones.
-  - On confirmation, before the event's data is erased: messages about the event not yet sent are abandoned and erased; for each sent message whose facts include the event — single message, digest or catch-up — the app asks Telegram once to delete it in the chat it was sent to, even a chat no longer linked; the text and the identifiers of every such message are then erased whatever the answer, and their activity-journal entries lose their mention of the event (TRV-41).
+  - On confirmation, before the event's data is erased: messages about the event not yet sent are abandoned and erased; for each sent message whose facts include the event — single message, digest or catch-up — the app asks Telegram once to delete it in the chat it was sent to, whatever its age and even in a chat no longer linked; the text and the identifiers of every such message are then erased whatever the answer, and their activity-journal entries lose their mention of the event (TRV-41). The deletion requests are made before the erasure's transaction, outside it: no outside call runs inside a database transaction.
   - A digest is deleted whole; its other facts stay in the app (TEL-02) and are not sent again.
   - The screen shown right after the withdrawal gives the number of messages deleted and, for each message Telegram refused or that could not be reached, its send date and time with the zone and whether it was a digest. That list is computed during the withdrawal, shown on that screen only, never stored, and gone when the owner leaves the screen.
 - **Why:** the owner learns where to delete by hand at the only moment it is allowed, and nothing outlives the withdrawal but the counter and the keyed fingerprint (ADR 0017).
@@ -161,7 +161,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Problem:** TEL-09 names a « échéance modifiée » message without an example or a list of contents.
 - **Ruling:** it is sent when file 05 attaches a new detected event to a request and the request's deadline (BKT-18) changes. Contents:
   - first line as TEL-09's, the deadline-changed label following the player;
-  - « pas encore de backtest »; the new event's type and source (media, date, time and zone), or « événement sensible » (TEL-06);
+  - « pas encore de backtest »; the new event's type and source (outlet, date, time and zone), or « événement sensible » (TEL-06);
   - the new deadline (expected game's date, time and zone, its US date when it differs, opponent, time remaining) and, on one line, the previous deadline's date and time;
   - when the new event's type is not in the request, that updating the request would include it (BKT-07); that the prompt is ready; TEL-09's sentence if tip-off has passed when it leaves;
   - a link to the request screen.
@@ -216,7 +216,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 ## Passed to the glossary
 
 - Category names, the first-line labels of every catalog entry and of the service messages: link confirmation, test, catch-up, cap reached, quiet-hours digest, pass digest, "deadline changed", "urgent".
-- Message statuses « à envoyer », « différé », « envoyé », « regroupé », « abandonné », « en échec »; link states « non reliée », « en attente de confirmation », « reliée depuis le… », « rompue ».
+- Message statuses « à envoyer », « différé », « envoyé », « regroupé », « abandonné », « en échec »; link statuses « non reliée », « en attente de confirmation », « reliée depuis le… », « rompue ».
 - The closing line « Mesure du passé, pas un pronostic. »; « après le coup d'envoi »; « événement sensible »; « pas encore de backtest : ce cas compte déjà dans son profil, qui ne repose que sur ses cas suivis »; « Cette conversation n'est plus reliée à Egoscope »; « Tout est dans l'application ».
 - The new parameter "catch-up interval" (CL-TEL-12).
 

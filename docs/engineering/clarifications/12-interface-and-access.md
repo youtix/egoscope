@@ -83,10 +83,10 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 ### CL-IHM-09 — One Help screen
 
-- **Affects:** IHM-16, IHM-37, IHM-53
-- **Problem:** Help is both an entry of the "More" menu (IHM-16) and a section of the settings (IHM-37).
-- **Ruling:** there is one Help screen — installing the app, glossary, relaunching the onboarding guide, version — reached from "More" and from the settings, which link to it.
-- **Why:** two copies would drift apart.
+- **Affects:** IHM-16, IHM-37, IHM-53, TRV-79, H-TRV-13
+- **Problem:** Help is both an entry of the "More" menu (IHM-16) and a section of the settings (IHM-37), and TRV-79 makes the documentation accessible from the app without saying how.
+- **Ruling:** there is one Help screen — installing the app, glossary, reopening the getting-started guide, a link to the documentation (TRV-79), version — reached from "More" and from the settings, which link to it. The documentation is the one kept with the code in the public repository: the link opens it outside the app, and offline the screen says that the link needs a connection.
+- **Why:** two copies would drift apart, the Help screen and the settings as much as the app and the repository.
 - **Owner review:** no
 
 ### CL-IHM-10 — The import draft kept by the application
@@ -204,12 +204,21 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** the owner sees first what comes first, and nothing open is hidden.
 - **Owner review:** no
 
+### CL-IHM-23 — Parameters edited in another section, and Lot 2 parameters
+
+- **Affects:** IHM-14, IHM-37, IHM-44, TRV-34, TRV-38, TRV-40
+- **Problem:** IHM-37 edits the time zone and the research tool's address under Display, while its Parameters section presents every parameter of the register (TRV-38), those two included; and nothing says what the settings show of Lot 2 before Lot 2 is in service.
+- **Ruling:** the Parameters section lists every parameter of the register with the information of TRV-34. A parameter edited in another section — the time zone (IHM-14) and the research tool's address (IHM-44), under Display — appears there read only, with a link to the section where it is edited, so that each value is edited in one place. While the application runs Lot 1 only, Lot 2 parameters are not shown, like the Lot 2 screens.
+- **Why:** two places to edit one value would disagree, and a Lot 1 owner has no use for what only Lot 2 reads.
+- **Owner review:** no
+
 ## Passed to the glossary
 
 - Navigation labels, screen titles, banners, empty states and the short notice « Mesure du passé, hypothèse non démontrée, aucune recommandation de pari ».
 - The screen's zone statement ("Times in Paris time"), the zone names, the part-of-day words of CL-IHM-07 and the generic "This item no longer exists" text.
 - « Rien à faire pour le moment », « Backtest en cours : … », « prompt copié », « brouillon gardé à … », « incidents masqués », « Hors connexion — données du … à … », « Plus tard ».
 - « retiré »: one English verb, withdraw, for players, types, sources and events; a withdrawn player or type keeps its data, archived, while an event withdrawal erases the event, so the labels differ, as IHM-68 asks: "Withdraw and erase" and "event withdrawal" for an event, which never has a "Withdrawn" status, the bare "Withdraw" and the "Withdrawn" status for players, types and sources.
+- The Help screen's documentation link and its offline sentence (CL-IHM-09); the read-only mention of a parameter edited in another section (CL-IHM-23).
 
 ## Ruled elsewhere
 

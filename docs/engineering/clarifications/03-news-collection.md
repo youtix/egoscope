@@ -20,8 +20,8 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Problem:** COL-21 says "the zone where this day ends the latest" and "the zone where this time occurs the latest" without naming it, while file 08 deems a date-only event public at the end of the day Pacific time (SEN-01); agents would pick different zones.
 - **Ruling:**
   - "The latest" is UTC−12 (fixed offset −12:00, IANA `Etc/GMT+12`), the last zone on Earth to finish a calendar day.
-  - Date without time: the candidate instant is 23:59:59.999 of that date in the media's zone when the source declares one, otherwise at UTC−12 (11:59:59.999 UTC the next day).
-  - Time without zone: that wall time on that date in the media's zone when known (precision « exacte », COL-20), otherwise at UTC−12 (precision « approximative »). A wall time that occurs twice on a clock change takes the later instant; a wall time skipped by a clock change is shifted forward by the length of the gap (02:30 becomes 03:30).
+  - Date without time: the candidate instant is 23:59:59.999 of that date in the outlet time zone when the source declares one, otherwise at UTC−12 (11:59:59.999 UTC the next day).
+  - Time without zone: that wall time on that date in the outlet time zone when known (precision « exacte », COL-20), otherwise at UTC−12 (precision « approximative »). A wall time that occurs twice on a clock change takes the later instant; a wall time skipped by a clock change is shifted forward by the length of the gap (02:30 becomes 03:30).
   - The retained instant is the earlier of the candidate and the first-collection instant (COL-22).
   - The retained instant is shown in the owner's time zone with its precision; nothing else of the feed's date is kept (COL-25).
   - Through DET-30 this instant is the only reference instant of a detected event: the expected game (SUI-03, ALE-15) and the measured game use it as is (see "Ruled elsewhere" for SEN-01).
@@ -33,7 +33,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** COL-21, COL-22, COL-48, CA-COL-08
 - **Problem:** COL-22 counts a date anomaly when "the feed announces" a publication after the first-collection instant; it does not say whether a cautious COL-21 instant that lands after the first collection is an anomaly too.
 - **Ruling:**
-  - An item is a date anomaly when the earliest instant compatible with its own date information is later than its first-collection instant. That earliest instant is the exact instant itself; for a date without time, 00:00 of that date; for a time without zone, that wall time; the last two in the media's zone when known, otherwise at UTC+14 (`Etc/GMT-14`).
+  - An item is a date anomaly when the earliest instant compatible with its own date information is later than its first-collection instant. That earliest instant is the exact instant itself; for a date without time, 00:00 of that date; for a time without zone, that wall time; the last two in the outlet time zone when known, otherwise at UTC+14 (`Etc/GMT-14`).
   - An anomaly takes the first-collection instant, the precision « approximative » and one count in the run's date anomalies (CA-COL-08).
   - When only the cautious candidate of CL-COL-02 passes the first collection, the retained instant is still the first-collection instant and the precision stays « approximative », but nothing is counted.
   - An item without any date follows COL-21 (first-collection instant, precision « absente ») and is no anomaly.
@@ -106,11 +106,11 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** H-COL-04 says « Tentatives de lecture par exécution : 3 »; the pauses must fit the hosting's execution limits (TRV-30).
 - **Owner review:** no
 
-### CL-COL-10 — Trial-read preview before the media's time zone is entered
+### CL-COL-10 — Trial-read preview before the outlet time zone is entered
 
 - **Affects:** variant A steps 2 and 3, COL-04, COL-20, CA-COL-03
-- **Problem:** step 2 shows instants "as they would be retained" and the share of exactly dated items, but the media's time zone, which changes both, is only entered at step 3.
-- **Ruling:** step 2 computes the preview without a media zone. When the owner enters or changes the media zone at step 3, the app recomputes the instants, precisions, share of exactly dated items and the COL-04 warning from the trial read's items held in memory, without reading the feed again, and shows the result before confirmation; the warning shown at confirmation uses the zone entered. Nothing of the trial read is stored.
+- **Problem:** step 2 shows instants "as they would be retained" and the share of exactly dated items, but the outlet time zone, which changes both, is only entered at step 3.
+- **Ruling:** step 2 computes the preview without an outlet time zone. When the owner enters or changes the outlet time zone at step 3, the app recomputes the instants, precisions, share of exactly dated items and the COL-04 warning from the trial read's items held in memory, without reading the feed again, and shows the result before confirmation; the warning shown at confirmation uses the zone entered. Nothing of the trial read is stored.
 - **Why:** the owner must confirm on what will really be retained, and a second read is not needed.
 - **Owner review:** no
 

@@ -18,13 +18,13 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Ruling:** The measured game is searched from this instant, and from no other:
   - historical event whose public date has a time: that instant (CL-IMP-08);
   - historical event whose public date is a date D only, as written: the end of D in America/Los_Angeles, that is 00:00 Los Angeles time on D + 1 (SEN-01). This is the only use of SEN-01's rule;
-  - detected event (lot 2): its reference date as DET-30 records it — the earliest retained instant of its articles — used as it is. For an article dated without a time, that instant is 23:59:59.999 of that date in the outlet's declared time zone, or at UTC−12 when none is declared; for a time without a zone, that wall time in the outlet's zone, or at UTC−12; in both cases never later than the article's first collection (COL-22, CL-COL-02). A source the owner adds (DET-48) is dated the same way (CL-DET-26). SEN-01 is never applied on top, so the expected game (SUI-03, ALE-15; CL-SUI-12, CL-ALE-02) and the measured game start from the same instant and are the same game unless the player misses it;
+  - detected event (lot 2): its reference date as DET-30 records it — the earliest retained instant of its articles — used as it is. For an article dated without a time, that instant is 23:59:59.999 of that date in the outlet time zone, or at UTC−12 when none is declared; for a time without a zone, that wall time in the outlet time zone, or at UTC−12; in both cases never later than the article's first collection (COL-22, CL-COL-02). A source the owner adds (DET-48) is dated the same way (CL-DET-26). SEN-01 is never applied on top, so the expected game (SUI-03, ALE-15; CL-SUI-12, CL-ALE-02) and the measured game start from the same instant and are the same game unless the player misses it;
   - historical event with uncertain precedence: the shifted instant of CL-SEN-07;
   - calendar-derived event: no instant is searched from; its reference is its game's date, before tip-off, and that game is both its expected and its measured game, with no sliding (CL-SEN-03, CL-SUI-14);
   - event of a type known in advance that is not calendar-derived: CL-SEN-04.
   - "Strictly after" means a scheduled start (CL-SEN-23) later than the reference instant; every comparison is between instants (TRV-69).
 - **Why:** file 08 owns the measured game. Keeping each owner's cautious instant makes files 08, 09 and 10 agree on detected events, as the rulings on files 03, 09 and 10 recommend, and SEN-01 keeps its role for the research AI's undated public dates.
-- **Owner review:** yes — a detected article without a time is dated at the end of its day in the outlet's zone or at UTC−12, or at its first collection if that is earlier, which can be earlier or later than SEN-01's end of day in Pacific time.
+- **Owner review:** yes — a detected article without a time is dated at the end of its day in the outlet time zone or at UTC−12, or at its first collection if that is earlier, which can be earlier or later than SEN-01's end of day in Pacific time.
 
 ### CL-SEN-03 — Calendar-derived events in the calculation
 
@@ -201,7 +201,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Problem:** a withdrawal-caused entry has the generic cause « recalcul », but it still names the profile and is dated at the withdrawal, while DSN-29 forbids keeping anything that designates the withdrawn event, even in reduced form.
 - **Ruling:**
   - A withdrawal, and the deletion of a player's data (JOU-24), is followed by a full recalculation (SEN-34, item d), the same job as one the owner asks for. Each verdict or confidence change it produces is written with the cause « recalcul », dated at that run, and nothing else: no event, count, date or type of what was withdrawn.
-  - If the withdrawal leaves a player–type pair with no event in its tally — events that left the count for another reason still count there (CL-SEN-26) — its profile is erased together with its whole verdict history. A general trend left with no event is erased the same way.
+  - If the withdrawal leaves a player–type pair with no event in its tally — events that left the tally for another reason still count there (CL-SEN-26) — its profile is erased together with its whole verdict history. A general trend left with no event is erased the same way.
   - Residual limit, accepted: an entry naming a profile and a date can still let a reader guess that something left that profile that day, since a recalculation asked for by the owner changes nothing by itself (SEN-36). Besides the global counter, the temporary fingerprint of ADR 0017 is the only other trace.
 - **Why:** SEN-48 as written, without keeping the history of a pair that no longer exists.
 - **Owner review:** yes — this states what the verdict history can still reveal after a withdrawal.
@@ -260,7 +260,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Problem:** a new derivation can stop producing an event — a corrected birthday or box score, a rescheduled game, a trade before tip-off — and SEN-33's closed list of exits has no reason for it.
 - **Ruling:**
   - An upcoming event dropped before its game's scheduled start is deleted with its case and leaves no trace in the tally (CL-SUI-14, CL-TAX-19): nothing about it could depend on a result.
-  - An event whose game had started is deleted with its case (CL-TAX-19, CL-JOU-16), and its profile's tally counts it among the events that left the count, with the reason "no longer derived from the calendar" (SEN-33). The tally keeps only that number per reason, with no date and no game, so that a removed or corrected birthday leaves nothing that reveals it (CL-JOU-16).
+  - An event whose game had started is deleted with its case (CL-TAX-19, CL-JOU-16), and its profile's tally counts it among the events that left the tally, with the reason "no longer derived from the calendar" (SEN-33). The tally keeps only that number per reason, with no date and no game, so that a removed or corrected birthday leaves nothing that reveals it (CL-JOU-16).
   - Both records exist: the drop is written to the journal (CL-TAX-19, CL-JOU-16) and counted on the profile, since SEN-33 requires every exit from the count to show on the profile, by reason, and an owner's correction of a birthday after seeing results must stay visible there.
   - Storage: per player and calendar-derived type, the number of events dropped after their game started, kept with the profile's exit counts and surviving the deletion of those events and their cases; it holds no date, game or event reference. A profile whose tally holds only such exits still exists (CL-SEN-26).
 - **Why:** SEN-32 and SEN-33 forbid silent exits once a game has been played; before it, no exit can follow a result.
@@ -270,7 +270,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** SEN-19, SEN-20, SEN-33, SEN-48
 - **Problem:** a profile exists "as soon as an event of the type concerns the player", but after dismissals or deletions it may hold no event at all.
-- **Ruling:** A profile exists for a player and a validated type while its tally holds at least one event, the events that left the count included, except withdrawn ones (SEN-33). A pair whose events were all dismissed or deleted keeps a profile that shows those exits by reason and its verdict history. Withdrawn events count nowhere (CL-SEN-18). While the birthday type is validated, a player without a recorded birthday also has a birthday profile, with an empty tally, that only says why (record 0015, CL-JOU-16).
+- **Ruling:** A profile exists for a player and a validated type while its tally holds at least one event, the events that left the tally included, except withdrawn ones (SEN-33). A pair whose events were all dismissed or deleted keeps a profile that shows those exits by reason and its verdict history. Withdrawn events count nowhere (CL-SEN-18). While the birthday type is validated, a player without a recorded birthday also has a birthday profile, with an empty tally, that only says why (record 0015, CL-JOU-16).
 - **Why:** SEN-33 shows exits by reason, and the history of verdict changes must stay visible after deletions.
 - **Owner review:** no
 

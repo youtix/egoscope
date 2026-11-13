@@ -154,7 +154,7 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 - **Affects:** STA-02, STA-36, STA-37, STA-39, STA-41, service sheet ("What happens when a quota is hit")
 - **Problem:** the quota is "known or observed" without saying how it is observed, and the chosen source publishes none.
 - **Ruling:**
-  - Each answer is an outage (network error, timeout, HTTP 5xx, unreadable file), a quota answer (HTTP 429, or 403 with rate-limit headers) or a normal answer (anything else, a missing resource included, since it is data). A missing current-season file or changed columns open the schema incident of the service sheet and ingest nothing.
+  - Each answer is an outage (network error, timeout, HTTP 5xx, unreadable file), a quota answer (HTTP 429, or 403 with rate-limit headers) or a normal answer (anything else, a missing resource included, since it is data). A missing current-season file or changed columns open the "Stats source format changed" incident of the service sheet and ingest nothing.
   - After an outage the source is failing: the next request goes 1 hour later, then every 4 hours, until one succeeds (STA-36); after 12 hours of continuous failure the incident opens (STA-37).
   - The known quota is the limit the service sheet states: the provider's, or, for the chosen source, which publishes none, the app's own ceilings (200 downloads and 2 GB a day, one download at a time, warning at 80 %). The app counts against it and keeps the 10 % reserve for priority levels 1 and 2 (STA-39). A quota answer stops requests until the reset the answer or the service sheet gives, otherwise until the next period of those ceilings, and opens "quota reached".
   - The end-date estimate of STA-41 uses the known quota.
@@ -285,6 +285,17 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 - **Why:** STA-48 defines seasons by their games, not by files.
 - **Owner review:** no
 
+### CL-STA-29 — Teams and player directories come from the source
+
+- **Affects:** STA-03, STA-42, JOU-10, IHM-66; CL-JOU-22 (file 01 ruling)
+- **Problem:** JOU-10, STA-03 and IHM-66 present the source's candidates when a player is added, but nothing says where the teams and the players to search come from, nor what the add-player screen offers before the application holds them.
+- **Ruling:**
+  - Teams and players are never seeded. Each season's teams and its player directory — the players the source lists for that season, with the names, teams and seasons JOU-10 shows — come from the stats source: every covered season is read once at installation (STA-42), and the season in progress again at each daily update, so that new players become candidates (STA-03).
+  - The candidate search of JOU-10 runs on the stored directories.
+  - Until the installation's read has finished, the add-player screen says that the player directory is still loading and offers no candidate; a player added meanwhile is recorded with "mapping to establish", and his candidates come to the to-do list from the statistics runs that follow (JOU-10, IHM-66).
+- **Why:** the source is the only authority on its own identities; a seeded list would go stale and would put real names in the repository (CL-JOU-22).
+- **Owner review:** no
+
 ## Passed to the glossary
 
 - Game statuses « prévu », « en cours », « terminé », « reporté », « annulé »; phases « saison régulière », « tournoi de qualification », « phases finales », and the baseline phase "postseason".
@@ -293,6 +304,7 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 - Reasons « aucun match prévu », « intersaison », « équipe éliminée », « joueur sans équipe », « calendrier non publié »; « statistiques en attente »; « saison non couverte par la source »; « date inconnue ».
 - Incidents « source de statistiques indisponible », « quota atteint »; the progress label « 9 saisons sur 14 »; the correction-log origins « fenêtre de correction », « relance manuelle »; « indicative ».
 - The birthday-profile mention of CL-STA-24 (birthday games counted from the first covered season on), the "rounded minutes" note of CL-STA-06, and "no longer derived from the calendar".
+- "Player directory" and the add-player screen's "directory still loading" state (CL-STA-29).
 
 ## Ruled elsewhere
 

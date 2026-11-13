@@ -8,11 +8,11 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** COL-35, DET-06, DET-16, DET-20, DET-24, DET-34, DET-36, DET-49, DET-54, DET-58
 - **Problem:** an article has one processing state (COL-35), while classification answers per recognized player and per fact; nothing says which state wins when the outcomes differ, nor what becomes of a below-threshold part of an article attached for another player, which DET-49 cannot rescue because the article is not « non pertinent ».
 - **Ruling:**
-  - Results are kept per article and per recognized player (a "part"). A part holds zero or more facts, each with one outcome: attached to an event (detected or dismissed), linked to a pending proposal, or a non-relevance reason (« sous le seuil », « fait ancien », « déjà rapporté par un backtest », « type rejeté ou retiré », « proposition rejetée », and those of CL-DET-12 and CL-DET-27). A classified part with no fact has the reason « aucun fait »; a part not yet classified, or unusable, is pending.
+  - Results are kept per article and per recognized player (a "part"). A part holds zero or more facts, each with one outcome: attached to an event (detected or dismissed), linked to a pending proposal, or a not-relevant reason (« sous le seuil », « fait ancien », « déjà rapporté par un backtest », « type rejeté ou retiré », « proposition rejetée », and those of CL-DET-12 and CL-DET-27). A classified part with no fact has the reason « aucun fait »; a part not yet classified, or unusable, is pending.
   - The article's state is derived in this order: « rattaché » if any fact is attached; else « lié à une proposition » if any fact is linked to a pending proposal; else « en attente de classification » if any part is pending; else « non pertinent ». An article in which the prefilter recognizes nobody is « non pertinent » with the reason « aucun joueur suivi ».
   - The queue item holds the pending parts only; an article can be « rattaché » and still queued for another player.
   - A « non pertinent » article shows every distinct reason of its parts and facts, and a filter by reason matches any of them. The state is recomputed after every change of a part: classification, rescue, detachment, proposal decision, re-prefiltering (DET-07).
-  - Rescue (DET-49) is offered on every kept article holding at least one non-relevance outcome, whatever its state; it creates or completes an event for the player and validated type the owner picks, with origin « utilisateur ».
+  - Rescue (DET-49) is offered on every kept article holding at least one not-relevant outcome, whatever its state; it creates or completes an event for the player and validated type the owner picks, with origin « utilisateur ».
   - A part's below-threshold answer stays visible as long as the article is kept (DET-24).
 - **Why:** retention must follow the strongest reason to keep an article (COL-37, COL-38), and per-part rescue keeps the exhaustive counting (H-01) that a single state would lose.
 - **Owner review:** yes
@@ -44,22 +44,22 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
   - A resubmission sends the same input as the first submission (all recognized players, events and lists, refreshed to their current state); only the parts that were unusable take the new answer, and usable parts keep their result.
   - When the cycle ends with a part still unusable, the queue item is marked « classification en échec » for that part; usable parts are applied.
   - A call refused for quota or not answered is no attempt (DET-08): it consumes none and the item keeps waiting.
-  - The owner's "new attempt" (DET-22) and "new classification" (DET-50) are one action: a new cycle with the full number of attempts, at the head of the queue (CL-DET-13). Its result replaces the outcome of the parts that were pending or had a non-relevance outcome, and may add attachments; existing attachments and proposal links stay until the owner detaches the article (DET-47) or decides the proposal (DET-36). Earlier results stay in the article's history (DET-54).
+  - The owner's "new attempt" (DET-22) and "new classification" (DET-50) are one action: a new cycle with the full number of attempts, at the head of the queue (CL-DET-13). Its result replaces the outcome of the parts that were pending or had a not-relevant outcome, and may add attachments; existing attachments and proposal links stay until the owner detaches the article (DET-47) or decides the proposal (DET-36). Earlier results stay in the article's history (DET-54).
 - **Why:** CA-DET-09 (« soumis de nouveau, puis marqué … après la dernière tentative ») fits two submissions; resending the full context keeps the player designation of DET-17 stable, and no automatic path may undo an event (DET-26).
 - **Owner review:** no
 
 ### CL-DET-04 — When the queue counts as empty
 
-- **Affects:** DET-08, DET-10, DET-11, DET-22, variant A, edge case « Modèle indisponible pendant plusieurs jours », TRV-25, TRV-45
-- **Problem:** failed items stay waiting with a mark (DET-22), while the resume task runs "while the queue is not empty" (DET-10) and the « quota atteint » incident closes only "when the queue is empty" (DET-11); if failed items count, neither ever stops. Variant A also opens an incident when the model is unavailable, which DET-11 does not name.
+- **Affects:** DET-08, DET-10, DET-11, DET-22, DET-50, variant A, edge case « Modèle indisponible pendant plusieurs jours », TRV-25, TRV-33, TRV-45
+- **Problem:** failed items stay waiting with a mark (DET-22), while the resume task runs "while the queue is not empty" (DET-10) and the « quota atteint » incident closes only "when the queue is empty" (DET-11); if failed items count, neither ever stops, and DET-10's six hours have no starting point. Variant A also opens an incident when the model is unavailable, which DET-11 does not name.
 - **Ruling:**
   - An item is eligible when at least one of its parts is pending and not marked « classification en échec »; "the queue is empty" means that no item is eligible.
   - A failed item is never resubmitted automatically; it stays in the queue view with its mark (IHM-71) and among the waiting items of the status screen (TRV-46) until the owner retries or classifies it (DET-13, DET-22).
   - A pass or a resume run stops submitting at the first call refused for quota, including a refusal before the declared limit (TRV-06), or not answered; the other eligible items wait.
   - When a run stops that way with eligible items left, one classification incident is opened or kept open; its message names the cause: quota reached; refused before the declared limit, inviting the owner to check the free-tier conditions; or service not answering. A change of cause updates the open incident without a new message. It closes at the end of the first run after which no item is eligible.
-  - The resume task is due when an item is eligible and 6 hours (parameter) have passed since the last run that processed the queue, pass or resume; every scheduled collection pass also processes the queue.
-  - When the last run stopped for a provider's quota and that provider's reset instant is known — its declared boundary (CL-TRV-12) or the rate-limit headers of its refusal — the resume task is also due at that instant if it comes before the six-hour mark (DET-10 gives six hours as a default, H-DET-05); the incident shows that instant as the planned resumption (CL-DET-05).
-- **Why:** items that need the owner cannot keep an automatic incident open for ever, and variant A and the edge case require an incident when the model is down. With one provider, the overflow of the 23:00 run would otherwise be classified around 05:00 Paris time, after most tip-offs, although the allocation renews hours earlier.
+  - The resume task is due, while an item is eligible, 6 hours (parameter, H-DET-05) after the end of the last run that processed the queue, pass or resume, or at the provider's quota reset when that comes first — when that run stopped for a provider's quota and the reset instant is known, from the provider's declared boundary (CL-TRV-12) or the rate-limit headers of its refusal. Every scheduled collection pass also processes the queue.
+  - An owner's new attempt (DET-22) or new classification (DET-50) that makes an item eligible makes the resume task due at once, as an on-demand run (TRV-33), subject to the quota: while the provider's limit for the period is reached (TRV-04, TRV-06), the item waits for the run that the previous rule makes due. The incident's planned resumption follows from these two rules (CL-DET-05).
+- **Why:** items that need the owner cannot keep an automatic incident open for ever, and variant A and the edge case require an incident when the model is down. With one provider, the overflow of the 23:00 run would otherwise be classified around 05:00 Paris time, after most tip-offs, although the allocation renews hours earlier. An owner who asks for a new attempt expects it now, within the quota.
 - **Owner review:** yes
 
 ### CL-DET-05 — Content of the classification incident
@@ -69,7 +69,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:** the incident, on screen and in its Telegram message, states:
   - the number of eligible waiting articles when it opens (the screen shows the current number);
   - the nearest player: among the active players recognized in eligible items, the one whose next game (STA-26) starts first, with that game's date, time and opponent; if none has a known next game, a sentence saying so;
-  - the planned resume: the provider's reset instant when the resume task is due at it (CL-DET-04); otherwise the first run of the resume task or of a collection pass due at or after the quota's reset instant when it is known, otherwise the next run of either, as a date and time in the owner's zone;
+  - the planned resume: the first run of the resume task or of a collection pass due at or after the quota's reset instant when it is known, otherwise the next run of either (CL-DET-04), as a date and time in the owner's zone;
   - the cause (CL-DET-04).
   - The example's article count may stay as extra context; the items above are required.
 - **Why:** DET-11 owns the content and wins over the TEL-15 example (a requirement wins over an example).
@@ -80,9 +80,9 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** DET-14, DET-16, DET-31, DET-32, SEN-45, CA-DET-16
 - **Problem:** DET-16 asks the model for a precedence indication and DET-32 compares "that moment" with game start times, but neither says what the indication is, who turns « lundi soir » or « hier » into an instant, or how the model can resolve them, since it is not told how precise the publication instant is.
 - **Ruling:**
-  - The model receives the retained publication instant in ISO 8601, with the offset of the media's zone when known and `+00:00` otherwise, together with its precision (« exacte », « approximative », « absente »).
+  - The model receives the retained publication instant in ISO 8601, with the offset of the outlet time zone when known and `+00:00` otherwise, together with its precision (« exacte », « approximative », « absente »).
   - The precedence indication is a calendar date, `YYYY-MM-DD`, or none: the day on which, according to the article, the fact happened or became public, read in the article's own frame, when the article places it before its own publication (an earlier day, or earlier the same day); none otherwise.
-  - The app sets « datation à vérifier » when an official game of the player's team (STA-27) has a scheduled start at or after 00:00 of that date — in the media's zone when known, otherwise in US Eastern time (`America/New_York`) — and strictly before the event's reference date. It uses the earliest precedence date among the results attached to the event, and recomputes the mark when the reference date moves (DET-31); a mark the owner lifted is never set again for that event.
+  - The app sets « datation à vérifier » when an official game of the player's team (STA-27) has a scheduled start at or after 00:00 of that date — in the outlet time zone when known, otherwise in US Eastern time (`America/New_York`) — and strictly before the event's reference date. It uses the earliest precedence date among the results attached to the event, and recomputes the mark when the reference date moves (DET-31); a mark the owner lifted is never set again for that event.
 - **Why:** a date is all the article reliably gives; US Eastern is the frame most NBA press and the league's own dates use (TRV-72), and the precision tells the model how far it can trust the publication date when resolving « hier ».
 - **Owner review:** yes
 
@@ -92,7 +92,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Problem:** DET-13 and DET-49 collect only a player and a type, while an event needs a description, context indications and a detection confidence (the event's confidence is the highest of its articles, DET-25 bands it, ALE-16's vigilance margin uses it).
 - **Ruling:**
   - A result of origin « utilisateur » holds player, type or "no event", instant, origin and the validated types at that instant; no detection confidence, justification, instructions version or precedence date.
-  - An event created from it gets DET-21's template description (type name, media and date of the reference article) without the « description à revoir » mention, and the context indications « inconnu »; the owner corrects both through DET-47.
+  - An event created from it gets DET-21's template description (type name, outlet and date of the reference article) without the « description à revoir » mention, and the context indications « inconnu »; the owner corrects both through DET-47.
   - An event's detection confidence is the highest confidence among its model-origin results; an event whose results are all of origin « utilisateur » has none and shows that origin instead (ALE-08).
   - Such events form their own user-origin row in the breakdown of DET-25, and the vigilance caveat of ALE-16 never applies to them.
 - **Why:** the owner judged the fact; inventing a confidence or a text would misstate where the decision came from.
@@ -268,7 +268,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 ### CL-DET-26 — A dated public source given without a time
 
 - **Affects:** DET-48, CA-DET-28
-- **Problem:** DET-48 lets the owner move the reference date earlier with a dated public source (link, media, publication instant), without saying what happens when only the date is known.
+- **Problem:** DET-48 lets the owner move the reference date earlier with a dated public source (link, outlet, publication instant), without saying what happens when only the date is known.
 - **Ruling:** the form asks for the publication date and, optionally, the time and its zone. A source with a date only, or a time without zone, gets its instant by COL-21 as CL-COL-02 applies it (end of that day, or that wall time, at UTC−12 when no zone is given) and the precision « approximative ». The change is refused when that instant is not earlier than the current reference date (DET-48).
 - **Why:** a source supplied by the owner must be dated as cautiously as a collected one.
 - **Owner review:** no
@@ -279,10 +279,10 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Problem:** the media-storm sheet dates its event at the publication of the article that brings the coverage to its threshold (CL-TAX-14), while DET-30 dates every event at its earliest article, and nothing says what detection does with the type's facts before the threshold is reached.
 - **Ruling:**
   - This applies to a type whose sheet carries a coverage threshold of N distinct outlets within D days (CL-TAX-14); an article's outlet is the outlet name it keeps (COL-06, COL-25).
-  - A model-origin fact of that type that would create a new event (CL-DET-02) creates none at once: it takes the non-relevance outcome « sous le seuil de couverture » and waits, in one group with the other waiting facts of that player and type whose articles' retained instants lie within D days of its own.
+  - A model-origin fact of that type that would create a new event (CL-DET-02) creates none at once: it takes the not-relevant outcome « sous le seuil de couverture » and waits, in one group with the other waiting facts of that player and type whose articles' retained instants lie within D days of its own.
   - When the articles of a group come from at least N distinct outlets whose retained instants lie within D days, the event is created. Its reference date is the retained instant of the article that brings the N-th outlet, which is its reference article; every fact of the group is attached to it, and the article states are recomputed (CL-DET-01). The fingerprint check (CL-DET-21) and the search for a historical event (DET-58) run at that moment, as for any new event.
   - Afterwards articles attach as to any event (DET-28). An attached article with an older retained instant moves the reference date to the earliest instant at which the threshold is met, never before it (DET-31); a detachment follows DET-31 as written.
-  - Facts of a group that never reaches the threshold keep « sous le seuil de couverture » once their D days have passed; rescue (DET-49) is offered on them like on any non-relevance outcome. Events the owner creates (DET-13, DET-49) are dated by DET-30.
+  - Facts of a group that never reaches the threshold keep « sous le seuil de couverture » once their D days have passed; rescue (DET-49) is offered on them like on any not-relevant outcome. Events the owner creates (DET-13, DET-49) are dated by DET-30.
 - **Why:** the annex dates a storm at « la publication de l'article qui le franchit » and measures the first game after the third article; before the threshold there is no storm to measure, and the waiting facts keep their articles under the ordinary retention (CL-COL-08).
 - **Owner review:** no
 
@@ -296,7 +296,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 ## Passed to the glossary
 
-- Non-relevance reasons « aucun joueur suivi », « aucun fait », « sous le seuil », « fait ancien », « déjà rapporté par un backtest », « type rejeté ou retiré », « proposition rejetée », and the new « détaché par l'utilisateur » and « sous le seuil de couverture » (CL-DET-27).
+- Not-relevant reasons « aucun joueur suivi », « aucun fait », « sous le seuil », « fait ancien », « déjà rapporté par un backtest », « type rejeté ou retiré », « proposition rejetée », and the new « détaché par l'utilisateur » and « sous le seuil de couverture » (CL-DET-27).
 - Marks « datation à vérifier », « détecté après le coup d'envoi », « doublon possible d'un événement historique »; mentions « description à revoir », « texte non conservé », « classification en échec »; the "not the same fact" action.
 - Dismissal reasons of DET-43; the three causes of the classification incident (CL-DET-04); the name of the calendar list of CL-DET-22.
 - The new parameter "confidence band width" and the user-origin row of DET-25.

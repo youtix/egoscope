@@ -40,18 +40,18 @@ Each rule has one owner: the clarification file of the spec file that defines th
 | [02 Taxonomie des événements](../../02-taxonomie-des-evenements.md) | [02-event-taxonomy.md](02-event-taxonomy.md) | 22 | 3 |
 | [03 Collecte des actualités](../../03-collecte-des-actualites.md) | [03-news-collection.md](03-news-collection.md) | 24 | 4 |
 | [04 Détection des événements](../../04-detection-des-evenements.md) | [04-event-detection.md](04-event-detection.md) | 28 | 7 |
-| [05 Demande de backtest et prompt](../../05-demande-de-backtest-et-prompt.md) | [05-backtest-request-and-prompt.md](05-backtest-request-and-prompt.md) | 25 | 0 |
+| [05 Demande de backtest et prompt](../../05-demande-de-backtest-et-prompt.md) | [05-backtest-request-and-prompt.md](05-backtest-request-and-prompt.md) | 26 | 1 |
 | [06 Import des résultats de recherche](../../06-import-des-resultats-de-recherche.md) | [06-research-result-import.md](06-research-result-import.md) | 34 | 5 |
-| [07 Statistiques de match](../../07-statistiques-de-match.md) | [07-game-statistics.md](07-game-statistics.md) | 28 | 4 |
+| [07 Statistiques de match](../../07-statistiques-de-match.md) | [07-game-statistics.md](07-game-statistics.md) | 29 | 4 |
 | [08 Sensibilité et verdict](../../08-sensibilite-et-verdict.md) | [08-sensitivity-and-verdict.md](08-sensitivity-and-verdict.md) | 28 | 7 |
 | [09 Fiche d'alerte](../../09-fiche-d-alerte.md) | [09-alert-sheet.md](09-alert-sheet.md) | 15 | 3 |
 | [10 Suivi automatique et validation](../../10-suivi-automatique-et-validation.md) | [10-automatic-tracking-and-validation.md](10-automatic-tracking-and-validation.md) | 15 | 5 |
 | [11 Notifications Telegram](../../11-notifications-telegram.md) | [11-telegram-notifications.md](11-telegram-notifications.md) | 23 | 4 |
-| [12 Interface et accès](../../12-interface-et-acces.md) | [12-interface-and-access.md](12-interface-and-access.md) | 22 | 1 |
-| [13 Données sensibles](../../13-donnees-sensibles.md) | [13-sensitive-data.md](13-sensitive-data.md) | 21 | 5 |
+| [12 Interface et accès](../../12-interface-et-acces.md) | [12-interface-and-access.md](12-interface-and-access.md) | 23 | 1 |
+| [13 Données sensibles](../../13-donnees-sensibles.md) | [13-sensitive-data.md](13-sensitive-data.md) | 22 | 6 |
 | [14 Exigences transverses](../../14-exigences-transverses.md) | [14-cross-cutting-requirements.md](14-cross-cutting-requirements.md) | 23 | 7 |
 | [90 Journal des décisions](../../90-journal-des-decisions.md) | [90-decision-journal.md](90-decision-journal.md) | 11 | 0 |
-| **Total** | | **358** | **62** |
+| **Total** | | **362** | **64** |
 
 ## Owner review
 
@@ -69,17 +69,18 @@ The app is built as each ruling says. The owner may answer any row differently; 
 | CL-TAX-16 | Should the illustration sources of a type proposal be erased at the owner's decision? | Erased when the proposal is validated or rejected. | They stay with the type. |
 | CL-TAX-18 | Should every birthday game and first reunion count, a missed one giving a not-measurable case? | Yes, with or without press coverage. | Only games the player played, or the press noticed, give cases. |
 | CL-TAX-19 | Is it acceptable that upcoming calendar events appear at the next-game stage and vanish before tip-off if the game moves? | Created by regular runs for the next game, dropped before tip-off. | Created earlier (more churn), or kept after a schedule change. |
-| CL-COL-02 | Should an article dated without a time be public at the end of its day in the outlet's zone or at UTC−12, capped at first collection? | Yes; this instant is the detected event's reference. | Another zone, such as Pacific time, moves displayed instants and, rarely, the measured game. |
+| CL-COL-02 | Should an article dated without a time be public at the end of its day in the outlet time zone or at UTC−12, capped at first collection? | Yes; this instant is the detected event's reference. | Another zone, such as Pacific time, moves displayed instants and, rarely, the measured game. |
 | CL-COL-05 | When every active source fails in one run, should only "collection impossible" open, without counting the run against any source? | Yes, with two or more active sources. | Each source also counts the failure and can go "down". |
 | CL-COL-16 | Should an article whose fact matches a withdrawal be erased at once, even if it is then collected and classified again? | Yes; the quota cost is accepted. | A skip trace saves quota but designates the withdrawn event. |
 | CL-COL-17 | With two runs a day, should "down" still mean two consecutive failed runs? | Yes, 6.5 to 17.5 hours apart. | The failed-runs parameter (COL-41) is raised to keep two days. |
 | CL-DET-01 | Should classification results be kept per article, player and fact, so a part can be rescued while the article is attached for another player? | Yes; the article state follows the strongest outcome. | One state per article, losing such rescues. |
 | CL-DET-04 | Should failed classifications stop counting as waiting, so the resume task and the quota incident can end? | Yes; the owner retries them. | They are retried automatically and keep the incident open. |
-| CL-DET-06 | Should "dating to verify" compare the article's precedence date with games from 00:00 of that date in the outlet's zone, or US Eastern time? | Yes. | Another frame sets the mark on more or fewer events. |
+| CL-DET-06 | Should "dating to verify" compare the article's precedence date with games from 00:00 of that date in the outlet time zone, or US Eastern time? | Yes. | Another frame sets the mark on more or fewer events. |
 | CL-DET-10 | Should a "possible duplicate of a historical event" stay in the to-do list until lifted or dismissed? | Yes; the case counts meanwhile. | The mark stays silent, at the risk of a fact counted twice. |
 | CL-DET-15 | Should a case dismissed after its expected game's tip-off still be measured, outside every calculation? | Yes, for the table's separate count. | Its gap is lost. |
 | CL-DET-21 | Should detection skip the fingerprint check for events the owner creates, and match within the IMP-25 window? | Owner-made events are not checked; ±2 days by default. | Owner-made events are blocked too, or matching is exact-day. |
 | CL-DET-22 | Should facts reported against the calendar-handled list be dropped without event, proposal or occurrence? | Yes, with no resubmission. | They are resubmitted, or become proposals to reject. |
+| CL-BKT-26 | Should a type validated, reactivated or broadened be offered to every processed player whose coverage lacks it, for as long as the gap lasts, rather than only to those processed at that moment? | Yes; a player whose request to do cannot take the type waits until that request is imported or canceled. | Only players processed when the type changes are offered it. |
 | CL-IMP-08 | Should the import accept date forms the format excludes and read every AI midnight as "no time"? | Yes, with warnings. | Those dates are refused, or midnights are taken literally. |
 | CL-IMP-09 | Should an event outside its own type's requested period be ignored, even inside the request's overall period? | Yes. | It is imported though its type's search did not cover it. |
 | CL-IMP-12 | Should the 2-day correspondence window be counted in calendar days, every zone allowed for a timed value? | Yes. | A wider reading merges more distinct facts by default. |
@@ -114,6 +115,7 @@ The app is built as each ruling says. The owner may answer any row differently; 
 | CL-DSN-08 | Should fingerprints stay out of backups, so a restore into a new database without the old one cannot re-apply withdrawals? | Yes. | Backups carry fingerprints past their horizon. |
 | CL-DSN-09 | Is it acceptable that a withdrawn birthday or reunion event can come back through a full derivation after the horizon? | Yes; excluding its case is the permanent way. | The derivation needs a permanent memory of withdrawals. |
 | CL-DSN-19 | Is the list of limits on the withdrawal confirmation acceptable? | The screen states it. | The wording changes. |
+| CL-DSN-22 | Should an event withdrawal discard the import drafts of every backtest request of that player? | Yes; a device's copy goes at its next contact with the server, and the confirmation says so. | The drafts stay until saved, discarded or expired, possibly holding the withdrawn event. |
 | CL-TRV-02 | Is it acceptable that a game's local time at the venue, which TRV-71 and CA-TRV-36 mention, is never shown? | Paris time and the US-date recall only. | A venue time-zone table is needed, which the planning ruling excludes. |
 | CL-TRV-05 | After a restore into a new database, should the owner log in with the initial password and set a new one? | Yes; backups hold no password data. | Backups carry the password hash. |
 | CL-TRV-06 | Should a restore re-apply withdrawals and deletions by itself and list the ambiguous cases? | Yes. | Restored data can bring withdrawn events back. |
@@ -130,7 +132,7 @@ Each row is an amendment to make to the record or to read into the hypothesis. "
 | --- | --- | --- |
 | Record 0010 (register row CA-TRV-36) | CL-TRV-02, CL-IHM-07 | A game's local time at the venue is never shown; CA-TRV-36 expects "Wednesday 11 November 2026, 04:30 Paris time — Tuesday evening in the US". |
 | Record 0012, open point | CL-STA-23, CL-JOU-21 | Settled as recommended: one source per season, assigned in the service sheet; one confirmed mapping per player and source. |
-| Record 0012 | CL-TRV-14, CL-STA-23 | New: at a source replacement, the season in progress is fetched again whole from the new source, consolidated games included (exception to STA-42), as a forced refetch (STA-44) whose differences are traced as corrections. |
+| Record 0012 | CL-TRV-14, CL-STA-23 | New: at a source replacement, the season in progress is fetched again whole from the new source, consolidated games included (exception to STA-42), as a forced refetch (STA-44) whose differences are traced as corrections; the replacement is a procedure of the service sheet, with no screen of its own. |
 | Record 0013, open point | CL-IMP-07 | Settled as recommended: a citation marker inside a text value gives the warning "possible citation marker in {field}", never a rewrite; in a link the source is dropped; in a limitation, a whole-result warning. |
 | Record 0015, Derivation and measurement; H-SEN-02 and register row SEN-02 | CL-TRV-03, CL-TAX-18, CL-STA-14, CL-SEN-04 | "Local date at the venue" is the game's date in US Eastern time, for calendar-derived types and the other types known in advance alike; no venue time zone is stored. |
 | Record 0015, open point 1 | CL-VUE-13, CL-VUE-14, CL-SUI-14, CL-ALE-13, CL-TEL-21 | Settled as recommended: tracked when derived before the game's scheduled start; alert sheet for active players with no backtest condition; paused players get the tracked case without sheet; never dismissed; a drop before tip-off cancels the sheet and sends an alert update, except after the owner's own change. |
@@ -155,7 +157,8 @@ Each row is an amendment to make to the record or to read into the hypothesis. "
 | H-STA-11 | CL-STA-14, CL-TRV-03 | A game whose time is to be determined is deemed to start at 00:00 US Eastern time on its date. |
 | H-SEN-01 | CL-SEN-02 | The end-of-day Pacific rule serves historical events whose public date has no time; a detected event keeps the instant DET-30 records (CL-COL-02). |
 | H-IMP-02 (correspondence window) | CL-IMP-34 | The same parameter also sets detection's "possible duplicate" mark and the fingerprint checks at import and detection. |
-| H-DET-05 and DET-10 (queue resumption every 6 hours) | CL-DET-04, CL-DET-05 | The resume task is also due at a provider's known quota reset (declared boundary or rate-limit headers) when that comes before the six-hour mark; the classification incident shows that instant as the planned resumption. |
+| H-DET-05 and DET-10 (queue resumption every 6 hours) | CL-DET-04, CL-DET-05 | The six hours run from the end of the last run that processed the queue; the resume task is due earlier at a provider's known quota reset (declared boundary or rate-limit headers), and at once, within the quota, when the owner's new attempt or new classification makes an item eligible; the incident's planned resumption is the first run due at or after the reset. |
+| H-TRV-13 (documentation consulted from the app) | CL-IHM-09 | Help links to the documentation kept with the code in the public repository, which opens outside the app; offline, Help says that the link needs a connection. |
 
 Register rows whose open point a ruling settles: DET-14 (CL-DET-22), BKT-30 (CL-VUE-14, CL-ALE-13), IMP-04 (CL-IMP-07), STA-03 (CL-STA-23), TRV-51 (CL-TRV-05); and the register's "Open points" table, every row of which is settled above.
 
@@ -163,7 +166,7 @@ Register rows whose open point a ruling settles: DET-14 (CL-DET-22), BKT-30 (CL-
 
 Each line names something a ruling requires the app to store that the specs do not name.
 
-- CL-VUE-12, CL-DSN-20: the event origin "calendar-derived" and, on such an event, a reference to its scheduled game instead of sources.
+- CL-VUE-12, CL-DSN-20: the event origin `calendar` and, on such an event, a reference to its scheduled game instead of sources.
 - CL-JOU-03: on a team change entered by hand, its entry instant, the origin "entered" and the mark "unconfirmed" or "confirmed by the game of …".
 - CL-JOU-16, CL-JOU-11: the optional day and month of birth, never the year, with whether the source or the owner gave it.
 - CL-JOU-19: per player and day of the owner's time zone, the number of distinct articles citing him, kept 90 days and surviving the article purge.
@@ -207,6 +210,7 @@ Each line names something a ruling requires the app to store that the specs do n
 - CL-STA-17: per game, the source identifier of its make-up, as an alias.
 - CL-STA-18: per playoff game, its series, game number, wins before it and an elimination flag that can be "unknown".
 - CL-STA-23: per season, the source that serves it (service sheet).
+- CL-STA-29: per season, the teams and the player directory read from the source, on which the candidate search runs.
 - CL-SEN-12: per manual decision, the measured game it was made on; the review flag "manual decision to review: the measured game changed".
 - CL-SEN-16: recalculation jobs (scope, cause, order, progress), written in the same transaction as their change; per profile, its last values and their date while a job is pending.
 - CL-SEN-17: three verdict-history causes beyond the spec's seven.
@@ -258,7 +262,7 @@ CL-TRV-16 owns the default and the bounds of every parameter, the specs' and the
 | Failed runs before "down" (COL-41) | 2 | 1 to 10 | no | CL-TRV-16, CL-COL-06, CL-COL-17 |
 | Silence period (COL-42) | 3 days | 1 to 30 days | no | CL-TRV-16 |
 | Queue priority horizon (DET-09) | 48 hours | 1 to 240 hours | no | CL-TRV-16, CL-DET-13 |
-| Queue resumption interval (DET-10) | 6 hours | 1 to 24 hours | no | CL-TRV-16, CL-DET-04 (also due at a known quota reset) |
+| Queue resumption interval (DET-10) | 6 hours | 1 to 24 hours | no | CL-TRV-16, CL-DET-04 (counted from the end of the last run; also due at a known quota reset, and at once after an owner's retry) |
 | Classification attempts (DET-22) | 2 | 1 to 5 | no | CL-TRV-16, CL-DET-03 |
 | Detection threshold (DET-24) | 70 | 1 to 100 | no | CL-TRV-16 |
 | Grouping window (DET-29) | 72 hours | 1 to 240 hours | no | CL-TRV-16, CL-DET-11 |
@@ -336,6 +340,8 @@ CL-TRV-16 owns the default and the bounds of every parameter, the specs' and the
 
 The glossary (`docs/engineering/glossary.md`) and the rulings now use the same terms and labels. What still differs, or what the glossary can now update:
 
-- **Queue resumption** (section 9.1, `classification-resume`): the glossary gives "6 hours after the last run that processed the queue"; CL-DET-04 adds that the task is also due at a provider's known quota reset when that comes earlier.
+- **Queue resumption** (section 9.1, `classification-resume`): the glossary gives "6 hours after the last run that processed the queue"; CL-DET-04 counts the six hours from that run's end and adds two earlier due instants: a provider's known quota reset, and at once, within the quota, when the owner's new attempt or new classification makes an item eligible.
+- **Game tracking** (section 9.1, `game-tracking`): the glossary gives "Chained after each statistics update"; CL-TRV-08 chains it after both statistics tasks when they ingested statistics, and makes it due otherwise only at the expected availability of an awaiting tracked case's statistics.
 - **"Add a collection time"** (section 11, point 1): settled by CL-COL-24 as the glossary's provisional reading — the warning closes at the first later read of the source that records no gap.
 - **Correction history** (row « historique des corrections »): the glossary says "never the old value of a description"; CL-DSN-15 keeps the values before and after of structured fields for detected and calendar-derived events, and, as IMP-32 says, no old value at all for a historical event.
+- **New labels and sentences** the glossary does not hold yet: the mention that a BKT-05 proposal waits for the player's request to do (CL-BKT-26); the recovery notice and the save label of a recovered cut result (CL-IMP-18); "player directory" and the add-player screen's "directory still loading" state (CL-STA-29); the Help screen's documentation link and its offline sentence (CL-IHM-09); the read-only mention of a parameter edited in another section (CL-IHM-23); the withdrawal confirmation's sentence on a discarded import draft (CL-DSN-22).

@@ -148,7 +148,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** DSN-32, IHM-42, H-IHM-08, IMP-03, TAX-17, TRV-51
 - **Problem:** the pasted text must be kept by the application for use on another device, yet stay out of saved data, import traces, the journal and backups.
-- **Ruling:** drafts live in a dedicated draft store of the database: at most one import draft per backtest request and one exploration draft per exploration screen (general) or targeted proposal, each holding the text, its last change instant and the device it came from, nothing else. The store is excluded from backups and exports by name; no journal entry or technical detail contains a draft's text. A draft is erased when its import or its proposals are saved, when abandoned, at the end of the draft retention (IHM-42, counted from its last change), when its request or proposal or player disappears, and at every restore. Logging out erases the device copy (DSN-33) but not the server copy.
+- **Ruling:** drafts live in a dedicated draft store of the database: at most one import draft per backtest request and one exploration draft per exploration screen (general) or targeted proposal, each holding the text, its last change instant and the device it came from, nothing else. The store is excluded from backups and exports by name; no journal entry or technical detail contains a draft's text. A draft is erased when its import or its proposals are saved, when abandoned, at the end of the draft retention (IHM-42, counted from its last change), when its request or proposal or player disappears, when an event of its request's player is withdrawn (CL-DSN-22), and at every restore. Logging out erases the device copy (DSN-33) but not the server copy.
 - **Why:** one store with explicit exclusions is the only way to meet DSN-32 and IHM-42 together.
 - **Owner review:** no
 
@@ -169,6 +169,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
   - backups keep the event until they rotate out, at most the fingerprint horizon (CL-DSN-07); a restore made within it withdraws the event again, except a restore into a new database without the old one (CL-TRV-06);
   - exports already downloaded keep it; deleting them is the owner's task;
   - a device left offline shows it until its next refresh;
+  - when the player has an import draft, that the withdrawal discards it, a device's copy only at that device's next contact with the server and at the latest when it expires (CL-DSN-22);
   - during the horizon, detection does not recreate it and a later import flags it; afterwards, re-collection (Lot 2) or a later backtest can bring it back, to be declined or withdrawn again;
   - for a calendar-derived event, that a later full derivation can bring it back once the horizon has passed, and that excluding its case (SEN-17) is the permanent alternative (CL-DSN-09).
 
@@ -180,7 +181,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** DSN-01, DSN-06, DSN-10, DSN-17, DSN-19 to DSN-22; record 0015
 - **Problem:** DSN-06 lists press sources and a confidence for every event; calendar-derived events have neither.
-- **Ruling:** a calendar-derived event holds only: the player; the type with its sheet version; its reference date, the game's day; a reference to its game; a description written by the application from a fixed template, in English, within the description length, naming only the player and, for a former-team event, that team; context indicators, unknown until the owner sets them (H-09); the origin "calendar-derived"; and management data (creation and change instants, trace of context corrections). It holds no source, no confidence, no precedence and no dating mark; DSN-01 does not apply, since the schedule, not an article, is its evidence.
+- **Ruling:** a calendar-derived event holds only: the player; the type with its sheet version; its reference date, the game's day; a reference to its game; a description written by the application from a fixed template, in English, within the description length, naming only the player and, for a former-team event, that team; context indicators, unknown until the owner sets them (H-09); the origin `calendar`; and management data (creation and change instants, trace of context corrections). It holds no source, no confidence, no precedence and no dating mark; DSN-01 does not apply, since the schedule, not an article, is its evidence.
 - **Why:** record 0015; nothing else is needed to measure or recognize the event.
 - **Owner review:** no
 
@@ -191,6 +192,17 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Ruling:** only the day and month are stored, never the year — not even in a log, a technical detail or a temporary table. The value is never sent to the research AI or the classifier. The journal records that the birthday was entered, changed or removed, without the value. It is part of backups and exports and is erased with the player's data.
 - **Why:** the owner agreed to this one exception, as small as possible.
 - **Owner review:** no
+
+### CL-DSN-22 — Import drafts at an event withdrawal
+
+- **Affects:** DSN-27, DSN-28, DSN-29, DSN-32, IHM-42, IHM-68, CA-DSN-11; CL-DSN-17, CL-DSN-19, CL-IHM-10, CL-IHM-11 (file 12 rulings)
+- **Problem:** an import draft of the player's backtest request can hold the pasted text of a result that reports the withdrawn event, and DSN-27 does not list drafts among what a withdrawal erases: the draft would keep the event's description and sources until it is saved, discarded or expired.
+- **Ruling:**
+  - Withdrawing an event discards the import draft of every backtest request of that event's player: the server copy in the withdrawal's transaction; each device's copy at that device's next contact with the server, and at the latest at the draft's expiry (CL-IHM-11). This discard writes no journal entry, unlike the one CL-IHM-10 allows, since an entry naming the request would designate the withdrawn event's player (DSN-29).
+  - When such a draft exists, the withdrawal confirmation says that it will be discarded, and the limits of CL-DSN-19 say how long a device's copy can remain.
+  - Exploration drafts are not concerned.
+- **Why:** a withdrawal reaches every place the event can live (DSN-27), and a pasted text cannot be reliably searched for one event, so the whole draft goes.
+- **Owner review:** yes — the owner loses an import in progress for that player, which no French text foresaw.
 
 ## Ruled elsewhere
 
@@ -204,3 +216,4 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - The counter's label and its explanatory sentence (CL-DSN-04).
 - The limit sentences of the withdrawal screen (CL-DSN-19), including the one for a calendar-derived event, and the page "This item no longer exists".
 - The message of the quotation-mark check.
+- The withdrawal confirmation's sentence on a discarded import draft, with its device limit (CL-DSN-22).

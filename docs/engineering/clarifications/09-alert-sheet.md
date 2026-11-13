@@ -85,8 +85,8 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 ### CL-ALE-10 — Every source shows its title
 
 - **Affects:** ALE-08, the example sheet
-- **Problem:** the example's second source (« un quotidien régional, publié le 17 novembre à 2 h 15 ») has no title, though ALE-08 requires media, title, date and time, and link for each source.
-- **Ruling:** ALE-08 wins: every source line shows the media, the title as published, the publication date and time with their precision, and the link; the example drops the title for brevity only.
+- **Problem:** the example's second source (« un quotidien régional, publié le 17 novembre à 2 h 15 ») has no title, though ALE-08 requires outlet, title, date and time, and link for each source.
+- **Ruling:** ALE-08 wins: every source line shows the outlet, the title as published, the publication date and time with their precision, and the link; the example drops the title for brevity only.
 - **Why:** a requirement wins over an example.
 - **Owner review:** no
 

@@ -89,7 +89,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Affects:** BKT-07, BKT-15, H-BKT-02, CA-BKT-16
 - **Problem:** BKT-15's update "adds the types validated since creation" without giving their periods, and BKT-07 says an update can include an attached detected event's type.
 - **Ruling:** An update, in one step:
-  1. adds every research type validated or reactivated after the request's creation and, in lot 2, the type of every attached detected event that is not in the request;
+  1. adds every research type validated or reactivated after the request's creation and, in lot 2, the type of every attached detected event that is neither dismissed nor withdrawn and is not in the request, as for the deadline (CL-BKT-23);
   2. removes every requested type that is no longer validated;
   3. takes each type's current sheet version;
   4. moves every period end to the update day;
@@ -235,9 +235,20 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** BKT-04, BKT-05, BKT-06, BKT-15, 00 « Variantes » (Joueur déjà profilé), TAX-20, TAX-24, TAX-32
 - **Problem:** file 00 says a supplementary request is « créée ou proposée » without saying which, and file 02 speaks only of proposing one.
-- **Ruling:** As written: BKT-04 (lot 2) creates the detection-born supplement at once, attached to its event, without asking the owner. BKT-05 (a type validated, reactivated or broadened, hence TAX-20, TAX-24 and TAX-32) and BKT-06 (an incomplete import, CL-BKT-07) only propose theirs and create nothing without the owner's agreement; for a player who already has a request to do, BKT-05 proposes its update instead (BKT-15). File 00's « créée ou proposée » covers these two cases.
+- **Ruling:** As written: BKT-04 (lot 2) creates the detection-born supplement at once, attached to its event, without asking the owner. BKT-05 (a type validated, reactivated or broadened, hence TAX-20, TAX-24 and TAX-32) and BKT-06 (an incomplete import, CL-BKT-07) only propose theirs and create nothing without the owner's agreement; for a player who already has a request to do, BKT-05 proposes its update instead (BKT-15), or waits (CL-BKT-26). File 00's « créée ou proposée » covers these two cases.
 - **Why:** BKT-04 says the application « crée » the supplement; BKT-05 « ne crée rien sans accord », H-05 saying such a request « peut » be issued.
 - **Owner review:** no
+
+### CL-BKT-26 — The players a type's supplement is offered to: by coverage, not by dates
+
+- **Affects:** BKT-05, BKT-06, BKT-07, BKT-10, BKT-15, CA-BKT-06; CL-BKT-05, CL-BKT-07, CL-BKT-08, CL-BKT-25
+- **Problem:** BKT-05 lists the already-processed players who lack a type at the moment the type is validated, reactivated or broadened. A player whose request was created before that moment and imported after it, without an update, becomes already processed later and would never be offered the type; and BKT-05 proposes the update of a request to do even when the update would not add the type.
+- **Ruling:**
+  - The proposal for a research type T lists every already-processed player — at least one saved import (BKT-10) — whose coverage has no counting period for T (CL-BKT-05, rule 1), whatever the order of his imports and of T's validation, reactivation or broadening. It lasts as long as that gap lasts and is computed from the coverage when shown; no proposal is stored.
+  - For a player with a request to do, the proposal is that request's update when the update would add T (CL-BKT-08, step 1); otherwise the player stays listed with a mention that the proposal waits until that request is imported or canceled (BKT-07).
+  - The same gap can also be offered as the supplement after an incomplete import (BKT-06, CL-BKT-07). Accepting either creates the player's one open request, which the other entry point then shows (BKT-07).
+- **Why:** a state does not depend on the order in which imports and validations happen; a request created before T was validated and imported later without an update would otherwise never be offered T.
+- **Owner review:** yes — BKT-05 reads as a reaction to the validation; the list now lasts as long as the gap, so a player can be offered T long after T was validated, and a player whose request to do cannot take T waits.
 
 ## Passed to the glossary
 
@@ -248,6 +259,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - The reference prefix replacing « DEM ».
 - Fixed phrases of the prompt: « non renseigné »; the player marker « premier match NBA le … » and « date du premier match NBA à établir »; the periods « du … au … inclus » and « de son premier match NBA au … inclus ».
 - Labels and messages: « Demander un backtest », « compléter », « refaire », « Copier », « Partager », « mettre à jour », « réduire », « annuler »; states « à faire », « importée », « annulée »; kinds « initiale », « complément », « reprise complète »; origins « née d'une détection », « manuelle », « complémentaire »; the reason « joueur retiré »; « à venir » and « joué »; the stale-copy and stale-sheet-version warnings; the BKT-02 explanation; the "coverage complete, offer « refaire »" message; the reduction-refused message; "time TBD".
+- The mention that a BKT-05 proposal waits for the player's request to do (CL-BKT-26).
 
 ## Ruled elsewhere
 

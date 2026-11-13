@@ -201,11 +201,12 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ### CL-IMP-18 — Recovering a cut result
 
-- **Affects:** IMP-05, IMP-12, BKT-06, CA-IMP-04
-- **Problem:** IMP-05 does not say what "complete" means for a cut text, and the last recovered event falls outside the covered period that the recovery itself shortens.
+- **Affects:** IMP-05, IMP-12, IMP-21, IMP-22, BKT-06, CA-IMP-04; CL-IMP-04
+- **Problem:** IMP-05 does not say what "complete" means for a cut text nor how the owner accepts the recovery it offers, and the last recovered event falls outside the covered period that the recovery itself shortens.
 - **Ruling:**
   - A result is cut when the isolated text ends inside the JSON object (an unclosed string, array or object).
   - Recovery is offered when the text holds complete values of the request reference, the player, the covered types and the covered period, at least one complete event, and the complete events are sorted (CL-IMP-19). A complete event is an element of the events list closed before the cut; the event being written at the cut is dropped whole. Recovered events go through every check.
+  - The recovery needs no separate choice. The preview of a recoverable cut result opens with a recovery notice at its top — the number of events recovered, the shortened covered period, the loss of leads and limitations — and offers the correction message for a cut answer (CL-IMP-04, item 4) as the other way forward. The save button's label names the recovery, so that saving is the acceptance.
   - The covered period ends on the day before the calendar date of the last recovered event. If that end is before the period's start, the retained coverage is empty, the recovered events can still be saved, and the gaps cover the whole requested period.
   - Leads and limitations are lost (IMP-05), except complete ones written before the events list.
   - Recovered events dated on the last recovered date fall outside the shortened period and carry IMP-12's "outside the declared period" warning, as written: that day is searched again by the supplement, which recognizes them as duplicates.
@@ -354,6 +355,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - Warnings named here: "date written in a non-standard form", "time ignored", "may contain statistics or a score", "possible citation marker in {field}", "matches an event you withdrew".
 - The reference wording of the correction message (CL-IMP-04) and its table of expected corrections per refusal reason.
 - Screen labels: « Coller le résultat », « Coller », « Vérifier », « Effacer », « Abandonner le brouillon », « Enregistrer », « Abandonner », « Copier le message de correction », « Backtest en cours »; the modes « premier import », « complément » (an import mode, distinct from the request kind), « remplacement »; « même fait », « faits distincts », « événements distincts »; « ne pas enregistrer — donnée sensible »; « conforme », « non conforme », « inaccessible »; « introuvable »; outcomes « ajouté », « ajouté avec avertissement », « doublon, non ajouté », « ignoré », « refusé », « non enregistré pour donnée sensible »; precedence « établie », « incertaine », « non établie », « à vérifier »; the deletion reasons of IMP-33.
+- The recovery notice and the save label of a recovered cut result (CL-IMP-18).
 
 ## Ruled elsewhere
 

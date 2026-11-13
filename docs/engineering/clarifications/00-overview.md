@@ -90,8 +90,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 ### CL-VUE-11 — What CA-VUE-01 and CA-VUE-09 check
 
 - **Affects:** CA-VUE-01, CA-VUE-09, VUE-01, VUE-09, STA-04
-- **Problem:** CA-VUE-01 tests only a national-team game; CA-VUE-09 omits the vigilance points that VUE-09 requires.
-- **Ruling:** CA-VUE-01 also asserts that preseason, exhibition, All-Star, summer-league, G League and national-team games never become a measured game nor enter a baseline (STA-04). CA-VUE-09 also asserts that the page shows the two vigilance points of 00 (chosen population; many profiles, with the number of verdicts chance alone would produce) next to the conditional hypothesis, the five known limits and the withdrawn-events counter.
+- **Problem:** CA-VUE-01 tests only a national-team game; CA-VUE-09 omits the caution notes that VUE-09 requires.
+- **Ruling:** CA-VUE-01 also asserts that preseason, exhibition, All-Star, summer-league, G League and national-team games never become a measured game nor enter a baseline (STA-04). CA-VUE-09 also asserts that the page shows the two caution notes of 00 (chosen population; many profiles, with the number of verdicts chance alone would produce) next to the conditional hypothesis, the five known limits and the withdrawn-events counter.
 - **Why:** the criteria must test the whole requirement they cite.
 - **Owner review:** no
 
@@ -99,7 +99,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** 00 « Objets » (Événement, Cas), glossary « Événement », « Match mesuré », DSN-06; record 0015
 - **Problem:** 00 knows two origins, detected and historical; record 0015 makes the application create birthday and former-team events itself from the schedule.
-- **Ruling:** an event has one of three origins: detected, historical or calendar-derived.
+- **Ruling:** an event has one of three origins: detected, historical or calendar; an event of origin calendar is a calendar-derived event.
   - A calendar-derived event is created and deleted by the calendar derivation (CL-TAX-18, CL-TAX-19), never by an import or a detection. The owner can withdraw it like any event (CL-DSN-09) and correct its context indicators, but never create it, dismiss it, or edit its player, type or date (CL-SUI-14, CL-IHM-21).
   - It carries the player, the type with its sheet version, a reference date equal to its game's day (known in advance, before tip-off), a reference to that game instead of sources, a description written by the application (CL-DSN-20), context indicators (unknown until the owner sets them, H-09) and management data. It carries no confidence, no precedence and no dating mark.
   - Its measured game is that game itself; if the player does not play it, the case is non-measurable (record 0015).
@@ -110,7 +110,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** 00 glossary « Cas » (historique ou suivi), « Cas enregistré à temps », SUI-06; register open point "Lot 2 flow of upcoming calendar-derived events"
 - **Problem:** a case is historical when it comes from a backtest and tracked when it comes from a detected event; calendar-derived events come from neither.
-- **Ruling:** a calendar-derived case is tracked when its event was created before the scheduled start of its game, and is then recorded on time (SUI-06); it is historical when its event was created after that start, which is the case for every game already played when the derivation first sees it. In Lot 1 both kinds count in the profile like any case; tracked cases get the Lot 2 treatment of CL-VUE-14.
+- **Ruling:** a calendar-derived case is tracked when its event was created before the scheduled start of its game, in Lot 1 as in Lot 2, and is then recorded on time (SUI-06); it is historical when its event was created after that start, which is the case for every game already played when the derivation first sees it. In Lot 1 both kinds count in the profile like any case; tracked cases get the Lot 2 treatment of CL-VUE-14.
 - **Why:** a game known in advance and recorded before tip-off is exactly what the validation table needs; this follows the recommended handling of record 0015.
 - **Owner review:** yes — upcoming birthday and first-reunion games now enter the validation table as real-condition tests, which no French text foresaw.
 
@@ -142,6 +142,6 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - English terms for every common and complementary term of the 00 glossary and for the common states (VUE-08).
 - Distinct labels, with one verb, for withdrawing an event ("Withdraw and erase", "event withdrawal") and for the withdrawn status of a player, a type or a source ("Withdraw", "Withdrawn").
-- The label of the third origin, calendar-derived.
+- The label of the third origin, `calendar`.
 - The full English names of the three confidences.
 - The title of the « Méthode et limites » page and the label of the withdrawn-events counter.
