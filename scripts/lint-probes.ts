@@ -59,6 +59,7 @@ const PROBE_FILES: readonly string[] = [
   'src/lib/log/probe.ts',
   'src/lib/log/sinks/probe.ts',
   'src/lib/probe/BadName.ts',
+  'src/lib/probe/probe.test.ts',
   'src/lib/probe/probe.ts',
   'src/lib/probe/use-probe.ts',
   'src/lib/stats-engine/probe.cts',

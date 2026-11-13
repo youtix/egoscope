@@ -11,7 +11,9 @@ import {
   brokenLinks,
   checkFrozenSpecs,
   FROZEN_MANIFEST,
+  hasCommentSyntax,
   isFrozenSpec,
+  pragmaViolations,
   unguardedJobs,
 } from './content-rules';
 import { isIgnoredPath } from './ignored-folders';
@@ -55,6 +57,9 @@ const violations = [
   ...paths
     .filter((path) => path.endsWith('.md') && !isFrozenSpec(path))
     .flatMap((path) => brokenLinks(path, read(path), files)),
+  ...paths
+    .filter((path) => hasCommentSyntax(path) && !isFrozenSpec(path))
+    .flatMap((path) => pragmaViolations(path, read(path))),
   ...(files.has(WORKFLOW) ? unguardedJobs(WORKFLOW, read(WORKFLOW)) : []),
 ];
 

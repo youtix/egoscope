@@ -94,10 +94,22 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
 
 ## Never weaken the gate
 
-Never weaken a lint rule, a TypeScript option, a coverage threshold or a test to get green. Every
-`eslint-disable-next-line` needs a `-- reason`, and the architecture and size rules cannot be
-disabled at all, nor can the ban on coverage ignore hints (`v8 ignore`, `c8 ignore`, `istanbul
-ignore`). Fix the code; if a rule is wrong, say so in the PR instead.
+Never weaken a lint rule, a TypeScript option, a coverage threshold or a test to get green, and
+never switch a check off from the source. Two comments are allowed, each with its reason:
+`eslint-disable-next-line` with a `-- reason` (never for the architecture and size rules, nor for
+the bans below) and, in tests only, `@ts-expect-error`. Lint, the structure check and commitlint
+refuse everything else:
+
+- coverage hints of the whole `v8`, `c8`, `istanbul` and `node:coverage` family (`ignore` with
+  `next`, `if`, `else`, `file`, `start` or `stop`, and `disable` or `enable`), in any comment and on
+  any line of covered code;
+- `@ts-ignore`, `@ts-nocheck`, triple-slash references and every other ESLint comment;
+- `prettier-ignore`, markdownlint, shellcheck and Stryker comments, and knip's `@public`,
+  `@beta`, `@alias` and `@internal` tags;
+- React's `'use no memo'`, and tests that are skipped, focused, conditional or expected to fail;
+- commit messages and pull request titles that make GitHub skip CI (`[skip ci]` and the like).
+
+Fix the code; if a rule is wrong, say so in the PR instead.
 
 ## Definition of done
 

@@ -2,8 +2,10 @@
  * The project's own ESLint rules, loaded by eslint.config.ts as the `egoscope`
  * plugin. eslint-plugin.test.ts proves that each of them bites.
  *
- * - `no-coverage-hints`: comments that tell a coverage tool to skip code would
- *   take that code out of the coverage gate without anyone noticing.
+ * - `no-coverage-hints`: hints that tell a coverage tool to skip code would take
+ *   that code out of the coverage gate without anyone noticing.
+ * - `no-tool-pragmas`: comments that switch another tool of the gate off.
+ * - `no-skipped-tests`: tests switched off while the suite runs.
  * - `no-local-time` (needs type information): in the pure core, a date is an
  *   absolute instant. Methods that read or write local time, string conversions
  *   that print it, and constructors that parse strings or take local calendar
@@ -11,15 +13,33 @@
  */
 import { AST_NODE_TYPES, ESLintUtils } from '@typescript-eslint/utils';
 
-import type { TSESTree } from '@typescript-eslint/utils';
+import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
 import type { ESLint } from 'eslint';
 
 const createRule = ESLintUtils.RuleCreator<{ requiresTypeChecking?: boolean }>(
   (name) => `scripts/eslint-plugin.ts#${name}`,
 );
 
-// The ignore hints of V8, c8 and Istanbul, with any spacing or case.
-const COVERAGE_HINT = /\b(?:v8|c8|istanbul)\s+ignore\b/iu;
+// The coverage hints of V8 and c8, Istanbul and Node's test runner, in any case and
+// spacing. (These comments name them without spelling a hint, which this very rule
+// would refuse.) ast-v8-to-istanbul, behind @vitest/coverage-v8, reads the ignore
+// hints with if, else, next or file in comments, and those with start or stop on
+// any line of a covered file, strings included. Node's runner reads its own
+// disable, enable and ignore-next comments, all with the same prefix.
+const COVERAGE_HINT = /\b(?:v8|c8|istanbul)\s+ignore\b|\bnode:coverage\b/iu;
+
+// Comments that the gate's other tools obey: Prettier skips the next node,
+// Stryker stops mutating, and knip never reports an export tagged this way.
+const TOOL_PRAGMAS = [
+  { pattern: /\bprettier-ignore\b/iu, messageId: 'prettier' },
+  { pattern: /\bStryker\s+(?:disable|restore)\b/iu, messageId: 'stryker' },
+  { pattern: /(?:^|\s)@(?:public|beta|alias|internal)\b/u, messageId: 'knip' },
+] as const;
+
+// Vitest calls that skip a test, run it only under a condition, or turn its
+// failure into a pass. The Vitest plugin's own rules refuse the skip, only and
+// to-do modifiers of `it` and `describe`.
+const SKIPPING_CALLS: ReadonlySet<string> = new Set(['skip', 'skipIf', 'runIf', 'fails']);
 
 const LOCAL_TIME_METHODS: ReadonlySet<string> = new Set([
   'getDate',
@@ -51,23 +71,128 @@ const LOCAL_TIME_METHODS: ReadonlySet<string> = new Set([
 const isNamed = (node: TSESTree.Node, name: string): boolean =>
   node.type === AST_NODE_TYPES.Identifier && node.name === name;
 
-const noCoverageHints = createRule({
+/** Reports each comment that matches `pattern`, and returns the lines they cover. */
+function reportComments(
+  sourceCode: Readonly<TSESLint.SourceCode>,
+  pattern: RegExp,
+  report: (comment: TSESTree.Comment) => void,
+): ReadonlySet<number> {
+  const lines = new Set<number>();
+  for (const comment of sourceCode.getAllComments()) {
+    if (!pattern.test(comment.value)) {
+      continue;
+    }
+    report(comment);
+    for (let line = comment.loc.start.line; line <= comment.loc.end.line; line += 1) {
+      lines.add(line);
+    }
+  }
+  return lines;
+}
+
+/** Reports each line that holds a coverage hint, except the lines in `skipped`. */
+function reportHintLines(
+  sourceCode: Readonly<TSESLint.SourceCode>,
+  skipped: ReadonlySet<number>,
+  report: (loc: TSESTree.SourceLocation) => void,
+): void {
+  for (const [index, text] of sourceCode.lines.entries()) {
+    const line = index + 1;
+    if (skipped.has(line) || !COVERAGE_HINT.test(text)) {
+      continue;
+    }
+    report({ start: { line, column: 0 }, end: { line, column: text.length } });
+  }
+}
+
+const noCoverageHints = createRule<[{ text: boolean }], 'hint' | 'text'>({
   name: 'no-coverage-hints',
   meta: {
     type: 'problem',
-    docs: { description: 'Forbid comments that hide code from the coverage gate.' },
+    docs: { description: 'Forbid coverage ignore hints, which hide code from the coverage gate.' },
     messages: {
       hint: 'Coverage ignore hints are forbidden: coverage counts every line, so test this code instead.',
+      text: 'The coverage remapper reads every line of a covered file, so this text works as a coverage ignore hint: reword it.',
+    },
+    schema: [
+      {
+        type: 'object',
+        properties: { text: { type: 'boolean' } },
+        additionalProperties: false,
+      },
+    ],
+    defaultOptions: [{ text: false }],
+  },
+  create(context, [{ text }]) {
+    return {
+      Program(): void {
+        const reported = reportComments(context.sourceCode, COVERAGE_HINT, (comment) => {
+          context.report({ loc: comment.loc, messageId: 'hint' });
+        });
+        if (text) {
+          reportHintLines(context.sourceCode, reported, (loc) => {
+            context.report({ loc, messageId: 'text' });
+          });
+        }
+      },
+    };
+  },
+});
+
+const noToolPragmas = createRule({
+  name: 'no-tool-pragmas',
+  meta: {
+    type: 'problem',
+    docs: { description: 'Forbid comments that switch another tool of the gate off.' },
+    messages: {
+      prettier:
+        '`prettier-ignore` switches Prettier off for the next node: let Prettier format it.',
+      stryker:
+        '`Stryker disable` and `Stryker restore` switch mutation testing off: test the code until its mutants die.',
+      knip: 'knip never reports an export tagged `@public`, `@beta`, `@alias` or `@internal`: use the export, or delete it.',
     },
     schema: [],
   },
   create(context) {
     return {
       Program(): void {
-        for (const comment of context.sourceCode.getAllComments()) {
-          if (COVERAGE_HINT.test(comment.value)) {
-            context.report({ loc: comment.loc, messageId: 'hint' });
-          }
+        for (const { pattern, messageId } of TOOL_PRAGMAS) {
+          reportComments(context.sourceCode, pattern, (comment) => {
+            context.report({ loc: comment.loc, messageId });
+          });
+        }
+      },
+    };
+  },
+});
+
+/** The name a call goes by: `skip` in `skip()`, `context.skip()` and `it.skip()`. */
+function calleeName(callee: TSESTree.Expression): string | undefined {
+  if (callee.type === AST_NODE_TYPES.Identifier) {
+    return callee.name;
+  }
+  return callee.type === AST_NODE_TYPES.MemberExpression &&
+    callee.property.type === AST_NODE_TYPES.Identifier
+    ? callee.property.name
+    : undefined;
+}
+
+const noSkippedTests = createRule({
+  name: 'no-skipped-tests',
+  meta: {
+    type: 'problem',
+    docs: { description: 'Forbid tests that are switched off while the suite runs.' },
+    messages: {
+      skip: '`{{name}}` switches a test off, or turns its failure into a pass: a test runs and passes, or it is deleted.',
+    },
+    schema: [],
+  },
+  create(context) {
+    return {
+      CallExpression(node): void {
+        const name = calleeName(node.callee);
+        if (name !== undefined && SKIPPING_CALLS.has(name)) {
+          context.report({ node: node.callee, messageId: 'skip', data: { name } });
         }
       },
     };
@@ -134,7 +259,12 @@ const noLocalTime = createRule({
   },
 });
 
-const rules = { 'no-coverage-hints': noCoverageHints, 'no-local-time': noLocalTime };
+const rules = {
+  'no-coverage-hints': noCoverageHints,
+  'no-local-time': noLocalTime,
+  'no-skipped-tests': noSkippedTests,
+  'no-tool-pragmas': noToolPragmas,
+};
 
 /** The `egoscope` ESLint plugin. */
 export const egoscopePlugin: ESLint.Plugin = {

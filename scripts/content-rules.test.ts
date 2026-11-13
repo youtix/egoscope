@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { brokenLinks, checkFrozenSpecs, isFrozenSpec, unguardedJobs } from './content-rules';
+import {
+  brokenLinks,
+  checkFrozenSpecs,
+  isFrozenSpec,
+  pragmaViolations,
+  unguardedJobs,
+} from './content-rules';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
@@ -101,6 +107,41 @@ describe('brokenLinks', () => {
     expect(problems(brokenLinks('README.md', markdown, files))).toContain(
       'README.md: The link to "docs/engineering/glossary.md" points at nothing in the repository.',
     );
+  });
+});
+
+describe('pragmaViolations', () => {
+  it.each([
+    ['README.md', '<!-- prettier-ignore -->\n| a | b |\n', 'Prettier'],
+    [
+      'README.md',
+      '<!-- prettier-ignore-start -->\n| a |\n<!-- prettier-ignore-end -->\n',
+      'Prettier',
+    ],
+    ['CLAUDE.md', '<!-- markdownlint-disable MD013 -->\nA long line.\n', 'markdownlint'],
+    ['CLAUDE.md', '<!-- markdownlint-configure-file { "MD013": false } -->\n', 'markdownlint'],
+    [
+      '.github/workflows/ci.yml',
+      'jobs:\n  lint:\n    steps:\n      - run: |\n          # shellcheck disable=SC2086\n          echo $x\n',
+      'shellcheck',
+    ],
+    ['lefthook.yml', '# prettier-ignore\nglob_matcher: doublestar\n', 'Prettier'],
+    ['scripts/lint-workflows.sh', '#!/bin/sh\n# shellcheck disable=SC2034\n', 'shellcheck'],
+    ['src/app/globals.css', "/* prettier-ignore */\n@import 'tailwindcss';\n", 'Prettier'],
+    ['.markdownlint-cli2.jsonc', '{\n  // prettier-ignore\n  "config": {}\n}\n', 'Prettier'],
+  ])('rejects a switch in %s', (file, text, tool) => {
+    expect(problems(pragmaViolations(file, text))).toContain(tool);
+  });
+
+  it('accepts a switch named in Markdown prose or code, where no tool reads it', () => {
+    const markdown =
+      'Never write `prettier-ignore`.\n\n```md\n<!-- markdownlint-disable -->\n```\n<!-- A note. -->\n';
+
+    expect(pragmaViolations('CLAUDE.md', markdown)).toStrictEqual([]);
+  });
+
+  it('leaves TypeScript to ESLint', () => {
+    expect(pragmaViolations('src/app/page.tsx', '// prettier-ignore\n')).toStrictEqual([]);
   });
 });
 

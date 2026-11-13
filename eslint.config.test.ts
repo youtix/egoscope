@@ -10,6 +10,10 @@ import { createProbes } from './scripts/lint-probes';
 
 const { project, eslint, lint, ruleIds, remove } = createProbes();
 
+/** A test file whose suite holds `body`. */
+const inTest = (body: string): string =>
+  `import { describe, expect, it } from 'vitest';\n\ndescribe('probe', () => {\n${body}\n});\n`;
+
 describe('eslint.config.ts', { timeout: 120_000 }, () => {
   afterAll(remove);
 
@@ -422,6 +426,17 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
       );
     });
 
+    it.each([
+      ['a file-wide disable', '/* eslint-disable */\nexport const probe = 1;\n'],
+      ['a same-line disable', 'export const probe = 1; // eslint-disable-line no-new -- trying\n'],
+      ['a rule set in a comment', '/* eslint no-console: "off" */\nexport const probe = 1;\n'],
+      ['a global declared in a comment', '/* global answer */\nexport const probe = 1;\n'],
+    ])('refuses %s: eslint-disable-next-line is the one ESLint comment', async (_kind, code) => {
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(
+        '@eslint-community/eslint-comments/no-use',
+      );
+    });
+
     it('reports rules that presets set to "warn" as errors', async () => {
       const code =
         "import { first } from './x';\nimport { second } from './x';\n\nexport const both = [first, second];\n";
@@ -430,6 +445,65 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
 
       expect(duplicates).not.toHaveLength(0);
       expect(duplicates.every((message) => message.severity === 2)).toBe(true);
+    });
+  });
+
+  describe('directives that switch a check off', () => {
+    it.each([
+      [
+        '@ts-ignore',
+        "// @ts-ignore: the probe assigns a string\nexport const probe: number = 'one';\n",
+        '@typescript-eslint/ban-ts-comment',
+      ],
+      [
+        '@ts-nocheck',
+        '// @ts-nocheck\nexport const probe = 1;\n',
+        '@typescript-eslint/ban-ts-comment',
+      ],
+      [
+        '@ts-expect-error outside a test',
+        "// @ts-expect-error: the probe assigns a string\nexport const probe: number = 'one';\n",
+        '@typescript-eslint/ban-ts-comment',
+      ],
+      [
+        'a lib reference, which adds the DOM types',
+        '/// <reference lib="dom" />\nexport const probe = 1;\n',
+        '@typescript-eslint/triple-slash-reference',
+      ],
+      [
+        'a types reference, which adds the Node types',
+        '/// <reference types="node" />\nexport const probe = 1;\n',
+        '@typescript-eslint/triple-slash-reference',
+      ],
+      [
+        "the React Compiler's opt-out",
+        "export function useProbe(): number {\n  'use no memo';\n  return 1;\n}\n",
+        'no-restricted-syntax',
+      ],
+    ])('refuses %s', async (_kind, code, rule) => {
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(rule);
+    });
+
+    it.each([
+      ['a skipped test', inTest("  it.skip('runs', () => undefined);"), 'vitest/no-disabled-tests'],
+      ['a focused test', inTest("  it.only('runs', () => undefined);"), 'vitest/no-focused-tests'],
+      ['a test left to do', inTest("  it.todo('runs');"), 'vitest/warn-todo'],
+    ])('refuses %s', async (_kind, code, rule) => {
+      expect(await ruleIds('src/lib/probe/probe.test.ts', code)).toContain(rule);
+    });
+
+    it('lets a test expect a type error, with its reason', async () => {
+      const body = [
+        "  it('refuses a string', () => {",
+        '    // @ts-expect-error: a count must be a number, not a string',
+        "    const count: number = 'one';",
+        "    expect(count).toBe('one');",
+        '  });',
+      ].join('\n');
+
+      expect(await ruleIds('src/lib/probe/probe.test.ts', inTest(body))).not.toContain(
+        '@typescript-eslint/ban-ts-comment',
+      );
     });
   });
 });

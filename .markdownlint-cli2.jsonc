@@ -12,5 +12,8 @@
   },
   // .claude/ holds the other agents' worktrees (scripts/ignored-folders.ts).
   "ignores": ["docs/*.md", ".claude/**"],
+  // markdownlint obeys no inline configuration comment, which the structure check
+  // refuses too.
+  "noInlineConfig": true,
   "gitignore": true,
 }

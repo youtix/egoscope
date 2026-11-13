@@ -172,6 +172,12 @@ const EVERYWHERE_SYNTAX: readonly SyntaxRestriction[] = [
     selector: 'ExportAllDeclaration',
     message: 'Re-export names explicitly, so that the public API stays readable (module rule 4).',
   },
+  {
+    // The React Compiler, and with it the react-hooks rules, skips code under these.
+    selector: 'ExpressionStatement[directive=/^use no (?:memo|forget)$/]',
+    message:
+      "`'use no memo'` switches the React Compiler's checks off: fix what they report instead.",
+  },
 ];
 // Every module reference in src/ is a literal that the module rules can check.
 const SRC_SYNTAX: readonly SyntaxRestriction[] = [
@@ -525,7 +531,21 @@ const composed = defineConfig(
       'prefer-arrow-callback': 'error',
       'prefer-template': 'error',
       'sort-imports': ['error', { ignoreCase: true, ignoreDeclarationSort: true }],
+
+      // --- Comments that switch a check off ------------------------------------
+      // The one ESLint comment allowed disables the next line, with a reason, and
+      // TypeScript's expect-error directive is allowed in tests only (egoscope/tests).
       'egoscope/no-coverage-hints': 'error',
+      'egoscope/no-tool-pragmas': 'error',
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        { 'ts-check': false, 'ts-expect-error': true, 'ts-ignore': true, 'ts-nocheck': true },
+      ],
+      // A `lib` or `types` reference would let DOM or Node types into the pure core.
+      '@typescript-eslint/triple-slash-reference': [
+        'error',
+        { lib: 'never', path: 'never', types: 'never' },
+      ],
 
       // --- Size and complexity limits --------------------------------------
       complexity: ['error', { max: 10 }],
@@ -803,6 +823,16 @@ const composed = defineConfig(
       'egoscope/no-local-time': 'error',
     },
   },
+  {
+    // Coverage measures these files, and its remapper reads hints on any line of
+    // them, strings included, not only in comments.
+    name: 'egoscope/covered-code',
+    files: SRC_FILES,
+    ignores: TEST_FILES,
+    rules: {
+      'egoscope/no-coverage-hints': ['error', { text: true }],
+    },
+  },
 
   {
     // Route shells are excluded from unit coverage (vitest.config.ts), so these
@@ -842,6 +872,19 @@ const composed = defineConfig(
       'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
       // Tests feed fake credentials to prove that they never leak.
       'sonarjs/no-hardcoded-passwords': 'off',
+      // A test may prove, with its reason, that a call does not type-check. The
+      // directive fails the type check as soon as the error it expects is gone.
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        {
+          'ts-check': false,
+          'ts-expect-error': 'allow-with-description',
+          'ts-ignore': true,
+          'ts-nocheck': true,
+          minimumDescriptionLength: 10,
+        },
+      ],
+      'egoscope/no-skipped-tests': 'error',
       // Vitest's version understands `expect(mock.method)`.
       '@typescript-eslint/unbound-method': 'off',
       'vitest/unbound-method': 'error',

@@ -86,15 +86,18 @@ function isInRepository(resolved: string, files: ReadonlySet<string>): boolean {
   return files.has(resolved) || [...files].some((candidate) => candidate.startsWith(folder));
 }
 
+/** Markdown without its code blocks and code spans, which hold examples, not content. */
+const proseOf = (markdown: string): string =>
+  markdown.replaceAll(FENCED_CODE, '').replaceAll(INLINE_CODE, '');
+
 /** Lists the relative links of `markdown` (the content of `file`) whose target does not exist. */
 export function brokenLinks(
   file: string,
   markdown: string,
   files: ReadonlySet<string>,
 ): readonly StructureViolation[] {
-  const prose = markdown.replaceAll(FENCED_CODE, '').replaceAll(INLINE_CODE, '');
   return Array.from(
-    prose.matchAll(LINK_TARGET),
+    proseOf(markdown).matchAll(LINK_TARGET),
     (match) => match.groups?.['target'] ?? match.groups?.['reference'] ?? '',
   )
     .filter((target) => {
@@ -105,6 +108,64 @@ export function brokenLinks(
       path: file,
       problem: `The link to "${target}" points at nothing in the repository.`,
     }));
+}
+
+// Comments that switch a check off in the files ESLint does not read: Prettier
+// skips what follows, markdownlint takes rules from them, and shellcheck, which
+// actionlint runs on the workflows' scripts, skips the codes they list.
+const FILE_PRAGMAS = [
+  {
+    pattern: /\bprettier-ignore/iu,
+    problem: 'A `prettier-ignore` comment switches Prettier off: let Prettier format the content.',
+  },
+  {
+    pattern: /\bmarkdownlint-(?:disable|enable|capture|restore|configure-file)/iu,
+    problem:
+      'A markdownlint comment switches its rules: follow them, or change .markdownlint-cli2.jsonc in a pull request of its own.',
+  },
+  {
+    pattern: /\bshellcheck\s+disable/iu,
+    problem: 'A `shellcheck disable` comment switches shellcheck off: fix what it reports.',
+  },
+] as const;
+
+type CommentSyntax = Readonly<{ comment: RegExp; content?: (text: string) => string }>;
+
+const HASH_COMMENTS: CommentSyntax = { comment: /(?:^|\s)#.*/gmu };
+const C_COMMENTS: CommentSyntax = { comment: /\/\/.*|\/\*[\s\S]*?\*\//gu };
+// The comment syntax of each kind of file that ESLint does not lint.
+const COMMENT_SYNTAX: ReadonlyMap<string, CommentSyntax> = new Map([
+  ['.md', { comment: /<!--[\s\S]*?-->/gu, content: proseOf }],
+  ['.yml', HASH_COMMENTS],
+  ['.yaml', HASH_COMMENTS],
+  ['.sh', HASH_COMMENTS],
+  ['.toml', HASH_COMMENTS],
+  ['.css', { comment: /\/\*[\s\S]*?\*\//gu }],
+  ['.json', C_COMMENTS],
+  ['.jsonc', C_COMMENTS],
+]);
+
+/** Says whether `file` is of a kind whose comments `pragmaViolations` reads. */
+export function hasCommentSyntax(file: string): boolean {
+  return COMMENT_SYNTAX.has(path.posix.extname(file));
+}
+
+/**
+ * Lists the comments of `text` (the content of `file`) that switch a check off,
+ * in the kinds of file that ESLint does not lint. Markdown code is left out.
+ */
+export function pragmaViolations(file: string, text: string): readonly StructureViolation[] {
+  const syntax = COMMENT_SYNTAX.get(path.posix.extname(file));
+  if (syntax === undefined) {
+    return [];
+  }
+  const comments = Array.from(
+    (syntax.content?.(text) ?? text).matchAll(syntax.comment),
+    ([comment]) => comment,
+  );
+  return FILE_PRAGMAS.filter(({ pattern }) =>
+    comments.some((comment) => pattern.test(comment)),
+  ).map(({ problem }) => ({ path: file, problem }));
 }
 
 // A minimal reader of the workflow layout that Prettier keeps stable: under `jobs:`,
