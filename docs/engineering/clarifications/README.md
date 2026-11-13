@@ -7,7 +7,7 @@ The French functional specs in `docs/` leave points unclear, contradict one anot
 ### Precedence
 
 1. **The French specs** in `docs/` are the reference. They are never edited.
-2. **The owner's decisions** — the decision records, the deviations register and the planning rulings of the orchestrator — change the specs where they say so and prevail over every ruling.
+2. **The owner's decisions** — the decision records, the deviations register and the planning rulings of the coordinator — change the specs where they say so and prevail over every ruling.
 3. **The rulings** settle what the specs leave unclear, inside the specs and the decisions. A ruling overrides a spec's text only where it says so, and only for the point it rules. Where a ruling goes beyond a decision record, it is listed under [Rulings that amend a decision record or a spec hypothesis](#rulings-that-amend-a-decision-record-or-a-spec-hypothesis), and the record is amended from that list.
 
 Between spec files, the file that owns a notion wins over one that uses it, a requirement over an example, a specific rule over a general one (CL-JRN-01).

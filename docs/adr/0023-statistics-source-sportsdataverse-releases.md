@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-11
-- Decided by: the orchestrator, under records [0011](0011-choosing-the-remaining-services.md) and [0012](0012-statistics-coverage-gives-way.md); the provenance point below is open to the owner's review
+- Decided by: the coordinator, under records [0011](0011-choosing-the-remaining-services.md) and [0012](0012-statistics-coverage-gives-way.md); the provenance point below is open to the owner's review
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-11
-- Decided by: the orchestrator, applying record [0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md)
+- Decided by: the coordinator, applying record [0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md)
 
 ## Context
 

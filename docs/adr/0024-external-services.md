@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-11
-- Decided by: the orchestrator, under record [0011](0011-choosing-the-remaining-services.md); hosting and database were the owner's choice ([0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md)), here verified
+- Decided by: the coordinator, under record [0011](0011-choosing-the-remaining-services.md); hosting and database were the owner's choice ([0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md)), here verified
 
 ## Context
 
@@ -20,7 +20,7 @@
 | Notifications (Lot 2)   | The Telegram Bot API: one bot created with BotFather, updates through a webhook                                                                                                                                     | The owner's existing Telegram account                       |
 | Backup storage          | The assets of one draft release in a separate private repository of the owner's GitHub account, reached with one fine-grained token limited to that repository                                                      | The owner's existing GitHub account                         |
 
-The fallback model is the orchestrator's decision: a second provider is used only when its key is set, so the application works fully with one account fewer.
+The fallback model is the coordinator's decision: a second provider is used only when its key is set, so the application works fully with one account fewer.
 
 ## Why each passes the owner's rule
 
@@ -64,6 +64,6 @@ Free, no payment card, automated access permitted, replaceable:
 
 ## Amendments
 
-### 2026-11-13 — The Telegram webhook (orchestrator)
+### 2026-11-13 — The Telegram webhook (coordinator)
 
 - The webhook is registered with `max_connections` 1, and the stored update identifier only moves forward, so each update is handled once and in order.

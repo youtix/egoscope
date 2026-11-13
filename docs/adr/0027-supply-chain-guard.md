@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-11
-- Decided by: the orchestrator, under records [0003](0003-public-repository-and-pull-request-workflow.md) and [0004](0004-quality-bar.md)
+- Decided by: the coordinator, under records [0003](0003-public-repository-and-pull-request-workflow.md) and [0004](0004-quality-bar.md)
 
 ## Context
 

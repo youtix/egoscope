@@ -299,7 +299,7 @@ None remain. The thirteen open points of the register's first version were settl
 - Citation marker inside a text value of a research result: IMP-04 (CL-IMP-07).
 - Two combined statistics sources: STA-03 (CL-STA-23, CL-JOU-21).
 
-A point that no record, row or ruling settles is never settled inside a pull request: the orchestrator decides, and the answer goes into a record and this register first.
+A point that no record, row or ruling settles is never settled inside a pull request: the coordinator decides, and the answer goes into a record and this register first.
 
 ## Readings applied
 
@@ -316,6 +316,6 @@ Where a decision's wording left room, the first version of this register applied
 
 1. **Precedence.** For an ID listed in this register, the "What we do instead" column and its record override the French text — and the decision journal too, which otherwise prevails over the other spec documents. The rulings of `docs/engineering/clarifications/` settle what the specs and the records leave unclear, inside them; a row that cites a ruling takes its detail from it. Everywhere else the French spec is authoritative, including every hypothesis marked « à confirmer », which is implemented as written.
 2. **Language.** The specs quote French labels, states, messages and examples throughout. Render each with the English term of `docs/engineering/glossary.md`. Only the requirements that prescribe French are listed here; translating a quoted label never changes behavior.
-3. **Open points.** Never settle one inside a pull request. Raise it with the orchestrator; the answer is recorded before the affected requirement is implemented.
+3. **Open points.** Never settle one inside a pull request. Raise it with the coordinator; the answer is recorded before the affected requirement is implemented.
 4. **Tests.** A test of an acceptance criterion changed here asserts the value given here and cites both the criterion and the record, or the ruling the row names.
 5. **Changes.** The French specs are frozen. A new deviation needs a record and a row here, in the same pull request as the code that relies on it, or earlier.

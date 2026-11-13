@@ -15,7 +15,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** acceptance criteria 1 to 24 of file 12
 - **Problem:** the criteria are numbered without IDs.
-- **Ruling:** As written in the orchestrator's planning ruling on acceptance-criterion IDs: they are `CA-IHM-01` to `CA-IHM-24`, in document order; the register's `12 AC-n` cites the same criteria.
+- **Ruling:** As written in the coordinator's planning ruling on acceptance-criterion IDs: they are `CA-IHM-01` to `CA-IHM-24`, in document order; the register's `12 AC-n` cites the same criteria.
 - **Why:** one citation scheme for every file.
 - **Owner review:** no
 

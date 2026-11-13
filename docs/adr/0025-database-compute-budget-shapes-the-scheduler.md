@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-11
-- Decided by: the orchestrator, from the measurements of the database and scheduler sheets ([0024](0024-external-services.md))
+- Decided by: the coordinator, from the measurements of the database and scheduler sheets ([0024](0024-external-services.md))
 
 ## Context
 

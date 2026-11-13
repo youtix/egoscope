@@ -1,8 +1,8 @@
 # Decision records
 
-Records 0001 to 0022 hold the product and delivery decisions the owner settled in the design interview of 2026-11-11, before any code was written; record N carries decision N of that interview. Records 0023 to 0028 hold the choices the orchestrator made on the same day under the owner's delegation (records 0008 and 0011): the services, and the rules those services impose. All are accepted and dated 2026-11-11.
+Records 0001 to 0022 hold the product and delivery decisions the owner settled in the design interview of 2026-11-11, before any code was written; record N carries decision N of that interview. Records 0023 to 0028 hold the choices the coordinator made on the same day under the owner's delegation (records 0008 and 0011): the services, and the rules those services impose. All are accepted and dated 2026-11-11.
 
-The French functional specs in `docs/` stay the reference. Where a record changes, extends or settles a requirement, the [deviations register](../engineering/spec-deviations.md) lists it; implementers and reviewers check the register first. The rulings of `docs/engineering/clarifications/` settle what the specs and the records leave unclear; where a ruling or a later choice of the orchestrator went beyond a record, that record carries a dated "Amendments" section citing its source. French terms map to English through `docs/engineering/glossary.md`.
+The French functional specs in `docs/` stay the reference. Where a record changes, extends or settles a requirement, the [deviations register](../engineering/spec-deviations.md) lists it; implementers and reviewers check the register first. The rulings of `docs/engineering/clarifications/` settle what the specs and the records leave unclear; where a ruling or a later choice of the coordinator went beyond a record, that record carries a dated "Amendments" section citing its source. French terms map to English through `docs/engineering/glossary.md`.
 
 ## Records
 
@@ -65,6 +65,6 @@ The same section names the heaviest drafting hypotheses. H-12 (two lots) is conf
 
 ## Adding or changing a record
 
-- A new record takes the next free number and a kebab-case title, and keeps the sections of the others: status and date, context, decision, consequences, alternatives considered where any were; the orchestrator's records also say who decided and what would change the decision.
+- A new record takes the next free number and a kebab-case title, and keeps the sections of the others: status and date, context, decision, consequences, alternatives considered where any were; the coordinator's records also say who decided and what would change the decision.
 - Numbers never change. A ruling or a later choice that refines a record goes into a dated "Amendments" section of that record, citing its source; the original decision stays as written, and the body changes only where it would otherwise contradict the amendment. A decision that replaces another gets a new record that supersedes the old one, which is then marked "Superseded by" with the new number.
 - The rows of the deviations register change in the same pull request as the record.

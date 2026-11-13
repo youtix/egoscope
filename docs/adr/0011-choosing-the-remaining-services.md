@@ -15,7 +15,7 @@ Q-02 leaves host, database, language model, statistics source and news feeds unc
 
 ## Decision
 
-The orchestrator chooses the remaining services by the specs' criteria (TRV-11, TRV-12), fewest accounts first. Each must be free without a payment card, permit automated access and be replaceable, and has its service sheet (TRV-09) with its conditions checked on the day. If a service fails that check — Vercel or Neon included — it is replaced by the closest free equivalent and the reason is recorded.
+The coordinator chooses the remaining services by the specs' criteria (TRV-11, TRV-12), fewest accounts first. Each must be free without a payment card, permit automated access and be replaceable, and has its service sheet (TRV-09) with its conditions checked on the day. If a service fails that check — Vercel or Neon included — it is replaced by the closest free equivalent and the reason is recorded.
 
 ## Consequences
 

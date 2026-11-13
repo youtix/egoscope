@@ -7,7 +7,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** acceptance criteria 1 to 22 of file 09
 - **Problem:** the criteria are numbered without IDs, unlike files 03, 04 and 14.
-- **Ruling:** As written in the orchestrator's planning ruling on acceptance-criterion IDs: they are `CA-ALE-01` to `CA-ALE-22`, in document order; the register's `09 AC-n` cites the same criteria.
+- **Ruling:** As written in the coordinator's planning ruling on acceptance-criterion IDs: they are `CA-ALE-01` to `CA-ALE-22`, in document order; the register's `09 AC-n` cites the same criteria.
 - **Why:** one citation scheme for every file.
 - **Owner review:** no
 

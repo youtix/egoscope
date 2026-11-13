@@ -7,7 +7,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** the 21 acceptance criteria of file 10
 - **Problem:** the criteria are bullets with neither numbers nor IDs.
-- **Ruling:** As written in the orchestrator's planning ruling on acceptance-criterion IDs: they are `CA-SUI-01` to `CA-SUI-21`, in document order; the register's `10 AC-n` cites the same criteria.
+- **Ruling:** As written in the coordinator's planning ruling on acceptance-criterion IDs: they are `CA-SUI-01` to `CA-SUI-21`, in document order; the register's `10 AC-n` cites the same criteria.
 - **Why:** one citation scheme for every file.
 - **Owner review:** no
 

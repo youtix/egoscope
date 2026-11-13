@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-11
-- Decided by: the orchestrator (planning ruling), recorded in CL-TRV-03, CL-STA-14 and CL-TRV-02
+- Decided by: the coordinator (planning ruling), recorded in CL-TRV-03, CL-STA-14 and CL-TRV-02
 
 ## Context
 
