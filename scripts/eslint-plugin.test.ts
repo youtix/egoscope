@@ -196,13 +196,33 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
       ['a conditional skip', inTest("  it.skipIf(true)('runs', () => undefined);")],
       ['a conditional run', inTest("  it.runIf(false)('runs', () => undefined);")],
       ['an expected failure', inTest("  it.fails('fails', () => undefined);")],
+      ['a chained expected failure', inTest("  it.concurrent.fails('fails', () => undefined);")],
+      ['a conditional suite', inTest("  describe.skipIf(true)('suite', () => undefined);")],
       [
         'a skip from the test context',
         inTest("  it('skips', (context) => {\n    context.skip();\n  });"),
       ],
       ['a destructured skip', inTest("  it('skips', ({ skip }) => {\n    skip();\n  });")],
+      [
+        'a skip from a hook context',
+        inTest('  beforeEach((context) => {\n    context.skip();\n  });'),
+      ],
     ])('rejects %s', async (_kind, code) => {
       expect(await ruleIds('src/lib/probe/probe.test.ts', code)).toContain(
+        'egoscope/no-skipped-tests',
+      );
+    });
+
+    it('lets a test call methods of the same names on its own objects', async () => {
+      const body = [
+        "  it('pages through a playlist', () => {",
+        '    const playlist = { skip: (count: number): number => count, fails: (count: number): number => count };',
+        '    const skip = (count: number): number => count + 1;',
+        '    expect(playlist.skip(1) + playlist.fails(3) + skip(1)).toBe(6);',
+        '  });',
+      ].join('\n');
+
+      expect(await ruleIds('src/lib/probe/probe.test.ts', inTest(body))).not.toContain(
         'egoscope/no-skipped-tests',
       );
     });

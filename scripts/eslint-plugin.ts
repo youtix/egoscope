@@ -11,9 +11,9 @@
  *   that print it, and constructors that parse strings or take local calendar
  *   fields all depend on the machine's time zone. The UTC methods stay allowed.
  */
-import { AST_NODE_TYPES, ESLintUtils } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, ASTUtils, ESLintUtils, TSESLint } from '@typescript-eslint/utils';
 
-import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
+import type { TSESTree } from '@typescript-eslint/utils';
 import type { ESLint } from 'eslint';
 
 const createRule = ESLintUtils.RuleCreator<{ requiresTypeChecking?: boolean }>(
@@ -46,9 +46,12 @@ const TOOL_PRAGMAS = [
 ] as const;
 
 // Vitest calls that skip a test, run it only under a condition, or turn its
-// failure into a pass. The Vitest plugin's own rules refuse the skip, only and
-// to-do modifiers of `it` and `describe`.
+// failure into a pass, on Vitest's own objects and their chains (`it.concurrent.fails`).
+// The Vitest plugin's own rules refuse the skip, only and to-do modifiers too.
 const SKIPPING_CALLS: ReadonlySet<string> = new Set(['skip', 'skipIf', 'runIf', 'fails']);
+const VITEST_OBJECTS: ReadonlySet<string> = new Set(['it', 'test', 'describe', 'suite', 'bench']);
+// The calls whose callback receives the test context, whose skip() skips the test.
+const CONTEXT_OWNERS: ReadonlySet<string> = new Set([...VITEST_OBJECTS, 'beforeEach', 'afterEach']);
 
 const LOCAL_TIME_METHODS: ReadonlySet<string> = new Set([
   'getDate',
@@ -176,15 +179,58 @@ const noToolPragmas = createRule({
   },
 });
 
-/** The name a call goes by: `skip` in `skip()`, `context.skip()` and `it.skip()`. */
-function calleeName(callee: TSESTree.Expression): string | undefined {
-  if (callee.type === AST_NODE_TYPES.Identifier) {
-    return callee.name;
+/** The identifier a chain of members and calls starts with: `it` in `it.concurrent(…).skip`. */
+function chainRoot(node: TSESTree.Node): string | undefined {
+  let current = node;
+  while (
+    current.type === AST_NODE_TYPES.MemberExpression ||
+    current.type === AST_NODE_TYPES.CallExpression
+  ) {
+    current = current.type === AST_NODE_TYPES.MemberExpression ? current.object : current.callee;
   }
+  return current.type === AST_NODE_TYPES.Identifier ? current.name : undefined;
+}
+
+/** Says whether `name`, where `node` uses it, is a parameter of a callback given the test context. */
+function isTestContext(scope: TSESLint.Scope.Scope, node: TSESTree.Identifier): boolean {
+  const definition = ASTUtils.findVariable(scope, node)?.defs[0];
+  const owner = definition?.node.parent;
+  return (
+    definition?.type === TSESLint.Scope.DefinitionType.Parameter &&
+    owner?.type === AST_NODE_TYPES.CallExpression &&
+    CONTEXT_OWNERS.has(chainRoot(owner.callee) ?? '')
+  );
+}
+
+/** Says whether `callee` is skip() from the test context: `context.skip` or a destructured `skip`. */
+function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope): boolean {
+  const holder =
+    callee.type === AST_NODE_TYPES.MemberExpression && isNamed(callee.property, 'skip')
+      ? callee.object
+      : callee;
+  const isSkipCall = holder !== callee || isNamed(callee, 'skip');
+  return isSkipCall && holder.type === AST_NODE_TYPES.Identifier && isTestContext(scope, holder);
+}
+
+/** The skipping member that `callee` takes from a Vitest object: `skipIf` in `it.skipIf`. */
+function vitestSkippingMember(callee: TSESTree.Expression): string | undefined {
   return callee.type === AST_NODE_TYPES.MemberExpression &&
-    callee.property.type === AST_NODE_TYPES.Identifier
+    callee.property.type === AST_NODE_TYPES.Identifier &&
+    SKIPPING_CALLS.has(callee.property.name) &&
+    VITEST_OBJECTS.has(chainRoot(callee.object) ?? '')
     ? callee.property.name
     : undefined;
+}
+
+/**
+ * The skipping call that `callee` makes, if any: a skipping member of a Vitest
+ * object (`it.skipIf`), or skip() from the test context.
+ */
+function skippingCall(
+  callee: TSESTree.Expression,
+  scope: TSESLint.Scope.Scope,
+): string | undefined {
+  return isContextSkip(callee, scope) ? 'skip' : vitestSkippingMember(callee);
 }
 
 const noSkippedTests = createRule({
@@ -200,8 +246,8 @@ const noSkippedTests = createRule({
   create(context) {
     return {
       CallExpression(node): void {
-        const name = calleeName(node.callee);
-        if (name !== undefined && SKIPPING_CALLS.has(name)) {
+        const name = skippingCall(node.callee, context.sourceCode.getScope(node));
+        if (name !== undefined) {
           context.report({ node: node.callee, messageId: 'skip', data: { name } });
         }
       },
