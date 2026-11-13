@@ -96,3 +96,8 @@ From Q-DSN-01:
   3. the erasure's transaction (CL-DSN-16) then erases the event's data, the abandoned messages and the text and identifiers of every sent one, whatever Telegram answered, takes the event's mention out of their activity-journal entries (TRV-41), discards the server copies of the player's import drafts and writes the fingerprint;
   4. the result screen is built from memory: the number of messages deleted and, for each one Telegram refused or that could not be reached, its send date and time with the zone and whether it was a digest. That list is never stored and is gone when the owner leaves the screen.
 - If the process stops after step 1 or 2, the event still exists and no fingerprint has been written; the owner withdraws it again, and a message Telegram no longer finds then counts as deleted. A digest is deleted whole; its other facts stay in the app and are not sent again.
+
+### 2026-11-13 — The regrouping exit (CL-SUI-16)
+
+- A tracked case emptied by a regrouping after its measured game's scheduled start leaves a regrouping exit, which keeps it counted once among the cases now out of the counts of the validation table. The exit is tied to the emptied case's earliest-recorded event and holds no date and no game.
+- A withdrawal of that event removes the exit, as if the case had never existed, so nothing of the case outlives the withdrawal but the counter and, for the horizon, the fingerprint. An erasure by requalification or split and the deletion of the player's data remove it too.
