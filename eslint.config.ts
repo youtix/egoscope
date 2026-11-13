@@ -164,11 +164,22 @@ const EVERYWHERE_SYNTAX: readonly SyntaxRestriction[] = [
       "`'use no memo'` switches the React Compiler's checks off: fix what they report instead.",
   },
 ];
-// Every module reference in src/ is a literal that the module rules can check.
+// src/ holds ECMAScript modules only, and every module reference in it is a
+// literal that the module rules can check.
+const ESM_ONLY_MESSAGE =
+  'src/ holds ECMAScript modules only: use `import`, which the module rules check, not `require` or `createRequire` (module rules 1 to 4).';
+const NO_NODE_MODULE: ImportPattern = {
+  regex: '^(?:node:)?module$',
+  message: ESM_ONLY_MESSAGE,
+};
+const COMMONJS_GLOBALS = ['require', 'module', 'exports', '__dirname', '__filename'].map(
+  (name) => ({ name, message: ESM_ONLY_MESSAGE }),
+);
 const SRC_SYNTAX: readonly SyntaxRestriction[] = [
   {
-    selector: "CallExpression[callee.name='require'], TSImportEqualsDeclaration",
-    message: 'Use `import`, not `require`: the module rules check imports (module rules 1 to 4).',
+    selector:
+      "CallExpression[callee.name='require'], TSImportEqualsDeclaration, MemberExpression[property.name='createRequire']",
+    message: ESM_ONLY_MESSAGE,
   },
   {
     selector: "ImportExpression[source.type!='Literal']",
@@ -324,16 +335,17 @@ type Area = Readonly<{
 
 /** The import and syntax restrictions of one area of src/, composed in full. */
 function moduleArea(area: Area): Linter.Config {
+  const imports = [...area.imports, NO_NODE_MODULE];
   return {
     name: `egoscope/module-rules/${area.name}`,
     files: [...area.files],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [...area.imports] }],
+      'no-restricted-imports': ['error', { patterns: imports }],
       'no-restricted-syntax': [
         'error',
         ...EVERYWHERE_SYNTAX,
         ...SRC_SYNTAX,
-        ...area.imports.flatMap((pattern) => otherReferences(pattern)),
+        ...imports.flatMap((pattern) => otherReferences(pattern)),
         ...(area.syntax ?? []),
       ],
     },
@@ -793,6 +805,8 @@ const composed = defineConfig(
     name: 'egoscope/module-rules/src',
     files: SRC_FILES,
     rules: {
+      // The pure-core block below replaces this list with a longer one.
+      'no-restricted-globals': ['error', ...COMMONJS_GLOBALS],
       'no-restricted-properties': ['error', NO_PROCESS_ENV],
       'import-x/no-restricted-paths': layerZones(import.meta.dirname),
     },

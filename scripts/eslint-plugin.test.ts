@@ -1,5 +1,7 @@
-// Proves that each rule of the egoscope plugin bites where eslint.config.ts applies
-// it, with deliberate violations linted in the probe project of lint-probes.ts.
+// Proves that no comment or directive can switch a check off: each rule of the
+// egoscope plugin bites where eslint.config.ts applies it, and so do the preset
+// rules configured for the other switches. Deliberate violations are linted in
+// the probe project of lint-probes.ts.
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { createProbes } from './lint-probes';
@@ -8,10 +10,80 @@ const { ruleIds, remove } = createProbes();
 
 /** A test file whose suite holds `body`. */
 const inTest = (body: string): string =>
-  `import { describe, it } from 'vitest';\n\ndescribe('probe', () => {\n${body}\n});\n`;
+  `import { describe, expect, it } from 'vitest';\n\ndescribe('probe', () => {\n${body}\n});\n`;
 
-describe('the egoscope ESLint plugin', { timeout: 120_000 }, () => {
+describe('comments and directives that switch a check off', { timeout: 120_000 }, () => {
   afterAll(remove);
+
+  describe('ESLint, TypeScript, React and Vitest switches', () => {
+    it.each([
+      ['a file-wide disable', '/* eslint-disable */\nexport const probe = 1;\n'],
+      ['a same-line disable', 'export const probe = 1; // eslint-disable-line no-new -- trying\n'],
+      ['a rule set in a comment', '/* eslint no-console: "off" */\nexport const probe = 1;\n'],
+      ['a global declared in a comment', '/* global answer */\nexport const probe = 1;\n'],
+    ])('refuses %s: eslint-disable-next-line is the one ESLint comment', async (_kind, code) => {
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(
+        '@eslint-community/eslint-comments/no-use',
+      );
+    });
+
+    it.each([
+      [
+        '@ts-ignore',
+        "// @ts-ignore: the probe assigns a string\nexport const probe: number = 'one';\n",
+        '@typescript-eslint/ban-ts-comment',
+      ],
+      [
+        '@ts-nocheck',
+        '// @ts-nocheck\nexport const probe = 1;\n',
+        '@typescript-eslint/ban-ts-comment',
+      ],
+      [
+        '@ts-expect-error outside a test',
+        "// @ts-expect-error: the probe assigns a string\nexport const probe: number = 'one';\n",
+        '@typescript-eslint/ban-ts-comment',
+      ],
+      [
+        'a lib reference, which adds the DOM types',
+        '/// <reference lib="dom" />\nexport const probe = 1;\n',
+        '@typescript-eslint/triple-slash-reference',
+      ],
+      [
+        'a types reference, which adds the Node types',
+        '/// <reference types="node" />\nexport const probe = 1;\n',
+        '@typescript-eslint/triple-slash-reference',
+      ],
+      [
+        "the React Compiler's opt-out",
+        "export function useProbe(): number {\n  'use no memo';\n  return 1;\n}\n",
+        'no-restricted-syntax',
+      ],
+    ])('refuses %s', async (_kind, code, rule) => {
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(rule);
+    });
+
+    it.each([
+      ['a skipped test', inTest("  it.skip('runs', () => undefined);"), 'vitest/no-disabled-tests'],
+      ['a focused test', inTest("  it.only('runs', () => undefined);"), 'vitest/no-focused-tests'],
+      ['a test left to do', inTest("  it.todo('runs');"), 'vitest/warn-todo'],
+    ])('refuses %s', async (_kind, code, rule) => {
+      expect(await ruleIds('src/lib/probe/probe.test.ts', code)).toContain(rule);
+    });
+
+    it('lets a test expect a type error, with its reason', async () => {
+      const body = [
+        "  it('refuses a string', () => {",
+        '    // @ts-expect-error: a count must be a number, not a string',
+        "    const count: number = 'one';",
+        "    expect(count).toBe('one');",
+        '  });',
+      ].join('\n');
+
+      expect(await ruleIds('src/lib/probe/probe.test.ts', inTest(body))).not.toContain(
+        '@typescript-eslint/ban-ts-comment',
+      );
+    });
+  });
 
   describe('no-coverage-hints: coverage cannot be switched off from the source', () => {
     it.each([
