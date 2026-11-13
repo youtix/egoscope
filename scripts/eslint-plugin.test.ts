@@ -348,6 +348,21 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
       );
     });
 
+    it.each([
+      ['{ skip: pass }', 'pass()'],
+      ['{ [key]: skip }', 'skip()'],
+      ['{ skip = () => undefined }', 'skip()'],
+      ['{ skip } = {}', 'skip()'],
+      ['{ task, ...context }', 'context.skip()'],
+      ['context = {}', 'context.skip()'],
+    ])('rejects a skip from the test context bound as %s', async (parameter, call) => {
+      const body = `  it('skips', (${parameter}) => {\n    ${call};\n  });`;
+
+      expect(await ruleIds('src/lib/probe/probe.test.ts', inTest(body))).toContain(
+        'egoscope/no-skipped-tests',
+      );
+    });
+
     it('lets a test made by it.extend(), or imported under another name, run', async () => {
       const code = [
         "import { describe, expect, it as check } from 'vitest';",
@@ -359,6 +374,28 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
         '    expect(seed).toBe(1);',
         '  });',
         "  check('runs', () => undefined);",
+        '});',
+        '',
+      ].join('\n');
+
+      expect(await ruleIds('src/lib/probe/probe.test.ts', code)).not.toContain(
+        'egoscope/no-skipped-tests',
+      );
+    });
+
+    it('lets a test made by it.extend() call skip() on a fixture it destructures', async () => {
+      const code = [
+        "import { describe, expect, it } from 'vitest';",
+        '',
+        'const pagedTest = it.extend({ cursor: { skip: (count: number): number => count + 1 } });',
+        '',
+        "describe('probe', () => {",
+        "  pagedTest('pages through the results', ({ cursor }) => {",
+        '    expect(cursor.skip(2)).toBe(3);',
+        '  });',
+        "  it('keeps the larger count', () => {",
+        '    expect(Math.max(1, 2)).toBe(2);',
+        '  });',
         '});',
         '',
       ].join('\n');
