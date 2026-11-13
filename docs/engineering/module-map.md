@@ -432,7 +432,7 @@ The deep-research AI is not a port: the app never calls it (VUE-07, TRV-19). The
 - **Exposes:** `produceForPass`, `produceAfterImport`, `completeProfileValues`, `addEvent` (also the sheet of an event born of the owner's own action, produced at once and not notified, CL-ALE-09), `addSource`, `onEventDismissed`, `onEventReinstated`, `onExpectedGameChanged`, `refreshExpectedGames`, `onContextCorrected`, `onAttachmentCorrected`, `onCalendarEventDropped`, `recordProfileChanges`, `recordOutcomeChange`, `close`, `moveCaseReferences`, `eraseEventData`, `erasePlayerData`; reads `list`, `get`, `sheetOfEvent`, `openSheets`, `lateSheets`.
 - **Owns:** `alert_sheets`, `alert_sheet_sections`, `alert_sheet_snapshots`, `alert_sheet_events`, `alert_sheet_expected_games`, `alert_sheet_caveats`, `alert_sheet_updates`, `alert_sheet_outcomes` (the frozen `ProfileSnapshot` and `TrendSnapshot`; [alert sheets](domain-model/alert-sheets.md)).
 - **Implements:** ALE-01–ALE-31, VUE-10 (part). **Depends on:** `games`, `sensitivity`, `backtests`, `stats-engine`, `outbox`, `journal`, `db`. **Lot:** 2. **Task:** the alerts-tracking-telegram area.
-- **Files:** `produce.ts`, `update.ts`, `close.ts`, `queries.ts`, `erase.ts`, `types.ts`.
+- **Files:** `produce.ts`, `update.ts` (the dated updates other than membership), `membership.ts` (`onAttachmentCorrected` for player, type and merge corrections, and `onCalendarEventDropped`), `close.ts`, `queries.ts`, `erase.ts`, `types.ts`.
 
 #### `tracking` — tracked cases and validation table
 
@@ -440,7 +440,7 @@ The deep-research AI is not a port: the app never calls it (VUE-07, TRV-19). The
 - **Exposes:** `createTrackedCase`, `ensureTrackedCases`, `recordDecision`, `runAfterStatsUpdate`, `refreshForecasts`, `nextDueAt`, `moveCaseReferences`, `moveEventReferences`, `eraseEventData`, `erasePlayerData`; reads `trackedCase`, `trackedCasesOfPlayer`, `validationTable`, `results`.
 - **Owns:** `tracked_cases`, `forecast_versions`, `case_category_changes`, `tracked_game_results`, `tracked_case_decisions`, `regrouping_exits` ([tracking and validation](domain-model/tracking-and-validation.md)).
 - **Implements:** SUI-01–SUI-30, SEN-35, VUE-10 (part). **Depends on:** `sensitivity`, `games`, `alerts`, `stats-engine`, `outbox`, `journal`, `db`. **Lot:** 2. **Task:** the alerts-tracking-telegram area.
-- **Files:** `create.ts`, `forecasts.ts`, `results.ts`, `validation-table.ts`, `queries.ts`, `erase.ts`, `types.ts`.
+- **Files:** `create.ts`, `forecasts.ts`, `results.ts`, `validation-table.ts`, `references.ts` (`moveCaseReferences` and `moveEventReferences`, which share the recording of a regrouping exit and the moving of decisions), `queries.ts`, `erase.ts` (the erasers and the withdrawal preview's entry), `types.ts`.
 
 #### `detection` — event detection
 
@@ -448,7 +448,7 @@ The deep-research AI is not a port: the app never calls it (VUE-07, TRV-19). The
 - **Exposes:** `prefilterNew`, `reprefilterForPlayer`, `reprefilterForVariant`, `processQueue`, `nextDueAt`, `classifyManually`, `requestReclassification`, `rescue`, `requeueProposalArticles`, `releaseRejectedProposalArticles` (DET-36), `moveProposalFacts` (TAX-18), `dismiss`, `reinstate`, `correct`, `markNotSameFact` (CL-DET-10), `moveReferenceDateEarlier`, `liftDatingToVerify`, `purgeExpiredExposure`, `purgeExpiredRuns`, `eraseEventData` (its step also erases, through `collection.eraseArticlesWithoutRole`, the articles left attached to no event), `erasePlayerData`; reads `queue`, `queueSummary`, `classificationIncidentSummary`, `notRelevant`, `runs`, `qualityIndicators`, `articleFate`, `exposure`, `instructions`, `detectedEvents({ status, player, type, mark })`, `detectedEventDetail`, `previewDismissal`, `previewOwnerClassification`.
 - **Owns:** `article_parts`, `classification_results`, `classification_facts`, `article_attachments`, `exposure_counts`, `detection_runs`, `classification_incident_details` (the classification queue is the pending `article_parts`; [detection](domain-model/detection.md)).
 - **Implements:** DET-01–DET-58, JOU-03, JOU-18, TAX-19 (detection side), DSN-05, DSN-25, ADR 0015 (DET-14, DET-15), ADR 0017. **Depends on:** `collection`, `events`, `taxonomy`, `backtests`, `alerts`, `tracking`, `sensitivity`, `games`, `language-model`, `quotas`, `ai-exchange`, `stats-engine`, `incidents`, `outbox`, `wake-plan`, `journal`, `params`, `db`. **Lot:** 2. **Task:** the collection-detection area.
-- **Files:** `prefilter.ts`, `exposure.ts`, `queue.ts`, `classify.ts`, `grouping.ts`, `routing.ts`, `proposals.ts`, `owner-actions.ts`, `dismissal.ts`, `corrections.ts`, `runs.ts`, `queries.ts`, `erase.ts`, `types.ts`.
+- **Files:** `prefilter.ts`, `exposure.ts`, `queue.ts`, `classify.ts`, `grouping.ts`, `routing.ts`, `proposals.ts`, `owner-actions.ts`, `dismissal.ts`, `corrections.ts` (`correct`, the one entry point of every correction, which hands a merge to `merge.ts`), `runs.ts`, `queries.ts`, `erase.ts`, `types.ts`; internal: `merge.ts` (the merge of two detected events, DET-47).
 
 #### `notifications` — Telegram notifications
 
