@@ -7,9 +7,19 @@ import path from 'node:path';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
+import config from './eslint.config';
+import { GENERATED_FOLDERS } from './scripts/generated-files';
+import { IGNORED_FOLDERS } from './scripts/ignored-folders';
 import { createProbes, SHELL_PROBES } from './scripts/lint-probes';
 
+import type { Linter } from 'eslint';
+
 const { project, eslint, lint, ruleIds, remove } = createProbes();
+
+/** Says whether ESLint reads `block` as global ignores: `ignores`, beside a name or a base path only. */
+const isGlobalIgnores = (block: Linter.Config): boolean =>
+  block.ignores !== undefined &&
+  Object.keys(block).every((key) => ['name', 'basePath', 'ignores'].includes(key));
 
 describe('eslint.config.ts', { timeout: 120_000 }, () => {
   afterAll(remove);
@@ -518,6 +528,25 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
 
       expect(duplicates).not.toHaveLength(0);
       expect(duplicates.every((message) => message.severity === 2)).toBe(true);
+    });
+  });
+
+  describe('global ignores', () => {
+    it('skip the folders that no tool reads, generated files and tool output, and nothing else', () => {
+      const ignored = config
+        .filter((block) => isGlobalIgnores(block))
+        .flatMap((block) => block.ignores ?? []);
+
+      expect(ignored).toStrictEqual([
+        ...IGNORED_FOLDERS,
+        ...GENERATED_FOLDERS,
+        '.next/',
+        '.vitest/',
+        'coverage/',
+        'out/',
+        'reports/',
+        'next-env.d.ts',
+      ]);
     });
   });
 });

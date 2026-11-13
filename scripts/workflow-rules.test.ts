@@ -122,6 +122,55 @@ describe('workflowViolations', () => {
     );
   });
 
+  it.each([`\${{ false }}`, "github.event_name == 'push'"])(
+    'refuses an `if:` on the verdict step, which could skip it: if: %s',
+    (condition) => {
+      const skippable = workflow('e2e', '[lint, test]').replace(
+        '        run: sh scripts/ci-ok.sh',
+        () => `        if: ${condition}\n        run: sh scripts/ci-ok.sh`,
+      );
+
+      expect(problems(workflowViolations(E2E, skippable))).toContain(
+        'The verdict step of e2e has an `if:`',
+      );
+    },
+  );
+
+  it('accepts an `if:` on any other step, in the final job or in a job it needs', () => {
+    const extra = [
+      '  report:',
+      '    runs-on: ubuntu-24.04',
+      '    steps:',
+      '      - run: exit 1',
+      '      - if: failure()',
+      '        run: echo "upload the report"',
+    ];
+    const guarded = workflow('ci-ok', '[lint, test, report]', extra).replace(
+      '    steps:\n      - name: Require',
+      "    steps:\n      - if: github.event_name == 'pull_request'\n        run: echo checkout\n      - name: Require",
+    );
+
+    expect(workflowViolations(CI, guarded)).toStrictEqual([]);
+  });
+
+  it('refuses a final job named other than its id, which branch protection requires', () => {
+    const renamed = workflow('e2e', '[lint, test]').replace(
+      '    if: always()\n',
+      '    name: End-to-end tests\n    if: always()\n',
+    );
+
+    expect(problems(workflowViolations(E2E, renamed))).toContain('The name of e2e must be its id');
+  });
+
+  it('accepts a final job named after its id', () => {
+    const named = workflow('ci-ok', '[lint, test]').replace(
+      '    if: always()\n',
+      '    name: ci-ok\n    if: always()\n',
+    );
+
+    expect(workflowViolations(CI, named)).toStrictEqual([]);
+  });
+
   it.each([
     [CI, 'jobs:\n  lint:\n    runs-on: ubuntu-24.04\n', 'final job named ci-ok'],
     [E2E, workflow('end-to-end', '[lint, test]'), 'final job named e2e'],
