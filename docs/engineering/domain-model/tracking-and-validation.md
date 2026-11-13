@@ -4,7 +4,7 @@ Tracked cases before and after their game — forecast versions, the frozen or l
 
 **Conventions.** As in [collection.md](collection.md). Every "tip-off" below is the game's last known scheduled start (`CL-SUI-13`).
 
-**Sensitive-data classes:** `none`, `press`, `excerpt`, `written`, `event`, `owner`, defined at the top of [collection.md](collection.md). A tracked case exists only because of its event: its rows are erased with it (SUI-30).
+**Sensitive-data classes:** the core model's (`—`, `PI`, `EV`, `TX`, `PR`; README §3) and the two Lot 2 classes `EX` and `OW`, as the top of [collection.md](collection.md) says. A tracked case exists only because of its event: its rows are erased with it (SUI-30).
 
 ## 1. Entities
 
@@ -14,38 +14,38 @@ The file-10 extension of a core case of origin `tracked`: its frozen or late for
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | SUI-01 |
-| `case_id` | integer | no | — | → core `cases.id` `ON DELETE CASCADE`; unique; a case of origin `tracked` | `event` | SUI-01, SUI-05 |
-| `forecast_state` | text | yes | null | `CHECK (forecast_state IN ('frozen','late','none'))` (`ForecastState`); null until the measured game is first established | `none` | SUI-08 to SUI-10, CL-SUI-03 |
-| `forecast_source` | text | yes | null | `CHECK (forecast_source IN ('player_profile','general_trend','none'))` (`ForecastSource`); `CHECK ((forecast_state IS NULL) = (forecast_source IS NULL))`; `CHECK ((forecast_state = 'none') = (forecast_source = 'none'))` | `none` | SUI-08, SUI-09 |
-| `forecast_level` | text | yes | null | `CHECK (forecast_level IN ('possible','probable'))`; not null exactly when `forecast_source` is `player_profile` or `general_trend` | `none` | SUI-08 |
-| `forecast_direction` | text | yes | null | `CHECK (forecast_direction IN ('increase','decrease'))`; same rule | `none` | SUI-08, SUI-22 |
-| `announced_mean_gap` | double precision | yes | null | mean gap of the historical profile or trend used; same rule | `none` | SUI-22, SUI-24 |
-| `forecast_case_count` | integer | yes | null | `CHECK (forecast_case_count >= 1)`; same rule | `none` | SUI-08 |
-| `forecast_profile_confidence` | text | yes | null | `CHECK (forecast_profile_confidence IN ('low','medium','high'))`; same rule | `none` | SUI-08 |
-| `forecast_frozen_at` | timestamptz | yes | null | `frozen` or `none`: the measured game's scheduled start the choice was made against; `late`: the instant of its computation; `CHECK ((forecast_state IS NULL) = (forecast_frozen_at IS NULL))` | `none` | SUI-09, SUI-10 |
-| `awaiting_late_forecast` | boolean | no | false | true when the case had no forecast at its start because the pair's historical data was not yet available (`CL-SUI-05`); `CHECK (NOT awaiting_late_forecast OR forecast_state = 'none')` | `none` | SUI-10, CL-SUI-05 |
-| `category` | text | yes | null | `CHECK (category IN ('confirmed','refuted','neutral','no_forecast'))` (`CaseCategory`); set while the case is measured, null otherwise | `none` | SUI-22 |
+| `id` | integer identity | no | — | primary key | — | SUI-01 |
+| `case_id` | integer | no | — | → core `cases.id` `ON DELETE CASCADE`; unique; a case of origin `tracked` | EV | SUI-01, SUI-05 |
+| `forecast_state` | text | yes | null | `CHECK (forecast_state IN ('frozen','late','none'))` (`ForecastState`); null until the measured game is first established | — | SUI-08 to SUI-10, CL-SUI-03 |
+| `forecast_source` | text | yes | null | `CHECK (forecast_source IN ('player_profile','general_trend','none'))` (`ForecastSource`); `CHECK ((forecast_state IS NULL) = (forecast_source IS NULL))`; `CHECK ((forecast_state = 'none') = (forecast_source = 'none'))` | — | SUI-08, SUI-09 |
+| `forecast_level` | text | yes | null | `CHECK (forecast_level IN ('possible','probable'))`; not null exactly when `forecast_source` is `player_profile` or `general_trend` | — | SUI-08 |
+| `forecast_direction` | text | yes | null | `CHECK (forecast_direction IN ('increase','decrease'))`; same rule | — | SUI-08, SUI-22 |
+| `announced_mean_gap` | double precision | yes | null | mean gap of the historical profile or trend used; same rule | — | SUI-22, SUI-24 |
+| `forecast_case_count` | integer | yes | null | `CHECK (forecast_case_count >= 1)`; same rule | — | SUI-08 |
+| `forecast_profile_confidence` | text | yes | null | `CHECK (forecast_profile_confidence IN ('low','medium','high'))`; same rule | — | SUI-08 |
+| `forecast_frozen_at` | timestamptz | yes | null | `frozen` or `none`: the measured game's scheduled start the choice was made against; `late`: the instant of its computation; `CHECK ((forecast_state IS NULL) = (forecast_frozen_at IS NULL))` | — | SUI-09, SUI-10 |
+| `awaiting_late_forecast` | boolean | no | false | true when the case had no forecast at its start because the pair's historical data was not yet available (`CL-SUI-05`); `CHECK (NOT awaiting_late_forecast OR forecast_state = 'none')` | — | SUI-10, CL-SUI-05 |
+| `category` | text | yes | null | `CHECK (category IN ('confirmed','refuted','neutral','no_forecast'))` (`CaseCategory`); set while the case is measured, null otherwise | — | SUI-22 |
 
-- **Unique and indexes:** `tracked_cases_case_uq` unique `(case_id)`; `tracked_cases_unfrozen_idx` `(id) WHERE forecast_state IS NULL` — the cases whose forecast versions are still followed and frozen at each tick (`CL-SUI-03`); `tracked_cases_late_idx` `(id) WHERE awaiting_late_forecast` — the late-forecast check after each statistics update and import (`CL-SUI-05`).
+- **Unique and indexes:** `tracked_cases_case_uq` unique `(case_id)`; `tracked_cases_unfrozen_idx` `(id) WHERE forecast_state IS NULL` — the cases whose forecast versions are still followed, frozen by the first `game-tracking` run after the measured game's scheduled start with the last version before it (`CL-SUI-03`); `tracked_cases_late_idx` `(id) WHERE awaiting_late_forecast` — the late-forecast check after each statistics update and import (`CL-SUI-05`).
 - **Deletion cascades to:** `forecast_versions`, `case_category_changes`, `tracked_game_results`, `tracked_case_decisions`.
 - **TypeScript:** `id: TrackedCaseId`; `type Forecast = { source: 'player_profile' | 'general_trend'; level: 'possible' | 'probable'; direction: Direction; announcedMeanGap: number; caseCount: number; profileConfidence: ProfileConfidence }`; `type FrozenForecast = { state: 'frozen' | 'late'; forecast: Forecast; frozenAt: EpochMs } | { state: 'none'; frozenAt: EpochMs; awaitingLateForecast: boolean }`.
 
 ### 1.2 Forecast version — `forecast_versions`
 
-The forecast the case would get at a given instant, one row per change, recorded while the case waits for its measured game (SUI-09, `CL-SUI-03`). Versions are derived from the core's append-only history of historical-only profiles and trends, so each takes the instant of the change that produced it, whatever the tick timing.
+The forecast the case would get at a given instant, one row per change, recorded while the case waits for its measured game (SUI-09, `CL-SUI-03`). Versions are derived from the core's append-only `profile_value_versions` (`ProfileValueVersion`) of historical-only profiles and trends, so each takes the instant of the change that produced it, whatever the timing of the `game-tracking` run that writes it.
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | SUI-09 |
-| `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | `none` | SUI-09 |
-| `effective_at` | timestamptz | no | — | the case's creation instant for the first version; otherwise the instant the pair's historical profile or the type's historical trend changed | `none` | SUI-09, CL-SUI-03 |
-| `source` | text | no | — | `CHECK (source IN ('player_profile','general_trend','none'))` | `none` | SUI-08 |
-| `level` | text | yes | null | `CHECK (level IN ('possible','probable'))`; `CHECK ((source = 'none') = (level IS NULL))` | `none` | SUI-08 |
-| `direction` | text | yes | null | `CHECK (direction IN ('increase','decrease'))`; `CHECK ((source = 'none') = (direction IS NULL))` | `none` | SUI-08 |
-| `announced_mean_gap` | double precision | yes | null | `CHECK ((source = 'none') = (announced_mean_gap IS NULL))` | `none` | SUI-08 |
-| `case_count` | integer | yes | null | `CHECK ((source = 'none') = (case_count IS NULL))` | `none` | SUI-08 |
-| `profile_confidence` | text | yes | null | `CHECK (profile_confidence IN ('low','medium','high'))`; `CHECK ((source = 'none') = (profile_confidence IS NULL))` | `none` | SUI-08 |
+| `id` | integer identity | no | — | primary key | — | SUI-09 |
+| `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | — | SUI-09 |
+| `effective_at` | timestamptz | no | — | the case's creation instant for the first version; otherwise the instant the pair's historical profile or the type's historical trend changed | — | SUI-09, CL-SUI-03 |
+| `source` | text | no | — | `CHECK (source IN ('player_profile','general_trend','none'))` | — | SUI-08 |
+| `level` | text | yes | null | `CHECK (level IN ('possible','probable'))`; `CHECK ((source = 'none') = (level IS NULL))` | — | SUI-08 |
+| `direction` | text | yes | null | `CHECK (direction IN ('increase','decrease'))`; `CHECK ((source = 'none') = (direction IS NULL))` | — | SUI-08 |
+| `announced_mean_gap` | double precision | yes | null | `CHECK ((source = 'none') = (announced_mean_gap IS NULL))` | — | SUI-08 |
+| `case_count` | integer | yes | null | `CHECK ((source = 'none') = (case_count IS NULL))` | — | SUI-08 |
+| `profile_confidence` | text | yes | null | `CHECK (profile_confidence IN ('low','medium','high'))`; `CHECK ((source = 'none') = (profile_confidence IS NULL))` | — | SUI-08 |
 
 - **Unique and indexes:** `forecast_versions_uq` unique `(tracked_case_id, effective_at)` — the last version strictly before a scheduled start, and the case's timestamped versions on screen.
 - **Deletion:** with its tracked case.
@@ -57,12 +57,12 @@ The category's history (SUI-15, SUI-21): each change with the gap that gave it.
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | SUI-21 |
-| `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | `none` | SUI-21 |
-| `changed_at` | timestamptz | no | — | | `none` | SUI-15, SUI-21 |
-| `category` | text | yes | null | `CHECK (category IN ('confirmed','refuted','neutral','no_forecast'))`; null when the case left the measured status | `none` | SUI-22 |
-| `normalized_gap` | double precision | yes | null | the case's gap at that moment | `none` | SUI-15, SEN-08 |
-| `gap_status` | text | yes | null | `CHECK (gap_status IN ('provisional','final'))` | `none` | SUI-15, SEN-09 |
+| `id` | integer identity | no | — | primary key | — | SUI-21 |
+| `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | — | SUI-21 |
+| `changed_at` | timestamptz | no | — | | — | SUI-15, SUI-21 |
+| `category` | text | yes | null | `CHECK (category IN ('confirmed','refuted','neutral','no_forecast'))`; null when the case left the measured status | — | SUI-22 |
+| `normalized_gap` | double precision | yes | null | the case's gap at that moment | — | SUI-15, SEN-08 |
+| `gap_status` | text | yes | null | `CHECK (gap_status IN ('provisional','final'))` | — | SUI-15, SEN-09 |
 
 - **Unique and indexes:** `case_category_changes_case_idx` `(tracked_case_id, changed_at)`.
 - **Deletion:** with its tracked case.
@@ -74,11 +74,11 @@ What file 10 transmitted, with its date and content (SUI-19, SUI-20): the indica
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | SUI-19 |
-| `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | `none` | SUI-19 |
-| `kind` | text | no | — | `CHECK (kind IN ('indicative','final'))` (`TrackedGameResultKind`) | `none` | SUI-19, SUI-20 |
-| `transmitted_at` | timestamptz | no | — | | `none` | SUI-19 |
-| `content` | jsonb | no | — | immutable snapshot of the transmitted result (§5.1), read back whole | `event` | SUI-19, SUI-20 |
+| `id` | integer identity | no | — | primary key | — | SUI-19 |
+| `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | — | SUI-19 |
+| `kind` | text | no | — | `CHECK (kind IN ('indicative','final'))` (`TrackedGameResultKind`) | — | SUI-19, SUI-20 |
+| `transmitted_at` | timestamptz | no | — | | — | SUI-19 |
+| `content` | jsonb | no | — | immutable snapshot of the transmitted result (§5.1), read back whole | EV | SUI-19, SUI-20 |
 
 - **Unique and indexes:** `tracked_game_results_case_idx` `(tracked_case_id, transmitted_at)`.
 - **Deletion:** with its tracked case; by the withdrawal step when the case survives (§1.7).
@@ -90,12 +90,12 @@ Every owner decision of the kinds SUI-17 lists that made a tracked case leave th
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | SUI-17 |
-| `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | `none` | SUI-17 |
-| `kind` | text | no | — | `CHECK (kind IN ('event_dismissed','event_reinstated','case_excluded','case_reinstated','context_corrected','reference_date_corrected','player_corrected','type_corrected','dating_mark_lifted'))` (`PostTipOffDecisionKind`) | `none` | SUI-17 |
-| `effect` | text | no | — | `CHECK (effect IN ('exit','entry','measured_game_change'))` (`PostTipOffDecisionEffect`) | `none` | SUI-17, CL-SUI-10 |
-| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event decided on; null for `case_excluded` and `case_reinstated` | `event` | SUI-17 |
-| `decided_at` | timestamptz | no | — | | `none` | SUI-17, H-SUI-07 |
+| `id` | integer identity | no | — | primary key | — | SUI-17 |
+| `tracked_case_id` | integer | no | — | → `tracked_cases.id` `ON DELETE CASCADE` | — | SUI-17 |
+| `kind` | text | no | — | `CHECK (kind IN ('event_dismissed','event_reinstated','case_excluded','case_reinstated','context_corrected','reference_date_corrected','player_corrected','type_corrected','dating_mark_lifted'))` (`PostTipOffDecisionKind`) | — | SUI-17 |
+| `effect` | text | no | — | `CHECK (effect IN ('exit','entry','measured_game_change'))` (`PostTipOffDecisionEffect`) | — | SUI-17, CL-SUI-10 |
+| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event decided on; null for `case_excluded` and `case_reinstated` | EV | SUI-17 |
+| `decided_at` | timestamptz | no | — | | — | SUI-17, H-SUI-07 |
 
 - **Unique and indexes:** `tracked_case_decisions_case_idx` `(tracked_case_id, decided_at)` — the case's decisions and the latest one (`CL-SUI-10`).
 - **Deletion:** with its tracked case; the decisions about a withdrawn event by the withdrawal step; repointed to the surviving event when two detected events are merged.
@@ -112,11 +112,11 @@ The table has no storage: the pure calculation core computes it on each read fro
 | Value | Computation | Spec |
 | --- | --- | --- |
 | Category counts | testing cases with a forecast; confirmed, refuted, neutral among them; cases without forecast | SUI-24 |
-| Chance-expected counts | for n cases with a forecast and `categoryThreshold` t: n × (1 − Φ(t)) confirmed, as many refuted, n × (2Φ(t) − 1) neutral, one decimal | SUI-24, CL-SUI-15 |
+| Chance-expected counts | for n cases with a forecast and `tracking.categoryThreshold` t: n × (1 − Φ(t)) confirmed, as many refuted, n × (2Φ(t) − 1) neutral, one decimal | SUI-24, CL-SUI-15 |
 | Mean gap in forecast direction | over the testing cases with a forecast: mean m, count n, range m ± 2b with b = max(sample dispersion, 1) ÷ √n (dispersion 1 when n < 2) | SUI-22, SUI-24, SEN-22 |
 | Announced gap | mean of their frozen `announced_mean_gap`, in forecast direction | SUI-24 |
 | Tracked against historical | mean normalized gap of all testing cases, with and without forecast, with count and range, beside the current mean gap of the valid historical cases of the same row (the overall row: of all of them) | SUI-24, CL-SUI-02 |
-| Assessment | only with at least `minTrackedCasesForAssessment` cases with a forecast, else "too few tracked cases to conclude (k of 10)"; with k = `possibleSnrThreshold`: `confirmed` if m ≥ k·b and a − m < k·b, `confirmed_weaker_than_announced` if m ≥ k·b and a − m ≥ k·b, `refuted` if m < k·b and a − m ≥ k·b, else `undecided` | SUI-26, SUI-27, CL-SUI-07 |
+| Assessment | only with at least `tracking.minTrackedCasesForAssessment` cases with a forecast, else "too few tracked cases to conclude (k of 10)"; with k = `sensitivity.possibleSignalToNoise`: `confirmed` if m ≥ k·b and a − m < k·b, `confirmed_weaker_than_announced` if m ≥ k·b and a − m ≥ k·b, `refuted` if m < k·b and a − m ≥ k·b, else `undecided` | SUI-26, SUI-27, CL-SUI-07 |
 | Late-forecast part | the same values and its own assessment, same minimum | SUI-25, CL-SUI-08 |
 | Separate counts | recorded after tip-off; excluded, not measurable, pending; post-tip-off decisions as three counts — now out of the counts, now in by an entry, now in by a measured-game change — each with its mean gap in forecast direction over the cases that have both; provisional gaps | SUI-25, CL-SUI-10 |
 | Header | the withdrawn-events counter (core), the date of the last change of a parameter that affects calculations (core), the three reading rules | SUI-25, SUI-28, SUI-30 |
@@ -128,11 +128,12 @@ The table has no storage: the pure calculation core computes it on each read fro
 **Withdrawal of an event E** (SUI-30). The tracking eraser runs after the alerts eraser and before detection's. In the withdrawal's transaction:
 
 1. if E's case is erased with E (E is its only event), its tracked case is deleted with every row of §1.1 to §1.5;
-2. otherwise — the case groups other events of the same type (SEN-05) — the results it transmitted, which name E, and the decisions about E are deleted.
+2. otherwise — the case groups other events of the same type (SEN-05) — the results it transmitted, which name E, and the decisions about E are deleted;
+3. the outbox facts of every deleted result (`outbox_facts.lot2_subject_id`, kind `tracked_result_ready`) are deleted with it.
 
 The validation table, being derived, no longer counts the case anywhere, separate counts included, and the core's withdrawn-events counter grows by one (DSN-29). Nothing about E remains in these tables.
 
-**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps without the counter. A player-data deletion erases his tracked cases through the withdrawal of each of his events. An upcoming calendar-derived event dropped before its scheduled start is deleted with its case and tracked case, never counts, and is no post-tip-off decision (`CL-SUI-14`).
+**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps without the counter. A player-data deletion erases his tracked cases through the withdrawal of each of his events. An upcoming calendar-derived event dropped before its scheduled start is deleted with its case and tracked case, never counts, and is no post-tip-off decision (`CL-SUI-14`); one dropped after its game started is deleted the same way, and the core journals it and counts it in the profile's tally as `no_longer_derived` (`CL-SEN-25`). A case merge deletes the emptied case's tracked case with its rows by cascade, the surviving case keeping its own (core events-and-cases.md §2.5); an unconsumed `tracked_result_ready` fact whose result no longer exists is dropped by the dispatch as stale (TEL-23).
 
 **Purge.** None: tracked cases are case data and last as long as their case.
 
@@ -157,14 +158,14 @@ The validation table, being derived, no longer counts the case anywhere, separat
 
 | From | To | Trigger | Guard | Side effects | Spec |
 | --- | --- | --- | --- | --- | --- |
-| null | a category | the case becomes measured | — | from the gap in forecast direction and `categoryThreshold`: `confirmed` at or above +t, `refuted` at or below −t, `neutral` between; `no_forecast` without a forecast | SUI-22 |
+| null | a category | the case becomes measured | — | from the gap in forecast direction and `tracking.categoryThreshold`: `confirmed` at or above +t, `refuted` at or below −t, `neutral` between; `no_forecast` without a forecast | SUI-22 |
 | a category | another or null | the gap changes (provisional baseline, statistics correction), the case is excluded or reinstated, the threshold changes, a late forecast arrives | — | a `case_category_changes` row; the table uses the new value; no new message (TEL-17) | SUI-15, SUI-21, CL-SUI-04 |
 
 ### 2.3 Transmitted results (`TrackedGameResultKind`)
 
 | From | To | Trigger | Guard | Side effects | Spec |
 | --- | --- | --- | --- | --- | --- |
-| — | `indicative` | the measured game is played while the baseline is still being built | — | a result with the index and the indicative comparison; a `tracked_game_result` outbox fact if no result was notified for the case | SUI-20, CL-SUI-09 |
+| — | `indicative` | the measured game is played while the baseline is still being built | — | a result with the index and the indicative comparison; a `tracked_result_ready` outbox fact (`lot2_subject_id` = the result) if no result was notified for the case | SUI-20, CL-SUI-09 |
 | — | `final` | the case leaves awaiting its game: measured, excluded or not measurable | — | a result with the measurement or the reason; an outbox fact only if no result was notified yet; the sheet's outcome (alert-sheets.md) | SUI-19, CL-SUI-09 |
 
 A case whose event was dismissed after tip-off is still measured (`CL-DET-15`) but transmits no result (TEL-23, TEL-38).
@@ -197,7 +198,7 @@ A decision row is recorded by the composed action that makes the decision, in it
 | Creation instant | stored on the core's case | never changes (SUI-01) |
 | Expected game | derived: the core's expected game of the event (STA-27), computed from the reference date as file 04 records it (`CL-SUI-12`); for a calendar-derived event, its derived game | — |
 | Recording timing (`RecordingTiming`) | derived: `cases.created_at` before, or at or after, the measured game's scheduled start | recomputed on read, so a changed measured game is followed (`CL-SUI-03`) |
-| Forecast versions | stored | appended by the tracking task at each tick from the core's profile history, while unfrozen |
+| Forecast versions | stored | appended by the `game-tracking` run from `profile_value_versions` while unfrozen; that task is due after each statistics ingestion (chained to the statistics update or fetch) and at a game's expected availability, never polled at every tick (decision record 0025) |
 | Frozen or late forecast | stored | §2.1 |
 | Gap in forecast direction | derived: the gap, or its opposite for a decrease | — |
 | Category | stored, with its history | §2.2 |
@@ -224,7 +225,7 @@ The content stored in `tracked_game_results.content` and handed to notifications
 | `gapStatus` | string or null | `provisional`, `final` | SUI-15 |
 | `indicativeComparison` | number or null | the comparison with the previous season, for `indicative` only | SUI-20 |
 | `caseStatus` | string | `measured`, `excluded`, `not_measurable`, `awaiting_game` (indicative) | SUI-19 |
-| `statusReason` | string or null | a `CaseStatusReason`, or the triggered criteria for `excluded` | SUI-19 |
+| `statusReason` | string or null | a `CaseStatusReason` (`derived_game_missed` for a calendar-derived case whose player did not play the derived game), or the triggered criteria for `excluded` | SUI-19, CL-SEN-03 |
 | `forecast` | object or null | the frozen or late forecast: `{ source, level, direction, announcedMeanGap, caseCount }` | SUI-19 |
 | `category` | string or null | a `CaseCategory` | SUI-22 |
 | `recordedAfterTipOff` | boolean | | SUI-06, SUI-19 |
@@ -254,7 +255,7 @@ Modeling choices of this file:
 
 1. **The validation table is not stored.** Every value is a function of stored case data and parameters; computing it on read cannot go stale, and a few hundred tracked cases a season keep that cheap. Its "computed at" is the read instant.
 2. **Recording timing is derived**, not stored, so a measured game changed after tip-off is followed without a second copy (`CL-SUI-03`).
-3. **Forecast versions take the instant of the profile change, not the tick's**, from the core's append-only profile history (module map choice 8).
+3. **Forecast versions take the instant of the profile change, not the run's**, from the core's append-only `profile_value_versions` (module map choice 8).
 4. **Decisions are recorded with their effect whatever their position**, and "post-tip-off" is derived against the measured game once established, like the dismissal position of `CL-DET-15`; the effect cannot be recomputed later, the position can.
 5. **New enumeration `TrackedGameResultKind`** (`indicative`, `final`), to add to the glossary.
 
@@ -269,17 +270,18 @@ erDiagram
   tracked_cases ||--o{ tracked_case_decisions : "decisions"
   events ||--o{ tracked_case_decisions : "decided on"
   events ||--o{ cases : "measured by"
-  profile_history ||--o{ forecast_versions : "derived from"
+  profile_value_versions ||--o{ forecast_versions : "derived from"
 ```
 
-`cases`, `events` and the core's append-only profile history (`profile_history` here) belong to the core model.
+`cases`, `events` and the core's append-only `profile_value_versions` belong to the core model.
 
 ## 8. Requests to the core model
 
 1. **Cases** (`cases`): `origin = 'tracked'` for every detected event's case and for a calendar-derived event created before its game's scheduled start, `historical` otherwise (`CL-SUI-14`); `created_at` immutable, equal to the creation instant (SUI-01, SUI-06); read access to the measured game and its scheduled start, status and reason, gap and its status, baseline, minutes and index; a hook when a tracked case's measured game is first established or changes, when it leaves awaiting its game, and when its gap, status or baseline changes (SUI-12, SUI-15, SUI-21).
-2. **Append-only profile history**: for each player–type pair in the historical-only view and each type's historical-only trend, a row per change with the instant it took effect, the valid-case count, mean gap, verdict level and direction, and profile confidence, queryable by pair or type and instant (SUI-08, SUI-09, `CL-SEN-19`). The glossary gives the name `ProfileSnapshot` to the alert sheet's frozen copy (glossary §3.10); this history needs another name.
+2. **Append-only profile history** (`profile_value_versions`, `ProfileValueVersion`): for each player–type pair in the historical-only view and each type's historical-only trend, a row per change with the instant it took effect, the valid-case count, mean gap, verdict level and direction, and profile confidence, queryable by pair or type and instant (SUI-08, SUI-09, `CL-SEN-19`). The glossary keeps `ProfileSnapshot` for the alert sheet's frozen copy.
 3. **Historical data availability of a pair** (`CL-SUI-05`): whether an imported research result covers the type for the player (BKT-10), whether the calendar derivation over the covered seasons has run for him, and whether a historical case of the pair still awaits its statistics.
 4. **Decision hooks**: the composed actions of manual exclusion and reinstatement (SEN-17), dismissal and reinstatement (DET-45), context, reference-date, player and type corrections (DET-47, DET-48) and the lifting of the dating mark (SEN-45) report to tracking, in their transaction, whether the case left the counts, entered them or changed its measured game.
 5. **Calendar derivation in Lot 2** (`CL-SUI-14`, `CL-TAX-19`): the regular runs, in every collection-and-detection pass and at the end of every statistics update, create an upcoming event only for a game that is the player's next game and has not started, with a tracked case; a withdrawn type gets no new event and deletes none; a drop before its scheduled start, with its case, calls the Lot 2 hooks of alerts, tracking and notifications first.
-6. **Read values**: the withdrawn-events counter (DSN-29); the date of the last change of a parameter that affects calculations (TRV-35, `CL-SUI-04`); the parameters `categoryThreshold`, `minTrackedCasesForAssessment`, `possibleSnrThreshold` and the case threshold of SEN-23.
+6. **Read values**: the withdrawn-events counter (DSN-29); the date of the last change of a parameter that affects calculations (TRV-35, `CL-SUI-04`); the parameters `tracking.categoryThreshold`, `tracking.minTrackedCasesForAssessment`, `sensitivity.possibleSignalToNoise` and the case threshold of SEN-23, `sensitivity.minValidCases`.
 7. **Cases spreadsheet export** (TRV-52): for a tracked case, add the recording timing, the frozen forecast (source, level, direction, announced gap, late or not) and the category.
+8. **Task due rule** (decision record 0025): `game-tracking` is due after each statistics ingestion (chained to `statistics-update` or `statistics-fetch`) and at a game's expected availability, never as a query at every tick; its freezes use the last forecast version before each scheduled start, so the run's timing changes no forecast.

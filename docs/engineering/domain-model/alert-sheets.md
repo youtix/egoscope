@@ -4,7 +4,7 @@ Alert sheets, their dated sections, frozen profile and trend snapshots, expected
 
 **Conventions.** As in [collection.md](collection.md). Volumes are small — a few sheets a week (H-TRV-04) — so indexes are named only where a list or a hook needs them.
 
-**Sensitive-data classes:** `none`, `press`, `excerpt`, `written`, `event`, `owner`, defined at the top of [collection.md](collection.md). A sheet exists only because of its events, so its rows are erased by their withdrawal (ALE-30); no column of this file holds an article's title, excerpt or an event's description (09 "Données manipulées").
+**Sensitive-data classes:** the core model's (`—`, `PI`, `EV`, `TX`, `PR`; README §3) and the two Lot 2 classes `EX` and `OW`, as the top of [collection.md](collection.md) says. A sheet exists only because of its events, so its rows are erased by their withdrawal (ALE-30); no column of this file holds an article's title, excerpt or an event's description (09 "Données manipulées").
 
 ## 1. Entities
 
@@ -14,15 +14,15 @@ The sourced write-up produced when a profiled player has a new detected event, o
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key; also the sheet number shown ("Sheet no. {n}"): production order, never reused, gaps accepted | `none` | ALE-06, ALE-30, CL-ALE-11 |
-| `player_id` | integer | no | — | → core `players.id` `ON DELETE RESTRICT` | `event` | ALE-01, ALE-07 |
-| `team_id_at_production` | integer | no | — | → core `teams.id` `ON DELETE RESTRICT`; kept after a trade | `none` | ALE-07 |
-| `produced_at` | timestamptz | no | — | | `none` | ALE-02, ALE-05, ALE-06 |
-| `profile_values_entered_at` | timestamptz | yes | null | for a sheet produced while its profile was being computed (ALE-05), the instant its values entered; with `produced_at`, it gives the timing instant of `CL-ALE-04` | `none` | ALE-05, CL-ALE-04 |
-| `status` | text | no | `'open'` | `CHECK (status IN ('open','closed','canceled'))` (`AlertSheetStatus`) | `none` | ALE-26 |
-| `cancellation_reason` | text | yes | null | `CHECK (cancellation_reason IN ('all_events_dismissed','attachment_corrected','event_no_longer_applies'))` (`AlertSheetCancellationReason`); `CHECK ((status = 'canceled') = (cancellation_reason IS NOT NULL))` | `none` | ALE-22, ALE-31, CL-ALE-13 |
-| `is_late` | boolean | no | false | the « tardive » mark: timing instant at or after the expected game's scheduled start, then, once the measured game is established, at or after that game's | `none` | ALE-24, CL-ALE-04 |
-| `caveats_frozen_at` | timestamptz | yes | null | instant the caveats froze: the scheduled start of the expected game | `none` | CL-ALE-07 |
+| `id` | integer identity | no | — | primary key; also the sheet number shown ("Sheet no. {n}"): production order, never reused, gaps accepted | — | ALE-06, ALE-30, CL-ALE-11 |
+| `player_id` | uuid | no | — | → core `followed_players.id` `ON DELETE RESTRICT` | PI EV | ALE-01, ALE-07 |
+| `team_id_at_production` | integer | no | — | → core `teams.id` `ON DELETE RESTRICT`; kept after a trade | — | ALE-07 |
+| `produced_at` | timestamptz | no | — | | — | ALE-02, ALE-05, ALE-06 |
+| `profile_values_entered_at` | timestamptz | yes | null | for a sheet produced while its profile was being computed (ALE-05), the instant its values entered; with `produced_at`, it gives the timing instant of `CL-ALE-04` | — | ALE-05, CL-ALE-04 |
+| `status` | text | no | `'open'` | `CHECK (status IN ('open','closed','canceled'))` (`AlertSheetStatus`) | — | ALE-26 |
+| `cancellation_reason` | text | yes | null | `CHECK (cancellation_reason IN ('all_events_dismissed','attachment_corrected','event_no_longer_applies'))` (`AlertSheetCancellationReason`); `CHECK ((status = 'canceled') = (cancellation_reason IS NOT NULL))` | — | ALE-22, ALE-31, CL-ALE-13 |
+| `is_late` | boolean | no | false | the « tardive » mark: timing instant at or after the expected game's scheduled start, then, once the measured game is established, at or after that game's | — | ALE-24, CL-ALE-04 |
+| `caveats_frozen_at` | timestamptz | yes | null | instant the caveats froze: the scheduled start of the expected game | — | CL-ALE-07 |
 
 - **Unique and indexes:** `alert_sheets_player_idx` `(player_id, produced_at)` — the alert history by player and period (ALE-28, IHM-33); `alert_sheets_status_idx` `(status, produced_at)` — the open, closed and canceled sections of IHM-33; `alert_sheets_late_idx` `(produced_at) WHERE is_late` — the "late sheets" filter.
 - **Deletion cascades to:** every table below. A sheet is deleted only by the withdrawal of its only event (ALE-30, §1.9).
@@ -34,16 +34,16 @@ The block of one event type on a sheet: the initial content, a dated section for
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | ALE-20 |
-| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | `none` | ALE-20 |
-| `kind` | text | no | — | `CHECK (kind IN ('initial','later_event','type_change'))` (`AlertSheetSectionKind`) | `none` | ALE-20, ALE-31 |
-| `event_type_id` | text | no | — | → core `event_types.id` `ON DELETE RESTRICT` | `event` | ALE-09, ALE-20 |
-| `added_at` | timestamptz | no | — | | `none` | ALE-20, ALE-31 |
-| `profile_state` | text | no | — | `CHECK (profile_state IN ('pending','frozen'))` (`ProfileSnapshotState`); `pending` shows "Profile being computed" | `none` | ALE-05, ALE-19 |
-| `frozen_at` | timestamptz | yes | null | `CHECK ((profile_state = 'frozen') = (frozen_at IS NOT NULL))` | `none` | ALE-19 |
-| `profile_status_notice` | text | yes | null | `CHECK (profile_status_notice IN ('recalculation_in_progress','no_measured_case_yet'))`; only on a frozen section | `none` | ALE-05, 09 edge cases |
-| `type_not_covered` | boolean | no | false | the player's coverage lacked the type when the section was added | `none` | ALE-14, DET-40 |
-| `profile_changed_since_issue_at` | timestamptz | yes | null | first instant the current default-view profile differed from the frozen values | `none` | ALE-19, CL-ALE-07 |
+| `id` | integer identity | no | — | primary key | — | ALE-20 |
+| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | — | ALE-20 |
+| `kind` | text | no | — | `CHECK (kind IN ('initial','later_event','type_change'))` (`AlertSheetSectionKind`) | — | ALE-20, ALE-31 |
+| `event_type_id` | text | no | — | → core `event_types.id` `ON DELETE RESTRICT` | EV | ALE-09, ALE-20 |
+| `added_at` | timestamptz | no | — | | — | ALE-20, ALE-31 |
+| `profile_state` | text | no | — | `CHECK (profile_state IN ('pending','frozen'))` (`ProfileSnapshotState`); `pending` shows "Profile being computed" | — | ALE-05, ALE-19 |
+| `frozen_at` | timestamptz | yes | null | `CHECK ((profile_state = 'frozen') = (frozen_at IS NOT NULL))` | — | ALE-19 |
+| `profile_status_notice` | text | yes | null | `CHECK (profile_status_notice IN ('recalculation_in_progress','no_measured_case_yet'))`; only on a frozen section | — | ALE-05, 09 edge cases |
+| `type_not_covered` | boolean | no | false | the player's coverage lacked the type when the section was added | — | ALE-14, DET-40 |
+| `profile_changed_since_issue_at` | timestamptz | yes | null | first instant the current default-view profile differed from the frozen values | — | ALE-19, CL-ALE-07 |
 
 - **Unique and indexes:** `alert_sheet_sections_uq` unique `(alert_sheet_id, event_type_id)` — two events of the same type share one section (ALE-20); `alert_sheet_sections_type_idx` `(event_type_id)` — the history filtered by type (IHM-33) and the "profile changed" hook after a recalculation.
 - **Deletion cascades to:** `alert_sheet_snapshots`, `alert_sheet_events`, and update entries of the section.
@@ -55,25 +55,25 @@ Profile and trend values copied as they are, in the default view, when they ente
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | ALE-19 |
-| `alert_sheet_section_id` | integer | yes | null | → `alert_sheet_sections.id` `ON DELETE CASCADE` | `none` | ALE-09, ALE-11, ALE-12 |
-| `alert_sheet_outcome_id` | integer | yes | null | → `alert_sheet_outcomes.id` `ON DELETE CASCADE`; `CHECK (num_nonnulls(alert_sheet_section_id, alert_sheet_outcome_id) = 1)` | `none` | ALE-27, CL-ALE-12 |
-| `kind` | text | no | — | `CHECK (kind IN ('profile','trend'))` (`SnapshotKind`); an outcome snapshot is a `profile` | `none` | ALE-09, ALE-11 |
-| `mean_gap` | double precision | yes | null | null when there is no valid case | `none` | ALE-09, SEN-20 |
-| `range_low` | double precision | yes | null | plausible range (SEN-22) | `none` | ALE-09, SEN-38 |
-| `range_high` | double precision | yes | null | `CHECK (range_high >= range_low)` | `none` | ALE-09, SEN-38 |
-| `valid_count` | integer | no | — | `CHECK (valid_count >= 0)` | `none` | ALE-09 |
-| `historical_count` | integer | yes | null | profile only | `none` | ALE-09, SEN-21 |
-| `tracked_count` | integer | yes | null | profile only | `none` | ALE-09, SEN-21 |
-| `excluded_count` | integer | yes | null | profile only | `none` | ALE-09 |
-| `player_count` | integer | yes | null | trend only | `none` | ALE-12, SEN-29 |
-| `verdict_level` | text | no | — | `CHECK (verdict_level IN ('inconclusive','possible','probable'))` | `none` | ALE-09, SEN-23 |
-| `verdict_direction` | text | yes | null | `CHECK (verdict_direction IN ('increase','decrease'))`; `CHECK ((verdict_level = 'inconclusive') = (verdict_direction IS NULL))` | `none` | ALE-10, SEN-24 |
-| `profile_confidence` | text | no | — | `CHECK (profile_confidence IN ('low','medium','high'))` | `none` | ALE-09, SEN-25 |
-| `fragile` | boolean | yes | null | profile only | `none` | ALE-09, SEN-26 |
-| `valid_case_threshold` | integer | yes | null | profile only: threshold in force | `none` | ALE-09, ALE-12 |
-| `computed_at` | timestamptz | no | — | the profile's calculation date | `none` | ALE-09 |
-| `detail` | jsonb | no | `'{}'` | immutable display detail read back whole: confidence-drop reasons, coverage and version warnings (SEN-46), the confounder warning (ADR 0016), excluded-case reasons | `none` | ALE-09, SEN-46, ADR 0016 |
+| `id` | integer identity | no | — | primary key | — | ALE-19 |
+| `alert_sheet_section_id` | integer | yes | null | → `alert_sheet_sections.id` `ON DELETE CASCADE` | — | ALE-09, ALE-11, ALE-12 |
+| `alert_sheet_outcome_id` | integer | yes | null | → `alert_sheet_outcomes.id` `ON DELETE CASCADE`; `CHECK (num_nonnulls(alert_sheet_section_id, alert_sheet_outcome_id) = 1)` | — | ALE-27, CL-ALE-12 |
+| `kind` | text | no | — | `CHECK (kind IN ('profile','trend'))` (`SnapshotKind`); an outcome snapshot is a `profile` | — | ALE-09, ALE-11 |
+| `mean_gap` | double precision | yes | null | null when there is no valid case | — | ALE-09, SEN-20 |
+| `range_low` | double precision | yes | null | plausible range (SEN-22) | — | ALE-09, SEN-38 |
+| `range_high` | double precision | yes | null | `CHECK (range_high >= range_low)` | — | ALE-09, SEN-38 |
+| `valid_count` | integer | no | — | `CHECK (valid_count >= 0)` | — | ALE-09 |
+| `historical_count` | integer | yes | null | profile only | — | ALE-09, SEN-21 |
+| `tracked_count` | integer | yes | null | profile only | — | ALE-09, SEN-21 |
+| `excluded_count` | integer | yes | null | profile only | — | ALE-09 |
+| `player_count` | integer | yes | null | trend only | — | ALE-12, SEN-29 |
+| `verdict_level` | text | no | — | `CHECK (verdict_level IN ('inconclusive','possible','probable'))` | — | ALE-09, SEN-23 |
+| `verdict_direction` | text | yes | null | `CHECK (verdict_direction IN ('increase','decrease'))`; `CHECK ((verdict_level = 'inconclusive') = (verdict_direction IS NULL))` | — | ALE-10, SEN-24 |
+| `profile_confidence` | text | no | — | `CHECK (profile_confidence IN ('low','medium','high'))` | — | ALE-09, SEN-25 |
+| `fragile` | boolean | yes | null | profile only | — | ALE-09, SEN-26 |
+| `valid_case_threshold` | integer | yes | null | profile only: threshold in force | — | ALE-09, ALE-12 |
+| `computed_at` | timestamptz | no | — | the profile's calculation date | — | ALE-09 |
+| `detail` | jsonb | no | `'{}'` | immutable display detail read back whole: confidence-drop reasons, coverage and version warnings (SEN-46), the confounder warning (ADR 0016), excluded-case reasons | — | ALE-09, SEN-46, ADR 0016 |
 
 - **Unique and indexes:** `alert_sheet_snapshots_section_uq` unique `(alert_sheet_section_id, kind) WHERE alert_sheet_section_id IS NOT NULL`; `alert_sheet_snapshots_outcome_uq` unique `(alert_sheet_outcome_id) WHERE alert_sheet_outcome_id IS NOT NULL`.
 - **Deletion:** with its section or outcome; cascades to nothing.
@@ -85,11 +85,11 @@ An event placed on a sheet. Its type, description, reference date, sources, mark
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | ALE-08 |
-| `alert_sheet_section_id` | integer | no | — | → `alert_sheet_sections.id` `ON DELETE CASCADE`; the section of the event's type | `none` | ALE-20 |
-| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; unique | `event` | ALE-03, ALE-08 |
-| `added_at` | timestamptz | no | — | | `none` | ALE-20 |
-| `detection_confidence_at_issue` | smallint | yes | null | `CHECK (detection_confidence_at_issue BETWEEN 0 AND 100)`; null for an event of origin user or calendar-derived | `none` | ALE-08, ALE-21, CL-ALE-13 |
+| `id` | integer identity | no | — | primary key | — | ALE-08 |
+| `alert_sheet_section_id` | integer | no | — | → `alert_sheet_sections.id` `ON DELETE CASCADE`; the section of the event's type | — | ALE-20 |
+| `player_event_id` | integer | no | — | → core `events.id` `ON DELETE RESTRICT`; unique | EV | ALE-03, ALE-08 |
+| `added_at` | timestamptz | no | — | | — | ALE-20 |
+| `detection_confidence_at_issue` | smallint | yes | null | `CHECK (detection_confidence_at_issue BETWEEN 0 AND 100)`; null for an event of origin user or calendar-derived | — | ALE-08, ALE-21, CL-ALE-13 |
 
 - **Unique and indexes:** `alert_sheet_events_event_uq` unique `(player_event_id)` — an event belongs to one sheet only (ALE-03); the sheet of an event (IHM-32 "what the event triggered").
 - **Deletion:** with its section; by the withdrawal step (§1.9); moved to the new player's sheet on a player correction (ALE-31).
@@ -101,18 +101,18 @@ The expected game shown by the sheet, and every game it replaced, struck through
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | ALE-15 |
-| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | `none` | ALE-15 |
-| `state` | text | no | — | `CHECK (state IN ('current','superseded','unknown'))` (`ExpectedGameState`) | `none` | ALE-15, ALE-23 |
-| `game_id` | integer | yes | null | → core `games.id` `ON DELETE RESTRICT`; `CHECK ((state = 'unknown') = (game_id IS NULL))` | `none` | ALE-15, SUI-03, STA-27 |
-| `scheduled_start_at` | timestamptz | yes | null | the game's scheduled start when the entry was recorded, so a superseded game shows its old time; null when unknown | `none` | ALE-15, ALE-23 |
-| `opponent_team_id` | integer | yes | null | → core `teams.id` `ON DELETE RESTRICT`; null when unknown | `none` | ALE-15 |
-| `is_home` | boolean | yes | null | null when unknown or when the schedule does not say | `none` | ALE-15, STA-26 |
-| `passed_game_id` | integer | yes | null | → core `games.id` `ON DELETE RESTRICT`; the team game, on the US date of the reference date, whose tip-off the cautious reference instant follows, named by ALE-15's explanation | `none` | ALE-15, CL-ALE-02 |
-| `unknown_reason` | text | yes | null | `CHECK (unknown_reason IN ('off_season','schedule_not_published','stats_source_unavailable'))` (`ExpectedGameUnknownReason`); `CHECK ((state = 'unknown') = (unknown_reason IS NOT NULL))` | `none` | ALE-15, ALE-23 |
-| `recorded_at` | timestamptz | no | — | | `none` | ALE-23 |
-| `superseded_at` | timestamptz | yes | null | `CHECK ((state = 'superseded') = (superseded_at IS NOT NULL))` | `none` | ALE-23 |
-| `supersession_reason` | text | yes | null | `CHECK (supersession_reason IN ('postponed','brought_forward','canceled','player_did_not_play','reference_date_moved'))` (`ExpectedGameChangeReason`); `CHECK ((state = 'superseded') = (supersession_reason IS NOT NULL))` | `none` | ALE-21, ALE-23, SUI-18 |
+| `id` | integer identity | no | — | primary key | — | ALE-15 |
+| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | — | ALE-15 |
+| `state` | text | no | — | `CHECK (state IN ('current','superseded','unknown'))` (`ExpectedGameState`) | — | ALE-15, ALE-23 |
+| `game_id` | integer | yes | null | → core `games.id` `ON DELETE RESTRICT`; `CHECK ((state = 'unknown') = (game_id IS NULL))` | — | ALE-15, SUI-03, STA-27 |
+| `scheduled_start_at` | timestamptz | yes | null | the game's scheduled start when the entry was recorded, so a superseded game shows its old time; null when unknown | — | ALE-15, ALE-23 |
+| `opponent_team_id` | integer | yes | null | → core `teams.id` `ON DELETE RESTRICT`; null when unknown | — | ALE-15 |
+| `is_home` | boolean | yes | null | null when unknown or when the schedule does not say | — | ALE-15, STA-26 |
+| `passed_game_id` | integer | yes | null | → core `games.id` `ON DELETE RESTRICT`; the team game, on the US date of the reference date, whose tip-off the cautious reference instant follows, named by ALE-15's explanation | — | ALE-15, CL-ALE-02 |
+| `unknown_reason` | text | yes | null | `CHECK (unknown_reason IN ('offseason','schedule_not_published','stats_source_unavailable'))` (`ExpectedGameUnknownReason`); `CHECK ((state = 'unknown') = (unknown_reason IS NOT NULL))` | — | ALE-15, ALE-23 |
+| `recorded_at` | timestamptz | no | — | | — | ALE-23 |
+| `superseded_at` | timestamptz | yes | null | `CHECK ((state = 'superseded') = (superseded_at IS NOT NULL))` | — | ALE-23 |
+| `supersession_reason` | text | yes | null | `CHECK (supersession_reason IN ('postponed','brought_forward','canceled','player_did_not_play','reference_date_moved'))` (`ExpectedGameChangeReason`); `CHECK ((state = 'superseded') = (supersession_reason IS NOT NULL))` | — | ALE-21, ALE-23, SUI-18 |
 
 - **Unique and indexes:** `alert_sheet_expected_games_live_uq` unique `(alert_sheet_id) WHERE state IN ('current','unknown')` — one live block per sheet; `alert_sheet_expected_games_game_idx` `(game_id) WHERE state = 'current'` — the sheet of a player and game when an event arrives (ALE-03), schedule changes of a game (ALE-23), Home's order (CL-IHM-22).
 - **Deletion:** with its sheet; an `unknown` entry is deleted when a game becomes known (the update log keeps the change).
@@ -124,13 +124,13 @@ One caveat the sheet shows, every applicable one, none hidden (ALE-16); recomput
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | ALE-16 |
-| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | `none` | ALE-16 |
-| `kind` | text | no | — | `CHECK (kind IN ('small_sample','effect_direction','known_context','several_events','confidence_near_threshold','dating_to_verify','incomplete_or_earlier_version','late_sheet','type_not_covered','confounder_not_separable'))` (`CaveatKind`) | `none` | ALE-16, ADR 0016 |
-| `event_type_id` | text | yes | null | → core `event_types.id` `ON DELETE RESTRICT`; the section's type for `small_sample`, `effect_direction`, `incomplete_or_earlier_version`, `type_not_covered`, `confounder_not_separable` | `none` | ALE-16 |
-| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event for `confidence_near_threshold` and `dating_to_verify` | `event` | ALE-16 |
-| `known_context_reasons` | text[] | yes | null | `CHECK (known_context_reasons <@ ARRAY['high_stakes','injury_return_flagged','opponent_strength'])` (`KnownContextReason`); `CHECK ((kind = 'known_context') = (known_context_reasons IS NOT NULL))` | `none` | ALE-16, D-19 |
-| `computed_at` | timestamptz | no | — | | `none` | CL-ALE-07 |
+| `id` | integer identity | no | — | primary key | — | ALE-16 |
+| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | — | ALE-16 |
+| `kind` | text | no | — | `CHECK (kind IN ('small_sample','effect_direction','known_context','several_events','confidence_near_threshold','dating_to_verify','incomplete_or_earlier_version','late_sheet','type_not_covered','confounder_not_separable'))` (`CaveatKind`) | — | ALE-16, ADR 0016 |
+| `event_type_id` | text | yes | null | → core `event_types.id` `ON DELETE RESTRICT`; the section's type for `small_sample`, `effect_direction`, `incomplete_or_earlier_version`, `type_not_covered`, `confounder_not_separable` | — | ALE-16 |
+| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event for `confidence_near_threshold` and `dating_to_verify` | EV | ALE-16 |
+| `known_context_reasons` | text[] | yes | null | `CHECK (known_context_reasons <@ ARRAY['high_stakes','injury_return_flagged','opponent_strength'])` (`KnownContextReason`); `CHECK ((kind = 'known_context') = (known_context_reasons IS NOT NULL))` | — | ALE-16, D-19 |
+| `computed_at` | timestamptz | no | — | | — | CL-ALE-07 |
 
 - **Unique and indexes:** `alert_sheet_caveats_uq` unique `NULLS NOT DISTINCT (alert_sheet_id, kind, event_type_id, player_event_id)`.
 - **Deletion:** with its sheet; replaced as a set at each recomputation (§2.4).
@@ -142,13 +142,13 @@ The append-only update log: every dated change the sheet records (ALE-20 to ALE-
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | ALE-31 |
-| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | `none` | ALE-31 |
-| `occurred_at` | timestamptz | no | — | | `none` | ALE-20 to ALE-25 |
-| `kind` | text | no | — | `CHECK (kind IN ('event_added','source_added','event_dismissed','event_reinstated','expected_game_changed','late_mark_changed','context_corrected','attachment_corrected','profile_values_entered','profile_changed_since_issue','caveats_changed','status_changed','outcome_recorded','outcome_value_changed','event_no_longer_applies'))` (`AlertSheetUpdateKind`) | `none` | ALE-20 to ALE-31, CL-ALE-04, CL-ALE-07, CL-ALE-12, CL-ALE-13 |
-| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event the entry concerns | `event` | ALE-20 to ALE-22, ALE-25, ALE-31 |
-| `alert_sheet_section_id` | integer | yes | null | → `alert_sheet_sections.id` `ON DELETE CASCADE`; the section concerned | `none` | ALE-05, ALE-19, ALE-20 |
-| `detail` | jsonb | no | `'{}'` | immutable values of the entry, read back whole (shapes below); identifiers and closed values only, never a text of an event or an article | `none` | ALE-31, CL-ALE-12 |
+| `id` | integer identity | no | — | primary key | — | ALE-31 |
+| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | — | ALE-31 |
+| `occurred_at` | timestamptz | no | — | | — | ALE-20 to ALE-25 |
+| `kind` | text | no | — | `CHECK (kind IN ('event_added','source_added','event_dismissed','event_reinstated','expected_game_changed','late_mark_changed','context_corrected','attachment_corrected','profile_values_entered','profile_changed_since_issue','caveats_changed','status_changed','outcome_recorded','outcome_value_changed','event_no_longer_applies'))` (`AlertSheetUpdateKind`) | — | ALE-20 to ALE-31, CL-ALE-04, CL-ALE-07, CL-ALE-12, CL-ALE-13 |
+| `player_event_id` | integer | yes | null | → core `events.id` `ON DELETE RESTRICT`; the event the entry concerns | EV | ALE-20 to ALE-22, ALE-25, ALE-31 |
+| `alert_sheet_section_id` | integer | yes | null | → `alert_sheet_sections.id` `ON DELETE CASCADE`; the section concerned | — | ALE-05, ALE-19, ALE-20 |
+| `detail` | jsonb | no | `'{}'` | immutable values of the entry, read back whole (shapes below); identifiers and closed values only, never a text of an event or an article | — | ALE-31, CL-ALE-12 |
 
 - **Detail by kind:** `source_added` `{ articleId }`; `expected_game_changed` `{ fromEntryId, toEntryId, reason }`; `late_mark_changed` `{ isLate }`; `attachment_corrected` `{ correction: 'player' | 'type' | 'merge', newSheetId? }`; `status_changed` `{ from, to, cancellationReason? }`; `outcome_recorded` `{ caseId }`; `outcome_value_changed` `{ caseId, field: 'gap' | 'baseline' | 'category', previous }`; `event_no_longer_applies` `{ eventTypeId, gameId, reason }`; the other kinds `{}`.
 - **Unique and indexes:** `alert_sheet_updates_sheet_idx` `(alert_sheet_id, occurred_at)` — the log in order; `alert_sheet_updates_event_idx` `(player_event_id) WHERE player_event_id IS NOT NULL` — the withdrawal step.
@@ -161,12 +161,13 @@ The outcome of one case of the sheet at closure (ALE-27). Its profile after the 
 
 | Column | Type | Null | Default | Constraint or reference | Class | Spec |
 | --- | --- | --- | --- | --- | --- | --- |
-| `id` | integer identity | no | — | primary key | `none` | ALE-27 |
-| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | `none` | ALE-27 |
-| `case_id` | integer | no | — | → core `cases.id` `ON DELETE RESTRICT` | `event` | ALE-27, ALE-29 |
-| `recorded_at` | timestamptz | no | — | the closure that recorded it | `none` | ALE-27 |
+| `id` | integer identity | no | — | primary key | — | ALE-27 |
+| `alert_sheet_id` | integer | no | — | → `alert_sheets.id` `ON DELETE CASCADE` | — | ALE-27 |
+| `case_id` | integer | no | — | → core `cases.id` `ON DELETE RESTRICT` | EV | ALE-27, ALE-29 |
+| `recorded_at` | timestamptz | no | — | the closure that recorded it | — | ALE-27 |
 
-- **Unique and indexes:** `alert_sheet_outcomes_uq` unique `(alert_sheet_id, case_id)`.
+- **Unique and indexes:** `alert_sheet_outcomes_uq` unique `(alert_sheet_id, case_id)`; `alert_sheet_outcomes_case_idx` `(case_id)` — the case-merge hook and the erasers.
+- **Case merge** (core events-and-cases.md §2.5): `case_id` stays `ON DELETE RESTRICT`, and the case-merge hook, called before the emptied case is deleted, moves its outcome rows to the surviving case, or deletes them with their snapshot when the sheet already has an outcome for the surviving case. Both cases' events end on the same measured game, so the outcome describes the same game; any other path that deletes a case still referenced here fails instead of silently losing a sheet's outcome.
 - **Deletion cascades to:** its snapshot.
 - **TypeScript:** `AlertSheetOutcome = { caseId; recordedAt; profileAfter: ProfileSnapshot }` joined with the case's live values.
 
@@ -176,11 +177,12 @@ The outcome of one case of the sheet at closure (ALE-27). Its profile after the 
 
 1. if E is the only event of its sheet, the sheet is deleted with everything below it; its number is never reused;
 2. otherwise E's sheet-event row, its update entries and its per-event caveats are deleted, its section too if no other event remains in it, and the caveats are recomputed even when frozen; the outcome of E's case is deleted when that case is erased;
-3. no update entry and no message records the withdrawal.
+3. the outbox facts of every deleted sheet and update entry (`outbox_facts.lot2_subject_id`, kinds `alert_sheet_produced` and `alert_sheet_updated`) are deleted, and journal entries naming a deleted sheet (`lot2_object_kind = 'alert_sheet'`) get the pair set to null (`CL-TRV-10`);
+4. no update entry and no message records the withdrawal.
 
 What may remain: the sheet of the other events, with its other sections, snapshots, outcomes and log entries.
 
-**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps. A player-data deletion (CL-JOU-06) erases every sheet of the player through the withdrawal of each of his events, then deletes any sheet of his left without events, such as one canceled by an attachment correction. A merge of two detected events (DET-47) removes the absorbed event's sheet-event row with an `attachment_corrected` entry, as ALE-31 does. An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is not an erasure: its sheet-event row goes, an `event_no_longer_applies` entry records its type, game and reason, the sheet is canceled with that reason when no other non-dismissed event remains (`CL-ALE-13`), and its sections and snapshots stay.
+**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps. A player-data deletion (CL-JOU-06) erases every sheet of the player through the withdrawal of each of his events, then deletes any sheet of his left without events, such as one canceled by an attachment correction. A merge of two detected events (DET-47) removes the absorbed event's sheet-event row with an `attachment_corrected` entry, as ALE-31 does. An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is not an erasure: its sheet-event row goes, an `event_no_longer_applies` entry records its type, game and reason, the sheet is canceled with that reason when no other non-dismissed event remains (`CL-ALE-13`), and its sections and snapshots stay. A calendar-derived event dropped after its game started (`CL-TAX-19`, `CL-SEN-25`) goes the same way, its case's outcome row deleted with its snapshot; no message follows (`CL-TEL-21` only covers drops known before the scheduled start), and the core journals the drop and counts it in the profile's tally as `no_longer_derived`. A case merge moves or deletes outcome rows as §1.8 says.
 
 **Purge.** None: the alert history is kept (ALE-28).
 
@@ -298,7 +300,7 @@ Modeling choices of this file:
 
 ```mermaid
 erDiagram
-  players ||--o{ alert_sheets : "alerted"
+  followed_players ||--o{ alert_sheets : "alerted"
   teams ||--o{ alert_sheets : "team at production"
   alert_sheets ||--|{ alert_sheet_sections : "sections"
   event_types ||--o{ alert_sheet_sections : "type"
@@ -314,14 +316,15 @@ erDiagram
   alert_sheet_outcomes ||--|| alert_sheet_snapshots : "profile after"
 ```
 
-`players`, `teams`, `event_types`, `events`, `games` and `cases` belong to the core model.
+`followed_players`, `teams`, `event_types`, `events`, `games` and `cases` belong to the core model.
 
 ## 8. Requests to the core model
 
 1. **Profile read model at freeze time** (default view, SEN-21): for a player and type, the values ALE-09 lists — mean gap, plausible range, valid cases split historical and tracked, excluded cases with reasons, verdict level and direction, profile confidence with its reasons, the fragile flag, coverage and version warnings (SEN-46), the confounder warning (ADR 0016), the threshold in force, the calculation date and the "recalculating" state (SEN-36); for a type, the general trend with its player count (SEN-28, SEN-29).
 2. **Recalculation hook**: after each recalculation, the list of player–type pairs whose default-view values changed, so the composition layer can call `alerts.onProfileChanged` (ALE-19); and the moment a profile being computed for a player becomes available (ALE-05).
-3. **Events**: their state and dismissal data, marks, context indications with origin, description and sources (the read view of DSN-06); for a calendar-derived event, a `game_id` to its derived game (`CL-DSN-20`).
+3. **Events**: their state and dismissal data, marks, context indications with origin, description and sources (the read view of DSN-06); for a calendar-derived event, its `derived_game_id` (`CL-DSN-20`).
 4. **Cases**: read access to the case of an event — measured game, status and reason, gap and its status, baseline used, performance index — and a hook when a case of origin `tracked` leaves awaiting its game or changes gap, baseline or category after that (ALE-26, CL-ALE-12).
 5. **Games and teams**: scheduled start as last known, US date, opponent, home or away, status (postponed, canceled), and the schedule changes since a given instant (STA-28), for ALE-23; the player's current team at production.
 6. **Backtests**: whether the player is profiled and whether his coverage includes the type (BKT-10), and the complementary request a detection created or found (BKT-04, BKT-07, ALE-14).
 7. **Glossary**: add the enumerations and values of modeling choice 4.
+8. **Case-merge hook** (events-and-cases.md §2.5, met by the core model): before an emptied case is deleted, the recalculation service calls the Lot 2 hooks with the emptied and the surviving case, alerts first (§1.8), then notifications (notifications.md §1.4); tracking's rows cascade.
