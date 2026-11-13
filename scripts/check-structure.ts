@@ -13,6 +13,7 @@ import {
   FROZEN_MANIFEST,
   hasCommentSyntax,
   isFrozenSpec,
+  pathFilters,
   pragmaViolations,
   unguardedJobs,
 } from './content-rules';
@@ -22,6 +23,7 @@ import { findStructureViolations } from './structure-rules';
 import type { StructureViolation } from './structure-rules';
 
 const WORKFLOW = '.github/workflows/ci.yml';
+const WORKFLOWS = /^\.github\/workflows\/[^/]+\.ya?ml$/u;
 
 const listing = execFileSync(
   'git',
@@ -60,7 +62,10 @@ const violations = [
   ...paths
     .filter((path) => hasCommentSyntax(path) && !isFrozenSpec(path))
     .flatMap((path) => pragmaViolations(path, read(path))),
-  ...(files.has(WORKFLOW) ? unguardedJobs(WORKFLOW, read(WORKFLOW)) : []),
+  ...(files.has(WORKFLOW)
+    ? unguardedJobs(WORKFLOW, read(WORKFLOW))
+    : [{ path: WORKFLOW, problem: 'The CI workflow, which holds ci-ok, is missing.' }]),
+  ...paths.filter((path) => WORKFLOWS.test(path)).flatMap((path) => pathFilters(path, read(path))),
 ];
 
 for (const { path, problem } of violations) {

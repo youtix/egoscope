@@ -4,9 +4,13 @@
  *
  * - the frozen French specifications match their checksum manifest;
  * - relative Markdown links point at files that exist;
- * - ci-ok depends on every other job of the CI workflow.
+ * - no comment switches a check off in the files that ESLint does not read;
+ * - ci-ok depends on every other job of the CI workflow and runs whatever they
+ *   did, and no workflow trigger is filtered by path.
  */
 import path from 'node:path';
+
+import { parse } from 'yaml';
 
 import type { StructureViolation } from './structure-rules';
 
@@ -168,63 +172,94 @@ export function pragmaViolations(file: string, text: string): readonly Structure
   ).map(({ problem }) => ({ path: file, problem }));
 }
 
-// A minimal reader of the workflow layout that Prettier keeps stable: under `jobs:`,
-// each job is a key indented by two spaces, and its own lines are indented deeper.
-const JOB_KEY = /^ {2}(?<id>[a-z0-9-]+):[ \t]*$/u;
-const NEEDS_LIST = /^ {4}needs:[ \t]*\[(?<list>[^\]]*)\]/u;
-const TOP_LEVEL = /^\S/u;
+type Mapping = Readonly<Record<string, unknown>>;
 
-type JobsAndNeeds = Readonly<{ jobs: readonly string[]; needs: readonly string[] | undefined }>;
+const isMapping = (value: unknown): value is Mapping =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** The lines of the `jobs:` section of a workflow. */
-function jobsSection(workflow: string): readonly string[] {
-  const lines = workflow.split('\n');
-  const start = lines.indexOf('jobs:');
-  const after = start === -1 ? [] : lines.slice(start + 1);
-  const end = after.findIndex((line) => TOP_LEVEL.test(line));
-  return end === -1 ? after : after.slice(0, end);
-}
-
-/** The ids of the jobs in the `jobs:` section of a workflow, and the `needs` of ci-ok. */
-function jobsAndNeeds(workflow: string): JobsAndNeeds {
-  const section = jobsSection(workflow);
-  const jobs: string[] = [];
-  let needs: string[] | undefined;
-  for (const line of section) {
-    const id = JOB_KEY.exec(line)?.groups?.['id'];
-    if (id !== undefined) {
-      jobs.push(id);
-    }
-    const list = jobs.at(-1) === 'ci-ok' ? NEEDS_LIST.exec(line)?.groups?.['list'] : undefined;
-    if (list !== undefined) {
-      needs = list
-        .split(',')
-        .map((job) => job.trim())
-        .filter((job) => job !== '');
-    }
+/** A workflow file read as YAML, or undefined when it is not a YAML mapping. */
+function readWorkflow(text: string): Mapping | undefined {
+  try {
+    const value: unknown = parse(text);
+    return isMapping(value) ? value : undefined;
+  } catch {
+    return undefined;
   }
-  return { jobs, needs };
 }
+
+/** The job ids that a `needs` value names: one id, or a list of them. */
+function neededJobs(needs: unknown): readonly string[] {
+  if (typeof needs === 'string') {
+    return [needs];
+  }
+  if (!Array.isArray(needs)) {
+    return [];
+  }
+  const jobs: readonly unknown[] = needs;
+  return jobs.filter((job): job is string => typeof job === 'string');
+}
+
+// `if: always()`, with or without the ${{ }} expression syntax.
+const ALWAYS = /^\s*(?:\$\{\{\s*)?always\(\)(?:\s*\}\})?\s*$/u;
 
 /**
- * Checks that the `ci-ok` job of `workflow` needs every other job: ci-ok is the one
- * job of the CI workflow that `main` requires, so a job outside its `needs` would
- * not gate merges.
+ * Checks that the `ci-ok` job of `workflow` needs every other job, and runs
+ * whatever happened to them: ci-ok is the one job of the CI workflow that `main`
+ * requires, so a job outside its `needs` would not gate merges, and a skipped
+ * ci-ok counts as passed.
  */
 export function unguardedJobs(
   workflowPath: string,
   workflow: string,
 ): readonly StructureViolation[] {
-  const { jobs, needs } = jobsAndNeeds(workflow);
-  if (needs === undefined) {
+  const jobs = readWorkflow(workflow)?.['jobs'];
+  const ciOk = isMapping(jobs) ? jobs['ci-ok'] : undefined;
+  if (!isMapping(jobs) || !isMapping(ciOk)) {
     return [
-      { path: workflowPath, problem: 'The workflow needs a ci-ok job with a `needs: [...]` list.' },
+      {
+        path: workflowPath,
+        problem: 'The workflow needs a ci-ok job, under `jobs`, in valid YAML.',
+      },
     ];
   }
-  return jobs
-    .filter((job) => job !== 'ci-ok' && !needs.includes(job))
-    .map((job) => ({
+  const needs = neededJobs(ciOk['needs']);
+  const condition = ciOk['if'];
+  const doesAlwaysRun = typeof condition === 'string' && ALWAYS.test(condition);
+  return [
+    ...(doesAlwaysRun
+      ? []
+      : [
+          {
+            path: workflowPath,
+            problem: 'ci-ok must run even when a job it needs fails: give it `if: always()`.',
+          },
+        ]),
+    ...Object.keys(jobs)
+      .filter((job) => job !== 'ci-ok' && !needs.includes(job))
+      .map((job) => ({
+        path: workflowPath,
+        problem: `Job "${job}" is missing from the needs of ci-ok, so it would not gate merges.`,
+      })),
+  ];
+}
+
+/**
+ * Checks that no trigger of `workflow` is filtered by path: such a workflow would
+ * not run, so its final job, a required check, would never report a result.
+ */
+export function pathFilters(workflowPath: string, workflow: string): readonly StructureViolation[] {
+  const triggers = readWorkflow(workflow)?.['on'];
+  if (!isMapping(triggers)) {
+    return [];
+  }
+  return Object.entries(triggers)
+    .filter(
+      ([, settings]) =>
+        isMapping(settings) &&
+        (Object.hasOwn(settings, 'paths') || Object.hasOwn(settings, 'paths-ignore')),
+    )
+    .map(([event]) => ({
       path: workflowPath,
-      problem: `Job "${job}" is missing from the needs of ci-ok, so it would not gate merges.`,
+      problem: `The ${event} trigger has a path filter: the workflow must always run, so that its final job reports a result (CLAUDE.md).`,
     }));
 }

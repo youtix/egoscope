@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 const SCRIPT = path.join(import.meta.dirname, 'ci-ok.sh');
 const WORKFLOW = path.join(import.meta.dirname, '../.github/workflows/ci.yml');
@@ -86,10 +87,23 @@ describe('ci-ok', () => {
   });
 
   it('is what the ci-ok job runs, with the needs and the event', () => {
-    const workflow = readFileSync(WORKFLOW, 'utf8');
+    const workflow: unknown = parse(readFileSync(WORKFLOW, 'utf8'));
 
-    expect(workflow).toMatch(
-      /NEEDS: \$\{\{ toJSON\(needs\) \}\}\n\s+EVENT: \$\{\{ github\.event_name \}\}\n\s+run: sh scripts\/ci-ok\.sh\n/u,
-    );
+    expect(workflow).toMatchObject({
+      jobs: {
+        'ci-ok': {
+          steps: expect.arrayContaining([
+            {
+              name: expect.any(String) as unknown,
+              env: {
+                NEEDS: expect.stringMatching(/^\$\{\{ toJSON\(needs\) \}\}$/u) as unknown,
+                EVENT: expect.stringMatching(/^\$\{\{ github\.event_name \}\}$/u) as unknown,
+              },
+              run: 'sh scripts/ci-ok.sh',
+            },
+          ]) as unknown,
+        },
+      },
+    });
   });
 });
