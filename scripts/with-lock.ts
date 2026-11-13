@@ -25,12 +25,13 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, rmSync } from 'node:fs';
+import { Socket } from 'node:net';
 import { constants } from 'node:os';
 import path from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
+import { setImmediate as nextTurn, setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
-import type { ChildProcess } from 'node:child_process';
+import type { ChildProcess, StdioOptions } from 'node:child_process';
 
 export type Holder = Readonly<{ pid: number; startedAt: number; command: string; cwd: string }>;
 
@@ -41,7 +42,11 @@ type Attempt = Readonly<{ state: 'held' | 'busy' | 'unlockable'; code: number }>
  * process they are passed on to.
  */
 type Relay = Readonly<{
-  /** 128 plus the number of the first signal caught, or undefined before any. */
+  /**
+   * 128 plus the number of the first signal caught, or undefined before any. Bun
+   * calls signal listeners only from its event loop, so a signal caught while
+   * synchronous code runs shows here only after the next turn of the loop.
+   */
   stopStatus: () => number | undefined;
   /** Aborts at the first signal, which cuts a wait for the lock short. */
   stopped: AbortSignal;
@@ -58,11 +63,15 @@ const CI_OFF_VALUES: ReadonlySet<string> = new Set(['', '0', 'false']);
 const WATCH_FLAGS: ReadonlySet<string> = new Set(['--watch', '-w', '--ui', '--hot']);
 const VITEST_ONE_SHOT: ReadonlySet<string> = new Set(['run', 'list']);
 const FORWARDED_SIGNALS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
-// The shell that becomes the command. It opens the lock file on descriptor 9 and
-// tries once to lock it (flock exits with 1 when another run holds it). It then
-// reports "busy" on descriptor 3, or records the holder, reports "held" and becomes
-// the command, which keeps descriptor 9 and so holds the lock itself.
+// Each shell that becomes the command first waits for the wrapper's go-ahead, a line
+// on descriptor 3, and ends without one (see letRun).
+const GO_AHEAD = 'read -r go <&3 || exit 1';
+// The shell that runs the command under the lock. It opens the lock file on
+// descriptor 9 and tries once to lock it (flock exits with 1 when another run holds
+// it). It then reports "busy" on descriptor 3, or records the holder, reports "held"
+// and becomes the command, which keeps descriptor 9 and so holds the lock itself.
 const HOLD_SCRIPT = [
+  GO_AHEAD,
   'exec 9>>"$1" || exit 1',
   'flock --nonblock 9',
   'case $? in 0) ;; 1) printf busy >&3; exit 0 ;; *) exit 1 ;; esac',
@@ -72,6 +81,10 @@ const HOLD_SCRIPT = [
   'shift 3',
   'exec "$@"',
 ].join('\n');
+// The shell that runs the command without the lock: it becomes the command.
+const UNLOCKED_SCRIPT = [GO_AHEAD, 'exec 3>&-', 'exec "$@"'].join('\n');
+// Bun makes descriptor 3 a socket, which carries the go-ahead and the lock's reply.
+const SHELL_STDIO: StdioOptions = ['inherit', 'inherit', 'inherit', 'pipe'];
 const POLL_MS = 1000;
 // A waiter reports on its first poll, then about every 30 seconds.
 const POLLS_PER_REPORT = 30;
@@ -190,8 +203,8 @@ const exitCodeFor = (signal: NodeJS.Signals): number =>
 
 /**
  * Catches SIGINT, SIGTERM and SIGHUP before the wrapper starts any process, so
- * that none of them can end it unseen: a signal is passed on to the process that
- * runs at the time, if any, and once one has come, the run starts nothing more.
+ * that none of them can end it unseen: a signal is passed on to the command once
+ * the wrapper has let it start, and keeps it from starting before that.
  */
 function catchSignals(): Relay {
   let caught: NodeJS.Signals | undefined;
@@ -216,12 +229,15 @@ function catchSignals(): Relay {
 }
 
 /**
- * Waits for `child` to end, passing on to it the termination signals the wrapper
- * catches meanwhile; resolves to its exit code.
+ * Lets the shell `child` become the command, unless a termination signal has come,
+ * and waits for it to end; resolves to its exit code, or to the run's status when a
+ * signal came first. From the go-ahead on, signals are passed on to the shell. Bun's
+ * `spawn()` can return after the shell has run for milliseconds, and Bun calls the
+ * listeners of the signals caught meanwhile later still, so the shell waits for the
+ * go-ahead; without it, the shell ends at once.
  */
-async function endOf(child: ChildProcess, program: string, relay: Relay): Promise<number> {
-  relay.forwardTo(child);
-  return new Promise<number>((resolve) => {
+async function letRun(child: ChildProcess, program: string, relay: Relay): Promise<number> {
+  const ended = new Promise<number>((resolve) => {
     child.on('error', (error) => {
       console.error(`[lock] Cannot run ${program}: ${error.message}`);
       resolve(EXIT_NOT_FOUND);
@@ -230,11 +246,27 @@ async function endOf(child: ChildProcess, program: string, relay: Relay): Promis
       resolve(exitCode ?? (typeof signal === 'string' ? exitCodeFor(signal) : 1));
     });
   });
+  // Bun calls the listeners of the signals caught so far before this callback.
+  await nextTurn();
+  const stopStatus = relay.stopStatus();
+  const pipe = child.stdio[3];
+  if (stopStatus === undefined && pipe instanceof Socket) {
+    relay.forwardTo(child);
+    // A shell that ends before it has read the go-ahead resets the pipe.
+    pipe.on('error', () => undefined).write('go\n');
+  } else {
+    pipe?.destroy();
+  }
+  return stopStatus ?? (await ended);
 }
 
+/**
+ * Runs the command without the lock; resolves to its exit code, or to the run's
+ * status when a termination signal kept it from starting.
+ */
 async function runUnlocked(command: readonly string[], relay: Relay): Promise<number> {
-  const [program = 'true', ...args] = command;
-  return endOf(spawn(program, args, { stdio: 'inherit' }), program, relay);
+  const child = spawn('sh', ['-c', UNLOCKED_SCRIPT, 'sh', ...command], { stdio: SHELL_STDIO });
+  return letRun(child, command[0] ?? 'the command', relay);
 }
 
 function lockFolder(env: Env): string | undefined {
@@ -261,7 +293,7 @@ async function attempt(command: readonly string[], lock: Lock): Promise<Attempt>
   });
   const holdArgs = ['-c', HOLD_SCRIPT, 'sh', lock.lockPath, infoPath, record.slice(1)];
   const child = spawn('sh', [...holdArgs, ...command], {
-    stdio: ['inherit', 'inherit', 'inherit', 'pipe'],
+    stdio: SHELL_STDIO,
     env: { ...process.env, [HELD]: '1' },
   });
   const pipe = child.stdio[3];
@@ -282,7 +314,7 @@ async function attempt(command: readonly string[], lock: Lock): Promise<Attempt>
       resolve(undefined);
     }
   });
-  const code = await endOf(child, command[0] ?? 'the command', lock.relay);
+  const code = await letRun(child, command[0] ?? 'the command', lock.relay);
   await pipeClosed;
   if (reply === 'held' && child.pid !== undefined && readRecord(infoPath)?.pid === child.pid) {
     rmSync(infoPath, { force: true });
@@ -333,29 +365,14 @@ async function settle(
   return undefined;
 }
 
-/** Waits between two attempts, or less when a termination signal aborts `stopped`. */
-async function pause(stopped: AbortSignal): Promise<void> {
-  try {
-    await sleep(POLL_MS, undefined, { signal: stopped });
-  } catch {
-    // Cut short: the run then ends without another attempt.
-  }
-}
-
-async function waitAndRun(
-  command: readonly string[],
-  folder: string,
-  relay: Relay,
-): Promise<number> {
+async function waitAndRun(argv: readonly string[], folder: string, relay: Relay): Promise<number> {
   const lockPath = path.join(folder, LOCK_NAME);
   const waitStart = Date.now();
   const limitSeconds = Number(process.env['EGOSCOPE_LOCK_LIMIT_SECONDS'] ?? DEFAULT_LIMIT_SECONDS);
   const timing = { waitStart, limitMs: limitSeconds * MS_PER_SECOND };
   const lock = { lockPath, waitStart, relay };
   for (let poll = 0; ; poll += 1) {
-    // A termination signal caught while waiting ends the run here, before another attempt.
-    const settled =
-      relay.stopStatus() ?? (await settle(command, await attempt(command, lock), lock));
+    const settled = await settle(argv, await attempt(argv, lock), lock);
     if (settled !== undefined) {
       return settled;
     }
@@ -366,7 +383,8 @@ async function waitAndRun(
     if (verdict.giveUp) {
       return 1;
     }
-    await pause(relay.stopped);
+    // A termination signal cuts the pause short, and the next attempt ends the run.
+    await Promise.allSettled([sleep(POLL_MS, undefined, { signal: relay.stopped })]);
   }
 }
 
