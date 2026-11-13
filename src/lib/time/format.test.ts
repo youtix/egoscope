@@ -140,6 +140,10 @@ describe('formatDate', () => {
     expect(formatDate(day(on), 'full')).toBe(full);
   });
 
+  it('shows a date in the short form when no form is given', () => {
+    expect(formatDate(day('2026-11-18'))).toBe('Wed 18 Nov 2026');
+  });
+
   it('refuses to show a weekday that the calendar does not have', () => {
     vi.spyOn(Temporal.PlainDate.prototype, 'dayOfWeek', 'get').mockReturnValue(8);
 

@@ -73,10 +73,11 @@ function cityTime(timeZoneId: string): string {
 }
 
 /**
- * A date alone, without a time and without a zone (CL-IHM-04): "Wednesday
- * 18 November 2026" in full, "Wed 18 Nov 2026" in short.
+ * A date alone, without a time and without a zone (CL-IHM-04): in short,
+ * "Wed 18 Nov 2026", unless told otherwise, or in full, where the date is the
+ * subject of a block: "Wednesday 18 November 2026".
  */
-export function formatDate(day: IsoDate, form: DisplayForm): string {
+export function formatDate(day: IsoDate, form: DisplayForm = 'short'): string {
   return formatFields(Temporal.PlainDate.from(day), form);
 }
 
