@@ -496,10 +496,12 @@ the membership of CL-STA-05, and at his next game his current team.
   qualifies.
 
 Each trigger records a `calendar_derivation_requests` row (1.13) in the transaction of the change
-that calls for it, and the `calendar-derivation` task runs it. In Lot 2 an upcoming event is created only for his next game
-not yet started, with a tracked case; a drop before the scheduled start calls the Lot 2 hooks
-(notifications, alerts, tracking) before the event and its case are deleted, in the order of
-[sensitive-data.md](sensitive-data.md) section 2.1 (CL-SUI-14, CL-ALE-13, CL-TEL-21).
+that calls for it, and the `calendar-derivation` task runs it. In Lot 2 an upcoming event is
+created only for his next game not yet started, with a case of origin `tracked`; `game-tracking`,
+chained after the derivation, then creates its tracked-case rows and alert sheet (CL-SUI-14,
+CL-ALE-13). Before the derivation deletes an event and its case — an upcoming one, or one whose
+game started, after a correction — it runs the derivation reactions of the module map (section
+1.10): notifications, alerts, tracking (CL-TEL-21).
 
 | from     | to        | trigger                                            | guard                                                                                                                                | side effects                                                                                                                                                                     |
 | -------- | --------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -540,12 +542,14 @@ the transitions that rules produce.
 | any                                       | re-attached                                                       | a corrected date, an older source, a new derivation               | —                            | measured-game change in the history; decisions on the old game stop applying and flag `manual_decision_to_review` (CL-SEN-12) |
 
 A season not covered by the source gives `not_measurable` (`season_not_covered`) before any
-attachment (CL-SEN-05 step 2). An outage alone never changes a status (STA-36). In Lot 2 the
-recalculation service reports, in its transaction, every tracked case whose measured game is first
-set or changes, that leaves awaiting its game, or whose gap, status, baseline or category changes,
-to the tracking and alert-sheet hooks (SUI-12, SUI-15, SUI-21, ALE-26, CL-ALE-12); the composed
-owner actions (exclusion, reinstatement, dismissal, corrections, the lift of the dating mark) report
-the same way whether the case left the counts, entered them or changed its measured game. In Lot 2, a case
+attachment (CL-SEN-05 step 2). An outage alone never changes a status (STA-36). Lot 2 reads
+what changed rather than being called: `game-tracking`, chained after the statistics tasks,
+`calendar-derivation` and `recalculation`, finds the tracked cases whose measured game was set or
+changed, that left awaiting their game, or whose gap, status, baseline or category changed (SUI-12,
+SUI-15, SUI-21, ALE-26, CL-ALE-12; module map section 1.10). The owner's composed actions
+(exclusion, reinstatement, dismissal, corrections, the lift of the dating mark) record their
+post-tip-off decision for tracking in their own transaction, through their composition caller
+(module map section 1.7). In Lot 2, a case
 whose detected event was dismissed at or after its expected game's scheduled start keeps being
 evaluated, outside every profile, trend, control and verdict, so that the validation table counts it
 apart (SUI-17); one dismissed earlier keeps the state and gap it had until a reinstatement
@@ -563,11 +567,12 @@ run, for each player and type:
    earliest-recorded event (CL-VUE-03).
 3. Cases left without events are deleted with their history, criteria, flags and decisions; their
    events now belong to the surviving case, whose `created_at` and origin do not change (SUI-04,
-   CL-VUE-03). In Lot 2 the recalculation service first calls the case-merge hooks with the
-   emptied case and the surviving case, alerts then notifications: each hook moves the rows that
-   point at the emptied case — which keep `ON DELETE RESTRICT` — to the surviving case, or deletes
-   them when that case already has one; the emptied case's tracked-case rows cascade
-   (`tracking-and-validation.md`).
+   CL-VUE-03). In Lot 2, before an emptied case is deleted, the recalculation
+   (`sensitivity.processRecalculationJobs`) runs the regrouping reactions of the module map
+   (section 1.10) with the emptied and the surviving case, alerts then notifications
+   (`moveCaseReferences`): each moves the rows that point at the emptied case — which keep
+   `ON DELETE RESTRICT` — to the surviving case, or deletes them when that case already has one; the
+   emptied case's tracked-case rows cascade (`tracking-and-validation.md`).
 4. Events of other types on the same game keep their own cases, co-occurring (SEN-06).
 
 ## 3. Invariants

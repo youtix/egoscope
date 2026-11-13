@@ -91,7 +91,9 @@ that a player's deletion goes through it.
 **Lot boundary.** No core table references a Lot 2 table: a core row that must name a Lot 2 object
 (an outbox fact) holds its identifier without a foreign key. Lot 2 tables reference core tables,
 mostly `ON DELETE RESTRICT`, so every erasure runs the Lot 2 erasers first, in the order of
-[sensitive-data.md](sensitive-data.md) section 2.1.
+[sensitive-data.md](sensitive-data.md) section 2.1. Lot 2 reacts to Lot 1 work only through the
+module map's reaction lists (its section 1.10: erasers, derivation and regrouping reactions) or by
+reading what changed from a chained task; no Lot 1 code calls Lot 2 otherwise.
 
 **Seeds.** The nine candidate event types with their English starter sheets (TAX-15); no player
 (JOU-06, ADR 0020). Seeds live in `data/`. Teams, seasons and the player directory come from the
@@ -233,7 +235,7 @@ the glossary's values; rows with per-origin columns are discriminated unions (`P
 Lot 2 files, written by the other modeler: `collection.md`, `detection.md`, `alert-sheets.md`,
 `tracking-and-validation.md` and `notifications.md`. No table of this model references one of
 theirs; the prose names some of them (`articles`, `article_attachments`, `tracked_cases`,
-`alert_sheets`, `notification_messages`) where a core rule calls a Lot 2 hook.
+`alert_sheets`, `notification_messages`) where a core rule runs a Lot 2 reaction.
 
 ## 6. Stored values this model defines
 

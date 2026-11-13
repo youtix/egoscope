@@ -71,8 +71,10 @@ no date).
 Every removal of an event row goes through one step, run in one transaction with the operation
 that calls it; each Lot 2 module adds its own sub-step with a test (CL-DSN-16). Lot 2 tables point
 at `events`, `cases` and `followed_players` with `ON DELETE RESTRICT`, so the Lot 2 sub-steps run
-first, in the order notifications, alerts, tracking, detection, collection, before the core
-deletes anything (the module map's order, collection.md section 8); every variant below that runs them keeps that order.
+first, before the core deletes anything, as the event erasers of the module map's reaction lists
+(section 1.10): notifications, alerts, tracking, then detection, whose step also erases, through
+collection, the articles it leaves without a role; every variant below that runs them keeps that
+order.
 The step never completes with part of the event left. Its variants:
 
 | cause                                                     | fingerprint | counter       | tally exit                        | designating trace rows deleted | Lot 2 sub-steps                     | spec IDs                              |
@@ -108,8 +110,8 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
    sheet holding E, everything about it, or the whole sheet and its alert-history entry if E was its
    only event, with the outbox facts of its sheets and update entries; tracking — its tracked-case
    data, with the outbox facts of its tracked game results; detection — the classification results
-   of its articles and their attachments; collection — every article attached to E and to no other
-   event, with no dedup trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the
+   of its articles and their attachments, then, through collection's eraser, every article attached
+   to E and to no other event, with no dedup trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the
    outbox facts of its own objects by `lot2_subject_id` and nulls the journal's `lot2_object_kind`
    and `lot2_object_id` for what it erases.
 6. `import_event_outcomes` and `import_possible_duplicates` rows whose event is E, so that the
@@ -147,13 +149,18 @@ again for at most its maximum age while the fingerprint keeps it from becoming a
 
 ### 2.2 Deleting a player's data (JOU-24, CL-JOU-06)
 
-For a withdrawn player, after the counts are shown and two confirmations, in one transaction:
+For a withdrawn player, after the counts are shown and two confirmations. Before the erasure's
+transaction, as for a withdrawal (2.1, steps 2 and 3, CL-TEL-09): a first committed step abandons
+the unsent messages about him and his events and reads the identifiers of the sent ones, then,
+outside any transaction, Telegram is asked once to delete each; the screen shown afterwards lists
+the refusals from memory. Then, in one transaction:
 
 1. Each of his events, of every origin and state, through the erasure step with the player-deletion
    variant (no fingerprint, no tally exit); the counter grows by their number (CA-JOU-16).
-2. The Lot 2 erasers of his remaining rows, in the order of 2.1: his exposure counts, article parts
-   and every other Lot 2 row that points at him or at his requests and cases, so that nothing
-   restricts the cascades of step 6 (collection.md section 8).
+2. The player erasers of the module map's reaction lists (section 1.10) — notifications, alerts,
+   tracking, detection, collection — for his remaining rows: his exposure counts, article parts and
+   every other Lot 2 row that points at him or at his requests and cases, so that nothing restricts
+   the cascades of step 6 (collection.md section 8).
 3. One `deleted_player_entries` row (CL-JOU-24).
 4. In `event_corrections` of other players' events, before or after values holding his id are set
    to null; pending `recalculation_jobs` drop his id and done jobs naming him are deleted.
