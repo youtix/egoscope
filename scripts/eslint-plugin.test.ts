@@ -293,8 +293,57 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
           "import * as vitest from 'vitest';\nimport { describe } from 'vitest';",
         ),
       ],
+      [
+        'a conditional skip on a test built by a helper function',
+        inTest(
+          [
+            '  function withSeed(seed: number) {',
+            '    return it.extend({ seed });',
+            '  }',
+            '  const test = withSeed(1);',
+            '  for (const seed of [1, 2]) {',
+            "    test.skipIf(seed === 1)('runs', () => undefined);",
+            '  }',
+          ].join('\n'),
+        ),
+      ],
+      [
+        'a skip from the context of a test built by a helper function',
+        inTest(
+          [
+            '  const withSeed = (seed: number) => it.extend({ seed });',
+            '  const test = withSeed(1);',
+            '  for (const seed of [1, 2]) {',
+            "    test('runs', ({ skip }) => {",
+            '      skip(seed === 1);',
+            '    });',
+            '  }',
+          ].join('\n'),
+        ),
+      ],
+      [
+        'a conditional skip on it destructured from the vitest namespace',
+        inTest(
+          "  const { it } = vitest;\n  it.skipIf(true)('runs', () => undefined);",
+          "import * as vitest from 'vitest';\nimport { describe } from 'vitest';",
+        ),
+      ],
     ])('rejects %s', async (_kind, code) => {
       expect(await ruleIds('src/lib/probe/probe.test.ts', code)).toContain(
+        'egoscope/no-skipped-tests',
+      );
+    });
+
+    it.each([
+      ['a type assertion', 'it.extend({}) as typeof it'],
+      ['an angle-bracket type assertion', '<typeof it>it.extend({})'],
+      ['a satisfies check', 'it.extend({}) satisfies typeof it'],
+      ['a non-null assertion', 'it.extend({})!'],
+      ['an optional call', 'it.extend?.({})'],
+    ])('rejects a conditional skip on a test made by it.extend() under %s', async (_kind, init) => {
+      const body = `  const databaseTest = ${init};\n  databaseTest.skipIf(true)('runs', () => undefined);`;
+
+      expect(await ruleIds('src/lib/probe/probe.test.ts', inTest(body))).toContain(
         'egoscope/no-skipped-tests',
       );
     });
