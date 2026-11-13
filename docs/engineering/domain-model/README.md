@@ -248,12 +248,11 @@ other `CHECK` list of the model is a glossary set or a subset of one.
 | sensitivity and profiles | recalculation `scope`: `import`, `statistics_update`, `event_or_case_change`, `full`; job status `pending`, `running`, `done`; the code type `ProfileValueVersion`                                                                                                                                                                                                                                                        |
 | operations               | `BackupKind`: `weekly`, `manual`, `before_update`; backup failure causes (six values); `ExportKind`: `full`, `players`, `events`, `cases`, `profiles`; restore `source_kind`: `backup`, `full_export`; `lot2_object_kind`: `press_source`, `article`, `alert_sheet`, `notification_message`; export format `egoscope-export`                                                                                              |
 
-Stored subsets of glossary sets: `EventMark` without `detected_after_tip_off` and
-`EventMarkStatus` without `upheld` (both derived, CL-DET-16); `ContextIndicationOrigin` without
+Stored subsets of glossary sets: `EventMark` without `detected_after_tip_off` (derived, CL-DET-16); `ContextIndicationOrigin` without
 `calculation` on events (a calculated condition is a case criterion); `ImportOutcome` without
 `not_recorded_sensitive_data` (never stored, IMP-37); `DatePrecision` without `none` for an
-owner-added source. The glossary's provisional `OutboxFactKind` `export_reminder_due` is not
-stored: the export reminder is the incident `export_reminder` (the orchestrator's decision).
+owner-added source. The export reminder is the incident `export_reminder`, with no outbox fact kind
+of its own.
 
 ## 7. Overview
 

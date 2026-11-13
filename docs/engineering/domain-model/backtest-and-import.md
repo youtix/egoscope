@@ -150,8 +150,9 @@ the glossary's `ImportWarningKind`: `player_name_differs`, `format_or_version_mi
 `version_normalized`, `lists_missing`, `declared_type_not_requested` (detail: the slugs as read),
 `covered_period_clamped`, `covered_period_time_ignored`, `covered_type_repeated`, `unknown_fields`
 (detail: their count), `events_not_sorted` (detail: the rank of the first one out of order),
-`lead_ignored` and `limitation_ignored` (detail: the item's position) and
-`limitation_citation_marker` (detail: the position). No warning quotes a free text (CL-IMP-02).
+`lead_ignored` and `limitation_ignored` (detail: the item's position),
+`limitation_citation_marker` (detail: the position) and `other_request_to_do` (detail: that
+request's reference, CL-BKT-20). No warning quotes a free text (CL-IMP-02).
 
 Row check: `truncation_recovered = (recovered_event_count IS NOT NULL)`.
 
