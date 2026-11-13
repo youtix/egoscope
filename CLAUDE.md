@@ -144,10 +144,14 @@ CI checks come in two kinds:
   `./.github/actions/setup-project`) listed in the `needs` of `ci-ok`; its local counterpart goes
   into the `gate:ci` script, in the same order.
 - A concern with its own triggers, permissions or runtime gets its own workflow file instead, which
-  ends in one final job named after it: the planned ones are `e2e`, `mutation`, `trace` and
+  ends in one final job named after the file: the planned ones are `e2e`, `mutation`, `trace` and
   `security`. That job always starts and always reports a result: it may finish at once when
   nothing relevant changed, but no path filter or condition ever skips it. It is a required check of
   `main`, like `ci-ok`.
+- Every final job, `ci-ok` included, has `if: always()`, needs every other job of its file, and
+  judges them with `sh scripts/ci-ok.sh`, given `NEEDS` and `EVENT` as in `ci.yml`. No job or step
+  uses `continue-on-error`. The structure check enforces this (`scripts/workflow-rules.ts`), where a
+  workflow that is not a check needs an entry of its own.
 
 ## Dependencies
 

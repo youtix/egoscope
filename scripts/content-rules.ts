@@ -4,13 +4,11 @@
  *
  * - the frozen French specifications match their checksum manifest;
  * - relative Markdown links point at files that exist;
- * - no comment switches a check off in the files that ESLint does not read;
- * - ci-ok depends on every other job of the CI workflow and runs whatever they
- *   did, and no workflow trigger is filtered by path.
+ * - no comment switches a check off in the files that ESLint does not read.
+ *
+ * The rules of the workflows are in workflow-rules.ts.
  */
 import path from 'node:path';
-
-import { parse } from 'yaml';
 
 import type { StructureViolation } from './structure-rules';
 
@@ -208,96 +206,4 @@ export function pragmaViolations(file: string, text: string): readonly Structure
   return FILE_PRAGMAS.filter(({ pattern }) =>
     comments.some((comment) => pattern.test(comment)),
   ).map(({ problem }) => ({ path: file, problem }));
-}
-
-type Mapping = Readonly<Record<string, unknown>>;
-
-const isMapping = (value: unknown): value is Mapping =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
-/** A workflow file read as YAML, or undefined when it is not a YAML mapping. */
-function readWorkflow(text: string): Mapping | undefined {
-  try {
-    const value: unknown = parse(text);
-    return isMapping(value) ? value : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The job ids that a `needs` value names: one id, or a list of them. */
-function neededJobs(needs: unknown): readonly string[] {
-  if (typeof needs === 'string') {
-    return [needs];
-  }
-  if (!Array.isArray(needs)) {
-    return [];
-  }
-  const jobs: readonly unknown[] = needs;
-  return jobs.filter((job): job is string => typeof job === 'string');
-}
-
-// `if: always()`, with or without the ${{ }} expression syntax.
-const ALWAYS = /^\s*(?:\$\{\{\s*)?always\(\)(?:\s*\}\})?\s*$/u;
-
-/**
- * Checks that the `ci-ok` job of `workflow` needs every other job, and runs
- * whatever happened to them: ci-ok is the one job of the CI workflow that `main`
- * requires, so a job outside its `needs` would not gate merges, and a skipped
- * ci-ok counts as passed.
- */
-export function unguardedJobs(
-  workflowPath: string,
-  workflow: string,
-): readonly StructureViolation[] {
-  const jobs = readWorkflow(workflow)?.['jobs'];
-  const ciOk = isMapping(jobs) ? jobs['ci-ok'] : undefined;
-  if (!isMapping(jobs) || !isMapping(ciOk)) {
-    return [
-      {
-        path: workflowPath,
-        problem: 'The workflow needs a ci-ok job, under `jobs`, in valid YAML.',
-      },
-    ];
-  }
-  const needs = neededJobs(ciOk['needs']);
-  const condition = ciOk['if'];
-  const doesAlwaysRun = typeof condition === 'string' && ALWAYS.test(condition);
-  return [
-    ...(doesAlwaysRun
-      ? []
-      : [
-          {
-            path: workflowPath,
-            problem: 'ci-ok must run even when a job it needs fails: give it `if: always()`.',
-          },
-        ]),
-    ...Object.keys(jobs)
-      .filter((job) => job !== 'ci-ok' && !needs.includes(job))
-      .map((job) => ({
-        path: workflowPath,
-        problem: `Job "${job}" is missing from the needs of ci-ok, so it would not gate merges.`,
-      })),
-  ];
-}
-
-/**
- * Checks that no trigger of `workflow` is filtered by path: such a workflow would
- * not run, so its final job, a required check, would never report a result.
- */
-export function pathFilters(workflowPath: string, workflow: string): readonly StructureViolation[] {
-  const triggers = readWorkflow(workflow)?.['on'];
-  if (!isMapping(triggers)) {
-    return [];
-  }
-  return Object.entries(triggers)
-    .filter(
-      ([, settings]) =>
-        isMapping(settings) &&
-        (Object.hasOwn(settings, 'paths') || Object.hasOwn(settings, 'paths-ignore')),
-    )
-    .map(([event]) => ({
-      path: workflowPath,
-      problem: `The ${event} trigger has a path filter: the workflow must always run, so that its final job reports a result (CLAUDE.md).`,
-    }));
 }

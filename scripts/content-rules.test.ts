@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  brokenLinks,
-  checkFrozenSpecs,
-  isFrozenSpec,
-  pathFilters,
-  pragmaViolations,
-  unguardedJobs,
-} from './content-rules';
+import { brokenLinks, checkFrozenSpecs, isFrozenSpec, pragmaViolations } from './content-rules';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
@@ -19,29 +12,6 @@ const ACTUAL = new Map([
 
 function problems(violations: readonly { path: string; problem: string }[]): string {
   return violations.map((violation) => `${violation.path}: ${violation.problem}`).join('\n');
-}
-
-/**
- * A CI workflow with the jobs lint and test, the lines of `extra`, and a ci-ok job
- * that runs whatever happened (`always()`) and needs `needs`.
- */
-function workflow(needs: string, extra: readonly string[] = []): string {
-  return [
-    'name: CI',
-    'on:',
-    '  pull_request:',
-    'jobs:',
-    '  lint:',
-    '    runs-on: ubuntu-24.04',
-    '  test:',
-    '    runs-on: ubuntu-24.04',
-    ...extra,
-    '  ci-ok:',
-    '    if: always()',
-    `    needs: ${needs}`,
-    '    runs-on: ubuntu-24.04',
-    '',
-  ].join('\n');
 }
 
 describe('checkFrozenSpecs', () => {
@@ -175,84 +145,5 @@ describe('pragmaViolations', () => {
     ['data/fixtures/stats-source/season.json', '{\n  "a": 1 // prettier-ignore\n}\n'],
   ])('still rejects a real comment in %s', (file, text) => {
     expect(problems(pragmaViolations(file, text))).toContain('Prettier');
-  });
-});
-
-describe('unguardedJobs', () => {
-  it('accepts a ci-ok job that needs every other job', () => {
-    expect(unguardedJobs('ci.yml', workflow('[lint, test]'))).toStrictEqual([]);
-  });
-
-  it.each([
-    ['a block sequence', '\n      - lint\n      - test'],
-    ['a flow sequence with a comment', '[lint, test] # every other job'],
-  ])('reads needs written as %s', (_form, needs) => {
-    expect(unguardedJobs('ci.yml', workflow(needs))).toStrictEqual([]);
-  });
-
-  it('rejects a job that ci-ok does not need', () => {
-    expect(unguardedJobs('ci.yml', workflow('[lint]'))).toStrictEqual([
-      {
-        path: 'ci.yml',
-        problem: 'Job "test" is missing from the needs of ci-ok, so it would not gate merges.',
-      },
-    ]);
-  });
-
-  it.each([
-    ['extra-check:', 'extra-check'],
-    ['extra_check:', 'extra_check'],
-    ['ExtraCheck:', 'ExtraCheck'],
-    ['extra-check: # runs the extra check', 'extra-check'],
-    ["'extra-check':", 'extra-check'],
-  ])('rejects a forgotten job whose id is written %j', (key, id) => {
-    const extra = [`  ${key}`, '    runs-on: ubuntu-24.04', '    steps:', '      - run: exit 1'];
-    const violations = unguardedJobs('ci.yml', workflow('[lint, test]', extra));
-
-    expect(problems(violations)).toContain(`Job "${id}" is missing from the needs of ci-ok`);
-  });
-
-  it('counts the keys of jobs only, not keys named like jobs further down', () => {
-    const extra = [
-      '  build:',
-      '    runs-on: ubuntu-24.04',
-      '    services:',
-      '      deploy:',
-      '        image: postgres:17',
-      '    steps:',
-      '      - name: release',
-      '        with:',
-      '          publish: true',
-    ];
-
-    expect(unguardedJobs('ci.yml', workflow('[lint, test, build]', extra))).toStrictEqual([]);
-  });
-
-  it('rejects a ci-ok job that a failed job would skip', () => {
-    const skippable = workflow('[lint, test]').replace('    if: always()\n', '');
-
-    expect(problems(unguardedJobs('ci.yml', skippable))).toContain('ci-ok must run');
-  });
-
-  it.each([
-    ['without a ci-ok job', 'jobs:\n  lint:\n    runs-on: ubuntu-24.04\n'],
-    ['that is not YAML', 'jobs: [unclosed\n'],
-  ])('rejects a workflow %s', (_kind, text) => {
-    expect(problems(unguardedJobs('ci.yml', text))).toContain('needs a ci-ok job, under `jobs`');
-  });
-});
-
-describe('pathFilters', () => {
-  it.each(['paths', 'paths-ignore'])('rejects a trigger filtered by %s', (filter) => {
-    const filtered = `on:\n  pull_request:\n    ${filter}: ['src/**']\n  push:\n    branches: [main]\n`;
-
-    expect(problems(pathFilters('.github/workflows/e2e.yml', filtered))).toContain(
-      'The pull_request trigger has a path filter',
-    );
-  });
-
-  it('accepts branch filters and triggers written as a list', () => {
-    expect(pathFilters('ci.yml', 'on:\n  push:\n    branches: [main]\n')).toStrictEqual([]);
-    expect(pathFilters('ci.yml', 'on: [push, pull_request]\n')).toStrictEqual([]);
   });
 });
