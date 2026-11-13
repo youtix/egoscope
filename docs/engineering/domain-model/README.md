@@ -241,15 +241,18 @@ theirs; the prose names some of them (`articles`, `article_attachments`, `tracke
 ## 6. Stored values this model defines
 
 The glossary names the values the owner sees or that another document quotes, and the model takes
-them as they are; every other stored value is defined here, and the lists below are those. The
-module map owns the task and parameter keys. Every other `CHECK` list of the model is a glossary
-set (67c24c2) or a subset of one.
+them as they are; every other stored value is defined here, and the lists below are those of the
+core files. The module map owns the task and parameter keys. Every other `CHECK` list of the core
+files is a glossary set (glossary section 4) or a subset of one. The Lot 2 files list the sets they
+define in their own modeling choices (collection choice 5, detection choice 12, alert-sheets choice
+4, tracking choice 5, notifications choice 8), which glossary section 11 names as still to add.
 
 Precedence between the reference documents ([index](../README.md)): the French specifications
 decide behavior; a ruling outranks a reading of a specification; the glossary owns terms, labels
 and the stored values it lists; the data model owns tables, columns and every stored value the
 glossary does not list (a task that displays such a value adds its label to the glossary in its own
-pull request); the module map owns module names, routes, parameter keys and task keys.
+pull request); the module map owns module names, the names its modules export, routes, parameter
+keys and task keys.
 
 | where                    | values the glossary does not have yet                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

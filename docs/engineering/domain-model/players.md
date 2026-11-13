@@ -105,9 +105,8 @@ The dated status history, with its optional reason (JOU-15).
 | `to_status`   | text        | no   | —        | `CHECK (to_status IN ('active','paused','withdrawn'))`                                               | PI    | JOU-15           |
 | `reason`      | text        | yes  | —        | `CHECK (reason IN ('prolonged_absence','end_of_career','left_nba','insufficient_exposure','other'))` | PI    | JOU-15, H-JOU-06 |
 
-Row checks: `(from_status, to_status)` is one of the five allowed pairs of section 2.1;
-`reason IS NULL OR to_status IN ('paused','withdrawn')` — a reactivation carries no reason
-(CL-JOU-12).
+Row check: `(from_status, to_status)` is one of the five allowed pairs of section 2.1. Every
+change, a reactivation included, may carry one of the five optional reasons (JOU-15, CL-JOU-12).
 
 Indexes: `player_status_changes_player_changed_idx (player_id, changed_at)` serves the history
 on the player page (JOU-25).
@@ -124,15 +123,15 @@ The team history from the day the player is followed: observed changes, entered 
 their confirmation (JOU-13, CL-JOU-02, CL-JOU-03). It also bounds team membership for absence
 counts (CL-STA-05). The team chosen at addition is not a change.
 
-| column             | type        | null | default  | constraint or reference                                                                                                                                                                 | class | spec IDs                                |
-| ------------------ | ----------- | ---- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------- |
-| `id`               | integer     | no   | identity | primary key                                                                                                                                                                             | —     | —                                       |
-| `player_id`        | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                                                                                                     | PI    | JOU-13                                  |
-| `changed_at`       | timestamptz | no   | —        | observed from a game: that game's scheduled start; observed from the source's player file: the read instant; entered: the entry instant                                                 | PI    | JOU-13, CL-JOU-03, CL-STA-05, CL-STA-27 |
-| `previous_team_id` | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`; null when he had no team                                                                                                                     | PI    | JOU-13                                  |
-| `new_team_id`      | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`; null for a release (without team)                                                                                                            | PI    | JOU-13, STA-25, CL-JOU-20               |
-| `origin`           | text        | no   | —        | `CHECK (origin IN ('observed','entered'))`                                                                                                                                              | PI    | JOU-13                                  |
-| `game_id`          | integer     | yes  | —        | `REFERENCES games(id) ON DELETE RESTRICT`; observed: the first game played with the new team, null when read from the player file; entered: the confirming game, null while unconfirmed | PI    | JOU-13, CL-JOU-03                       |
+| column             | type        | null | default  | constraint or reference                                                                                                                                                               | class | spec IDs                                |
+| ------------------ | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------- |
+| `id`               | integer     | no   | identity | primary key                                                                                                                                                                           | —     | —                                       |
+| `player_id`        | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                                                                                                   | PI    | JOU-13                                  |
+| `changed_at`       | timestamptz | no   | —        | observed from a game: that game's scheduled start; observed from the source's player file: the read instant; entered: the entry instant                                               | PI    | JOU-13, CL-JOU-03, CL-STA-05, CL-STA-27 |
+| `previous_team_id` | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`; null when he had no team                                                                                                                   | PI    | JOU-13                                  |
+| `new_team_id`      | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`; null for a release (without team)                                                                                                          | PI    | JOU-13, STA-25, CL-JOU-20               |
+| `origin`           | text        | no   | —        | `CHECK (origin IN ('observed','entered'))`                                                                                                                                            | PI    | JOU-13                                  |
+| `game_id`          | integer     | yes  | —        | `REFERENCES games(id) ON DELETE RESTRICT`; observed: the first game played with the new team, null when read from the player file; entered: the verifying game, null while unverified | PI    | JOU-13, CL-JOU-03                       |
 
 Row check: `previous_team_id IS DISTINCT FROM new_team_id`.
 
@@ -141,7 +140,7 @@ display and the membership walk of CL-STA-05 (latest change before a game's star
 
 ```ts
 type TeamChangeOrigin = 'observed' | 'entered';
-// derived: an entered change is "confirmed by the game of <date>" when gameId is set, otherwise "unconfirmed"
+// derived, TeamChangeVerification: an entered change is "verified" (by the game of <date>) when gameId is set, otherwise "unverified"
 ```
 
 ## 2. Lifecycles
@@ -153,7 +152,7 @@ type TeamChangeOrigin = 'observed' | 'entered';
 | (none)    | active    | owner adds the player  | active players below `players.maxActive` (JOU-04, JOU-05); display name and current team given | creates the mapping row for the source (to establish) and runs the candidate search (JOU-10); creates no backtest request (JOU-07)                                                 |
 | active    | paused    | owner                  | —                                                                                              | status change row; Lot 2 detection, detection-born requests and alert sheets stop (JOU-18); to-do requests stay (JOU-17); statistics, profiles and derivation go on (CL-JOU-05)    |
 | active    | withdrawn | owner                  | —                                                                                              | status change row; the to-do request becomes canceled with `player_withdrawn` (BKT-14); profiles shown archived (SEN-19); derivation stops creating or dropping events (CL-JOU-05) |
-| paused    | active    | owner reactivates      | active players below `players.maxActive` (JOU-20)                                              | status change row without reason (CL-JOU-12); no request (JOU-20); Lot 2 re-prefilters recent articles (JOU-09)                                                                    |
+| paused    | active    | owner reactivates      | active players below `players.maxActive` (JOU-20)                                              | status change row with its optional reason (CL-JOU-12); no request (JOU-20); Lot 2 re-prefilters recent articles (JOU-09)                                                          |
 | paused    | withdrawn | owner                  | —                                                                                              | as active → withdrawn                                                                                                                                                              |
 | withdrawn | active    | owner reactivates      | active players below `players.maxActive` (JOU-20)                                              | as paused → active; profiles no longer archived; the next regular derivation run covers the games since his previous run (CL-TAX-19)                                               |
 | withdrawn | (deleted) | owner deletes the data | status withdrawn, double confirmation (JOU-24)                                                 | the erasure of [sensitive-data.md](sensitive-data.md) section 2.2; the counter grows by his events (CA-JOU-16)                                                                     |
@@ -171,11 +170,11 @@ The application never changes a status by itself (JOU-22). `withdrawn → paused
 
 ### 2.3 Entered team change (JOU-13, CL-JOU-03)
 
-| from        | to          | trigger                                                      | guard | side effects                                                              |
-| ----------- | ----------- | ------------------------------------------------------------ | ----- | ------------------------------------------------------------------------- |
-| (none)      | unconfirmed | owner enters a team change                                   | —     | row with origin `entered`, `changed_at` = entry instant; current team set |
-| unconfirmed | confirmed   | first official game played after the entry, for that team    | —     | `game_id` set                                                             |
-| unconfirmed | unconfirmed | first official game played after the entry, for another team | —     | an observed change to that team is recorded, dated by that game           |
+| from       | to         | trigger                                                      | guard | side effects                                                              |
+| ---------- | ---------- | ------------------------------------------------------------ | ----- | ------------------------------------------------------------------------- |
+| (none)     | unverified | owner enters a team change                                   | —     | row with origin `entered`, `changed_at` = entry instant; current team set |
+| unverified | verified   | first official game played after the entry, for that team    | —     | `game_id` set                                                             |
+| unverified | unverified | first official game played after the entry, for another team | —     | an observed change to that team is recorded, dated by that game           |
 
 ## 3. Invariants
 
@@ -227,7 +226,7 @@ compared per CL-IMP-22.
 - CL-JOU-06, CL-JOU-24: deletion scope and the deleted-player entry, in
   [sensitive-data.md](sensitive-data.md).
 - CL-JOU-09: UUID primary key, the one exception to integer identity keys in this file.
-- CL-JOU-12: no reason on a reactivation (row check).
+- CL-JOU-12: every change, a reactivation included, may carry an optional reason.
 - CL-JOU-18, CL-STA-24: former teams and his stints are derived from his own box-score lines of
   covered seasons (a team he played for, CL-STA-04), never from the player directory, and never
   stored.

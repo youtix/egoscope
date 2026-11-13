@@ -23,8 +23,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** JOU-13, 01 « Données manipulées » (Historique des équipes)
 - **Problem:** an entered change is "confirmed" by the first game with the new team, but the history has no place for that, and the date to store for an entered change is not given.
-- **Ruling:** an entered change records its entry instant as its date, the previous team, the new team, the origin "entered" and the mark "unconfirmed". At the first official game the player plays after the entry: if it is for the entered team, the change gets "confirmed by the game of \<date>"; if it is for another team, an observed change to that team is recorded, dated by that game, and the entered change stays "unconfirmed". An observed change is dated by the first game played with the new team, as written.
-- **Why:** the minimum that makes "confirmed" visible without a new state.
+- **Ruling:** an entered change records its entry instant as its date, the previous team, the new team, the origin "entered" and the mark "not yet verified". At the first official game the player plays after the entry: if it is for the entered team, the change gets "verified by the game of \<date>"; if it is for another team, an observed change to that team is recorded, dated by that game, and the entered change stays "not yet verified". The marks avoid the word "confirmed", which IHM-50 keeps for the validation table. An observed change is dated by the first game played with the new team, as written.
+- **Why:** the minimum that makes JOU-13's confirmation by the first game visible without a new state.
 - **Owner review:** no
 
 ## CL-JOU-04 — Duplicates while the mapping is pending
@@ -108,8 +108,8 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** JOU-15, H-JOU-06
 - **Problem:** the optional reason list applies to every change, including reactivation, where only "other" fits.
-- **Ruling:** pausing and withdrawing offer the five optional reasons of JOU-15; reactivating offers none, and its history line has no reason.
-- **Why:** none of the listed reasons describes a reactivation.
+- **Ruling:** as written: every change of status, a reactivation included, offers the same five optional reasons of JOU-15 (H-JOU-06), and none is required. A reactivation will usually carry « autre » or no reason; its history line shows the reason when one was chosen.
+- **Why:** JOU-15 gives every change one optional reason from one list, and « autre » fits a reactivation; withholding the list from a reactivation would change JOU-15, which nothing asks for.
 - **Owner review:** no
 
 ## CL-JOU-13 — Comparing name variants
@@ -226,7 +226,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - Player states (active, paused, withdrawn) and the five reasons of JOU-15.
 - "Mapping to establish", "already followed as …", "without team".
-- Team-change origins "observed" and "entered", the marks "unconfirmed" and "confirmed by the game of …".
+- Team-change origins "observed" and "entered", the marks "not yet verified" and "verified by the game of …".
 - "Archived" for profiles of withdrawn players; "a deleted player" in journal entries.
 - "Request to do", "supplementary request to do", "full redo to do", "imported".
 - "Birthday not recorded: no birthday events" and the former-team history mention.

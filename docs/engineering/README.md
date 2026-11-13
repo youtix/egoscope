@@ -15,5 +15,5 @@ French functional specifications in [`docs/`](../README.md). Read them in this o
 The French specifications decide behavior; a ruling outranks a reading of a specification; the
 glossary owns terms, labels and the stored values it lists; the data model owns tables, columns and
 every stored value the glossary does not list (a task that displays such a value adds its label to
-the glossary in its own pull request); the module map owns module names, routes, parameter keys and
-task keys.
+the glossary in its own pull request); the module map owns module names, the names its modules export,
+routes, parameter keys and task keys.

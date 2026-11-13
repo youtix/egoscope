@@ -171,7 +171,7 @@ Register rows whose open point a ruling settles: DET-14 (CL-DET-22), BKT-30 (CL-
 Each line names something a ruling requires the app to store that the specs do not name.
 
 - CL-VUE-12, CL-DSN-20: the event origin `calendar` and, on such an event, a reference to its scheduled game instead of sources.
-- CL-JOU-03: on a team change entered by hand, its entry instant, the origin "entered" and the mark "unconfirmed" or "confirmed by the game of …".
+- CL-JOU-03: on a team change entered by hand, its entry instant, the origin "entered" and the mark "not yet verified" or "verified by the game of …".
 - CL-JOU-16, CL-JOU-11: the optional day and month of birth, never the year, with whether the source or the owner gave it.
 - CL-JOU-19: per player and day of the owner's time zone, the number of distinct articles citing him, kept 90 days and surviving the article purge.
 - CL-JOU-21: one statistics mapping per source, each with its confirmation state.
