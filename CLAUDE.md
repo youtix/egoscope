@@ -112,6 +112,25 @@ gives no difference.
   mutators, never `all` in any letter case, and its reason says why no test can tell the mutant
   apart. Never disable a mutator for a whole file.
 
+## Requirement traceability
+
+Every requirement and acceptance criterion of the specs is verified by a test that names it, or
+listed in `docs/engineering/requirement-waivers.md` with its reason. `bun run trace`, one of the
+static checks, fails on a title ID that the specs do not define and on an unsound register; the
+`trace` workflow also fails when an ID that a pull request lists under "Requirements covered" has
+neither a test nor a waiver.
+
+- A test or suite title cites the IDs it verifies in square brackets: `[JOU-04]`, and
+  `[CA-JOU-02]` for a criterion, numbered as `docs/engineering/acceptance-criteria-index.md` says.
+  Hypotheses, questions, decisions and rulings (`[H-13]`, `[CL-STA-01]`) may be cited; none needs a
+  test.
+- A `waiver` is legitimate only when no automated test can or must verify the requirement: a
+  documentation requirement, or one that a decision record overrides. A waived ID has no test.
+- A `limit` is legitimate only when tests prove the application's part and one named part can only
+  be checked by hand, such as a real language model's answers or a text an outside AI writes. It
+  names that part and its manual check, and the ID keeps its tests.
+- Reviewers read every waiver and every limit, as they read every disable comment.
+
 ## The local loop
 
 - Heavy scripts (`typecheck`, `lint`, `lint:fix`, `test`, `test:coverage`, `build`, `knip`,
