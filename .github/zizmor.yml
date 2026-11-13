@@ -1,0 +1,10 @@
+# Exceptions to the zizmor audit of .github/workflows/security.yml: one ignore per audit
+# and workflow, each with the reason it cannot be fixed yet and the fix it waits for. The
+# job refuses inline ignore comments, which would carry no reason.
+rules:
+  self-repository:
+    ignore:
+      # ci.yml belongs to the quality-gate task, and the security task may not edit it. Its
+      # uses of ./.github/actions/setup-project move to GitHub's self-repository syntax,
+      # $/.github/actions/setup-project, in a change of their own that removes this entry.
+      - ci.yml

@@ -229,7 +229,14 @@ jobs:
       - name: Audit the workflows, the setup action and the Dependabot configuration
         env:
           GH_TOKEN: ${{ github.token }} # Online audits read public data of the actions used.
-        run: '"$RUNNER_TEMP/zizmor" --persona=pedantic --no-ignores --strict-collection .'
+        run: |
+          # An exception lives in .github/zizmor.yml with its reason; an inline ignore comment
+          # would carry none.
+          if grep --recursive --line-number --extended-regexp '#.*zizmor: *ignore\[' .github; then
+            echo "::error::Move the exception above to .github/zizmor.yml, with its reason."
+            exit 1
+          fi
+          "$RUNNER_TEMP/zizmor" --config .github/zizmor.yml --persona=pedantic --strict-collection .
 
   codeql:
     name: codeql
