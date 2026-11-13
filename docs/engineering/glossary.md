@@ -278,6 +278,7 @@ Decisions:
 | réintégrer, réintégration (d'un cas) | reinstate, case reinstatement | `reinstate` | Reinstate | Manual decision of kind reinstate. | SEN-17 |
 | cas concomitant, « concomitant » | co-occurring case | `isCoOccurring`; `coOccurringTypeIds` | Co-occurring | Case whose measured game is also another type's; one case per type, each marked. | SEN-06 |
 | événements regroupés (dans un cas existant), événement regroupé, cas regroupé | grouped events, grouped event | `groupedEventCount` | Grouped events | Same-type events on the same game, joined into one case. | SEN-05, SEN-32 |
+| — (engineering term; « regroupé », SEN-05) | regrouping | — (the case grouping of each recalculation, `sensitivity.processRecalculationJobs`) | — | An event joining the existing case of its game, usually after a correction moves its measured game: the case that already has the game keeps it, no case changes origin, and a case left without events is deleted. | SEN-05, CL-VUE-03, CL-SUI-16 |
 | comptage exhaustif | exhaustive counting | — | — | Every event of a validated type yields a case, whatever the game result. | SEN-32, H-01 |
 | décompte | tally | `ProfileTally` | Tally | Counts of events and cases by status and reason, with invariants. | SEN-20, SEN-32 |
 | sortie du décompte | tally exit | `TallyExitReason` | Left the tally | Event that left the tally, by reason; withdrawals are never shown. | SEN-33 |
@@ -825,7 +826,7 @@ Decisions:
 | comptes par catégorie | category counts | `categoryCounts` | — | With forecast, confirmed, refuted, neutral; without forecast. | SUI-24 |
 | comptes attendus du hasard | chance-expected counts | `chanceExpectedCounts` | Expected by chance | What chance alone would give for each category (40.1 %, 40.1 % and 19.7 % at the default threshold), shown with one decimal. | SUI-24, CL-SUI-15 |
 | écart moyen historique actuel | current historical mean gap | `currentHistoricalMeanGap` | — | Same row, valid historical cases. | SUI-24 |
-| comptes à part | separate counts | `separateCounts` | Counted apart | Late forecasts, recorded after tip-off, excluded or pending cases, post-tip-off decisions. | SUI-25 |
+| comptes à part | separate counts | `separateCounts` | Counted apart | Late forecasts, recorded after tip-off, excluded or pending cases, post-tip-off decisions and regrouping exits. | SUI-25, CL-SUI-16 |
 | bilan (d'une ligne) | assessment | `RowAssessment` | Assessment | confirmed, confirmed with a weaker effect, refuted or undecided; needs 10 cases. | SUI-26, SUI-27 |
 | nombre minimal de cas suivis pour un bilan | minimum tracked cases for an assessment | `tracking.minTrackedCasesForAssessment` | — | 10 by default. | SUI-26, H-SUI-06 |
 | « trop peu de cas suivis pour conclure (k sur 10) » | too few tracked cases | — | (section 7) | Shown instead of an assessment. | SUI-26 |
@@ -833,7 +834,8 @@ Decisions:
 | résultat de match suivi, résultat d'un match suivi | tracked game result | `TrackedGameResult` | Tracked game result | Content sent to notifications when a tracked case leaves awaiting game. | SUI-19, TEL-13 |
 | résultat communiqué, transmis | transmitted result | `transmittedResults` | — | What was sent, kept on the case. | SUI-19, SUI-20 |
 | décision prise après le coup d'envoi | post-tip-off decision | `PostTipOffDecision` | After tip-off | Owner decision after tip-off that moves a case in or out of the counts or changes its game. | SUI-17 |
-| sortie, entrée (des comptes), changement de match mesuré | exit, entry, measured-game change | `PostTipOffDecisionEffect` | Left the counts; Entered the counts; Measured game changed | Effect of a post-tip-off decision. Each row shows the three counts, a case once by its present situation and latest decision, each with its mean gap in the forecast direction. | SUI-17, CL-SUI-10 |
+| sortie, entrée (des comptes), changement de match mesuré | exit, entry, measured-game change | `PostTipOffDecisionEffect` | Left the counts; Entered the counts; Measured game changed | Effect of a post-tip-off decision. Each row shows the three counts, a case once by its present situation and latest decision, each with its mean gap in the forecast direction; "Left the counts" also counts the row's regrouping exits, each with its stored gap. | SUI-17, CL-SUI-10, CL-SUI-16 |
+| — (CL-SUI-16) | regrouping exit | `RegroupingExit`; table `regrouping_exits` | (section 7.2) | Trace of a tracked case that a regrouping emptied after its measured game's last known scheduled start: every row it belonged to keeps it among the cases that left the counts, with the gap in the forecast direction it had then, until its earliest-recorded event is erased. | SUI-17, SUI-30, CL-SUI-16 |
 | critère d'arrêt, seuil d'abandon | stopping criterion, abandonment threshold | — | — | None exists: the table never stops or suggests stopping anything. | SUI-29, D-35 |
 | mise à l'épreuve, épreuve des faits | real-world test | — | — | What tracked cases do to profiles. | SUI-11, 00 |
 | conditions réelles | real conditions | — | — | Observation as events happen, before the games. | D-29, 00 glossary |
@@ -2152,7 +2154,7 @@ Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the
 | correction du type | `type_corrected` | Type corrected |
 | levée de la marque « datation à vérifier » | `dating_mark_lifted` | Dating mark lifted |
 
-`PostTipOffDecisionEffect` — SUI-17
+`PostTipOffDecisionEffect` — SUI-17 ("Left the counts" also counts the regrouping exits, which are no decision and store no value of this set, CL-SUI-16)
 
 | French | Code value | UI label |
 | --- | --- | --- |
@@ -2521,6 +2523,7 @@ How to tell the two « retiré » apart: « retiré » stays one verb in French 
 | à faire | to do (request status); to-do list; to-do item | `to_do` is a status value; `TodoList` and `TodoItem` are the screen and its entries. | BKT-13, IHM-20 |
 | rattachement, rattacher | attachment (article to event); attachment (event to measured game); attachment (result to request, occurrence to proposal) | Same everyday meaning; compounds name the object: "attachment window" is the measured-game one, "attachment corrected" is the player-or-type one. | DET-27, SEN-04, ALE-31 |
 | fusion, fusionner | type merge; event merge | Same operation on two objects; types merge into a surviving type, detected events into one event. | TAX-27, DET-47 |
+| regroupement, regroupé | grouping (articles into an event; messages into a digest); grouped events (one case); regrouping (an event joining the case of its game); grouped (message status) | Always qualified. "Regrouping" is an engineering word: the owner reads "Grouped events" and "grouped into another case", never "merged", which names the type and event merges. | DET-27, TEL-19, SEN-05, CL-SUI-16, TEL-33 |
 | journal | activity journal; collection journal; detection journal; update journal (alert sheet); stats correction journal; decision journal | Always qualified, except "the journal" for the activity journal in UI copy. | TRV-41, COL-48, DET-55, ALE-31, STA-33, 90 |
 | source | event source; press source; stats source; forecast source | Always qualified. | DSN-08, COL-02, STA-01, SUI-09 |
 | sensible | sensitive data; sensitive event | Data never stored versus the Telegram word for an intimate-subject event; the type mark is "intimate subject". | DSN-18, DSN-35, TAX-01 |
@@ -2957,6 +2960,7 @@ Wording the specs quote and require as written. The English is the approved text
 | avec de nombreuses lignes, certaines paraîtront confirmées par hasard | With many rows, some will look confirmed by chance. | SUI-28 |
 | la ligne d'ensemble est la première à réunir assez de cas pour dire quelque chose | The overall row is the first to gather enough cases to say anything. | SUI-28 |
 | sortie / entrée / changement de match mesuré (décisions après le coup d'envoi) | left the counts / entered the counts / measured game changed | SUI-17, CL-SUI-10 |
+| — (CL-SUI-16, cas regroupés après le coup d'envoi) | {n} grouped into another case after tip-off | SUI-17, CL-SUI-16 |
 
 ### 7.3 Backtest requests, the prompt and the import
 
