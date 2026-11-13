@@ -867,9 +867,9 @@ const composed = defineConfig(
 
   // --- Time (CLAUDE.md, "Time") ---------------------------------------------------
   {
-    // Only src/lib/time reads the clock and parses dates. The lock wrapper still
-    // times its waits with Date.now(): issue #10 rewrites both of its files, which
-    // join this rule once they read the clock of @/lib/time.
+    // Only src/lib/time reads the clock and parses dates. The lock wrapper,
+    // scripts/with-lock.ts and its test, still times its waits with Date.now(): it
+    // stays out, by name, until a follow-up task moves it to the clock of @/lib/time.
     name: 'egoscope/ambient-time',
     files: [...SRC_FILES, ...SCRIPT_FILES, ...E2E_FILES],
     ignores: ['src/lib/time/**', 'scripts/with-lock.ts', 'scripts/with-lock.test.ts'],

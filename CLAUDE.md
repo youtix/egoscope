@@ -73,8 +73,10 @@ gives no difference.
 
 - Only `@/lib/time` reads the clock, parses dates and converts time zones. Take the instant from
   `now()`; lint refuses `Date.now()`, `new Date()`, `Date()`, `Date.parse`, `new Date(string)`,
-  `new Date(year, month, …)` and `Temporal.Now` elsewhere in `src/`, `scripts/` and `e2e/`. With
-  Cache Components, a Server Component defers to request time (`await connection()`) before `now()`.
+  `new Date(year, month, …)` and `Temporal.Now` elsewhere in `src/`, `scripts/` and `e2e/`, except
+  in the lock wrapper (`scripts/with-lock.ts` and its test), which still times its waits with
+  `Date.now()`. With Cache Components, a Server Component defers to request time
+  (`await connection()`) before `now()`.
 - An instant is an `EpochMs`, a calendar date an `IsoDate`, and every day names its zone: the
   owner's day (`userDay`, in the `display.timeZone` setting the caller passes in, never a fixed
   Paris) for tasks and displays, a game's day (`gameDay`, its US Eastern date) for games.
