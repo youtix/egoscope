@@ -63,8 +63,10 @@ jobs:
       - name: Prove that the scan reports a known vulnerability in bun.lock
         run: |
           # bun.lock as it is, plus a package version with a well-known advisory: the scan
-          # must read the lockfile's current format and report that version.
+          # must read the lockfile's current format and report that version, with the
+          # exceptions of osv-scanner.toml, found next to the lockfile as in the next step.
           mkdir "$RUNNER_TEMP/osv-proof"
+          cp osv-scanner.toml "$RUNNER_TEMP/osv-proof/"
           sed 's|^  "packages": {$|&\n    "osv-scanner-proof": ["lodash@4.17.20", "", {}, ""],|' bun.lock \
             > "$RUNNER_TEMP/osv-proof/bun.lock"
           status=0
@@ -216,13 +218,14 @@ jobs:
       - name: Prove that the audit reports a flawed workflow
         run: |
           # A tag-pinned action, a checkout that keeps its credentials and no permissions
-          # block: zizmor must report each of these flaws.
+          # block: zizmor must report each of these flaws, with the exceptions of
+          # .github/zizmor.yml as in the next step.
           proof="$RUNNER_TEMP/zizmor-proof.yml"
           printf '%s\n' 'name: Flawed' 'on: pull_request' 'jobs:' '  build:' \
             '    runs-on: ubuntu-24.04' '    steps:' '      - uses: actions/checkout@v4' > "$proof"
           status=0
-          "$RUNNER_TEMP/zizmor" --persona=pedantic --no-ignores --offline --format=json "$proof" \
-            > "$RUNNER_TEMP/zizmor-proof.json" || status=$?
+          "$RUNNER_TEMP/zizmor" --config .github/zizmor.yml --persona=pedantic --offline \
+            --format=json "$proof" > "$RUNNER_TEMP/zizmor-proof.json" || status=$?
           found="$(jq --raw-output '[.[].ident] | unique | join(" ")' "$RUNNER_TEMP/zizmor-proof.json")"
           for audit in unpinned-uses artipacked excessive-permissions; do
             case " $found " in

@@ -21,6 +21,9 @@ description = "A Telegram bot token wherever it appears, as in a Bot API address
 regex = '''(?m)(?:^|[^0-9\n])([0-9]{5,16}:A[A-Za-z0-9_-]{34})(?:[^A-Za-z0-9_-]|$)'''
 keywords = [":a"]
 
+# A token of the former format, unprefixed and still valid, has no rule of its own: only
+# default rules that need a name next to it, such as cloudflare-api-key, can catch it.
+# Create or roll the token in the prefixed format.
 [[rules]]
 id = "cloudflare-api-token"
 description = "A Cloudflare user or account API token in the prefixed format of 2026, which the default rule, written for the former 40-character format, misses."
