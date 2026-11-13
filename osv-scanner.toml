@@ -17,3 +17,23 @@ reason = "minimatch 10.2.6, moderate: denial of service through crafted glob pat
 id = "GHSA-238p-pmpm-9mq7"
 ignoreUntil = 2027-02-13
 reason = "katex 0.16.47, low: an existing prototype pollution can bypass its trust restrictions. Development only and never run: micromark-extension-math imports it in its HTML renderer, and markdownlint only parses Markdown. The fix exists only in katex 0.18.2, outside micromark-extension-math's ^0.16.0 range."
+
+[[IgnoredVulns]]
+id = "GHSA-q8mj-m7cp-5q26"
+ignoreUntil = 2027-02-13
+reason = "qs 6.15.1, moderate: qs.stringify crashes on null entries of comma-format arrays when encodeValuesOnly is set. Development only and never called: @stryker-mutator/core 10.1.1, its latest release, needs typed-rest-client ~2.3.0, whose newest version in that range, 2.3.1, pins qs 6.15.1, and calls that client only in its dashboard reporter and in stryker init, neither of which stryker.config.ts uses. The fix exists only in typed-rest-client 3, which needs qs ^6.16.1."
+
+[[IgnoredVulns]]
+id = "GHSA-4mjr-xmp4-gh2g"
+ignoreUntil = 2027-02-13
+reason = "qs 6.15.1, moderate: denial of service through an attacker-controlled isBuffer. Development only and never called: @stryker-mutator/core 10.1.1, its latest release, needs typed-rest-client ~2.3.0, whose newest version in that range, 2.3.1, pins qs 6.15.1, and calls that client only in its dashboard reporter and in stryker init, neither of which stryker.config.ts uses. The fix exists only in typed-rest-client 3, which needs qs ^6.16.1."
+
+[[IgnoredVulns]]
+id = "GHSA-x5fp-wj9c-mxmx"
+ignoreUntil = 2027-02-13
+reason = "qs 6.15.1, moderate: array-limit bypass through bracket-key comma parsing. Development only and never called: @stryker-mutator/core 10.1.1, its latest release, needs typed-rest-client ~2.3.0, whose newest version in that range, 2.3.1, pins qs 6.15.1, and calls that client only in its dashboard reporter and in stryker init, neither of which stryker.config.ts uses. The fix exists only in typed-rest-client 3, which needs qs ^6.16.1."
+
+[[IgnoredVulns]]
+id = "GHSA-6pq8-jhm2-2vcw"
+ignoreUntil = 2027-02-13
+reason = "qs 6.15.1, moderate: qs.stringify with the comma array format throws on an array element whose own toString cannot be called. Development only and never called: @stryker-mutator/core 10.1.1, its latest release, needs typed-rest-client ~2.3.0, whose newest version in that range, 2.3.1, pins qs 6.15.1, and calls that client only in its dashboard reporter and in stryker init, neither of which stryker.config.ts uses. The fix exists only in typed-rest-client 3, which needs qs ^6.16.1."
