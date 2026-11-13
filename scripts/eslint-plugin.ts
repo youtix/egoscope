@@ -19,6 +19,8 @@ import {
   TSESLint,
 } from '@typescript-eslint/utils';
 
+import { vitestFunction } from './vitest-names';
+
 import type { TSESTree } from '@typescript-eslint/utils';
 import type { ESLint } from 'eslint';
 
@@ -65,7 +67,8 @@ function isEquivalentMutant(comment: TSESTree.Comment): boolean {
 }
 
 // Vitest calls that skip a test, run it only under a condition, or turn its
-// failure into a pass, on Vitest's own objects and their chains (`it.concurrent.fails`).
+// failure into a pass, on Vitest's own objects and their chains (`it.concurrent.fails`),
+// whatever name an object goes by (vitest-names.ts), such as a test made by `it.extend()`.
 // The Vitest plugin's own rules refuse the skip, only and to-do modifiers too.
 const SKIPPING_CALLS: ReadonlySet<string> = new Set(['skip', 'skipIf', 'runIf', 'fails']);
 const VITEST_OBJECTS: ReadonlySet<string> = new Set(['it', 'test', 'describe', 'suite', 'bench']);
@@ -211,18 +214,6 @@ const noToolPragmas = createRule<[{ equivalentMutants: boolean }], 'prettier' | 
   },
 );
 
-/** The identifier a chain of members and calls starts with: `it` in `it.concurrent(…).skip`. */
-function chainRoot(node: TSESTree.Node): string | undefined {
-  let current = node;
-  while (
-    current.type === AST_NODE_TYPES.MemberExpression ||
-    current.type === AST_NODE_TYPES.CallExpression
-  ) {
-    current = current.type === AST_NODE_TYPES.MemberExpression ? current.object : current.callee;
-  }
-  return current.type === AST_NODE_TYPES.Identifier ? current.name : undefined;
-}
-
 /** Says whether `name`, where `node` uses it, is a parameter of a callback given the test context. */
 function isTestContext(scope: TSESLint.Scope.Scope, node: TSESTree.Identifier): boolean {
   const definition = ASTUtils.findVariable(scope, node)?.defs[0];
@@ -230,7 +221,7 @@ function isTestContext(scope: TSESLint.Scope.Scope, node: TSESTree.Identifier): 
   return (
     definition?.type === TSESLint.Scope.DefinitionType.Parameter &&
     owner?.type === AST_NODE_TYPES.CallExpression &&
-    CONTEXT_OWNERS.has(chainRoot(owner.callee) ?? '')
+    CONTEXT_OWNERS.has(vitestFunction(owner.callee, scope) ?? '')
   );
 }
 
@@ -245,11 +236,14 @@ function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope)
 }
 
 /** The skipping member that `callee` takes from a Vitest object: `skipIf` in `it.skipIf`. */
-function vitestSkippingMember(callee: TSESTree.Expression): string | undefined {
+function vitestSkippingMember(
+  callee: TSESTree.Expression,
+  scope: TSESLint.Scope.Scope,
+): string | undefined {
   return callee.type === AST_NODE_TYPES.MemberExpression &&
     callee.property.type === AST_NODE_TYPES.Identifier &&
     SKIPPING_CALLS.has(callee.property.name) &&
-    VITEST_OBJECTS.has(chainRoot(callee.object) ?? '')
+    VITEST_OBJECTS.has(vitestFunction(callee.object, scope) ?? '')
     ? callee.property.name
     : undefined;
 }
@@ -262,7 +256,7 @@ function skippingCall(
   callee: TSESTree.Expression,
   scope: TSESLint.Scope.Scope,
 ): string | undefined {
-  return isContextSkip(callee, scope) ? 'skip' : vitestSkippingMember(callee);
+  return isContextSkip(callee, scope) ? 'skip' : vitestSkippingMember(callee, scope);
 }
 
 const noSkippedTests = createRule({
@@ -276,9 +270,11 @@ const noSkippedTests = createRule({
     schema: [],
   },
   create(context) {
+    // The scope of the whole file: a lookup from it finds each name where it is used.
+    const scope = context.sourceCode.getScope(context.sourceCode.ast);
     return {
       CallExpression(node): void {
-        const name = skippingCall(node.callee, context.sourceCode.getScope(node));
+        const name = skippingCall(node.callee, scope);
         if (name !== undefined) {
           context.report({ node: node.callee, messageId: 'skip', data: { name } });
         }

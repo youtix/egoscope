@@ -16,9 +16,9 @@ const { ruleIds, remove } = createProbes();
 /** A one-line module under `comment`. */
 const withComment = (comment: string): string => `${comment}\nexport const probe = 1;\n`;
 
-/** A test file whose suite holds `body`. */
-const inTest = (body: string): string =>
-  `import { describe, expect, it } from 'vitest';\n\ndescribe('probe', () => {\n${body}\n});\n`;
+/** A test file whose suite holds `body`, below the import statement `imports`. */
+const inTest = (body: string, imports = "import { describe, expect, it } from 'vitest';"): string =>
+  `${imports}\n\ndescribe('probe', () => {\n${body}\n});\n`;
 
 describe('comments and directives that switch a check off', { timeout: 120_000 }, () => {
   afterAll(remove);
@@ -249,8 +249,72 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
         'a skip from a hook context',
         inTest('  beforeEach((context) => {\n    context.skip();\n  });'),
       ],
+      [
+        'a conditional skip on a test made by it.extend()',
+        inTest(
+          "  const databaseTest = it.extend({});\n  databaseTest.skipIf(true)('runs', () => undefined);",
+        ),
+      ],
+      [
+        'a skip from the context of a test made by it.extend()',
+        inTest(
+          "  const databaseTest = it.extend({});\n  databaseTest('skips', ({ skip }) => {\n    skip();\n  });",
+        ),
+      ],
+      [
+        'a conditional skip on it held in a variable',
+        inTest("  const check = it;\n  check.skipIf(true)('runs', () => undefined);"),
+      ],
+      [
+        'a conditional run on it imported under another name',
+        inTest(
+          "  check.runIf(false)('runs', () => undefined);",
+          "import { describe, it as check } from 'vitest';",
+        ),
+      ],
+      [
+        'an expected failure on test imported under another name, then extended twice',
+        inTest(
+          "  const databaseTest = base.extend({}).extend({});\n  databaseTest.fails('fails', () => undefined);",
+          "import { describe, test as base } from 'vitest';",
+        ),
+      ],
+      [
+        'a skip from the context of a hook imported under another name',
+        inTest(
+          '  setUp((context) => {\n    context.skip();\n  });',
+          "import { beforeEach as setUp, describe } from 'vitest';",
+        ),
+      ],
+      [
+        'a conditional skip through the vitest namespace',
+        inTest(
+          "  vitest.it.skipIf(true)('runs', () => undefined);",
+          "import * as vitest from 'vitest';\nimport { describe } from 'vitest';",
+        ),
+      ],
     ])('rejects %s', async (_kind, code) => {
       expect(await ruleIds('src/lib/probe/probe.test.ts', code)).toContain(
+        'egoscope/no-skipped-tests',
+      );
+    });
+
+    it('lets a test made by it.extend(), or imported under another name, run', async () => {
+      const code = [
+        "import { describe, expect, it as check } from 'vitest';",
+        '',
+        'const databaseTest = check.extend({ seed: 1 });',
+        '',
+        "describe('probe', () => {",
+        "  databaseTest('reads its fixture', ({ seed }) => {",
+        '    expect(seed).toBe(1);',
+        '  });',
+        "  check('runs', () => undefined);",
+        '});',
+        '',
+      ].join('\n');
+
+      expect(await ruleIds('src/lib/probe/probe.test.ts', code)).not.toContain(
         'egoscope/no-skipped-tests',
       );
     });

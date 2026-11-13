@@ -149,9 +149,10 @@ CI checks come in two kinds:
   nothing relevant changed, but no path filter or condition ever skips it. It is a required check of
   `main`, like `ci-ok`.
 - Every final job, `ci-ok` included, has `if: always()`, needs every other job of its file, and
-  judges them with `sh scripts/ci-ok.sh`, given `NEEDS` and `EVENT` as in `ci.yml`. No job or step
-  uses `continue-on-error`. The structure check enforces this (`scripts/workflow-rules.ts`), where a
-  workflow that is not a check needs an entry of its own.
+  judges them with `sh scripts/ci-ok.sh`, given `NEEDS` and `EVENT` as in `ci.yml`, in a step that
+  has no `if:`. If it sets `name:`, the name is its id, under which `main` requires it. No job or
+  step uses `continue-on-error`. The structure check enforces this (`scripts/workflow-rules.ts`),
+  where a workflow that is not a check needs an entry of its own.
 
 ## Dependencies
 
