@@ -7,6 +7,16 @@ vi.mock(import('next/server'), async (importOriginal) => ({
   connection: vi.fn(),
 }));
 
+// A database that fails on any use: the probe answers from the environment
+// alone, so that an outside monitor never wakes the database, whose compute is
+// billed for five minutes after each query.
+vi.mock(import('@/lib/db'), () => {
+  const refuse = (): never => {
+    throw new Error('/api/health must not touch the database.');
+  };
+  return { getDb: refuse, getDirectDb: refuse, ping: refuse, migrateDatabase: refuse };
+});
+
 describe('GET /api/health', () => {
   beforeEach(() => {
     // The environment is read once per server process, so each test loads a fresh one.
@@ -21,6 +31,20 @@ describe('GET /api/health', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
+    await expect(response.json()).resolves.toStrictEqual({ status: 'ok' });
+  });
+
+  it('answers from the environment alone while a database that fails on any query is configured', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full');
+    vi.stubEnv(
+      'DATABASE_URL_UNPOOLED',
+      'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full',
+    );
+    const { GET } = await import('./route');
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ status: 'ok' });
   });
 

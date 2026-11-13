@@ -146,6 +146,20 @@ describe('planCheck', () => {
     expect(plan.changed).toBe(true);
   });
 
+  it('runs the whole suite when a migration changes, since every test database is built from them', () => {
+    const plan = planCheck([
+      ...present('drizzle/0001_quiet_lake.sql', 'drizzle/meta/_journal.json'),
+      ...removed('drizzle/meta/0001_snapshot.json'),
+    ]);
+
+    expect(plan.wholeSuite).toStrictEqual([
+      'drizzle/0001_quiet_lake.sql',
+      'drizzle/meta/_journal.json',
+      'drizzle/meta/0001_snapshot.json',
+    ]);
+    expect(testStep(plan)?.command).toStrictEqual(['vitest', 'run']);
+  });
+
   it('lists each file once', () => {
     expect(planCheck(present('src/app/page.tsx', 'src/app/page.tsx')).files).toStrictEqual([
       'src/app/page.tsx',
