@@ -89,7 +89,7 @@ The step never completes with part of the event left. Its variants:
 | derivation drop of an upcoming calendar-derived event     | none        | none          | none                              | no                             | sheets and tracked case (CL-SUI-14)                                                                                                                                                                                                                  | CL-TAX-19, CL-SEN-25                  |
 | merge of detected events (Lot 2)                          | none        | none          | `merged`                          | no                             | none: called last by `detection.correct`, after the Lot 2 operations moved or deleted every row that points at the absorbed event and its case; deletes that event and, when it was its case's only event, the case, whose tracked-case rows cascade | DET-47, CL-SUI-16                     |
 
-No Lot 1 operation is ever blocked by a Lot 2 row (the orchestrator's rule): the two variants with
+No Lot 1 operation is ever blocked by a Lot 2 row (CL-TRV-24): the two variants with
 no Lot 2 sub-step, the manual deletion and the replacement at import, delete historical events,
 which no Lot 2 `RESTRICT` reference names, and every Lot 2 reference to a case cascades.
 
@@ -123,8 +123,8 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
    import trace, counts included, keeps nothing designating it (IMP-37). In the same step, the
    import drafts of every backtest request of E's player, since a pasted result may report the
    withdrawn fact: the server copies here, each device's copy at its next contact with the server
-   and at the latest at the draft's expiry; exploration drafts are not concerned (the orchestrator's
-   ruling, DSN-27, DSN-32; the request ids come from `backtest_requests`, and `drafts_import_key`
+   and at the latest at the draft's expiry; exploration drafts are not concerned (CL-DSN-22,
+   DSN-27, DSN-32; the request ids come from `backtest_requests`, and `drafts_import_key`
    finds each draft).
 7. `journal_technical_details` of journal entries that concerned only E; the entries' references
    to E then become null and read "an item that no longer exists" (CL-TRV-10).

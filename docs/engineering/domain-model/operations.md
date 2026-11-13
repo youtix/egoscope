@@ -682,7 +682,7 @@ details, if any, indented. It holds nothing DSN-11 forbids.
   `source_late`), its probe count and the last refresh instant seen; the late days counted from
   these rows; the parameters `scheduler.statsUpdateCutoff`, `scheduler.statsProbeIntervalMinutes` and
   `scheduler.statsLateDaysBeforeIncident`.
-- CL-DSN-17, CL-IHM-10, CL-IHM-11: the draft store; the orchestrator's ruling that a withdrawal
+- CL-DSN-17, CL-IHM-10, CL-IHM-11: the draft store; CL-DSN-22: a withdrawal
   discards the import drafts of every request of the event's player.
 - CL-IHM-05: the declined time-zone offer stays on the device, as the ruling says, although the
   module map lists it among the server preferences.

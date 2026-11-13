@@ -302,7 +302,7 @@ Profiles appear in the spreadsheet export of profiles and in the full export
 - CL-SEN-14, CL-SEN-15: the robustness test only from the threshold; nulls below two cases.
 - CL-SEN-16: recalculation jobs recorded with their change, chunked, one at a time. A verdict-history
   entry is written in the transaction of its profile's new values, player by player; the end of the
-  job only marks it complete (the orchestrator's answer of this pass).
+  job only marks it complete (CL-SEN-16).
 - CL-SEN-17: ten causes, three of them new (`event_corrected_or_removed`, `event_reinstated`,
   `taxonomy_changed`).
 - CL-SEN-18, CL-SEN-26: when a profile exists, the empty birthday profile included, and when it is

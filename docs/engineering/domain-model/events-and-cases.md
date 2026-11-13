@@ -99,7 +99,7 @@ deletes those designating rows first, so that no trace keeps the event (DSN-27, 
 CL-TRV-10). The step deletes the case when the event was its last one, and writes the tally exit its
 variant names: `merged` for a merge of detected events, none for a withdrawal, a player-data
 deletion or the drop of an upcoming calendar-derived event (SEN-33).
-No Lot 1 deletion is ever blocked by a Lot 2 row: the two paths that run no Lot 2 step, the manual
+No Lot 1 deletion is ever blocked by a Lot 2 row (CL-TRV-24): the two paths that run no Lot 2 step, the manual
 deletion (IMP-33) and the replacement at import (IMP-29), delete historical events, which no Lot 2
 `RESTRICT` reference names, and every Lot 2 reference to a case cascades (collection.md section
 1.12).
@@ -387,22 +387,22 @@ Index: `case_history_entries_case_idx (case_id, recorded_at)`.
 ### 1.12 `tally_exits` — `TallyExit`, and the deletion trace
 
 One row per event that left the count, by reason, so that a profile shows its exits after the
-event is gone (SEN-33, CL-SEN-25, CL-SEN-26). The row of a manual deletion is the deletion trace of
+event is gone (SEN-33, CL-SEN-26; CL-SEN-25 for the drop of a calendar-derived event). The row of a manual deletion is the deletion trace of
 IMP-33 (`EventDeletionTrace`). A dismissal leaves the event in place and is counted from `events`;
 a withdrawal never leaves a row (SEN-33, DSN-29).
 
-| column            | type        | null | default  | constraint or reference                                                                                      | class | spec IDs                  |
-| ----------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------ | ----- | ------------------------- |
-| `id`              | integer     | no   | identity | primary key                                                                                                  | PI    | —                         |
-| `player_id`       | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                          | PI    | SEN-33                    |
-| `event_type_id`   | text        | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                              | PI    | SEN-33, IMP-33            |
-| `exit_reason`     | text        | no   | —        | `CHECK (exit_reason IN ('merged','deleted','replaced_at_import','erased','no_longer_derived'))`              | PI    | SEN-33, CL-SEN-25         |
-| `exited_at`       | timestamptz | yes  | —        | the deletion date, for `deleted` only; the other reasons keep only the count, with no date (CL-SEN-25)       | PI    | IMP-33, SEN-33, CL-SEN-25 |
-| `import_id`       | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`; the replacing import                                            | PI    | IMP-29                    |
-| `deletion_reason` | text        | yes  | —        | `CHECK (deletion_reason IN ('inaccurate_fact_or_false_source','outside_type_criteria','duplicate','other'))` | PI    | IMP-33                    |
-| `deletion_detail` | text        | yes  | —        | the short precision required for `other`                                                                     | PI TX | IMP-33, DSN-10            |
-| `public_date_on`  | date        | yes  | —        | the deleted event's public date                                                                              | PI    | IMP-33                    |
-| `public_at`       | timestamptz | yes  | —        | when that date had a time                                                                                    | PI    | IMP-33                    |
+| column            | type        | null | default  | constraint or reference                                                                                                                | class | spec IDs                  |
+| ----------------- | ----------- | ---- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------- |
+| `id`              | integer     | no   | identity | primary key                                                                                                                            | PI    | —                         |
+| `player_id`       | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                                                    | PI    | SEN-33                    |
+| `event_type_id`   | text        | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                                                        | PI    | SEN-33, IMP-33            |
+| `exit_reason`     | text        | no   | —        | `CHECK (exit_reason IN ('merged','deleted','replaced_at_import','erased','no_longer_derived'))`                                        | PI    | SEN-33, CL-SEN-25         |
+| `exited_at`       | timestamptz | yes  | —        | the deletion date, for `deleted` only; the other reasons keep only the count, with no date (SEN-33; CL-SEN-25 for `no_longer_derived`) | PI    | IMP-33, SEN-33, CL-SEN-25 |
+| `import_id`       | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`; the replacing import                                                                      | PI    | IMP-29                    |
+| `deletion_reason` | text        | yes  | —        | `CHECK (deletion_reason IN ('inaccurate_fact_or_false_source','outside_type_criteria','duplicate','other'))`                           | PI    | IMP-33                    |
+| `deletion_detail` | text        | yes  | —        | the short precision required for `other`                                                                                               | PI TX | IMP-33, DSN-10            |
+| `public_date_on`  | date        | yes  | —        | the deleted event's public date                                                                                                        | PI    | IMP-33                    |
+| `public_at`       | timestamptz | yes  | —        | when that date had a time                                                                                                              | PI    | IMP-33                    |
 
 Row checks: `(exit_reason = 'deleted') = (deletion_reason IS NOT NULL AND public_date_on IS NOT NULL AND exited_at IS NOT NULL)`;
 `exited_at IS NULL OR exit_reason = 'deleted'`; `deletion_detail IS NOT NULL` iff
@@ -587,23 +587,23 @@ run, for each player and type:
 
 ## 3. Invariants
 
-| rule                                                                                                             | spec IDs                  | enforced by                                                                             |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------- |
-| An event concerns exactly one followed player and one type, and names an existing sheet version                  | VUE-04, TAX-23, CL-TAX-08 | not-null foreign keys                                                                   |
-| An event holds the DSN-06 items of its origin and no other                                                       | DSN-06, CL-DSN-20         | table shape; per-origin row checks                                                      |
-| No event is ever stored with a "withdrawn" state; a withdrawal erases the row                                    | DSN-26, glossary 4.2      | no such value in `detected_status`                                                      |
-| A description is one sentence within `events.maxDescriptionLength` with no quotation mark                        | DSN-20, DSN-21, CL-DSN-03 | writing services (import, detection, correction, derivation template)                   |
-| A historical event produces no counted case while its precedence is to verify or not established                 | IMP-18, SEN-44, CL-SEN-08 | engine (CL-SEN-05 steps 5 and 7)                                                        |
-| An event belongs to at most one case, of its own player and type                                                 | CL-VUE-03, SEN-05         | `case_id` column with the composite foreign key                                         |
-| One case per player, type and measured game; a case always holds at least one event                              | SEN-05, CL-VUE-03         | partial unique index; recalculation service deletes empty cases in the same transaction |
-| A case's origin and creation instant never change                                                                | SUI-04, SUI-07, CL-VUE-03 | recalculation service (no update of these columns)                                      |
-| A measured case is a valid case: it carries no triggered criterion                                               | SEN-07, CL-SEN-27         | recalculation service                                                                   |
-| A manual decision applies only to the game it was made on                                                        | CL-SEN-12                 | engine reads `case_manual_decisions.measured_game_id`                                   |
-| Only cases of non-dismissed, non-erased events of validated or archived types count                              | SEN-19, SEN-48            | engine                                                                                  |
-| One calendar-derived event per player, type and game; its player, type and date are never edited                 | CL-TAX-18, ADR 0015       | partial unique index; event service                                                     |
-| A detected event's reference date moves earlier by itself, never later except by detaching its reference article | DET-31                    | detection service (Lot 2)                                                               |
-| Every exit from the count but a withdrawal leaves a tally exit                                                   | SEN-33, CL-SEN-25         | the erasure step                                                                        |
-| No rule and no action selects cases by their gap                                                                 | SEN-33, SEN-11            | no reason value refers to performance                                                   |
+| rule                                                                                                             | spec IDs                                     | enforced by                                                                             |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------- |
+| An event concerns exactly one followed player and one type, and names an existing sheet version                  | VUE-04, TAX-23, CL-TAX-08                    | not-null foreign keys                                                                   |
+| An event holds the DSN-06 items of its origin and no other                                                       | DSN-06, CL-DSN-20                            | table shape; per-origin row checks                                                      |
+| No event is ever stored with a "withdrawn" state; a withdrawal erases the row                                    | DSN-26, glossary 4.2                         | no such value in `detected_status`                                                      |
+| A description is one sentence within `events.maxDescriptionLength` with no quotation mark                        | DSN-20, DSN-21, CL-DSN-03                    | writing services (import, detection, correction, derivation template)                   |
+| A historical event produces no counted case while its precedence is to verify or not established                 | IMP-18, SEN-44, CL-SEN-08                    | engine (CL-SEN-05 steps 5 and 7)                                                        |
+| An event belongs to at most one case, of its own player and type                                                 | CL-VUE-03, SEN-05                            | `case_id` column with the composite foreign key                                         |
+| One case per player, type and measured game; a case always holds at least one event                              | SEN-05, CL-VUE-03                            | partial unique index; recalculation service deletes empty cases in the same transaction |
+| A case's origin and creation instant never change                                                                | SUI-04, SUI-07, CL-VUE-03                    | recalculation service (no update of these columns)                                      |
+| A measured case is a valid case: it carries no triggered criterion                                               | SEN-07, CL-SEN-27                            | recalculation service                                                                   |
+| A manual decision applies only to the game it was made on                                                        | CL-SEN-12                                    | engine reads `case_manual_decisions.measured_game_id`                                   |
+| Only cases of non-dismissed, non-erased events of validated or archived types count                              | SEN-19, SEN-48                               | engine                                                                                  |
+| One calendar-derived event per player, type and game; its player, type and date are never edited                 | CL-TAX-18, ADR 0015                          | partial unique index; event service                                                     |
+| A detected event's reference date moves earlier by itself, never later except by detaching its reference article | DET-31                                       | detection service (Lot 2)                                                               |
+| Every exit from the count but a withdrawal leaves a tally exit                                                   | SEN-33; CL-SEN-25 for calendar-derived drops | the erasure step                                                                        |
+| No rule and no action selects cases by their gap                                                                 | SEN-33, SEN-11                               | no reason value refers to performance                                                   |
 
 ## 4. Stored or derived
 
@@ -664,7 +664,8 @@ None of this area's own: historical events arrive through the research result
   the fields changed only; never an earlier free text.
 - Glossary section 11 point 5: a historical date-only public date has the precision
   `approximate`, a timed one `exact` (COL-20's definitions applied to the research's dates).
-- Coordinator's naming ruling: the third origin is stored `calendar`, never `schedule`.
+- CL-VUE-12 and the glossary's `EventOrigin`: the third origin is stored `calendar`, never
+  `schedule`.
 - Lot 2 requests (detection.md section 8): `detected_status`, an immutable `created_at`,
   `reference_date_rule`, the three stored marks, the owner-added source with its precision, and the
   detected-event actions in `event_corrections`. The reference article is not a column of `events`:

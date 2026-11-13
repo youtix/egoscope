@@ -369,7 +369,7 @@ stored (IMP-04, IMP-06, IMP-16). Only the ticked types become proposals of origi
   rather than deleted, so its identifier stays taken (TAX-02).
 - Own choice: the AI's `possible_overlaps` are shown in the preview and not stored (store less);
   close types are recomputed by CL-TAX-05 on the proposal's page.
-- The architect's request (TAX-29, TAX-15): a split-born type takes the origin of the type it was
+- TAX-29, TAX-15: a split-born type takes the origin of the type it was
   split from, with no new origin value, and its birth is one dated status change from none to
   `validated`.
 - Lot 2 request (detection.md section 8, item 6): an occurrence copies its article's link, outlet,
