@@ -1,0 +1,308 @@
+# Security scanning of the dependencies, the history, the workflows and the code. It
+# runs on every pull request, on every push to main and weekly, since a new advisory
+# can concern code that has not changed. Every job below must succeed for `security`,
+# the final job that branch protection requires (scripts/ci-ok.sh judges them). No job
+# needs a repository secret: the deployment secrets live only in the hosting
+# configuration and never become a secret of this public repository (TRV-64).
+# CLAUDE.md says what each job checks and what to do when one fails. Each scanner is a
+# release pinned with its checksum in its job's env, updated by hand like actionlint in
+# ci.yml: Dependabot updates the actions only.
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Mondays at 05:17 UTC.
+    - cron: '17 5 * * 1'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Review the dependencies that this pull request adds or changes
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          fail-on-scopes: runtime, development, unknown
+      - name: Say why there is nothing to review
+        if: ${{ github.event_name != 'pull_request' }}
+        run: echo "Dependency review compares a pull request with its base. The osv-scanner job checks the whole of bun.lock on every event."
+
+  osv-scanner:
+    name: osv-scanner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      OSV_SCANNER_VERSION: 2.7.0
+      OSV_SCANNER_SHA256: 160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install OSV-Scanner (pinned release, checksum verified)
+        run: |
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/osv-scanner" \
+            "https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SCANNER_SHA256}  $RUNNER_TEMP/osv-scanner" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/osv-scanner"
+      - name: Prove that the scan reports a known vulnerability in bun.lock
+        run: |
+          # bun.lock as it is, plus a package version with a well-known advisory: the scan
+          # must read the lockfile's current format and report that version, with the
+          # exceptions of osv-scanner.toml, found next to the lockfile as in the next step.
+          mkdir "$RUNNER_TEMP/osv-proof"
+          cp osv-scanner.toml "$RUNNER_TEMP/osv-proof/"
+          sed 's|^  "packages": {$|&\n    "osv-scanner-proof": ["lodash@4.17.20", "", {}, ""],|' bun.lock \
+            > "$RUNNER_TEMP/osv-proof/bun.lock"
+          status=0
+          "$RUNNER_TEMP/osv-scanner" scan source --format json \
+            --lockfile="$RUNNER_TEMP/osv-proof/bun.lock" > "$RUNNER_TEMP/osv-proof.json" || status=$?
+          found="$(jq --raw-output '.results[]?.packages[]?
+            | select(.package.name == "lodash" and .package.version == "4.17.20")
+            | .vulnerabilities[].id' "$RUNNER_TEMP/osv-proof.json")"
+          if [ "$status" -ne 1 ] || [ -z "$found" ]; then
+            echo "::error::OSV-Scanner reported no vulnerability of lodash 4.17.20 added to bun.lock (exit code $status)."
+            exit 1
+          fi
+          echo "OSV-Scanner reports these advisories for lodash 4.17.20 added to bun.lock:"
+          echo "$found"
+      - name: Scan bun.lock for known vulnerabilities
+        run: '"$RUNNER_TEMP/osv-scanner" scan source --lockfile=bun.lock'
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The whole history: a removed secret stays public in the commit that added it.
+          fetch-depth: 0
+      - name: Install gitleaks (pinned release, checksum verified)
+        run: |
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/$archive" --directory "$RUNNER_TEMP" gitleaks
+      - name: '[TRV-64] Prove that the scan catches every deployment secret'
+        run: |
+          # Fake values in the shape of every deployment secret, drawn afresh at each run,
+          # in a scratch commit outside the checkout. Scanned with the flags of the next
+          # step, each line must be reported by the rule named next to it.
+          export LC_ALL=C
+          samples="$RUNNER_TEMP/secret-samples"
+          expected="$RUNNER_TEMP/secret-samples.expected"
+          random() { openssl rand -base64 384 | tr -dc "$1" | cut -c "1-$2"; }
+          base64url() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '='; }
+          sample() {
+            mkdir -p "$(dirname "$samples/$2")"
+            printf '%s\n' "$3" >> "$samples/$2"
+            printf '%s:%s:%s\n' "$2" "$(wc -l < "$samples/$2")" "$1" >> "$expected"
+          }
+          env_line() { sample "$1" .env.example "$2=$3"; }
+          stub_env() { sample "$1" src/lib/env/server-env.test.ts "vi.stubEnv('$2', '$3');"; }
+          recorded() { sample "$1" data/fixtures/sample-port/recorded/answers.http "$2"; }
+          # TypeScript outside src/, such as an end-to-end setup, may assign a quoted or a
+          # template-literal value to process.env, by key only (noPropertyAccessFromIndexSignature).
+          # Lint asks for ??= rather than ||= for a default (prefer-nullish-coalescing); the
+          # scan catches both.
+          setup() { sample "$1" e2e/global-setup.ts "$2"; }
+          neon_url() { printf '%s://neondb_owner:npg_%s@ep-sample%s.eu-central-1.aws.neon.tech/neondb' postgresql "$(random A-Za-z0-9 12)" "$1"; }
+          telegram_token() { printf '%s:AA%s' "$(random 0-9 10)" "$(random A-Za-z0-9 33)"; }
+          cloudflare_token() { printf 'cf%st_%s%s' "$1" "$(random A-Za-z0-9 40)" "$(openssl rand -hex 4)"; }
+          groq_key() { printf 'gsk_%s' "$(random A-Za-z0-9 52)"; }
+          github_token() { printf 'github_pat_%s_%s' "$(random A-Za-z0-9 22)" "$(random A-Za-z0-9 59)"; }
+          password() { printf '%s#!' "$(random A-Za-z0-9 14)"; }
+
+          git init --quiet "$samples"
+          env_line postgres-connection-string DATABASE_URL "$(neon_url -pooler)?sslmode=require"
+          env_line postgres-connection-string DATABASE_URL_UNPOOLED "$(neon_url '')?sslmode=require"
+          env_line telegram-bot-token TELEGRAM_BOT_TOKEN "$(telegram_token)"
+          env_line cloudflare-api-token CLOUDFLARE_AI_API_TOKEN "$(cloudflare_token u)"
+          env_line groq-api-key GROQ_API_KEY "$(groq_key)"
+          env_line github-fine-grained-pat BACKUP_GITHUB_TOKEN "$(github_token)"
+          env_line generated-secret CRON_SECRET "$(base64url)"
+          env_line generated-secret TELEGRAM_WEBHOOK_SECRET "$(base64url)"
+          env_line generated-secret FINGERPRINT_KEY "$(base64url)"
+          env_line generated-secret BACKUP_ENCRYPTION_KEY "$(openssl rand -base64 32)"
+          env_line initial-password INITIAL_PASSWORD "$(password)"
+          stub_env generated-secret CRON_SECRET "$(base64url)"
+          stub_env initial-password INITIAL_PASSWORD "$(password)"
+          setup generated-secret "process.env['CRON_SECRET'] = '$(base64url)';"
+          setup generated-secret "process.env[\"TELEGRAM_WEBHOOK_SECRET\"] ??= \"$(base64url)\";"
+          setup initial-password "process.env['INITIAL_PASSWORD'] = '$(password)';"
+          setup initial-password "process.env[\"INITIAL_PASSWORD\"] ??= \"$(password)\";"
+          setup initial-password "process.env['INITIAL_PASSWORD'] ||= '$(password)';"
+          setup initial-password "process.env['INITIAL_PASSWORD'] = \`$(password)\`;"
+          recorded telegram-bot-token "GET https://api.telegram.org/bot$(telegram_token)/getUpdates"
+          recorded cloudflare-api-token "Authorization: Bearer $(cloudflare_token a)"
+          recorded groq-api-key "Authorization: Bearer $(groq_key)"
+          recorded github-fine-grained-pat "Authorization: Bearer $(github_token)"
+          recorded postgres-connection-string "error: cannot connect to $(neon_url '')"
+          git -C "$samples" add --all
+          git -C "$samples" -c user.name=self-test -c user.email=self-test@example.invalid \
+            commit --quiet --message 'test: add fake secrets'
+
+          "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --ignore-gitleaks-allow --redact \
+            --no-banner --log-opts=HEAD --exit-code 0 --report-format json \
+            --report-path "$RUNNER_TEMP/secret-samples.json" "$samples"
+          jq --raw-output '.[] | "\(.File):\(.StartLine):\(.RuleID)"' "$RUNNER_TEMP/secret-samples.json" \
+            | sort --unique > "$RUNNER_TEMP/secret-samples.found"
+          missed="$(sort "$expected" | comm -23 - "$RUNNER_TEMP/secret-samples.found")"
+          if [ -n "$missed" ]; then
+            echo "::error::gitleaks missed fake secrets, listed below as file:line:expected rule."
+            echo "$missed"
+            exit 1
+          fi
+          echo "gitleaks caught every fake secret (file:line:rule):"
+          cat "$RUNNER_TEMP/secret-samples.found"
+      - name: Scan every commit of the history for secrets
+        run: |
+          # gitleaks would silence any finding listed in a .gitleaksignore file, without a
+          # reason; exceptions belong in the allow-list of .gitleaks.toml.
+          if [ -e .gitleaksignore ]; then
+            echo "::error::Remove .gitleaksignore: allow-list exact dummy values in .gitleaks.toml instead."
+            exit 1
+          fi
+          "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --ignore-gitleaks-allow --redact \
+            --no-banner --log-opts=HEAD --verbose .
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      ZIZMOR_VERSION: 1.32.0
+      ZIZMOR_SHA256: bb110cc765eca9cd7efb2e284a956be5974c60027b0970f16397d86208a9957b
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install zizmor (pinned release, checksum verified)
+        run: |
+          archive=zizmor-x86_64-unknown-linux-gnu.tar.gz
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/zizmorcore/zizmor/releases/download/v${ZIZMOR_VERSION}/${archive}"
+          echo "${ZIZMOR_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/$archive" --directory "$RUNNER_TEMP" zizmor
+      - name: '[TRV-64] Check that no workflow reads a repository secret'
+        run: |
+          # A workflow that read the secrets context would invite a deployment secret into
+          # this public repository; GitHub's own token is github.token.
+          if grep --recursive --line-number --extended-regexp '[$][{]{2}[^}]*\bsecrets\b|secrets: *inherit' .github; then
+            echo "::error::A workflow reads a repository secret (above): the deployment secrets stay in the hosting configuration."
+            exit 1
+          fi
+          echo "No workflow reads a repository secret."
+      - name: Prove that the audit reports a flawed workflow
+        run: |
+          # A tag-pinned action, a checkout that keeps its credentials and no permissions
+          # block: zizmor must report each of these flaws, with the exceptions of
+          # .github/zizmor.yml as in the next step.
+          proof="$RUNNER_TEMP/zizmor-proof.yml"
+          printf '%s\n' 'name: Flawed' 'on: pull_request' 'jobs:' '  build:' \
+            '    runs-on: ubuntu-24.04' '    steps:' '      - uses: actions/checkout@v4' > "$proof"
+          status=0
+          "$RUNNER_TEMP/zizmor" --config .github/zizmor.yml --persona=pedantic --offline \
+            --format=json "$proof" > "$RUNNER_TEMP/zizmor-proof.json" || status=$?
+          found="$(jq --raw-output '[.[].ident] | unique | join(" ")' "$RUNNER_TEMP/zizmor-proof.json")"
+          for audit in unpinned-uses artipacked excessive-permissions; do
+            case " $found " in
+              *" $audit "*) ;;
+              *)
+                echo "::error::zizmor did not report $audit in a flawed workflow (exit code $status; reported: $found)."
+                exit 1
+                ;;
+            esac
+          done
+          echo "zizmor reports these audits in a flawed workflow (exit code $status): $found"
+      - name: Audit the workflows, the setup action and the Dependabot configuration
+        env:
+          GH_TOKEN: ${{ github.token }} # Online audits read public data of the actions used.
+        run: |
+          # An exception lives in .github/zizmor.yml with its reason; an inline ignore comment
+          # would carry none.
+          if grep --recursive --line-number --extended-regexp '#.*zizmor: *ignore\[' .github; then
+            echo "::error::Move the exception above to .github/zizmor.yml, with its reason."
+            exit 1
+          fi
+          "$RUNNER_TEMP/zizmor" --config .github/zizmor.yml --persona=pedantic --strict-collection .
+
+  codeql:
+    name: codeql
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write # Uploads the results to code scanning, which shows them on the pull request.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up CodeQL for JavaScript and TypeScript
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-extended
+      - name: Analyze the code
+        id: analyze
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      - name: Fail on any CodeQL result
+        env:
+          SARIF_DIR: ${{ steps.analyze.outputs.sarif-output }}
+        run: |
+          jq --raw-output --slurp '.[].runs[].results[]
+            | [.locations[0].physicalLocation.artifactLocation.uri,
+               .locations[0].physicalLocation.region.startLine, .ruleId, .message.text]
+            | map(tostring) | join(": ")' "$SARIF_DIR"/*.sarif
+          count="$(jq --slurp '[.[].runs[].results[]] | length' "$SARIF_DIR"/*.sarif)"
+          if [ "$count" -gt 0 ]; then
+            echo "::error::CodeQL reported $count result(s), listed above: fix the code (CLAUDE.md, Security checks)."
+            exit 1
+          fi
+          echo "CodeQL reported nothing."
+
+  security:
+    name: security
+    if: ${{ always() }}
+    needs: [dependency-review, osv-scanner, gitleaks, zizmor, codeql]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci-ok.sh
+          sparse-checkout-cone-mode: false
+      - name: Require every job to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
+        run: sh scripts/ci-ok.sh

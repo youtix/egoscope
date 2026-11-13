@@ -200,6 +200,43 @@ newest release that is old enough, and keep packages that ship together on match
 urgent security fix that is younger gets an exact `name@version` entry in
 `minimumReleaseAgeExcludes`, justified in the PR and removed once that version is seven days old.
 
+## Security checks
+
+`.github/workflows/security.yml` runs on every pull request, on every push to `main` and weekly. Its
+final job, `security`, passes only when each of these jobs succeeded:
+
+- `dependency-review`: the pull request adds no dependency with a known vulnerability of high
+  severity or above.
+- `osv-scanner`: `bun.lock`, transitive dependencies included, has no known vulnerability.
+- `gitleaks`: no commit of the history holds a secret. `.gitleaks.toml` adds rules for this
+  application's deployment secrets, and the job first proves on fresh fake values that each one is
+  caught (TRV-64).
+- `zizmor`: the workflows, the setup action and `.github/dependabot.yml` have no security flaw, and
+  no workflow reads a repository secret: deployment secrets stay in the hosting configuration.
+- `codeql`: CodeQL's `security-extended` queries find nothing in the JavaScript and TypeScript. On
+  a pull request the analysis is diff-informed: the data-flow queries that support it report
+  results in the changed lines only, and the other queries in all the code. A data-flow result in
+  other code therefore first fails a push to `main` or the weekly run.
+
+When one fails, fix the cause: upgrade the package, or rewrite the code, the workflow or the branch.
+A secret in any commit of the branch fails the scan until that commit is rewritten, and a real one,
+once pushed, is public and must also be rotated. Never silence a finding without a written reason
+in its allow-list, the only place for an exception:
+
+- `osv-scanner.toml`: an `[[IgnoredVulns]]` entry for the advisory, with why it cannot harm this
+  project, what will fix it, and an `ignoreUntil` date at most three months away.
+- `.gitleaks.toml`: an `[[allowlists]]` entry for one exact dummy value of `.env.example` or of a
+  test fixture, with its description; never a path or a pattern, since recorded answers of real
+  services are scanned like code.
+- `.github/zizmor.yml`: an ignore of one audit in one workflow, with a comment giving the reason
+  and the fix it waits for. Until the workflows load the setup action as
+  `$/.github/actions/setup-project`, a new workflow that reuses `./.github/actions/setup-project`
+  adds itself to the `self-repository` entry, or the `zizmor` job fails.
+
+The scans honor nothing else: no `gitleaks:allow` comment, no `.gitleaksignore` file, no inline
+zizmor ignore. A CodeQL result is fixed in the code; if you are sure it is a false positive, say so
+in the pull request and leave the decision to the owner.
+
 ## Git and pull requests
 
 - One task per PR, on a branch named `type/short-slug`, for example `feat/player-list`.
