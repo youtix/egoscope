@@ -7,7 +7,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** the 22 acceptance criteria of 08
 - **Problem:** the criteria are unnumbered bullets with no requirement IDs.
-- **Ruling:** As decided (decisions, "Acceptance-criterion IDs"): `CA-SEN-01` to `CA-SEN-22` in document order (cited `08 AC-nn` in the deviations register). Each test names its ID and these requirements: 01 SEN-01; 02 SEN-03; 03 SEN-03, SEN-13; 04 SEN-04; 05 SEN-03, SEN-12; 06 SEN-05, SEN-06; 07 SEN-08; 08 SEN-14; 09 SEN-15; 10 SEN-17; 11 SEN-20, SEN-22 to SEN-26; 12 SEN-24; 13 SEN-31; 14 SEN-25; 15 SEN-29; 16 SEN-27; 17 SEN-32; 18 SEN-34, SEN-37; 19 SEN-41; 20 SEN-39; 21 SEN-09, SEN-34, SEN-37; 22 SEN-21.
+- **Ruling:** As decided (the planning ruling that CL-VUE-01 records): `CA-SEN-01` to `CA-SEN-22` in document order (cited `08 AC-nn` in the deviations register). Each test names its ID and these requirements: 01 SEN-01; 02 SEN-03; 03 SEN-03, SEN-13; 04 SEN-04; 05 SEN-03, SEN-12; 06 SEN-05, SEN-06; 07 SEN-08; 08 SEN-14; 09 SEN-15; 10 SEN-17; 11 SEN-20, SEN-22 to SEN-26; 12 SEN-24; 13 SEN-31; 14 SEN-25; 15 SEN-29; 16 SEN-27; 17 SEN-32; 18 SEN-34, SEN-37; 19 SEN-41; 20 SEN-39; 21 SEN-09, SEN-34, SEN-37; 22 SEN-21.
 - **Why:** one citation scheme; the mapping follows each criterion's content.
 - **Owner review:** no
 

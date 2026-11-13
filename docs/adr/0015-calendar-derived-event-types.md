@@ -19,7 +19,7 @@ Birthday games and former-team games are deduced from the calendar, not found in
 ### Data
 
 - The player's identity gains the day and month of birth (JOU-08), taken from the statistics source when it gives them, or entered by the owner. The year is never stored. A player without a recorded birthday has no birthday events, and his birthday profile says why.
-- Former teams are never entered. They are the teams for which the player has a box score in a covered season (STA-08), other than his current team; his departure from a team is his last official game for it (JOU-13 history).
+- Former teams are never entered. They are the teams for which the player has a box score in a covered season (STA-08), other than his current team; his departure from a team is his last official game for it in that stint (JOU-13 history; see Amendments).
 - Events get the origin calendar, beside detected and historical; an event of that origin is a calendar-derived event, shown "derived from the calendar". Such an event refers to its scheduled game instead of press sources, carries neither a research nor a detection confidence, has no precedence check, and gets a description the app writes under the rules of [13](../13-donnees-sensibles.md), for example "Player A plays on his birthday."
 
 ### Taxonomy
@@ -68,7 +68,7 @@ Not settled by the decision; the recommended handling is in brackets. All six we
 
 - Which games: for each validated calendar-derived type and each active or paused player with an established mapping, over the official games of covered seasons — every game of his team whose day has his recorded day and month of birth; for each stint with a former team, the first official game between his team and that team after his last game played for it, while he belongs to another team, one event per stint. "His team" is the team he belonged to at the game's date; whether he played is not part of the condition.
 - Open point 2 is settled as recommended. Regular runs, at the end of every statistics update and, in Lot 2, of every collection-and-detection pass, derive the qualifying games started since the player's previous run, and his next game if it qualifies; each player keeps the instant of his previous run.
-- Full derivations — at the validation, reactivation or substantive change of a type, and for one player at a change of his birthday, of his stats-source mapping or of his team history — cover games already started only; upcoming events always come from regular runs.
+- Full derivations — at the validation, reactivation or substantive change of a type, and for one player at a change of his birthday, of his stats-source mapping or of his team history — cover games already started only for what they create; upcoming events are always created by regular runs (their re-check: amendment of 2026-11-13).
 - Every regular run re-checks the upcoming events: one whose game no longer qualifies — date or opponent changed, game canceled, player no longer with that team, birthday or team history corrected — is deleted with its case before tip-off and never counts. A deletion by the derivation is not a withdrawal: no fingerprint, no counter; each creation and deletion is journaled.
 
 ### 2026-11-11 — Lot 2 flow of upcoming events: open point 1 (CL-VUE-13, CL-VUE-14, CL-SUI-14, CL-ALE-13, CL-TEL-21)
@@ -80,7 +80,7 @@ Not settled by the decision; the recommended handling is in brackets. All six we
 
 ### 2026-11-11 — Articles about a birthday or a reunion: open point 3 (CL-DET-22, CL-TAX-21)
 
-- Settled as recommended: the classifier also receives the list of the types handled by the calendar (name and definition, whatever their state), which never enter the do-not-repropose list; a fact the model reports against that list is dropped, with no event, proposal or occurrence.
+- Settled as recommended: the classifier also receives the list of the types handled by the calendar (name and definition, whatever their state), which never enter the classifier's do-not-repropose list (the exploration prompt keeps them, CL-TAX-10); a fact the model reports against that list is dropped, with no event, proposal or occurrence.
 
 ### 2026-11-11 — Former teams and covered seasons: open point 4 (CL-JOU-18, CL-STA-24)
 
@@ -114,3 +114,10 @@ Not settled by the decision; the recommended handling is in brackets. All six we
 
 - A calendar-derived event created before its game's scheduled start gives a tracked case in Lot 1 as in Lot 2. IHM-46 therefore applies in Lot 1 as written for display — each case reads "Historical" or "Tracked" in full, the summaries give the split and the case lists filter by origin — except its last sentence, « Au lot 1, tous les cas sont historiques, et les écrans le disent », which falls.
 - When every valid case of a profile is historical, the split still says so ("7 valid cases: 7 historical"). The profile and the trend computed on one origin only stay in Lot 2 (SEN-21).
+
+### 2026-11-13 — Stints, team membership, upcoming events and the exploration prompt (CL-TAX-18, CL-TAX-19, CL-JOU-18, CL-VUE-15, CL-TAX-10)
+
+- A player has one stint with a former team for each period during which he belonged to it; each stint ends at his last official game for that team in that period and gives its own first meeting. A player who went X, Y, X, then Z has two reunions with X: the first Y–X meeting after his first stint and the first Z–X meeting after his second. Opening such an event shows the last game of the stint the meeting follows.
+- For the derivation, "his team" at a game is the membership that file 07 establishes for the missed-games count (CL-STA-05), with one addition: a team change the app recorded while it was current, from the source's current player file or entered by the owner and not contradicted by his next game played, starts his membership of the new team at its recorded instant. A player traded while sidelined thus has his first reunion at the first meeting after the trade, non-measurable if he misses it, never at a later meeting he plays: the sliding this record rejected.
+- Every derivation run, full ones included, re-checks the upcoming events of the players it covers, so a correction the owner makes shortly before tip-off deletes that evening's event at once.
+- Only the classification receives these types in the list of the types handled by the calendar; the exploration prompt names them as TAX-16 says, a validated one among the validated types and a proposed, rejected or withdrawn one in its do-not-repropose list (CL-TAX-10).

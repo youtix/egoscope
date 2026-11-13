@@ -130,7 +130,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** DET-14, DET-28, DET-29, DET-31
 - **Problem:** DET-14 can be read as limiting only the historical events to the grouping window, or both kinds, and does not say whether events dated after the article are sent.
-- **Ruling:** for each recognized player the model receives his detected events, dismissed ones included, and his historical events whose reference date is at or after the article's retained instant minus the grouping window (default 72 hours). There is no upper bound: events created from later articles are sent, so an older article can attach to them and move the reference date earlier (DET-31). Calendar-derived events are never sent (ADR 0015).
+- **Ruling:** for each recognized player the model receives his detected events, dismissed ones included, and his historical events, both kinds limited to those whose reference date is at or after the article's retained instant minus the grouping window (default 72 hours): an older event is never proposed for grouping (DET-29). There is no upper bound: events created from later articles are sent, so an older article can attach to them and move the reference date earlier (DET-31). Calendar-derived events are never sent (ADR 0015).
 - **Why:** DET-29 bars only older events from grouping, and the nominal scenario sends "the recent events, detected or historical".
 - **Owner review:** no
 

@@ -7,7 +7,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** the 29 acceptance criteria of 06
 - **Problem:** the criteria are numbered 1 to 29 with requirement IDs, but carry no `CA-` ID.
-- **Ruling:** As decided (decisions, "Acceptance-criterion IDs"): `CA-IMP-01` to `CA-IMP-29` in document order; `CA-IMP-nn` is the criterion numbered nn, cited `06 AC-nn` in the deviations register. Each test names its `CA-IMP` ID and the requirement IDs printed in the criterion.
+- **Ruling:** As decided (the planning ruling that CL-VUE-01 records): `CA-IMP-01` to `CA-IMP-29` in document order; `CA-IMP-nn` is the criterion numbered nn, cited `06 AC-nn` in the deviations register. Each test names its `CA-IMP` ID and the requirement IDs printed in the criterion.
 - **Why:** one citation scheme for every spec file.
 - **Owner review:** no
 
@@ -120,7 +120,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Affects:** IMP-05, IMP-10, IMP-12, IMP-29, IMP-32
 - **Problem:** the import tests dates against periods without saying which calendar date a date-time has, and IMP-12's "requested period" does not say whether it is the request's overall period or the event type's own period.
 - **Ruling:**
-  - The calendar date of an imported value is its date part as written; for a date-time, that is its local date in its own offset. Public dates and source dates are stored as that calendar date plus, when timed, the absolute instant and the original offset (decisions, "Representation of time"; TRV-68).
+  - The calendar date of an imported value is its date part as written; for a date-time, that is its local date in its own offset. Public dates and source dates are stored as that calendar date plus, when timed, the absolute instant and the original offset (TRV-68, as ruled in planning: an instant is stored absolute, with its original offset).
   - Every "inside a period" test of the import (requested, declared, retained coverage, replacement, career up to today) compares calendar dates, bounds included.
   - IMP-12's requested period is that of the event's own type: an event of type A dated outside A's requested period is ignored, even inside another requested type's period.
   - "Before the player's first NBA game" means a calendar date earlier than the US date of that game (STA-47); an event dated on that day is kept.

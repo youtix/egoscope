@@ -46,7 +46,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Problem:** after a week of deactivation the last successful read is older than the maximum age, which literally triggers catch-up (COL-45) and a gap (COL-46), while COL-09 and CA-COL-22 forbid catching up the deactivation period.
 - **Ruling:**
   - Each source has a reference instant R: the later of its last successful read and its last reactivation.
-  - Catch-up applies when the time since R exceeds the maximum age; the admitted age is then the time since R. Right after a reactivation R is the reactivation instant, so the ordinary maximum age applies (CA-COL-22).
+  - Catch-up applies when the time since R exceeds the maximum age; the admitted age is then lengthened by the time since R, as COL-45 says: the maximum age plus the time since R, so the window starts where the read at R left it. With a 3-day maximum age and R six days ago, items up to 9 days old are admitted. Right after a reactivation R is the reactivation instant, so the ordinary maximum age applies (CA-COL-22).
   - The gap test of COL-46 starts from R, so a deactivation period is never recorded as a possible gap.
   - The first collection run after a reactivation writes, in its entry for that source, « période non collectée (source désactivée) » with the deactivation and reactivation instants.
 - **Why:** deactivation is the owner's choice and is already reported as an uncollected period; catching it up or counting it as a gap would contradict COL-09.

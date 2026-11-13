@@ -26,7 +26,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Ruling:** the relation wins over the glossary sentence.
   - A case is identified by one player, one type and one measured game, and holds one or more events of that type attached to that game; an event belongs to at most one case. Events of different types attached to the same game give one case per type, marked co-occurring (SEN-06).
   - An event attached to a game that already has a case of its type joins that case; no second case is created.
-  - An event that leaves the case (dismissed, erased, or attached to another game after a correction) stops counting in it; the case keeps counting while at least one of its events is neither dismissed nor erased, and its reference instant is the earliest among those events (SEN-05). A case with no event left disappears.
+  - Only an erasure or an attachment to another game after a correction takes an event out of its case; a case with no event left disappears. A dismissed event stays in its case and only stops counting (DET-44, SEN-48): the case counts while at least one of its events is not dismissed, and its reference instant is the earliest among those events (SEN-05). A case all of whose events are dismissed stays, out of every calculation, keeping the state and gap it had, or measured apart when the dismissal came at or after tip-off (CL-SEN-05, CL-DET-15), with the earliest of its events as reference instant; a reinstatement brings it back.
   - A case's origin, historical or tracked, is set by the first of its events recorded and never changes afterwards (SUI-07); CL-VUE-13 gives the origin of calendar-derived cases.
 - **Why:** the relations section and SEN-05 are the owning rules; counting one game once per type keeps profiles free of duplicates.
 - **Owner review:** no
@@ -126,7 +126,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Affects:** VUE-05, CA-VUE-05
 - **Problem:** every verdict must give access to the sources of the events it counts, but calendar-derived events have no press source.
-- **Ruling:** for a calendar-derived event, the place of the source is taken by its game: opening it shows the game's date and tip-off, the two teams, and the basis of the derivation — for a birthday, the recorded day and month of birth; for a former team, the date of the player's last game for that team. CA-VUE-05 passes when every counted event opens either its press sources or, for a calendar-derived event, its game.
+- **Ruling:** for a calendar-derived event, the place of the source is taken by its game: opening it shows the game's date and tip-off, the two teams, and the basis of the derivation — for a birthday, the recorded day and month of birth; for a former team, the date of the player's last game for that team in the stint the meeting follows (CL-TAX-18). CA-VUE-05 passes when every counted event opens either its press sources or, for a calendar-derived event, its game.
 - **Why:** the schedule is the evidence of these events (record 0015); VUE-05 asks that every counted event be traceable.
 - **Owner review:** no
 

@@ -7,7 +7,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 - **Affects:** the 17 acceptance criteria of 05
 - **Problem:** the criteria are numbered 1 to 17 and labeled with requirement IDs, but carry no `CA-` ID, so tests have nothing stable to cite.
-- **Ruling:** As decided (decisions, "Acceptance-criterion IDs"): `CA-BKT-01` to `CA-BKT-17` in document order; `CA-BKT-nn` is the criterion numbered nn, the same one the deviations register cites as `05 AC-nn`. Each test names its `CA-BKT` ID and the requirement IDs printed at the head of the criterion.
+- **Ruling:** As decided (the planning ruling that CL-VUE-01 records): `CA-BKT-01` to `CA-BKT-17` in document order; `CA-BKT-nn` is the criterion numbered nn, the same one the deviations register cites as `05 AC-nn`. Each test names its `CA-BKT` ID and the requirement IDs printed at the head of the criterion.
 - **Why:** one citation scheme for every spec file.
 - **Owner review:** no
 
