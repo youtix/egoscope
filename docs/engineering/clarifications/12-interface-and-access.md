@@ -220,6 +220,14 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** once a Lot 1 case can be tracked, a screen saying that every case is historical would be false, while the origin IHM-46 writes on each case stays true.
 - **Owner review:** yes — it follows from CL-VUE-13, itself for owner review: if every calendar-derived case stays historical, IHM-46's last sentence holds again.
 
+## CL-IHM-25 — The profile list and its place in the More menu
+
+- **Affects:** IHM-16, IHM-17, IHM-49, CA-IHM-12, SEN-37, SEN-41
+- **Problem:** SEN-37 and SEN-41 speak of "the list of profiles", with the date of the last parameter change, the evaluated pairs and the verdicts chance alone would produce, and CA-IHM-12 filters it by verdict, but no screen of file 12 holds it and IHM-16's « Plus » menu does not list it.
+- **Ruling:** the profile list is a screen of its own, Profiles (`/profiles`): every player–type profile with its verdict, profile confidence and case count; filters by verdict, player and type, with the active filter and the total (IHM-49, CA-IHM-12); the evaluated pairs and the verdicts chance alone would produce (SEN-41); the date of the last parameter change (SEN-37). It is reached from the More menu, as its second entry after Backtest requests, in Lot 1 as in Lot 2; the rest of IHM-16's menu stays as written.
+- **Why:** SEN-37, SEN-41 and CA-IHM-12 need a place where all profiles are listed, and a menu entry is the only way to reach a list that no object mentions (IHM-17); the menu keeps its other entries and order.
+- **Owner review:** yes — the More menu gains an entry, Profiles, which IHM-16 does not list.
+
 ## Passed to the glossary
 
 - Navigation labels, screen titles, banners, empty states and the short notice « Mesure du passé, hypothèse non démontrée, aucune recommandation de pari ».
