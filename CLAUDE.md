@@ -175,8 +175,9 @@ final job, `security`, passes only when each of these jobs succeeded:
 - `zizmor`: the workflows, the setup action and `.github/dependabot.yml` have no security flaw, and
   no workflow reads a repository secret: deployment secrets stay in the hosting configuration.
 - `codeql`: CodeQL's `security-extended` queries find nothing in the JavaScript and TypeScript. On
-  a pull request the analysis is diff-informed and reports results in the changed lines only, so a
-  result in other code first fails a push to `main` or the weekly run.
+  a pull request the analysis is diff-informed: the data-flow queries that support it report
+  results in the changed lines only, and the other queries in all the code. A data-flow result in
+  other code therefore first fails a push to `main` or the weekly run.
 
 When one fails, fix the cause: upgrade the package, or rewrite the code, the workflow or the branch.
 A secret in any commit of the branch fails the scan until that commit is rewritten, and a real one,
