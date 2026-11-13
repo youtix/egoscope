@@ -92,7 +92,7 @@ An event placed on a sheet. Its type, description, reference date, sources, mark
 | `detection_confidence_at_issue` | smallint | yes | null | `CHECK (detection_confidence_at_issue BETWEEN 0 AND 100)`; null for an event of origin user or calendar-derived | — | ALE-08, ALE-21, CL-ALE-13 |
 
 - **Unique and indexes:** `alert_sheet_events_event_uq` unique `(player_event_id)` — an event belongs to one sheet only (ALE-03); the sheet of an event (IHM-32 "what the event triggered").
-- **Deletion:** with its section; by the withdrawal step (§1.9); moved to the new player's sheet on a player correction (ALE-31).
+- **Deletion:** with its section; by the withdrawal step (§1.9); moved to the new player's sheet on a player correction (ALE-31); the absorbed event's row at a merge (§1.9).
 - **TypeScript:** `{ playerEventId: PlayerEventId; detectionConfidenceAtIssue: number | null }`, joined at read time with the event's `PlayerEvent` view.
 
 ### 1.5 Expected-game entry — `alert_sheet_expected_games`
@@ -133,7 +133,7 @@ One caveat the sheet shows, every applicable one, none hidden (ALE-16); recomput
 | `computed_at` | timestamptz | no | — | | — | CL-ALE-07 |
 
 - **Unique and indexes:** `alert_sheet_caveats_uq` unique `NULLS NOT DISTINCT (alert_sheet_id, kind, event_type_id, player_event_id)`.
-- **Deletion:** with its sheet; replaced as a set at each recomputation (§2.4).
+- **Deletion:** with its sheet; replaced as a set at each recomputation (§2.4); the absorbed event's rows at a merge (§1.9).
 - **TypeScript:** a union on `kind`; the two forms of the direction caveat (`CL-ALE-03`) follow the section's `verdict_level`.
 
 ### 1.7 Update — `alert_sheet_updates`
@@ -152,7 +152,7 @@ The append-only update log: every dated change the sheet records (ALE-20 to ALE-
 
 - **Detail by kind:** `source_added` `{ articleId }`; `expected_game_changed` `{ fromEntryId, toEntryId, reason }`; `late_mark_changed` `{ isLate }`; `attachment_corrected` `{ correction: 'player' | 'type' | 'merge', newSheetId? }`; `status_changed` `{ from, to, cancellationReason? }`; `outcome_recorded` `{ caseId }`; `outcome_value_changed` `{ caseId, field: 'gap' | 'baseline' | 'category', previous }`; `event_no_longer_applies` `{ eventTypeId, gameId, reason }`; the other kinds `{}`.
 - **Unique and indexes:** `alert_sheet_updates_sheet_idx` `(alert_sheet_id, occurred_at)` — the log in order; `alert_sheet_updates_event_idx` `(player_event_id) WHERE player_event_id IS NOT NULL` — the withdrawal step.
-- **Deletion:** with its sheet; entries about a withdrawn event by the withdrawal step. A notification message that names an entry blocks its deletion (notifications.md).
+- **Deletion:** with its sheet; entries about a withdrawn event by the withdrawal step; entries about an absorbed event are repointed to the kept event at a merge (§1.9). A notification message that names an entry blocks its deletion (notifications.md).
 - **TypeScript:** a union on `kind` with the detail shapes above.
 
 ### 1.8 Outcome — `alert_sheet_outcomes`
@@ -182,7 +182,16 @@ The outcome of one case of the sheet at closure (ALE-27). Its profile after the 
 
 What may remain: the sheet of the other events, with its other sections, snapshots, outcomes and log entries.
 
-**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps. A player-data deletion (CL-JOU-06) erases every sheet of the player through the withdrawal of each of his events, then deletes any sheet of his left without events, such as one canceled by an attachment correction. A merge of two detected events (DET-47) removes the absorbed event's sheet-event row with an `attachment_corrected` entry, as ALE-31 does. An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is not an erasure (`alerts.onCalendarEventDropped`, in the derivation reactions of module map §1.10): its sheet-event row goes, an `event_no_longer_applies` entry records its type, game and reason, the sheet is canceled with that reason when no other non-dismissed event remains (`CL-ALE-13`), and its sections and snapshots stay. A calendar-derived event dropped after its game started (`CL-TAX-19`, `CL-SEN-25`) goes the same way, its case's outcome row deleted with its snapshot; no message follows (`CL-TEL-21` only covers drops known before the scheduled start), and the core journals the drop and counts it in the profile's tally as `no_longer_derived`. A case merge moves or deletes outcome rows as §1.8 says.
+**Other erasures.** An erasure by requalification or split (CL-TAX-09) follows the same steps. A player-data deletion (CL-JOU-06) erases every sheet of the player through the withdrawal of each of his events, then deletes any sheet of his left without events, such as one canceled by an attachment correction. A merge of two detected events follows the rules below. An upcoming calendar-derived event dropped before tip-off (`CL-SUI-14`) is not an erasure (`alerts.onCalendarEventDropped`, in the derivation reactions of module map §1.10): its sheet-event row goes, an `event_no_longer_applies` entry records its type, game and reason, the sheet is canceled with that reason when no other non-dismissed event remains (`CL-ALE-13`), and its sections and snapshots stay. A calendar-derived event dropped after its game started (`CL-TAX-19`, `CL-SEN-25`) goes the same way, its case's outcome row deleted with its snapshot; no message follows (`CL-TEL-21` only covers drops known before the scheduled start), and the core journals the drop and counts it in the profile's tally as `no_longer_derived`. A case merge moves or deletes outcome rows as §1.8 says.
+
+**Merge of two detected events** (DET-47). `alerts.onAttachmentCorrected`, called by `detection.correct` before the absorbed event is erased (module map §1.7), leaves nothing that points at the absorbed event, table by table:
+
+- `alert_sheet_events` (state): the absorbed event's row is deleted, never moved — the unique index keeps an event on one sheet and the kept event keeps its own membership (ALE-03); an `attachment_corrected` entry (`correction: 'merge'`, `newSheetId` the kept event's sheet when it has one) records it on the absorbed event's sheet, which is canceled with reason `attachment_corrected` when no other non-dismissed event remains (ALE-31);
+- `alert_sheet_updates` (history): every entry about the absorbed event is repointed to the kept event, which no index forbids, so each sheet's log stays true;
+- `alert_sheet_caveats` (state): the absorbed event's per-event caveats are deleted, then the caveats of each sheet concerned are recomputed for the kept event, with a `caveats_changed` entry when the set changes, after `caveats_frozen_at` too, as after a withdrawal (ALE-30);
+- `alert_sheet_expected_games` (state, no event reference): recomputed from the sheet's remaining events when the merge moves the kept event's reference date (ALE-23);
+- `alert_sheet_outcomes` (no event reference): the outcome of the absorbed event's case is deleted when that case is erased with it; a surviving case keeps its outcome, and a regrouping that follows goes through `moveCaseReferences` (§1.8);
+- sections and snapshots reference no event and stay as issued.
 
 **Purge.** None: the alert history is kept (ALE-28).
 
@@ -228,7 +237,7 @@ The triggers of this section's rules that come from Lot 1 work — profile value
 
 ### 2.4 Caveats
 
-The caveat set is recomputed as a whole whenever one of its inputs changes before `caveats_frozen_at` — a context correction (ALE-25), a new event (ALE-20), an expected-game change (ALE-23), a dating mark, the late mark — with a `caveats_changed` entry; at the expected game's scheduled start `caveats_frozen_at` is set and the set no longer changes, except once more after a withdrawal (ALE-30). The `effect_direction` caveat is always present (ALE-16). For a calendar-derived event, `confidence_near_threshold`, `dating_to_verify` and `type_not_covered` never apply (`CL-ALE-13`).
+The caveat set is recomputed as a whole whenever one of its inputs changes before `caveats_frozen_at` — a context correction (ALE-25), a new event (ALE-20), an expected-game change (ALE-23), a dating mark, the late mark — with a `caveats_changed` entry; at the expected game's scheduled start `caveats_frozen_at` is set and the set no longer changes, except once more after a withdrawal (ALE-30) or a merge of two detected events (DET-47). The `effect_direction` caveat is always present (ALE-16). For a calendar-derived event, `confidence_near_threshold`, `dating_to_verify` and `type_not_covered` never apply (`CL-ALE-13`).
 
 ## 3. Invariants
 
