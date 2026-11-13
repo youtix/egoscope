@@ -1667,36 +1667,36 @@ Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the
 
 `ImportWarningKind` — IMP-06–IMP-17, CL-IMP-03, CL-IMP-05–CL-IMP-08, CL-IMP-19, CL-IMP-23 (event warnings stay on the saved event; whole-result warnings on the import trace)
 
-| French                                                         | Code value                       | UI label                                                                               | Scope  |
-| -------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------- | ------ |
-| rattaché au type subsistant                                    | `attached_to_surviving_type`     | Attached to the surviving type {type}                                                  | event  |
-| type demandé mais absent de `types_couverts`                   | `type_not_declared_covered`      | Type not declared as covered                                                           | event  |
-| hors de la période déclarée                                    | `outside_declared_period`        | Outside the declared period                                                            | event  |
-| semble contenir des statistiques ou des scores                 | `possible_statistics`            | May contain statistics or a score                                                      | event  |
-| une source n'est pas retenue                                   | `source_dropped`                 | Source {n} dropped: {cause}                                                            | event  |
-| un média ou un titre manquant                                  | `source_outlet_or_title_missing` | Outlet or title missing in source {n}                                                  | event  |
-| confiance de la recherche absente ou hors des valeurs permises | `confidence_defaulted`           | Research confidence set to low                                                         | event  |
-| contexte absent, ou valeur de contexte hors liste              | `context_defaulted`              | Context set to unknown                                                                 | event  |
-| précision ou réserve trop longue                               | `text_too_long_ignored`          | {field} too long, ignored                                                              | event  |
-| — (CL-IMP-05)                                                  | `text_quotation_mark_ignored`    | Quotation mark in {field}, ignored                                                     | event  |
-| même lien cité pour plusieurs événements différents            | `shared_link`                    | Same link as event {n}                                                                 | event  |
-| — (CL-IMP-08)                                                  | `non_standard_date`              | Date written in a non-standard form                                                    | event  |
-| — (CL-IMP-08)                                                  | `time_ignored`                   | Time ignored                                                                           | event  |
-| — (CL-IMP-07)                                                  | `possible_citation_marker`       | Possible citation marker in {field}                                                    | event  |
-| un nom différent                                               | `player_name_differs`            | Player name differs from the request's                                                 | result |
-| — (CL-BKT-20)                                                  | `other_request_to_do`            | This player has another request to do, {reference}, which this import does not change. | result |
-| le champ `format` ou le champ `version_format` manque          | `format_or_version_missing`      | Format or version missing: version 1.0 assumed                                         | result |
-| — (CL-IMP-06)                                                  | `version_normalized`             | Format version read as 1.0                                                             | result |
-| listes `pistes_non_verifiees` et `limites` absentes            | `lists_missing`                  | Leads or limitations missing, taken as empty                                           | result |
-| types déclarés couverts qui ne figurent pas dans la demande    | `declared_type_not_requested`    | Declared type not in the request, ignored                                              | result |
-| période couverte qui déborde la période demandée               | `covered_period_clamped`         | Covered period brought back to the requested period                                    | result |
-| — (CL-IMP-08)                                                  | `covered_period_time_ignored`    | Time ignored in the covered period                                                     | result |
-| — (CL-IMP-23)                                                  | `covered_type_repeated`          | Covered type listed more than once                                                     | result |
-| champ que le format ne définit pas                             | `unknown_fields`                 | Unknown fields ignored                                                                 | result |
-| événements non triés                                           | `events_not_sorted`              | Events not sorted from event {n}                                                       | result |
-| piste incomplète ou trop longue                                | `lead_ignored`                   | Lead {n} ignored                                                                       | result |
-| limite trop longue                                             | `limitation_ignored`             | Limitation {n} ignored                                                                 | result |
-| — (CL-IMP-07)                                                  | `limitation_citation_marker`     | Possible citation marker in limitation {n}                                             | result |
+| French                                                         | Code value                       | UI label                                                                                | Scope  |
+| -------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------- | ------ |
+| rattaché au type subsistant                                    | `attached_to_surviving_type`     | Attached to the surviving type {type}                                                   | event  |
+| type demandé mais absent de `types_couverts`                   | `type_not_declared_covered`      | Type not declared as covered                                                            | event  |
+| hors de la période déclarée                                    | `outside_declared_period`        | Outside the declared period                                                             | event  |
+| semble contenir des statistiques ou des scores                 | `possible_statistics`            | May contain statistics or a score                                                       | event  |
+| une source n'est pas retenue                                   | `source_dropped`                 | Source {n} dropped: {cause}                                                             | event  |
+| un média ou un titre manquant                                  | `source_outlet_or_title_missing` | Outlet or title missing in source {n}                                                   | event  |
+| confiance de la recherche absente ou hors des valeurs permises | `confidence_defaulted`           | Research confidence set to low                                                          | event  |
+| contexte absent, ou valeur de contexte hors liste              | `context_defaulted`              | Context set to unknown                                                                  | event  |
+| précision ou réserve trop longue                               | `text_too_long_ignored`          | {field} too long, ignored                                                               | event  |
+| — (CL-IMP-05)                                                  | `text_quotation_mark_ignored`    | Quotation mark in {field}, ignored                                                      | event  |
+| même lien cité pour plusieurs événements différents            | `shared_link`                    | Same link as event {n} (preview); Same link as {other event}, a link to it (event page) | event  |
+| — (CL-IMP-08)                                                  | `non_standard_date`              | Date written in a non-standard form                                                     | event  |
+| — (CL-IMP-08)                                                  | `time_ignored`                   | Time ignored                                                                            | event  |
+| — (CL-IMP-07)                                                  | `possible_citation_marker`       | Possible citation marker in {field}                                                     | event  |
+| un nom différent                                               | `player_name_differs`            | Player name differs from the request's                                                  | result |
+| — (CL-BKT-20)                                                  | `other_request_to_do`            | This player has another request to do, {reference}, which this import does not change.  | result |
+| le champ `format` ou le champ `version_format` manque          | `format_or_version_missing`      | Format or version missing: version 1.0 assumed                                          | result |
+| — (CL-IMP-06)                                                  | `version_normalized`             | Format version read as 1.0                                                              | result |
+| listes `pistes_non_verifiees` et `limites` absentes            | `lists_missing`                  | Leads or limitations missing, taken as empty                                            | result |
+| types déclarés couverts qui ne figurent pas dans la demande    | `declared_type_not_requested`    | Declared type not in the request, ignored                                               | result |
+| période couverte qui déborde la période demandée               | `covered_period_clamped`         | Covered period brought back to the requested period                                     | result |
+| — (CL-IMP-08)                                                  | `covered_period_time_ignored`    | Time ignored in the covered period                                                      | result |
+| — (CL-IMP-23)                                                  | `covered_type_repeated`          | Covered type listed more than once                                                      | result |
+| champ que le format ne définit pas                             | `unknown_fields`                 | Unknown fields ignored                                                                  | result |
+| événements non triés                                           | `events_not_sorted`              | Events not sorted from event {n} (preview); Events not sorted (import trace)            | result |
+| piste incomplète ou trop longue                                | `lead_ignored`                   | Lead {n} ignored                                                                        | result |
+| limite trop longue                                             | `limitation_ignored`             | Limitation {n} ignored                                                                  | result |
+| — (CL-IMP-07)                                                  | `limitation_citation_marker`     | Possible citation marker in limitation {n}                                              | result |
 
 `SourceDropCause` — IMP-14, CL-IMP-07, CL-IMP-10, CL-IMP-15
 

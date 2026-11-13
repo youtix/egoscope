@@ -4,7 +4,8 @@ Schedules, results and box scores fetched from the statistics source (`docs/07-s
 the fetch queue that brings them in under quota, the indicators the player page shows, and each
 followed player's statistics-source mapping with its candidates (JOU-10, STA-03). The
 chosen source is the SportsDataverse release of ESPN data (`docs/services/statistics-source.md`):
-season files from 1993-94, whole minutes, no ejection data, no score columns used for records.
+season files from 1993-94, whole minutes, no ejection data; the schedule's own record columns
+are not used, team records coming from the stored final scores (CL-STA-19).
 Everything computed from these rows — Game Score, index, usable status, season baselines, team
 records, next game — is derived by the pure engine at recalculation (STA-43); what a case used is
 stored on the case ([events-and-cases.md](events-and-cases.md)).
@@ -335,20 +336,25 @@ stored lines for the season, the fetch sends no version, so the answer is never 
 
 ### 1.10 `seasons` — `Season` and its coverage
 
-One row per season the source holds, with the source assigned to it and what the season's games
-bring about its coverage (CL-STA-23, CL-STA-22, STA-45; the module map's `Season`). A season with
-no row is not covered: before the source's first season, or not published.
+One row per season the source holds, from the first season the service sheet states (1993-94) on,
+with the source assigned to it and what the season's games bring about its coverage (CL-STA-23,
+CL-STA-22, STA-45; the module map's `Season`). The row is written when the app first meets the
+season — the installation's read of every covered season's player directory (CL-STA-29), a career
+fetch or the daily update — before its games are read. A season is not covered when it is earlier
+than the service sheet's first season, or when its games have been read (`coverage_fetched_at` set)
+and none has player lines (`phases_with_lines` empty) (CL-STA-22). A season whose games are not read
+yet is pending, never "not covered": its cases wait with "statistics pending" (STA-41).
 
-| column                | type        | null | default | constraint or reference                                                                                        | class | spec IDs          |
-| --------------------- | ----------- | ---- | ------- | -------------------------------------------------------------------------------------------------------------- | ----- | ----------------- |
-| `season`              | text        | no   | —       | primary key; `CHECK (season ~ '^[0-9]{4}-[0-9]{2}$')`, the second year following the first (`2024-25`)         | —     | STA-05, CL-STA-28 |
-| `stats_source`        | text        | no   | —       | `CHECK (stats_source IN ('sportsdataverse_espn'))`; the one source that serves it, from the service sheet      | —     | CL-STA-23         |
-| `phases_with_lines`   | text[]      | no   | `'{}'`  | `CHECK (phases_with_lines <@ ARRAY['regular_season','play_in','playoffs'])`; the phases whose games have lines | —     | STA-45, CL-STA-22 |
-| `games_without_lines` | integer     | no   | `0`     | final, counted games listed without lines                                                                      | —     | STA-35, CL-STA-22 |
-| `coverage_fetched_at` | timestamptz | no   | —       | the season's games read last                                                                                   | —     | STA-42            |
+| column                | type        | null | default | constraint or reference                                                                                             | class | spec IDs          |
+| --------------------- | ----------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------- | ----- | ----------------- |
+| `season`              | text        | no   | —       | primary key; `CHECK (season ~ '^[0-9]{4}-[0-9]{2}$')`, the second year following the first (`2024-25`)              | —     | STA-05, CL-STA-28 |
+| `stats_source`        | text        | no   | —       | `CHECK (stats_source IN ('sportsdataverse_espn'))`; the one source that serves it, from the service sheet           | —     | CL-STA-23         |
+| `phases_with_lines`   | text[]      | no   | `'{}'`  | `CHECK (phases_with_lines <@ ARRAY['regular_season','play_in','playoffs'])`; the phases whose games have lines      | —     | STA-45, CL-STA-22 |
+| `games_without_lines` | integer     | no   | `0`     | final, counted games listed without lines                                                                           | —     | STA-35, CL-STA-22 |
+| `coverage_fetched_at` | timestamptz | yes  | —       | the season's games read last; null until they are first read, the season then counting as pending, not as uncovered | —     | STA-42            |
 
-Written with the season's games; at a replacement, the season in progress changes source with its
-refetch (CL-TRV-14). Never deleted.
+Written when the season is first met, completed when its games are read; at a replacement, the
+season in progress changes source with its refetch (CL-TRV-14). Never deleted.
 
 ### 1.11 `team_seasons` — `TeamSeason`
 
@@ -574,7 +580,7 @@ section 12):
 | `getPublication`     | `stats_source_versions` (`publication`: last refresh instant and version)                                                                                                                                                                                                                                                        |
 | `getSeasonGames`     | `games` (tip-off instant, "time known", the game's day, teams, status, score, overtimes, series round and number, make-up link), `series`, `teams`, `team_source_refs`, `team_seasons` (the season's team list) and `seasons` (its coverage); excluded games are dropped; the neutral-site flag is not stored (no rule reads it) |
 | `getSeasonBoxScores` | `box_scores` of the followed players (did-not-play lines and their reason never stored; an unknown ejection stays null) and the lines flags of `games`                                                                                                                                                                           |
-| `getSeasonPlayers`   | `player_directory_entries` and `player_directory_teams`                                                                                                                                                                                                                                                                          |
+| `getSeasonPlayers`   | `player_directory_entries` and `player_directory_teams`, after writing the season's `seasons` row if it has none yet (coverage still pending), so that a past season's directory can be stored before its games are read                                                                                                         |
 | `getPlayerRecords`   | the current-team and birthday observations of [players.md](players.md) (day and month only)                                                                                                                                                                                                                                      |
 | `mapPlayers`         | nothing until a replacement, then `stats_source_mappings` of the new source (CL-TRV-14)                                                                                                                                                                                                                                          |
 

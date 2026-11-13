@@ -137,7 +137,6 @@ A result refused in full creates no row; the journal records it (IMP-31, CL-IMP-
 | `mode`                         | text        | no   | —        | `CHECK (mode IN ('first_import','addition','replacement'))`                                                                                                          | PI    | IMP-22, IMP-28, IMP-29         |
 | `format_version`               | text        | no   | `'1.0'`  | `CHECK (format_version IN ('1.0'))`                                                                                                                                  | —     | IMP-06, BKT-24                 |
 | `truncation_recovered`         | boolean     | no   | `false`  | the IMP-05 recovery was used                                                                                                                                         | PI    | IMP-05, CL-IMP-18              |
-| `recovered_event_count`        | smallint    | yes  | —        | required when recovered                                                                                                                                              | PI    | CL-IMP-18                      |
 | `declared_limitations`         | text[]      | no   | `'{}'`   | the AI's limitations kept as text, each within `events.maxDescriptionLength`, no quotation mark                                                                      | PI TX | H-IMP-10, DSN-10, DSN-32       |
 | `unverified_lead_counts`       | jsonb       | no   | `'{}'`   | immutable snapshot: `{"<type id>": n, "none": n}`; lead texts are never kept                                                                                         | PI    | H-IMP-10, CL-IMP-23, DSN-32    |
 | `result_warnings`              | jsonb       | no   | `'[]'`   | immutable snapshot of the whole-result warnings (shape below)                                                                                                        | PI    | IMP-06, IMP-09, IMP-10, IMP-16 |
@@ -149,12 +148,15 @@ A result refused in full creates no row; the journal records it (IMP-31, CL-IMP-
 the glossary's `ImportWarningKind`: `player_name_differs`, `format_or_version_missing`,
 `version_normalized`, `lists_missing`, `declared_type_not_requested` (detail: the slugs as read),
 `covered_period_clamped`, `covered_period_time_ignored`, `covered_type_repeated`, `unknown_fields`
-(detail: their count), `events_not_sorted` (detail: the rank of the first one out of order),
+(detail: their count), `events_not_sorted` (no detail: the rank of the first event out of order is
+shown in the preview only, since it could name an event later withdrawn),
 `lead_ignored` and `limitation_ignored` (detail: the item's position),
 `limitation_citation_marker` (detail: the position) and `other_request_to_do` (detail: that
 request's reference, CL-BKT-20). No warning quotes a free text (CL-IMP-02).
 
-Row check: `truncation_recovered = (recovered_event_count IS NOT NULL)`.
+The number of events recovered from a cut result (CL-IMP-18) is not stored: it is the number of the
+import's outcome rows when `truncation_recovered` is set, so a withdrawal reduces it with the
+outcome row it deletes (IMP-37).
 
 Unique: `imports_sequence_number_key (sequence_number)`.
 
@@ -162,9 +164,12 @@ Indexes: `imports_player_idx (player_id, imported_at)` — the player's import h
 "profiled"; `imports_request_idx (backtest_request_id, imported_at)` — a request's last import,
 which gives its remaining refusals (CL-IMP-24).
 
-Deletion: only with its request or player. A withdrawal reduces the trace through its outcome rows
-and sources (section 2 of [sensitive-data.md](sensitive-data.md)); the trace's stored counts concern
-deleted events only, which can no longer be withdrawn.
+Deletion: only with its request or player. A withdrawal reduces the trace through its outcome rows,
+possible-duplicate rows, warnings and sources (section 2 of [sensitive-data.md](sensitive-data.md));
+the trace's stored counts concern deleted events only, which can no longer be withdrawn, and every
+other count is derived from the rows. An event the owner declines for sensitive data at save leaves
+nothing in the trace: no outcome row, no possible-duplicate row, no warning naming it on another
+event; only the counter grows (IMP-37, DSN-29).
 
 ```ts
 type ImportId = Brand<number, 'ImportId'>;
@@ -185,24 +190,26 @@ interface ImportTally {
 Exactly one outcome per event of the result (IMP-19), except an event the owner declines for
 sensitive data, of which nothing is kept but the counter (IMP-37, DSN-29). Its outcome
 `not_recorded_sensitive_data` exists in the preview and the save summary only, never in a row. Refused and ignored
-events keep their rank, type and date as read and their reason, nothing else.
+events keep their rank, type and date as read and their reason, nothing else (06 « Données
+manipulées »); added events and duplicates keep no rank, so that a withdrawn or declined event
+leaves no gap in a numbered list whose dates, sorted, would bracket its date.
 
 | column               | type    | null | default  | constraint or reference                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | class | spec IDs                    |
 | -------------------- | ------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | --------------------------- |
 | `id`                 | integer | no   | identity | primary key                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | PI    | —                           |
 | `import_id`          | integer | no   | —        | `REFERENCES imports(id) ON DELETE CASCADE`                                                                                                                                                                                                                                                                                                                                                                                                                                                 | PI    | IMP-31                      |
-| `position`           | integer | no   | —        | `CHECK (position >= 1)`; the 1-based rank in the events list as pasted                                                                                                                                                                                                                                                                                                                                                                                                                     | PI    | IMP-20, CL-IMP-02           |
+| `position`           | integer | yes  | —        | `CHECK (position >= 1)`; the 1-based rank in the events list as pasted, for an ignored or refused event only                                                                                                                                                                                                                                                                                                                                                                               | PI    | IMP-20, CL-IMP-02           |
 | `outcome`            | text    | no   | —        | `CHECK (outcome IN ('added','added_with_warning','duplicate_not_added','ignored','refused'))`                                                                                                                                                                                                                                                                                                                                                                                              | PI    | IMP-19                      |
 | `player_event_id`    | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`; the event added, or the existing event it duplicated                                                                                                                                                                                                                                                                                                                                                                                           | EV    | IMP-26, IMP-27, IMP-31      |
 | `event_type_as_read` | text    | yes  | —        | ignored and refused only                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | PI    | 06 « Données manipulées »   |
 | `date_as_read`       | text    | yes  | —        | ignored and refused only                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | PI    | 06 « Données manipulées »   |
 | `reason`             | text    | yes  | —        | ignored: `CHECK` among the glossary's `ImportIgnoreReason` — `type_not_validated`, `type_not_requested`, `outside_requested_period`, `before_first_nba_game`, `calendar_derived_type`, `split_type_ignored`; refused: among `ImportRefusalReason` — `type_missing`, `type_unknown`, `public_date_missing`, `public_date_malformed`, `public_date_nonexistent`, `description_missing`, `description_too_long`, `description_quotation_mark`, `no_valid_source`, `source_before_public_date` | PI    | IMP-11 to IMP-14, CL-IMP-29 |
 
-Row checks: `outcome IN ('ignored','refused')` iff `reason IS NOT NULL`, and then `player_event_id IS NULL`;
+Row checks: `outcome IN ('ignored','refused')` iff `reason IS NOT NULL`, iff `position IS NOT NULL`, and then `player_event_id IS NULL`;
 `outcome IN ('added','added_with_warning','duplicate_not_added')` implies `event_type_as_read`,
 `date_as_read` and `reason` are null.
 
-Unique: `import_event_outcomes_position_key (import_id, position)`.
+Unique: `import_event_outcomes_position_key (import_id, position) WHERE position IS NOT NULL`.
 
 Indexes: `import_event_outcomes_event_idx (player_event_id)` serves the withdrawal step, which deletes
 every row designating the withdrawn event (IMP-37).
@@ -210,17 +217,20 @@ every row designating the withdrawn event (IMP-37).
 ### 1.7 `import_possible_duplicates` — the owner's answers
 
 For each possible duplicate, the existing event concerned and the owner's answer, and each
-`keep_as_distinct` override of a duplicate (IMP-25, IMP-26, 06 « Données manipulées »).
+`keep_as_distinct` override of a duplicate (IMP-25, IMP-26, 06 « Données manipulées »). The result
+event is named by the event recorded from it, never by its rank, so the withdrawal step finds the row
+whichever side E is on; a declined result event leaves no row.
 
-| column                     | type    | null | default  | constraint or reference                                               | class | spec IDs       |
-| -------------------------- | ------- | ---- | -------- | --------------------------------------------------------------------- | ----- | -------------- |
-| `id`                       | integer | no   | identity | primary key                                                           | PI    | —              |
-| `import_id`                | integer | no   | —        | `REFERENCES imports(id) ON DELETE CASCADE`                            | PI    | IMP-25         |
-| `position`                 | integer | no   | —        | the result event's rank                                               | PI    | IMP-25         |
-| `existing_player_event_id` | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                            | EV    | IMP-25         |
-| `answer`                   | text    | no   | —        | `CHECK (answer IN ('same_fact','distinct_facts','keep_as_distinct'))` | PI    | IMP-25, IMP-26 |
+| column                     | type    | null | default  | constraint or reference                                                                                                                                                                   | class | spec IDs       |
+| -------------------------- | ------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | -------------- |
+| `id`                       | integer | no   | identity | primary key                                                                                                                                                                               | PI    | —              |
+| `import_id`                | integer | no   | —        | `REFERENCES imports(id) ON DELETE CASCADE`                                                                                                                                                | PI    | IMP-25         |
+| `result_player_event_id`   | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`; the event recorded from the result event, for `distinct_facts` and `keep_as_distinct`; null for `same_fact`, whose result event was not added | EV    | IMP-25, IMP-37 |
+| `existing_player_event_id` | integer | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                                                                                                                                | EV    | IMP-25         |
+| `answer`                   | text    | no   | —        | `CHECK (answer IN ('same_fact','distinct_facts','keep_as_distinct'))`                                                                                                                     | PI    | IMP-25, IMP-26 |
 
-Index: `import_possible_duplicates_event_idx (existing_player_event_id)` for the withdrawal step.
+Indexes: `import_possible_duplicates_event_idx (existing_player_event_id)` and
+`import_possible_duplicates_result_idx (result_player_event_id)` for the withdrawal step.
 
 ## 2. Lifecycles
 

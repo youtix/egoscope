@@ -58,11 +58,13 @@ data and the events of deleted players (DSN-29, CL-DSN-04). One row.
 
 | column  | type     | null | default | constraint or reference               | class | spec IDs                  |
 | ------- | -------- | ---- | ------- | ------------------------------------- | ----- | ------------------------- |
-| `id`    | smallint | no   | `1`     | primary key; `CHECK (id = 1)`         | —     | —                         |
-| `value` | integer  | no   | `0`     | `CHECK (value >= 0)`; never decreases | —     | DSN-29, VUE-09, CL-DSN-04 |
+| `id`    | smallint | no   | `1`     | primary key; `CHECK (id = 1)`         | WL    | —                         |
+| `value` | integer  | no   | `0`     | `CHECK (value >= 0)`; never decreases | WL    | DSN-29, VUE-09, CL-DSN-04 |
 
 The row carries no date, so that it cannot date the last withdrawal (DSN-29: no player, no type,
-no date).
+no date). It belongs to the withdrawal ledger (CL-DSN-08): the row is in no backup or export, and
+only its value is written into each one's manifest (operations.md section 5.1), so a restore can
+never load it as data and lower it (CL-TRV-06).
 
 ## 2. Erasures
 
@@ -70,9 +72,12 @@ no date).
 
 Every removal of an event row goes through one step, run in one transaction with the operation
 that calls it; each Lot 2 module adds its own sub-step with a test (CL-DSN-16). Lot 2 tables point
-at `events`, `followed_players` and `backtest_requests` with `ON DELETE RESTRICT`, and at `cases`
-only with `ON DELETE CASCADE` (collection.md section 1.12 lists every reference), so the Lot 2
-sub-steps run first, before the core deletes anything, as the event erasers of the module map's reaction lists
+at detected and calendar-derived events, at `followed_players` and at `backtest_requests` with `ON
+DELETE RESTRICT`, and elsewhere with `SET NULL` or `CASCADE` where nothing a requirement keeps is
+lost — a classification fact's designated or matched event, a tracked case's decision about a
+historical event, cases, exposure counts, task runs, incidents: collection.md section 1.12 is the
+authority on each reference (CL-TRV-24) — so the Lot 2 sub-steps run first, before the core deletes
+anything, as the event erasers of the module map's reaction lists
 (section 1.10): notifications, alerts, tracking, then detection, whose step also erases, through
 collection, the articles it leaves without a role; every variant below that runs them keeps that
 order.
@@ -119,15 +124,21 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
    to E and to no other event, with no dedup trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the
    outbox facts of its own objects by `lot2_subject_id` and nulls the journal's `lot2_object_kind`
    and `lot2_object_id` for what it erases.
-6. `import_event_outcomes` and `import_possible_duplicates` rows whose event is E, so that the
-   import trace, counts included, keeps nothing designating it (IMP-37). In the same step, the
-   import drafts of every backtest request of E's player, since a pasted result may report the
-   withdrawn fact: the server copies here, each device's copy at its next contact with the server
-   and at the latest at the draft's expiry; exploration drafts are not concerned (CL-DSN-22,
-   DSN-27, DSN-32; the request ids come from `backtest_requests`, and `drafts_import_key`
-   finds each draft).
+6. `import_event_outcomes` rows whose event is E, and `import_possible_duplicates` rows whose
+   existing or result event is E, so that the import trace, counts included, keeps nothing
+   designating it (IMP-37): added events and duplicates keep no rank, the recovered count is
+   derived from the rows, and the `shared_link` warnings of other events that name E go with E's
+   row in step 8 (`related_player_event_id`). In the same step, the import drafts of every
+   backtest request of E's player, since a pasted result may report the withdrawn fact: the server
+   copies here; a device's copy that was sent to the server is dropped at the device's next
+   contact, since its server copy no longer exists, and one never sent expires at the latest at
+   the draft's expiry, counted from its last change, so nothing has to record the discard;
+   exploration drafts are not concerned (CL-DSN-22, DSN-27, DSN-32; the request ids come from
+   `backtest_requests`, and `drafts_import_key` finds each draft).
 7. `journal_technical_details` of journal entries that concerned only E; the entries' references
-   to E then become null and read "an item that no longer exists" (CL-TRV-10).
+   to E then become null and read "an item that no longer exists" (CL-TRV-10). An entry that names
+   an event names nothing else (operations.md section 1.2), so none keeps E's player, type, case,
+   request or import (TRV-41).
 8. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),
    `event_import_warnings`, `event_marks`, `event_status_changes`, `event_corrections` and
    `backtest_request_events`, the outbox facts and restore-report rows that name it.
@@ -135,7 +146,11 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
 10. `withdrawn_event_counter.value + 1`.
 11. A journal entry "an event was withdrawn", with no player, type or date (CL-TRV-10).
 12. A full recalculation job with cause `recalculation`; a profile or trend it leaves with no event
-    is erased with its verdict history and its historical-view versions (SEN-48, CL-SEN-18).
+    is erased with its verdict history and its historical-view versions (SEN-48, CL-SEN-18); for
+    every other historical-only profile and trend whose values it changes, the job replaces all
+    their versions by one version holding the new values (sensitivity-and-profiles.md section 1.5),
+    and tracking derives again, from it alone, the forecast versions of the tracked cases whose
+    measured game has not started (tracking-and-validation.md section 1.8).
 13. The result screen gives the number of messages deleted and lists, from memory, the ones
     Telegram refused or could not be reached for, with their send date and time and whether each
     was a digest; that list is never stored (CL-DSN-13, CL-TEL-09).
@@ -146,7 +161,9 @@ would instead leave messages in the chat with no record of them if the process s
 requests were sent.
 
 What remains afterwards: the counter and, for the horizon, the fingerprint. Accepted residual
-limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); backups until they
+limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); in Lot 2, the forecast
+frozen at a tip-off before the withdrawal on another tracked case of the same pair or type, which
+never changes (SUI-09, CL-SEN-18); backups until they
 rotate out; exports already downloaded; Telegram messages the bot could not delete; a device left
 offline until its next refresh; in Lot 2, an article still in a feed, collected and classified
 again for at most its maximum age while the fingerprint keeps it from becoming an event
@@ -196,7 +213,7 @@ The daily purge task (`purge`, 04:00 by default, TRV-25) removes:
 | Closed incidents                                                                                                                                                  | closed for longer than `journal.retentionDays`                                                                                                                           | TRV-48                          |
 | Withdrawal fingerprints and deleted-player entries                                                                                                                | older than the horizon (`backups.kept` × the backup interval, 8 weeks by default) and no backup in the register made before them; nothing while the register is in doubt | CL-DSN-07, ADR 0017             |
 | Drafts                                                                                                                                                            | `display.draftRetentionDays` (7) after their last change                                                                                                                 | IHM-42, CL-IHM-11               |
-| Done recalculation jobs, finished task runs, quota-usage periods, ended sessions and login failures outside the observation period                                | older than `journal.retentionDays`, or ended                                                                                                                             | own choice (store less)         |
+| Done recalculation jobs, finished task runs, quota-usage periods, ended sessions and login failures outside the observation period                                | older than `journal.retentionDays`; an ended session once past its `expires_at` (operations.md section 1.10); login failures outside the observation period              | own choice (store less)         |
 | Consumed outbox facts; unconsumed ones older than `journal.retentionDays`                                                                                         | at once once consumed; otherwise after `journal.retentionDays`                                                                                                           | TEL-17, own choice (store less) |
 | Database activity minutes; database size samples and restore reports                                                                                              | before the previous month; older than `journal.retentionDays`                                                                                                            | TRV-03, TRV-08, own choice      |
 | Lot 2: the purge steps of collection.md section 1.11 (non-relevant articles, excerpts, dedup traces) and detection's exposure counts, the three figures journaled | per `collection.md` and `detection.md` (COL-34 to COL-39, CL-JOU-19)                                                                                                     | COL-39, CL-JOU-19               |
@@ -288,8 +305,9 @@ these values ever leaves the database.
 - CL-TAX-09: requalification and split erasures have a withdrawal's scope without fingerprint or
   counter.
 - Own choice: the counter row has no date column, the strictest reading of DSN-29.
-- Own choice: done jobs, finished runs, usage periods, ended sessions and old login failures are
-  purged with the journal's retention, since no rule keeps them longer.
+- Own choice: done jobs, finished runs, usage periods and old login failures are purged with the
+  journal's retention, since no rule keeps them longer; an ended session is kept until its idle
+  expiry, so that its device is told at its next contact (IHM-08, CL-IHM-10), then purged.
 
 ## 9. Diagram
 

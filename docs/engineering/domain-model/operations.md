@@ -74,30 +74,34 @@ parameter change, refused login, lockout and, in Lot 2, Telegram message (TRV-41
 fixed message key and references by identifier; the text is built when it is displayed or exported,
 so that an erased item's references disappear at once (CL-TRV-10).
 
-| column                | type        | null | default  | constraint or reference                                                                                                                                                                       | class | spec IDs                     |
-| --------------------- | ----------- | ---- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------- |
-| `id`                  | integer     | no   | identity | primary key                                                                                                                                                                                   | —     | —                            |
-| `occurred_at`         | timestamptz | no   | `now()`  | —                                                                                                                                                                                             | —     | TRV-41                       |
-| `category`            | text        | no   | —        | `CHECK (category IN ('task_pass','profile_recalculation','service_failure','incident','user_action','import_refused','parameter_change','login_refused','login_lockout','telegram_message'))` | —     | TRV-41, TEL-34               |
-| `level`               | text        | no   | —        | `CHECK (level IN ('info','warning','incident'))`                                                                                                                                              | —     | TRV-43                       |
-| `message_key`         | text        | no   | —        | the fixed message (TRV-42's four answers), for example `event_withdrawn`                                                                                                                      | —     | TRV-42, CL-TRV-10            |
-| `message_params`      | jsonb       | no   | `'{}'`   | counts, durations, service roles, task keys, a request reference; never a player, type, date, description, title, link or birthday value                                                      | —     | CL-TRV-10, DSN-11, CL-DSN-21 |
-| `player_id`           | uuid        | yes  | —        | `REFERENCES followed_players(id) ON DELETE SET NULL`                                                                                                                                          | PI    | TRV-41, CL-TRV-10            |
-| `player_event_id`     | integer     | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                                                                                                                                    | EV    | TRV-41, CL-TRV-10            |
-| `event_type_id`       | text        | yes  | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                                                                                                               | —     | TRV-41                       |
-| `backtest_request_id` | integer     | yes  | —        | `REFERENCES backtest_requests(id) ON DELETE SET NULL`                                                                                                                                         | PI    | TRV-41                       |
-| `import_id`           | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`                                                                                                                                                   | PI    | TRV-41                       |
-| `case_id`             | integer     | yes  | —        | `REFERENCES cases(id) ON DELETE SET NULL`                                                                                                                                                     | EV    | TRV-41                       |
-| `incident_id`         | integer     | yes  | —        | `REFERENCES incidents(id) ON DELETE SET NULL`                                                                                                                                                 | —     | TRV-45, TRV-48               |
-| `task_run_id`         | integer     | yes  | —        | `REFERENCES task_runs(id) ON DELETE SET NULL`                                                                                                                                                 | —     | TRV-26                       |
-| `lot2_object_kind`    | text        | yes  | —        | `CHECK (lot2_object_kind IN ('press_source','article','alert_sheet','notification_message'))`; with `lot2_object_id`, a Lot 2 object, without a foreign key (lot boundary)                    | EV    | TRV-41, CL-TRV-10            |
-| `lot2_object_id`      | integer     | yes  | —        | set with `lot2_object_kind`; Lot 2's erasers set both to null when they erase the object                                                                                                      | EV    | TRV-41, CL-TRV-10            |
+| column                | type        | null | default  | constraint or reference                                                                                                                                                                               | class | spec IDs                     |
+| --------------------- | ----------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------- |
+| `id`                  | integer     | no   | identity | primary key                                                                                                                                                                                           | —     | —                            |
+| `occurred_at`         | timestamptz | no   | `now()`  | —                                                                                                                                                                                                     | —     | TRV-41                       |
+| `category`            | text        | no   | —        | `CHECK (category IN ('task_pass','profile_recalculation','service_failure','incident','user_action','import_refused','parameter_change','login_refused','login_lockout','telegram_message'))`         | —     | TRV-41, TEL-34               |
+| `level`               | text        | no   | —        | `CHECK (level IN ('info','warning','incident'))`                                                                                                                                                      | —     | TRV-43                       |
+| `message_key`         | text        | no   | —        | the fixed message (TRV-42's four answers), for example `event_withdrawn`                                                                                                                              | —     | TRV-42, CL-TRV-10            |
+| `message_params`      | jsonb       | no   | `'{}'`   | counts, durations, service roles, task keys; never a player, type, date, description, title, link, birthday value or request reference, each of which the display renders from the entry's references | —     | CL-TRV-10, DSN-11, CL-DSN-21 |
+| `player_id`           | uuid        | yes  | —        | `REFERENCES followed_players(id) ON DELETE SET NULL`                                                                                                                                                  | PI    | TRV-41, CL-TRV-10            |
+| `player_event_id`     | integer     | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                                                                                                                                            | EV    | TRV-41, CL-TRV-10            |
+| `event_type_id`       | text        | yes  | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                                                                                                                       | —     | TRV-41                       |
+| `backtest_request_id` | integer     | yes  | —        | `REFERENCES backtest_requests(id) ON DELETE SET NULL`                                                                                                                                                 | PI    | TRV-41                       |
+| `import_id`           | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`                                                                                                                                                           | PI    | TRV-41                       |
+| `case_id`             | integer     | yes  | —        | `REFERENCES cases(id) ON DELETE SET NULL`                                                                                                                                                             | EV    | TRV-41                       |
+| `incident_id`         | integer     | yes  | —        | `REFERENCES incidents(id) ON DELETE SET NULL`                                                                                                                                                         | —     | TRV-45, TRV-48               |
+| `task_run_id`         | integer     | yes  | —        | `REFERENCES task_runs(id) ON DELETE SET NULL`                                                                                                                                                         | —     | TRV-26                       |
+| `lot2_object_kind`    | text        | yes  | —        | `CHECK (lot2_object_kind IN ('press_source','article','alert_sheet','notification_message'))`; with `lot2_object_id`, a Lot 2 object, without a foreign key (lot boundary)                            | EV    | TRV-41, CL-TRV-10            |
+| `lot2_object_id`      | integer     | yes  | —        | set with `lot2_object_kind`; Lot 2's erasers set both to null when they erase the object                                                                                                              | EV    | TRV-41, CL-TRV-10            |
 
 A reference the message key expects but finds null reads "an item that no longer exists" or "a
 deleted player" (CL-TRV-10). A Lot 2 object is named by `lot2_object_kind` and `lot2_object_id`, never by a
 foreign key, so that no core table points at a Lot 2 table; a pair that resolves to nothing reads
-the same way. Row check: `(lot2_object_kind IS NULL) = (lot2_object_id IS NULL)`. An entry never names an event otherwise; a withdrawal
-is written as `event_withdrawn` with no reference (CL-TRV-10).
+the same way. Row checks: `(lot2_object_kind IS NULL) = (lot2_object_id IS NULL)`; `player_event_id IS
+NULL OR (player_id, event_type_id, case_id, backtest_request_id, import_id) IS NULL` — an entry about an
+event names it by that reference alone, and the display reads its player, type, date, request and
+import through the event, so that the withdrawal's nulling of `player_event_id` leaves no mention of
+the event in the entries that concerned it (TRV-41, DSN-29). An entry never names an event otherwise;
+a withdrawal is written as `event_withdrawn` with no reference (CL-TRV-10).
 
 Indexes: `journal_entries_occurred_idx (occurred_at)` — the journal screen and the export of a
 period (TRV-41, TRV-49); `journal_entries_category_idx (category, occurred_at)` — its filters;
@@ -314,19 +318,27 @@ One row (H-10, TRV-57); never in a backup or an export (CL-TRV-05).
 
 ### 1.10 `sessions` — `Session`
 
-| column         | type        | null | default  | constraint or reference                                                     | class | spec IDs                       |
-| -------------- | ----------- | ---- | -------- | --------------------------------------------------------------------------- | ----- | ------------------------------ |
-| `id`           | integer     | no   | identity | primary key                                                                 | —     | —                              |
-| `token_hash`   | bytea       | no   | —        | unique; the session token is never stored in clear                          | SE    | IHM-10, TRV-64                 |
-| `device`       | text        | no   | —        | a short description of the device                                           | —     | IHM-06, H-IHM-06               |
-| `opened_at`    | timestamptz | no   | `now()`  | —                                                                           | —     | IHM-06                         |
-| `last_used_at` | timestamptz | no   | `now()`  | —                                                                           | —     | TRV-62                         |
-| `expires_at`   | timestamptz | no   | —        | `last_used_at` plus `auth.sessionIdleDays`                                  | —     | TRV-62                         |
-| `ended_at`     | timestamptz | yes  | —        | —                                                                           | —     | IHM-08                         |
-| `end_reason`   | text        | yes  | —        | `CHECK (end_reason IN ('expired','logged_out','password_changed','reset'))` | —     | IHM-08, TRV-60, TRV-62, TRV-63 |
+| column         | type        | null | default  | constraint or reference                                                                                                                                         | class | spec IDs                       |
+| -------------- | ----------- | ---- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------ |
+| `id`           | integer     | no   | identity | primary key                                                                                                                                                     | —     | —                              |
+| `token_hash`   | bytea       | no   | —        | unique; the session token is never stored in clear; kept after the session ends, until `expires_at`, so that its device is told at its next contact (CL-IHM-10) | SE    | IHM-10, TRV-64                 |
+| `device`       | text        | no   | —        | a short description of the device                                                                                                                               | —     | IHM-06, H-IHM-06               |
+| `opened_at`    | timestamptz | no   | `now()`  | —                                                                                                                                                               | —     | IHM-06                         |
+| `last_used_at` | timestamptz | no   | `now()`  | —                                                                                                                                                               | —     | TRV-62                         |
+| `expires_at`   | timestamptz | no   | —        | `last_used_at` plus `auth.sessionIdleDays`                                                                                                                      | —     | TRV-62                         |
+| `ended_at`     | timestamptz | yes  | —        | —                                                                                                                                                               | —     | IHM-08                         |
+| `end_reason`   | text        | yes  | —        | `CHECK (end_reason IN ('expired','logged_out','password_changed','reset'))`                                                                                     | —     | IHM-08, TRV-60, TRV-62, TRV-63 |
 
 Row check: `(ended_at IS NULL) = (end_reason IS NULL)`. Never in a backup or an export; a restore
 closes every session (CL-TRV-05, CL-TRV-06).
+
+An ended session keeps its row until its `expires_at`, the instant its idleness would have ended it
+anyway: a device that presents its token meanwhile is told how the session ended, and erases its
+device data, drafts included, when it ended by `logged_out`, `password_changed` or `reset` (IHM-08,
+CL-IHM-10); after `expires_at` the purge deletes the row, and a token the server no longer knows is
+answered as expired, which keeps the device's drafts (IHM-42). A device left offline beyond the idle
+duration therefore keeps its data after a logout everywhere, a limit of DSN-33 like the device left
+offline after a withdrawal (CL-DSN-19).
 
 ### 1.11 `login_failures` — `LoginFailure`
 
@@ -360,7 +372,10 @@ import draft of a request, for the withdrawal step;
 
 Lifetime: erased when its import or its proposals are saved, when discarded, `display.draftRetentionDays`
 after its last change, when its request, proposal or player disappears, and at every restore
-(CL-DSN-17). A withdrawal of one of a player's events also discards the import drafts of every
+(CL-DSN-17). A device copy that was sent to the server is dropped by the device at its next contact
+when the server copy no longer exists, whatever ended it, so nothing records why; a copy never sent,
+typed offline, is sent at that contact (IHM-42) and keeps the last-change instant it was typed at, so
+it expires on the device's own schedule. A withdrawal of one of a player's events also discards the import drafts of every
 backtest request of that player, server copies in the withdrawal's transaction, since a pasted
 result may report the withdrawn fact ([sensitive-data.md](sensitive-data.md) section 2.1).
 
@@ -536,11 +551,11 @@ result.
 
 ### 2.4 Account, login and sessions (TRV-57 to TRV-63, IHM-06 to IHM-09)
 
-| state set       | transitions                                                                                                                                                                                                                                                                                          |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| password status | `initial` at the first start, from the configured initial password; `initial → chosen` on "Choose your password" (only screen open meanwhile); `chosen → initial` when the configured fingerprint differs from the stored one at start (a reset): every session ends with `reset`, the lockout lifts |
-| login lockout   | `login_failures` within the observation period reach the limit → `login_locked_until` set, `logins_refused` incident opened; it closes at the next successful login                                                                                                                                  |
-| session         | open → ended with `expired` (idle beyond `auth.sessionIdleDays`), `logged_out` (this device or all), `password_changed` (every other session), `reset`                                                                                                                                               |
+| state set       | transitions                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| password status | `initial` at the first use (`auth.ensureAccount`), from the configured initial password; `initial → chosen` on "Choose your password" (only screen open meanwhile); `chosen → initial` when the configured initial password no longer matches the stored fingerprint, checked by `auth.ensureAccount` before the first login or session check of a server instance, never at start-up (module map §3.6; a reset): every session ends with `reset`, the lockout lifts |
+| login lockout   | `login_failures` within the observation period reach the limit → `login_locked_until` set, `logins_refused` incident opened; it closes at the next successful login                                                                                                                                                                                                                                                                                                  |
+| session         | open → ended with `expired` (idle beyond `auth.sessionIdleDays`), `logged_out` (this device or all), `password_changed` (every other session), `reset`                                                                                                                                                                                                                                                                                                               |
 
 ### 2.5 Restore (TRV-53, CL-TRV-05, CL-TRV-06)
 
@@ -630,8 +645,9 @@ archive layout the module map gives the export, backup and restore (one format f
 | `backup_kind`           | string  | in a backup only: `weekly`, `manual` or `before_update`                                                                                             |
 
 Excluded tables: `accounts`, `sessions`, `login_failures`, `drafts`, `withdrawal_fingerprints`,
-`deleted_player_entries`, and the counter row itself (its value is in the manifest) (CL-TRV-05,
-CL-DSN-08).
+`deleted_player_entries`, `withdrawn_event_counter` (its value is in the manifest), and, in Lot 2,
+`telegram_link_codes` (CL-TRV-05, CL-DSN-08; notifications.md section 1.8). Writers skip them by
+name; every other table is exported.
 
 ### 5.2 Backup file
 

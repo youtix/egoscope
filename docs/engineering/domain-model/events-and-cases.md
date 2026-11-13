@@ -152,22 +152,26 @@ type SpotCheckVerdict = 'consistent' | 'inconsistent' | 'inaccessible';
 
 A warning received at import, kept on the saved event and visible on its page (IMP-19, DSN-06).
 
-| column              | type     | null | default  | constraint or reference                                                                                                                                                                                                                                                                                                                                     | class | spec IDs                                          |
-| ------------------- | -------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------- |
-| `id`                | integer  | no   | identity | primary key                                                                                                                                                                                                                                                                                                                                                 | EV    | —                                                 |
-| `player_event_id`   | integer  | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                                                                                                                                                                                                                                                                                   | EV    | IMP-19                                            |
-| `import_id`         | integer  | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`                                                                                                                                                                                                                                                                                                                 | EV    | IMP-19, IMP-31                                    |
-| `kind`              | text     | no   | —        | `CHECK (kind IN ('attached_to_surviving_type','type_not_declared_covered','outside_declared_period','possible_statistics','source_dropped','source_outlet_or_title_missing','confidence_defaulted','context_defaulted','text_too_long_ignored','text_quotation_mark_ignored','shared_link','non_standard_date','time_ignored','possible_citation_marker'))` | EV    | IMP-11 to IMP-17, CL-IMP-03, CL-IMP-07, CL-IMP-08 |
-| `field`             | text     | yes  | —        | the format 1.0 key a text warning names, for example `description` or `unverified_note`                                                                                                                                                                                                                                                                     | EV    | CL-IMP-02, CL-IMP-07                              |
-| `source_drop_cause` | text     | yes  | —        | `source_dropped` only: `CHECK (source_drop_cause IN ('incomplete_address','home_page','disallowed_domain','publication_date_missing','publication_date_malformed','publication_date_in_future'))`                                                                                                                                                           | EV    | IMP-14, CL-IMP-10, CL-IMP-15                      |
-| `related_position`  | smallint | yes  | —        | the 1-based position the warning names: the source for `source_dropped` and `source_outlet_or_title_missing`, the other event for `shared_link`                                                                                                                                                                                                             | EV    | CL-IMP-02                                         |
+| column                    | type     | null | default  | constraint or reference                                                                                                                                                                                                                                                                                                                                     | class | spec IDs                                          |
+| ------------------------- | -------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------- |
+| `id`                      | integer  | no   | identity | primary key                                                                                                                                                                                                                                                                                                                                                 | EV    | —                                                 |
+| `player_event_id`         | integer  | no   | —        | `REFERENCES events(id) ON DELETE CASCADE`                                                                                                                                                                                                                                                                                                                   | EV    | IMP-19                                            |
+| `import_id`               | integer  | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`                                                                                                                                                                                                                                                                                                                 | EV    | IMP-19, IMP-31                                    |
+| `kind`                    | text     | no   | —        | `CHECK (kind IN ('attached_to_surviving_type','type_not_declared_covered','outside_declared_period','possible_statistics','source_dropped','source_outlet_or_title_missing','confidence_defaulted','context_defaulted','text_too_long_ignored','text_quotation_mark_ignored','shared_link','non_standard_date','time_ignored','possible_citation_marker'))` | EV    | IMP-11 to IMP-17, CL-IMP-03, CL-IMP-07, CL-IMP-08 |
+| `field`                   | text     | yes  | —        | the format 1.0 key a text warning names, for example `description` or `unverified_note`                                                                                                                                                                                                                                                                     | EV    | CL-IMP-02, CL-IMP-07                              |
+| `source_drop_cause`       | text     | yes  | —        | `source_dropped` only: `CHECK (source_drop_cause IN ('incomplete_address','home_page','disallowed_domain','publication_date_missing','publication_date_malformed','publication_date_in_future'))`                                                                                                                                                           | EV    | IMP-14, CL-IMP-10, CL-IMP-15                      |
+| `related_position`        | smallint | yes  | —        | the 1-based position of the source the warning names, for `source_dropped` and `source_outlet_or_title_missing`                                                                                                                                                                                                                                             | EV    | CL-IMP-02                                         |
+| `related_player_event_id` | integer  | yes  | —        | `REFERENCES events(id) ON DELETE CASCADE`; for `shared_link` only, the other recorded event that cites the same link: the warning goes when that event is erased or deleted, since the link is then no longer shared, and is never stored for a declined event (IMP-17, IMP-37)                                                                             | EV    | IMP-17, IMP-37                                    |
 
 Row checks: `(kind = 'source_dropped') = (source_drop_cause IS NOT NULL)`;
-`(kind IN ('source_dropped','source_outlet_or_title_missing','shared_link')) = (related_position IS NOT NULL)`;
+`(kind IN ('source_dropped','source_outlet_or_title_missing')) = (related_position IS NOT NULL)`;
+`(kind = 'shared_link') = (related_player_event_id IS NOT NULL)`;
 `(kind IN ('possible_statistics','text_too_long_ignored','text_quotation_mark_ignored','possible_citation_marker')) = (field IS NOT NULL)`.
 The kinds are the event-scope values of the glossary's `ImportWarningKind`; the whole-result ones
 are on the import (`imports.result_warnings`). A warning never quotes a free text of the result
-(CL-IMP-02). Index: `event_import_warnings_event_idx (player_event_id)`.
+(CL-IMP-02), and a `shared_link` warning names the other event by reference, shown as a link to it,
+never by its rank in the import (IMP-37). Indexes: `event_import_warnings_event_idx
+(player_event_id)`, `event_import_warnings_related_idx (related_player_event_id)`.
 
 ### 1.4 `event_marks` — `EventMark` (Lot 2)
 
@@ -666,8 +670,9 @@ None of this area's own: historical events arrive through the research result
 - CL-DSN-15, CL-STA-26, IMP-32, D-20: before and after values for the structured fields of a
   detected event and the context of a calendar-derived event; for a historical event the date and
   the fields changed only; never an earlier free text.
-- Glossary section 11 point 5: a historical date-only public date has the precision
-  `approximate`, a timed one `exact` (COL-20's definitions applied to the research's dates).
+- Glossary row « précision » (section 3.3) and `DatePrecision`: a historical date-only public date
+  has the precision `approximate`, a timed one `exact` (COL-20's definitions applied to the
+  research's dates).
 - CL-VUE-12 and the glossary's `EventOrigin`: the third origin is stored `calendar`, never
   `schedule`.
 - Lot 2 requests (detection.md section 8): `detected_status`, an immutable `created_at`,
@@ -681,8 +686,9 @@ None of this area's own: historical events arrive through the research result
   keep a stable identity.
 - CL-SEN-28: when the grouped events' context indications disagree, the flagged conditions of
   SEN-13 and SEN-14 hold if any counted event of the case carries `yes` or `high`.
-- Own choice: `event_import_warnings.kind` and `event_corrections.field` are new code lists; the
-  glossary names the warnings only in prose (CL-IMP-03 to CL-IMP-08).
+- `event_import_warnings.kind` takes the event-scope values of the glossary's `ImportWarningKind`
+  (section 1.3); own choice: `event_corrections.field` is a new code list, listed in README
+  section 6.
 - Own choice: `acknowledged_at` on review flags gives the SEN-16 to-do item an end when the owner
   keeps the case as it is.
 - Own choice: the composite foreign key of `events.case_id` uses `ON DELETE SET NULL (case_id)`
