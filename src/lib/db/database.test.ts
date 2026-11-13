@@ -36,6 +36,21 @@ vi.mock(import('./pglite'), async (importOriginal) => {
 
 type Server = Readonly<{ url: string; connections: () => number }>;
 
+// Where the shell's connection strings lead in these tests: a port where nothing listens.
+const SHELL_DATABASE_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full';
+
+/**
+ * Exports what a developer's shell may, for example the production connection
+ * strings to run pg_dump. CI exports no database variable, so every test here
+ * starts as if the shell did, and a test that read them would fail instead of
+ * reaching the database they name (TRV-76).
+ */
+function exportShellVariables(): void {
+  vi.stubEnv('DATABASE_URL', SHELL_DATABASE_URL);
+  vi.stubEnv('DATABASE_URL_UNPOOLED', SHELL_DATABASE_URL);
+  vi.stubEnv('VERCEL_ENV', 'production');
+}
+
 /** The database of a result, or undefined when there is none. */
 const dbOf = <T>(result: Readonly<{ ok: true; db: T }> | Readonly<{ ok: false }>): T | undefined =>
   result.ok ? result.db : undefined;
@@ -79,6 +94,12 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
     vi.resetModules();
     created.pools = 0;
     created.pglites = 0;
+    exportShellVariables();
+    // Whatever the shell exports, each test starts outside Vercel with no
+    // database configured, then stubs what it needs.
+    vi.stubEnv('DATABASE_URL', '');
+    vi.stubEnv('DATABASE_URL_UNPOOLED', '');
+    vi.stubEnv('VERCEL_ENV', '');
   });
 
   it('[TRV-14] create no pool and open no connection when the module is imported', async () => {

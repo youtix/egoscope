@@ -112,6 +112,10 @@ describe('readServerEnv', () => {
     vi.resetModules();
     vi.stubEnv('LOG_LEVEL', 'debug');
     vi.stubEnv('NODE_ENV', 'test');
+    // Unset, whatever the shell that runs the tests exports.
+    vi.stubEnv('DATABASE_URL', '');
+    vi.stubEnv('DATABASE_URL_UNPOOLED', '');
+    vi.stubEnv('VERCEL_ENV', '');
     const { readServerEnv } = await import('./server-env');
 
     const first = readServerEnv();

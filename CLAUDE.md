@@ -165,6 +165,11 @@ neither a test nor a waiver.
 - A test gets a database of its own from `createTestDatabase()`: in memory, every migration
   applied. Close it when the test ends, `onTestFinished(database.close)`, since an open one holds
   about 200 MB.
+- No test reaches the database that the shell running it points to, which may export the
+  production connection strings (TRV-76). `createTestDatabase()` reads no variable; a test of
+  `getDb()`, `getDirectDb()`, `ping()` or `migrateDatabase()` first stubs `DATABASE_URL`,
+  `DATABASE_URL_UNPOOLED` and `VERCEL_ENV` to `''`, then what it needs, as the tests of
+  `src/lib/db/` do.
 
 ## The local loop
 
