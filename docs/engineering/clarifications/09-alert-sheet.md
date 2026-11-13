@@ -32,7 +32,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** ALE-05, ALE-06, ALE-24, ALE-29, TEL-11, TEL-21
 - **Problem:** ALE-24 decides lateness against the measured game, which is only established after the game; at production only the expected game is known.
 - **Ruling:**
-  - A sheet's timing instant is its production instant or, for a sheet produced while its profile was being computed (ALE-05), the instant the profile values entered it.
+  - A sheet's timing instant is its production instant or, for a sheet produced while its profile was being computed (ALE-05), the instant the profile values entered it, at the game-tracking run that follows the recalculation (CL-TRV-08).
   - Until the measured game is established, the sheet is « tardive » when its timing instant is at or after the expected game's scheduled start; with no expected game known it is not.
   - Once file 08 establishes the measured game, the mark is recomputed against that game's scheduled start and keeps that value. Every change of the mark is a dated entry of the update log.
   - The Telegram alert carries the mark as computed when it is sent, and urgency (TEL-21) uses that value; a later change sends no message.
@@ -61,7 +61,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Problem:** ALE-28 says no sheet is rewritten, while caveats, the expected game and sections change; the frozen parts are never listed.
 - **Ruling:**
   - Frozen once entered: the profile and trend snapshots of each section, the header's summary sentence as issued, and each event block as issued, apart from the additions below.
-  - Updated, each change being a dated entry of the update log: state and « tardive » mark; new sources appended, with the reference date and the lead time recomputed (ALE-21); an event's state and dismissal data (ALE-22); the expected-game block, superseded games struck through (ALE-23); the caveats, recomputed whenever one of their inputs changes before the expected game's scheduled start (context correction, new event, expected-game change) and frozen from then on; the « profil modifié depuis l'émission » flag (ALE-19); dated sections (ALE-20, ALE-31); the outcome (CL-ALE-12).
+  - Updated, each change being a dated entry of the update log: state and « tardive » mark; new sources appended, with the reference date and the lead time recomputed (ALE-21); an event's state and dismissal data (ALE-22); the expected-game block, superseded games struck through (ALE-23); the caveats, recomputed whenever one of their inputs changes before the expected game's scheduled start (context correction, new event, expected-game change) and frozen from then on; the « profil modifié depuis l'émission » flag (ALE-19), set by the game-tracking run that follows a recalculation (CL-TRV-08); dated sections (ALE-20, ALE-31); the outcome (CL-ALE-12).
   - Erased: only what ALE-30 erases after a withdrawal, the caveats being recomputed then.
 - **Why:** the sheet must keep what the app showed before the game (ALE-19, D-35) while recording the dated changes file 09 lists.
 - **Owner review:** no
