@@ -28,7 +28,7 @@ A withdrawal leaves a temporary keyed fingerprint: a keyed hash of player, type 
 
 Not settled by the decision; the recommended handling is in brackets. All six were settled on 2026-11-11; the Amendments say how.
 
-1. Date matching: an exact date misses an event reported again one day apart. [Day precision; check every day of the IMP-25 window, two days by default.] **Settled as recommended** (CL-DSN-06, CL-DET-21, CL-IMP-28, CL-IMP-34).
+1. Date matching: an exact date misses an event reported again one day apart. [Day precision; check every day of the correspondence window of IMP-25, two days by default.] **Settled as recommended** (CL-DSN-06, CL-DET-21, CL-IMP-28, CL-IMP-34).
 2. Player key and player deletion. [Use the application's player identifier (JOU-08), never reassigned; deleting a player's data (JOU-24) creates no fingerprint, since nothing could ever match it.] **Settled as recommended, plus a deleted-player entry** (CL-JOU-24).
 3. Backups: including the fingerprints keeps them in backups up to eight weeks after their erasure; leaving them out weakens a restore, which should rebuild the application identically (TRV-51). [Leave them out, so that no trace outlives the horizon.] **Settled as recommended** (CL-DSN-08, CL-TRV-05), a restore re-applying the ledger (CL-TRV-06).
 4. A collected article that matches a fingerprint: DSN-34 forbids a deduplication trace, so the article will be collected and classified again for as long as it stays in a feed. [Erase it at once, as DSN-34 does, and accept the classification cost.] **Settled as recommended** (CL-COL-16, CL-DSN-10).
@@ -53,12 +53,12 @@ From Q-DSN-01:
 
 - A fingerprint is the HMAC-SHA-256, with the fingerprint secret of the deployment configuration, of `<player id>|<type id>|<YYYY-MM-DD>`, stored with its creation instant only. The day is the event's reference date as written when it has no time, otherwise the calendar date of its reference instant in the owner's time zone.
 - Every withdrawal creates one, whatever the event's origin, and nothing else does: no deletion, replacement, requalification, drop by the calendar derivation, preview decline or player-data deletion.
-- Fingerprints are checked by detection, by the calendar derivation, in every import preview and at every restore. Open point 1 is settled as recommended: at import and detection an event matches over its day ± 2 days, the IMP-25 window, which is the single parameter of every duplicate and fingerprint check (CL-IMP-34); the derivation checks the derived game's exact day only. Detection checks only a model-origin fact that would create a new event, before the search of DET-58; events the owner creates are not checked.
+- Fingerprints are checked by detection, by the calendar derivation, in every import preview and at every restore. Open point 1 is settled as recommended: at import and detection an event matches over its day ± 2 days, the correspondence window of IMP-25, which is the single parameter of every duplicate and fingerprint check (CL-IMP-34); the derivation checks the derived game's exact day only. Detection checks only a model-origin fact that would create a new event, before the search of DET-58; events the owner creates are not checked.
 - Recording an event the preview flagged erases the fingerprints it matches. A new fingerprint secret makes the existing fingerprints unmatchable, which the deployment guide states.
 
 ### 2026-11-11 — Player key and player deletion: open point 2 (CL-JOU-24)
 
-- Settled as recommended: the player key is the application's player identifier. In addition, a player-data deletion creates one deleted-player entry — a keyed hash of his identifier with its creation instant, same secret and same lifetime as fingerprints — used only to delete him again after a restore.
+- Settled as recommended: the player key is the application's player identifier. In addition, a player-data deletion creates one deleted-player entry — a keyed hash of his identifier with its creation instant, same secret and same horizon as fingerprints — used only to delete him again after a restore.
 
 ### 2026-11-11 — The withdrawal ledger and backups: open point 3 (CL-DSN-08, CL-TRV-05)
 
@@ -66,7 +66,7 @@ From Q-DSN-01:
 
 ### 2026-11-11 — Restores (CL-TRV-06, CL-DSN-08, CL-DSN-19)
 
-- A restore never overwrites the ledger and re-applies it to the restored data, without creating a fingerprint: a restored player who matches a deleted-player entry is deleted again; for each live fingerprint, the single restored event of that player and type on its day is withdrawn again; when several fall on that day, or none does but some fall within the window, none is withdrawn and the restore summary lists them for the owner to check — a second place, besides the import preview, that points at a withdrawn event.
+- A restore never overwrites the ledger and re-applies it to the restored data, without creating a fingerprint: a restored player who matches a deleted-player entry is deleted again; for each live fingerprint, the single restored event of that player and type on its day is withdrawn again; when several fall on that day, or none does but some fall within the correspondence window, none is withdrawn and the restore summary lists them for the owner to check — a second place, besides the import preview, that points at a withdrawn event.
 - The counter keeps the larger of the ledger's value and the backup's, and a re-application never makes it grow. A restore into a new database without access to the old one cannot re-apply recent withdrawals; its summary says so.
 - This replaces the decision's working assumption that a restore can still bring a withdrawn event back.
 
@@ -86,3 +86,13 @@ From Q-DSN-01:
 ### 2026-11-11 — The limits shown before a withdrawal (CL-DSN-19)
 
 - The confirmation recalls that a withdrawal answers a sensitivity reason and never depends on the game that followed, then lists: in Lot 2, the number of messages already sent that mention the event, which Telegram may refuse to delete; backups keep the event until they rotate out, at most the horizon, and a restore made within it withdraws the event again, except into a new database without the old one; exports already downloaded keep it; a device left offline shows it until its next refresh; during the horizon detection does not recreate it and a later import flags it, afterwards re-collection or a later backtest can bring it back; for a calendar-derived event, a later full derivation can bring it back after the horizon.
+
+### 2026-11-13 — What a withdrawal erases, and in which order (CL-DSN-22, CL-TEL-09, CL-DSN-19)
+
+- Besides what DSN-27 lists, a withdrawal discards the import draft of every backtest request of the event's player: the server copy in the withdrawal's transaction, each device's copy at that device's next contact with the server and at the latest at the draft's expiry. The discard writes no journal entry, since an entry naming the request would designate the player; exploration drafts are not concerned. When such a draft exists, the confirmation says that it will be discarded, and the limits of the previous amendment gain one item: a device's copy remains until that device's next contact with the server, at the latest until it expires.
+- On confirmation, the withdrawal runs in this order, which lets a stopped withdrawal resume; steps 1 and 2 concern Lot 2's messages only:
+  1. a first committed step abandons the messages about the event not yet sent, so that nothing more about it can be sent, and reads the identifiers of the sent messages whose facts include it — single message, digest or catch-up;
+  2. outside any database transaction, the app asks Telegram once to delete each of them in the chat it was sent to, whatever its age and even in a chat no longer linked;
+  3. the erasure's transaction (CL-DSN-16) then erases the event's data, the abandoned messages and the text and identifiers of every sent one, whatever Telegram answered, takes the event's mention out of their activity-journal entries (TRV-41), discards the server copies of the player's import drafts and writes the fingerprint;
+  4. the result screen is built from memory: the number of messages deleted and, for each one Telegram refused or that could not be reached, its send date and time with the zone and whether it was a digest. That list is never stored and is gone when the owner leaves the screen.
+- If the process stops after step 1 or 2, the event still exists and no fingerprint has been written; the owner withdraws it again, and a message Telegram no longer finds then counts as deleted. A digest is deleted whole; its other facts stay in the app and are not sent again.

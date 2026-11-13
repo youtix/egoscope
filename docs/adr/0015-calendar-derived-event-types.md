@@ -20,7 +20,7 @@ Birthday games and former-team games are deduced from the calendar, not found in
 
 - The player's identity gains the day and month of birth (JOU-08), taken from the statistics source when it gives them, or entered by the owner. The year is never stored. A player without a recorded birthday has no birthday events, and his birthday profile says why.
 - Former teams are never entered. They are the teams for which the player has a box score in a covered season (STA-08), other than his current team; his departure from a team is his last official game for it (JOU-13 history).
-- Events get a third origin, calendar-derived, beside detected and historical. Such an event refers to its scheduled game instead of press sources, carries neither a research nor a detection confidence, has no precedence check, and gets a description the app writes under the rules of [13](../13-donnees-sensibles.md), for example "Player A plays on his birthday."
+- Events get the origin calendar, beside detected and historical; an event of that origin is a calendar-derived event, shown "derived from the calendar". Such an event refers to its scheduled game instead of press sources, carries neither a research nor a detection confidence, has no precedence check, and gets a description the app writes under the rules of [13](../13-donnees-sensibles.md), for example "Player A plays on his birthday."
 
 ### Taxonomy
 
@@ -32,7 +32,7 @@ Birthday games and former-team games are deduced from the calendar, not found in
 - Birthday: every official game of the player's team whose day — its date in US Eastern time, which stands for the local date at the venue of SEN-02 and H-SEN-02 (see Amendments) — has the player's day and month of birth. Former team: the first official game of the player's team against a former team after his departure. Preseason, exhibition and non-NBA games never count (STA-04).
 - The measured game is that game, and the reference instant is its day, before tip-off. If the player does not play it, the case is « non mesurable » with a reason of its own; the skipping of SEN-03 and the delay of SEN-04 do not apply.
 - Context indicators start « inconnu », so only the computed conditions of SEN-13 and SEN-14 apply unless the owner sets the indicators (H-09). Type, player and date are derived and cannot be edited.
-- These events never take part in duplicate matching (IMP-25, DET-58): a calendar fact is never the same fact as a press report.
+- These events never take part in correspondences or possible duplicates (IMP-25, DET-58): a calendar fact is never the same fact as a press report.
 
 ### Research, detection and screens
 
@@ -44,7 +44,7 @@ Birthday games and former-team games are deduced from the calendar, not found in
 
 Not settled by the decision; the recommended handling is in brackets. All six were settled on 2026-11-11; the Amendments say how.
 
-1. Lot 2 flow of upcoming calendar events — tracked case, frozen forecast, alert sheet, Telegram alert (SUI-01, SUI-05, SUI-06, ALE-01, TEL-11, VUE-10). [An event created before the tip-off of its game is a tracked case recorded on time; a player who has a profile for the type gets an alert sheet, with no backtest condition; an event derived for a game already started is historical.] **Settled as recommended** (CL-VUE-13, CL-VUE-14, CL-SUI-14, CL-ALE-13, CL-TEL-21).
+1. Lot 2 flow of upcoming calendar events — tracked case, frozen forecast, alert sheet, Telegram alert (SUI-01, SUI-05, SUI-06, ALE-01, TEL-11, VUE-10). [An event created before the tip-off of its game is a tracked case recorded on time; a player who has a profile for the type gets an alert sheet, with no backtest condition; an event derived for a game already started is historical.] **Settled as recommended**, in Lot 1 too (CL-VUE-13, CL-VUE-14, CL-SUI-14, CL-ALE-13, CL-TEL-21, CL-IHM-24).
 2. When an upcoming event is created, and how it follows schedule and team changes. [When the game becomes the player's next game (STA-26); derivation re-runs on every change of STA-28; an upcoming event whose game no longer involves the player's team is dropped before tip-off.] **Settled as recommended** (CL-TAX-19, CL-STA-25, CL-SUI-14).
 3. Articles that report a birthday or a reunion must create neither an event nor a new-type proposal (DET-16, DET-34). [Tell the classifier that these types are handled by the calendar, so that such facts count as no event.] **Settled as recommended** (CL-DET-22, CL-TAX-21).
 4. A former team known only from seasons the source does not cover stays unknown, and its reunions are missed. [The former-team profile states that the team history is limited to the covered seasons.] **Settled as recommended, with a mention added on birthday profiles** (CL-JOU-18, CL-STA-24).
@@ -66,9 +66,9 @@ Not settled by the decision; the recommended handling is in brackets. All six we
 
 ### 2026-11-11 — Which games, and when: open point 2 (CL-TAX-18, CL-TAX-19, CL-STA-25, CL-SUI-14)
 
-- Which games: for each validated calendar-derived type and each active or paused player with a confirmed mapping, over the official games of covered seasons — every game of his team whose day has his recorded day and month of birth; for each stint with a former team, the first official game between his team and that team after his last game played for it, while he belongs to another team, one event per stint. "His team" is the team he belonged to at the game's date; whether he played is not part of the condition.
+- Which games: for each validated calendar-derived type and each active or paused player with an established mapping, over the official games of covered seasons — every game of his team whose day has his recorded day and month of birth; for each stint with a former team, the first official game between his team and that team after his last game played for it, while he belongs to another team, one event per stint. "His team" is the team he belonged to at the game's date; whether he played is not part of the condition.
 - Open point 2 is settled as recommended. Regular runs, at the end of every statistics update and, in Lot 2, of every collection-and-detection pass, derive the qualifying games started since the player's previous run, and his next game if it qualifies; each player keeps the instant of his previous run.
-- Full derivations — at the validation, reactivation or substantive change of a type, and for one player at a change of his birthday, of his statistics mapping or of his team history — cover games already started only; upcoming events always come from regular runs.
+- Full derivations — at the validation, reactivation or substantive change of a type, and for one player at a change of his birthday, of his stats-source mapping or of his team history — cover games already started only; upcoming events always come from regular runs.
 - Every regular run re-checks the upcoming events: one whose game no longer qualifies — date or opponent changed, game canceled, player no longer with that team, birthday or team history corrected — is deleted with its case before tip-off and never counts. A deletion by the derivation is not a withdrawal: no fingerprint, no counter; each creation and deletion is journaled.
 
 ### 2026-11-11 — Lot 2 flow of upcoming events: open point 1 (CL-VUE-13, CL-VUE-14, CL-SUI-14, CL-ALE-13, CL-TEL-21)
@@ -102,10 +102,15 @@ Not settled by the decision; the recommended handling is in brackets. All six we
 
 ### 2026-11-11 — The birthday and the profiles (CL-JOU-16, CL-JOU-11, CL-SEN-25, CL-SEN-26)
 
-- The birthday comes from the statistics source when a mapping is confirmed and the field is empty — the adapter drops the year before anything is stored, shown or logged — or from the owner, who can enter, correct or remove it. A mapping change replaces only a birthday the source gave.
+- The birthday comes from the statistics source when a mapping is established and the field is empty — the adapter drops the year before anything is stored, shown or logged — or from the owner, who can enter, correct or remove it. A mapping change replaces only a birthday the source gave.
 - A correction re-derives the player's birthday events: those that no longer qualify are deleted with their cases and journaled, and those whose game had already started count among the profile's exits, as a number without date or game, with the reason "no longer derived from the calendar".
 - While the birthday type is validated, a player without a recorded birthday has a birthday profile with an empty tally that says why.
 
 ### 2026-11-11 — Every such game counts (CL-DSN-06)
 
 - The derivation checks the fingerprints on the derived game's exact day, never over a window, so a withdrawal never keeps another qualifying game of the same player and type from being derived.
+
+### 2026-11-13 — Case origins in Lot 1: open point 1 (CL-IHM-24, CL-VUE-13)
+
+- A calendar-derived event created before its game's scheduled start gives a tracked case in Lot 1 as in Lot 2. IHM-46 therefore applies in Lot 1 as written for display — each case reads "Historical" or "Tracked" in full, the summaries give the split and the case lists filter by origin — except its last sentence, « Au lot 1, tous les cas sont historiques, et les écrans le disent », which falls.
+- When every valid case of a profile is historical, the split still says so ("7 valid cases: 7 historical"). The profile and the trend computed on one origin only stay in Lot 2 (SEN-21).

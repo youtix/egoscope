@@ -32,5 +32,5 @@ The research AI stays tool-agnostic, as specified (BKT-19). The import is tested
 ### 2026-11-11 — Citation markers inside text values (CL-IMP-07)
 
 - The open point is settled as recommended. A text value holds a citation marker when it matches one of the patterns CL-IMP-07 lists — bracketed number lists, footnote calls, bracketed `cite` tokens, text between `【` and `】`, superscript digits, daggers, private-use characters, Markdown links — kept in one constant, each with a fixture.
-- In a description, a reservation, an outlet name or an article title, the value is stored as written, never rewritten, and the event gets the warning "possible citation marker in {field}", so its outcome is "added with warning" unless something else rejects it (IMP-19); the owner can correct it (IMP-32).
+- In a description, an unverified note, an outlet name or an article title, the value is stored as written, never rewritten, and the event gets the warning "possible citation marker in {field}", so its outcome is "added with warning" unless something else refuses it (IMP-19); the owner can correct it (IMP-32).
 - In a limitation, the value is kept as written, with a warning on the whole result. In a link, the source fails the complete-address check (IMP-14) and is dropped with a warning.

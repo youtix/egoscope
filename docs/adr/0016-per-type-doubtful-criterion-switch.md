@@ -5,7 +5,7 @@
 
 ## Context
 
-- D-19 and SEN-11 to SEN-15 ([08](../08-sensibilite-et-verdict.md)): a case is doubtful, hence excluded, when an automatic criterion applies — playing time too low (SEN-12), return from injury (SEN-13), unusual stakes (SEN-14), opponent level (SEN-15), or concomitance when its parameter is on (SEN-06); the owner may also exclude or reinstate a case by hand (SEN-17).
+- D-19 and SEN-11 to SEN-15 ([08](../08-sensibilite-et-verdict.md)): a case is doubtful, hence excluded, when an automatic criterion applies — playing time too low (SEN-12), return from injury (SEN-13), unusual stakes (SEN-14), opponent strength (SEN-15), or co-occurring cases when its parameter is on (SEN-06); the owner may also exclude or reinstate a case by hand (SEN-17).
 - D-34: the « record négatif à éviter » type is played almost always in a high-stakes game. By default all its cases are excluded for unusual stakes, and its profile says so (edge cases of 08).
 - Q-SEN-01, which Q-TAX-02 also points to for the approach of a record: should one criterion be switched off for a precise type, with a permanent warning on its profiles, should these cases be compared with similar games without an event, such as the player's other elimination games, or should a criterion specific to the type be added? Meanwhile the common rule applies.
 

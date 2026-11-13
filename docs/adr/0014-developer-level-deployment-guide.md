@@ -18,7 +18,7 @@ The deployment guide is written for a developer: the sixteen steps of TRV-75 as 
 - Each checklist item says what to do and how to check that it worked, with the exact command where one is needed; no tutorial prose.
 - The steps name the decided services and values: Vercel and Neon, the external trigger and its secret ([0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md)), the fingerprint secret ([0017](0017-temporary-fingerprint-of-withdrawn-events.md)), the backup space, its single access token created at the end and the encryption key ([0018](0018-encrypted-weekly-backups.md)); the application comes from the public repository ([0006](0006-public-specs-without-license-or-real-players.md)); the list of accounts and values is the one of [0008](0008-autonomous-build-and-end-of-build-handover.md).
 - The procedures of TRV-77 and the operations guide of TRV-79 are written at the same level.
-- Unchanged: the application prepares its database itself (TRV-76); a restore needs no programming (TRV-53); the installation check reports in plain language (TRV-47); in-app help, the guided start and empty states (IHM-53 to IHM-56) still assume no technical knowledge.
+- Unchanged: the application prepares its database itself (TRV-76); a restore needs no programming (TRV-53); the installation check reports in plain language (TRV-47); in-app help, the getting-started guide and empty states (IHM-53 to IHM-56) still assume no technical knowledge.
 - CA-TRV-24 is read for a developer who has the repository and the owner's accounts.
 
 ## Alternatives considered

@@ -39,10 +39,14 @@ From Q-STA-01 and the decision:
 ### 2026-11-11 — One source per season (CL-STA-23, CL-JOU-21)
 
 - The open point is settled as recommended: each season is assigned to exactly one source in the statistics service sheet, and all its data — schedule, results, series, box scores, team records — comes from that source, so no reference, threshold or opponent percentage mixes two sources.
-- With two sources, a player has one mapping per source, each confirmed by the owner through the JOU-10 flow; nothing is fetched from a source before its mapping is confirmed.
-- The source chosen on 2026-11-11 is used alone, with one confirmed identity per player, STA-03 as written ([0023](0023-statistics-source-sportsdataverse-releases.md)).
+- With two sources, a player has one mapping per source, each confirmed by the owner through the JOU-10 flow; nothing is fetched from a source before its mapping is established.
+- The source chosen on 2026-11-11 is used alone, with one established mapping per player, STA-03 as written ([0023](0023-statistics-source-sportsdataverse-releases.md)).
 
 ### 2026-11-11 — Replacing the source (CL-TRV-14, CL-STA-23)
 
 - New: at a source replacement, the stored seasons keep the data and identifiers of the source they came from, except the season in progress, which is fetched again whole from the new source, its consolidated games included — an exception to STA-42. That refetch is a forced refetch in the sense of STA-44: it follows the order of STA-40, and every value that differs from the stored one is replaced and traced as a correction (STA-34), so no old value is lost. A full recalculation follows (SEN-34).
 - Players are mapped to the new source by its published crosswalk where one exists, otherwise by a new JOU-10 confirmation.
+
+### 2026-11-13 — The replacement procedure (CL-TRV-14)
+
+- The replacement is a procedure of the statistics service sheet (TRV-77), with no screen of its own: its steps rest on the forced refetch of one season from the source assigned to it (STA-44) and on the per-season source assignment (CL-STA-23).

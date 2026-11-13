@@ -2,7 +2,7 @@
 
 Records 0001 to 0022 hold the product and delivery decisions the owner settled in the design interview of 2026-11-11, before any code was written; record N carries decision N of that interview. Records 0023 to 0028 hold the choices the orchestrator made on the same day under the owner's delegation (records 0008 and 0011): the services, and the rules those services impose. All are accepted and dated 2026-11-11.
 
-The French functional specs in `docs/` stay the reference. Where a record changes, extends or settles a requirement, the [deviations register](../engineering/spec-deviations.md) lists it; implementers and reviewers check the register first. The rulings of `docs/engineering/clarifications/` settle what the specs and the records leave unclear; where a ruling went beyond a record, that record carries a dated "Amendments" section citing it. French terms map to English through `docs/engineering/glossary.md`.
+The French functional specs in `docs/` stay the reference. Where a record changes, extends or settles a requirement, the [deviations register](../engineering/spec-deviations.md) lists it; implementers and reviewers check the register first. The rulings of `docs/engineering/clarifications/` settle what the specs and the records leave unclear; where a ruling or a later choice of the orchestrator went beyond a record, that record carries a dated "Amendments" section citing its source. French terms map to English through `docs/engineering/glossary.md`.
 
 ## Records
 
@@ -19,19 +19,19 @@ The French functional specs in `docs/` stay the reference. Where a record change
 | [0009](0009-minor-open-questions-keep-spec-defaults.md) | The nine minor open questions keep the spec defaults | |
 | [0010](0010-english-product.md) | English product; press stays English and French | 2026-11-11 |
 | [0011](0011-choosing-the-remaining-services.md) | Remaining services chosen by the spec criteria, fewest accounts first | |
-| [0012](0012-statistics-coverage-gives-way.md) | Statistics coverage gives way; indicator unchanged | 2026-11-11 |
+| [0012](0012-statistics-coverage-gives-way.md) | Statistics coverage gives way; indicator unchanged | 2026-11-11, 2026-11-13 |
 | [0013](0013-tool-agnostic-research-ai.md) | Tool-agnostic research AI; import tested against AI output quirks | 2026-11-11 |
 | [0014](0014-developer-level-deployment-guide.md) | Deployment guide written for a developer | |
-| [0015](0015-calendar-derived-event-types.md) | Birthday and former-team events derived from the calendar | 2026-11-11 |
+| [0015](0015-calendar-derived-event-types.md) | Birthday and former-team events derived from the calendar | 2026-11-11, 2026-11-13 |
 | [0016](0016-per-type-doubtful-criterion-switch.md) | A type sheet can switch off one doubtful-case criterion | |
-| [0017](0017-temporary-fingerprint-of-withdrawn-events.md) | Temporary keyed fingerprint of a withdrawn event | 2026-11-11 |
+| [0017](0017-temporary-fingerprint-of-withdrawn-events.md) | Temporary keyed fingerprint of a withdrawn event | 2026-11-11, 2026-11-13 |
 | [0018](0018-encrypted-weekly-backups.md) | Encrypted weekly backups outside the database | 2026-11-11 |
 | [0019](0019-two-daily-collection-and-detection-runs.md) | Collection and detection at 16:30 and 23:00 Paris time | |
 | [0020](0020-empty-initial-player-list.md) | The app starts with an empty player list | |
 | [0021](0021-verdict-thresholds-and-chance.md) | Editable verdict thresholds; chance shown, not corrected | |
 | [0022](0022-uncertain-events-keep-spec-defaults.md) | Uncertain events keep the spec defaults | |
-| [0023](0023-statistics-source-sportsdataverse-releases.md) | Statistics source: the SportsDataverse open-data releases, from 1993-94, no account | |
-| [0024](0024-external-services.md) | External services: Vercel, Neon, a Cloudflare trigger with a Vercel backstop, Workers AI with an optional Groq fallback, Telegram, GitHub release assets for backups | |
+| [0023](0023-statistics-source-sportsdataverse-releases.md) | Statistics source: the SportsDataverse open-data releases, from 1993-94, no account | 2026-11-11 |
+| [0024](0024-external-services.md) | External services: Vercel, Neon, a Cloudflare trigger with a Vercel backstop, Workers AI with an optional Groq fallback, Telegram, GitHub release assets for backups | 2026-11-13 |
 | [0025](0025-database-compute-budget-shapes-the-scheduler.md) | An idle tick never opens the database; no design assumes a 5-minute cadence | |
 | [0026](0026-runtime-node-in-production-bun-for-tooling.md) | Node.js 22 in production and throughout the build; Bun for tooling | |
 | [0027](0027-supply-chain-guard.md) | Dependency versions younger than seven days refused; exact versions pinned | |

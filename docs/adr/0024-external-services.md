@@ -61,3 +61,9 @@ Free, no payment card, automated access permitted, replaceable:
 - The model `glm-4.7-flash` is retired: the spare model on the same account.
 - Gemini's European restriction is lifted: Gemini becomes a candidate for detection.
 - GitHub forbids release assets as storage, or their deletion stops being real: a private Vercel Blob store.
+
+## Amendments
+
+### 2026-11-13 — The Telegram webhook (orchestrator)
+
+- The webhook is registered with `max_connections` 1, and the stored update identifier only moves forward, so each update is handled once and in order.
