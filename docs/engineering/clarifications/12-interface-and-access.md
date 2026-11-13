@@ -26,7 +26,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:** the register's reading is confirmed and completed:
   - decimal point, and a comma between thousands in every number of 1,000 or more shown to the owner (0.751; 1,000; 12,345);
   - a signed value — gap, mean gap, range bound — always carries "+" or the true minus sign "−" (U+2212); the sign is that of the displayed, rounded value, and a value that rounds to zero carries none ("0.00"); counts carry no sign;
-  - the number of decimals is set by the file that owns the value (STA-12, SEN-09);
+  - the number of decimals is set by the file that owns the value (STA-12, SEN-09), and CL-STA-09 lists them for every number of a calculation;
   - screen readers say "plus" or "minus" with the figure (IHM-62);
   - machine formats — the JSON of prompts and imports, exports and their spreadsheet files (TRV-52) — use a plain decimal point, no thousands separator and the ASCII hyphen-minus.
 - **Why:** ADR 0010 fixes the display; zero has no direction (IHM-47), and a spreadsheet must read the exported numbers.

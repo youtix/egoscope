@@ -19,7 +19,7 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 - **Problem:** a game has three phases while a baseline has two, and "phase finished" is league-wide for one and per player for the other.
 - **Ruling:**
   - Game phase: regular season, play-in, playoffs (STA-05). Baseline phase: regular season or postseason, the postseason grouping the play-in and playoff games of the same season (STA-18 default). With STA-18's parameter set to the regular season, a play-in or playoff game is compared with the same season's regular-season baseline, built from regular-season games only.
-  - The regular-season phase is finished when no regular-season game of the season is still scheduled, in progress or postponed, league-wide; its last game, for the correction window (STA-20), is the season's last regular-season game, league-wide.
+  - The regular-season phase is finished when no regular-season game of the season is still scheduled, in progress or postponed, league-wide, and at the latest at the scheduled start of the season's first play-in or playoff game: a postponed game that no make-up was linked to (CL-STA-17) never holds the phase open past that start, so its baselines become final (STA-20) and a baseline still building becomes insufficient (STA-22). Its last game, for the correction window (STA-20), is the season's last final regular-season game, league-wide.
   - The postseason is finished for a player when his team is eliminated (from the play-in or the playoffs) or the Finals are over; its last game is his team's last postseason game. A team that never enters the postseason has no postseason baseline.
   - SEN-14's play-in test reads the game phase; cases show the baseline phase.
   - A case's normalized gap uses the baseline of its measured game's season and baseline phase, with that game alone removed (STA-16, STA-17, as written); the measured games of other cases stay in it.
@@ -98,7 +98,7 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 
 - **Affects:** STA-12, STA-16, SEN-09, SEN-20, SEN-36
 - **Problem:** STA-12 forbids rounding in calculations, while decimal minutes and means are often non-terminating, and sums over many values must stay reproducible.
-- **Ruling:** Calculations use IEEE 754 double precision with no intermediate rounding. Displayed values round half away from zero to the number of decimals their owning requirement sets (index 3, STA-12; normalized gap 2, SEN-09; other means and ranges 2); a value that rounds to zero is shown without a sign. Sums and means over games or cases are taken in a fixed order — by scheduled start, ties by game or case identifier — so the same data always give the same bits (SEN-36). Tests compare raw values with a tolerance of 1e-9 and displayed strings exactly; tests built from the worked examples feed the rounded values they print (CL-SEN-24).
+- **Ruling:** Calculations use IEEE 754 double precision with no intermediate rounding. Displayed values round half away from zero to these decimals: the performance index 3 (STA-12); a baseline's mean and standard deviation 3, as CA-STA-02 and the worked example of 08 show them, so that a gap can be recomputed from the three numbers of IHM-25 (IHM-52); a normalized gap 2 (SEN-09), and so the mean gap, the plausible range, a gap in the forecast direction and every other mean or range of gaps; the gap dispersion, observed or retained, and the signal-to-noise ratio 2, the expected noise 3, as the worked example of 08 prints them. A value that rounds to zero is shown without a sign. The two-decimal index, mean and deviation of the outcome example of 09 are illustrative: STA-12 and CA-STA-02 prevail (a requirement and a criterion over an example, CL-JRN-01). Sums and means over games or cases are taken in a fixed order — by scheduled start, ties by game or case identifier — so the same data always give the same bits (SEN-36). Tests compare raw values with a tolerance of 1e-9 and displayed strings exactly; tests built from the worked examples feed the rounded values they print (CL-SEN-24).
 - **Why:** "sans arrondi" forbids rounding to display precision, not floating point; a fixed order makes results deterministic.
 - **Owner review:** no
 
@@ -118,8 +118,8 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 
 - **Affects:** STA-35, STA-36, STA-39, SEN-07, CA-STA-14
 - **Problem:** days when the source is down do not count toward the 30 days, but no rule says what such a day is, and quota stops are not mentioned.
-- **Ruling:** A box score missing while the source answers normally becomes unavailable at the first daily update when more than 30 (parameter) counted days have passed since the game's US date. A day, in the owner's time zone (TRV-72), counts unless a "Stats source unavailable" incident (STA-37) or a "Quota reached" incident (STA-39) was open at some moment of it. A game already older than that when first requested — a past-season game listed without player lines — is unavailable at once. The days are counted from the stored incident periods; no other record is kept.
-- **Why:** STA-36's principle — no case changes state because the app could not ask — extends to days blocked by the quota.
+- **Ruling:** A box score missing while the source answers normally becomes unavailable at the first daily update when more than 30 (parameter) counted days have passed since the game's US date. A day, in the owner's time zone (TRV-72), counts unless an incident that stops ingestion from the stats source was open at some moment of it: "Stats source unavailable" (STA-37), "Stats source format changed" (CL-STA-15) or the stats source's "Quota reached" (STA-39). A format change stops statistics like an outage (CL-TEL-17), so its days never count toward the delay (STA-35, STA-36). A game already older than that when first requested — a past-season game listed without player lines — is unavailable at once. The days are counted from the stored incident periods; no other record is kept.
+- **Why:** STA-36's principle — no case changes state because the app could not ask — extends to days blocked by the quota and to days when a changed file layout keeps the app from reading the source.
 - **Owner review:** no
 
 ## CL-STA-12 — When the first NBA game is known
@@ -154,7 +154,7 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 - **Affects:** STA-02, STA-36, STA-37, STA-39, STA-41, service sheet ("What happens when a quota is hit")
 - **Problem:** the quota is "known or observed" without saying how it is observed, and the chosen source publishes none.
 - **Ruling:**
-  - Each answer is an outage (network error, timeout, HTTP 5xx, unreadable file), a quota answer (HTTP 429, or 403 with rate-limit headers) or a normal answer (anything else, a missing resource included, since it is data). A missing current-season file or changed columns open the "Stats source format changed" incident of the service sheet and ingest nothing.
+  - Each answer is an outage (network error, timeout, HTTP 5xx, unreadable file), a quota answer (HTTP 429, or 403 with rate-limit headers) or a normal answer (anything else, a missing resource included, since it is data). A missing current-season file or changed columns open the "Stats source format changed" incident of the service sheet and ingest nothing; between seasons, a next-season file not yet published opens none until the date CL-STA-30 sets.
   - After an outage the source is failing: the next request goes 1 hour later, then every 4 hours, until one succeeds (STA-36); after 12 hours of continuous failure the incident opens (STA-37).
   - The known quota is the limit the service sheet states: the provider's, or, for the chosen source, which publishes none, the app's own ceilings (200 downloads and 2 GB a day, one download at a time, warning at 80 %). The app counts against it and keeps the 10 % reserve for priority levels 1 and 2 (STA-39). A quota answer stops requests until the reset the answer or the service sheet gives, otherwise until the next period of those ceilings, and opens "quota reached".
   - The end-date estimate of STA-41 uses the known quota.
@@ -173,7 +173,7 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 
 - **Affects:** STA-05, STA-26, STA-28, « Cas limites » (match reporté), SUI-03
 - **Problem:** in the spec a postponed game keeps its identity and comes back scheduled at its new date; the chosen source keeps the original as postponed and publishes the make-up as a new game labeled "Makeup from" the original date.
-- **Ruling:** The app keeps one game. When the adapter links a make-up to its postponed original (same two teams, same season, the make-up label), the original takes the make-up's date, instant and status, and stores the make-up's source identifier as an alias. When no link can be made, the make-up is an ordinary game and the original stays postponed, which no rule counts: it is never final, so never a team game, an absence, a next game or a measured game. Canceled games are ignored (as written).
+- **Ruling:** The app keeps one game. When the adapter links a make-up to its postponed original (same two teams, same season, the make-up label), the original takes the make-up's date, instant and status, and stores the make-up's source identifier as an alias. When no link can be made, the make-up is an ordinary game and the original stays postponed, which no rule counts: it is never final, so never a team game, an absence, a next game or a measured game, and it stops holding the regular-season phase open at the start of the postseason (CL-STA-02). Canceled games are ignored (as written).
 - **Why:** STA-05's single identity lets derived events and lot-2 tracked cases follow a rescheduled game.
 - **Owner review:** no
 
@@ -295,6 +295,18 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
   - Until the installation's read has finished, the add-player screen says that the player directory is still loading and offers no candidate; a player added meanwhile is recorded with "mapping to establish", and his candidates come to the to-do list from the statistics runs that follow (JOU-10, IHM-66).
 - **Why:** the source is the only authority on its own identities; a seeded list would go stale and would put real names in the repository (CL-JOU-22).
 - **Owner review:** no
+
+## CL-STA-30 — The daily update between seasons
+
+- **Affects:** STA-26, STA-32, STA-33, STA-48, H-STA-17, STA-25, JOU-10, JOU-13; CL-STA-15, CL-STA-20, CL-STA-21, CL-STA-28, CL-STA-29; statistics service sheet (risk 6)
+- **Problem:** between seasons the season today's date belongs to is the next one (CL-STA-21, CL-STA-28), whose files the chosen source publishes only once its producer restarts in mid-October. Read literally, CL-STA-15 then opens "Stats source format changed" for a missing current-season file every day of the summer; read as "the season in progress", of which there is none between seasons, the daily update reads no season and never finds the next schedule, so « intersaison » never ends.
+- **Ruling:**
+  - From the day after a season's last Finals game to the first game of the next regular season, the daily update reads the next season's schedule, teams and player directory, that season being the one today's date belongs to. It also reads the finished season's box scores again until the correction window of its last game has passed (STA-33).
+  - A file of the next season that the source has not published yet is the normal off-season state, not a fault: it ingests nothing, opens no incident, and a player without a next game keeps the reason « intersaison » (CL-STA-20). The first publication of that season's schedule ends this state; from then on a missing or changed file of that season opens "Stats source format changed", as CL-STA-15 says.
+  - The statistics service sheet gives the date by which a coming season's schedule is expected — for the chosen source, 25 October, one week after its producer restarts. A schedule still unpublished on that date opens "Stats source format changed" as a missing current-season file does.
+  - Until the source publishes the next season, a player it has not listed yet, such as a rookie drafted in June, has no candidate (JOU-10, CL-STA-29), and a summer trade or signing reaches the current team when the next season's player file is first read (CL-STA-27), unless the owner enters it (JOU-13, CL-JOU-03).
+- **Why:** the chosen source is not refreshed between seasons (service sheet, risk 6); an incident for every summer day would be false, and a daily update that reads no season would never see the next schedule.
+- **Owner review:** yes — the app waits for the next season's files without an incident until 25 October, and summer trades and new players appear only once the source publishes them or the owner enters a trade.
 
 ## Passed to the glossary
 
