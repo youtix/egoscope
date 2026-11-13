@@ -73,11 +73,16 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 ### CL-TEL-09 — Deleting messages after a withdrawal without keeping a trace
 
 - **Affects:** TEL-38, H-TEL-04, DSN-27, DSN-28, DSN-29, IHM-68, TRV-41
-- **Problem:** TEL-38 deletes the messages that mention a withdrawn event and points out those Telegram no longer lets the app delete, while the message text is erased with the event (DSN-27) and nothing may designate the event afterwards (DSN-29); the message data lacks Telegram's message identifier, and digests that also mention other facts are not addressed.
+- **Problem:** TEL-38 deletes the messages that mention a withdrawn event and points out those Telegram no longer lets the app delete, while the message text is erased with the event (DSN-27) and nothing may designate the event afterwards (DSN-29); the message data lacks Telegram's message identifier, and digests that also mention other facts are not addressed, nor is the order that lets a stopped withdrawal resume.
 - **Ruling:**
   - Each sent message keeps its chat identifier and Telegram's message identifier; both are erased with its text.
   - Before confirmation, the withdrawal screen states how many messages already sent mention the event, as a number only, and that Telegram may refuse to delete older ones.
-  - On confirmation, before the event's data is erased: messages about the event not yet sent are abandoned and erased; for each sent message whose facts include the event — single message, digest or catch-up — the app asks Telegram once to delete it in the chat it was sent to, whatever its age and even in a chat no longer linked; the text and the identifiers of every such message are then erased whatever the answer, and their activity-journal entries lose their mention of the event (TRV-41). The deletion requests are made before the erasure's transaction, outside it: no outside call runs inside a database transaction.
+  - On confirmation, in this order, which lets a stopped withdrawal resume:
+    1. a first committed step abandons the messages about the event not yet sent, so that nothing more about it can be sent, and reads the identifiers of the sent messages whose facts include the event — single message, digest or catch-up;
+    2. outside any database transaction, since no outside call runs inside one, the app asks Telegram once to delete each of them in the chat it was sent to, whatever its age and even in a chat no longer linked;
+    3. the erasure's transaction then erases the event's data, the abandoned messages and the text and identifiers of every sent one, whatever Telegram answered, and their activity-journal entries lose their mention of the event (TRV-41);
+    4. the result screen is built from memory.
+  - If the process stops after step 1 or 2, the event still exists and the owner withdraws it again; on that second attempt, a message Telegram no longer finds counts as deleted.
   - A digest is deleted whole; its other facts stay in the app (TEL-02) and are not sent again.
   - The screen shown right after the withdrawal gives the number of messages deleted and, for each message Telegram refused or that could not be reached, its send date and time with the zone and whether it was a digest. That list is computed during the withdrawal, shown on that screen only, never stored, and gone when the owner leaves the screen.
 - **Why:** the owner learns where to delete by hand at the only moment it is allowed, and nothing outlives the withdrawal but the counter and the keyed fingerprint (ADR 0017).
@@ -147,13 +152,18 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** a requirement wins over an example.
 - **Owner review:** no
 
-### CL-TEL-17 — Warnings that are not notified
+### CL-TEL-17 — What is notified: incidents and warnings
 
-- **Affects:** TEL-15, TRV-05, TRV-07, COL-46
-- **Problem:** TEL-15 cites TRV-05 only for a quota reached; whether the quota warning at 80 % and the other warnings are notified is not said.
-- **Ruling:** As written: TEL-15's list is exhaustive — the incidents it names, the silent-source warning (COL-42) and the export reminder (TRV-54). The quota warning at 80 % (TRV-05), the database-volume warning (TRV-07) and the "add a collection time" warning (COL-46) are not notified; they show on the status screen and in the activity journal.
-- **Why:** TEL-15 names the two warnings that follow the incident rules, and no other.
-- **Owner review:** no
+- **Affects:** TEL-15, TEL-37, H-TEL-06, STA-37, STA-38, TRV-05, TRV-07, TRV-61, COL-42, COL-46, IHM-07; CL-STA-15 (file 07 ruling)
+- **Problem:** TEL-15 cites TRV-05 only for a quota reached; whether the quota warning at 80 % and the other warnings are notified is not said, and the "Stats source format changed" incident of CL-STA-15 did not exist when TEL-15's list was written.
+- **Ruling:** TEL-15's rules apply to these, and to nothing else:
+  - the incidents TEL-15 names: "Press source down" and "Collection impossible" (COL-41, COL-44), "Quota reached" (DET-11, STA-39, TRV-05), "Stats source unavailable" (STA-37, STA-38), "Task not run" (TRV-31), "Backup failed" (TRV-50), and "Logins refused" (TRV-61), a security incident (TEL-15, H-TEL-06, IHM-07);
+  - "Stats source format changed" (CL-STA-15), notified like "Stats source unavailable";
+  - the "Silent press source" warning (COL-42) and the "Export reminder" (TRV-54), one message per reminder (H-TEL-07).
+
+  The quota warning at 80 % (TRV-05), the database-volume warning (TRV-07) and the "Add a collection time" warning (COL-46) are not notified; they show on the status screen and in the activity journal. "Telegram link broken" shows only on Home and in the to-do list (TEL-37).
+- **Why:** TEL-15 names the incidents and the two warnings that follow its rules. For the owner, a format change is the same situation as an unavailable source — statistics no longer arrive — and it lasts until the adapter is fixed, so it cannot wait for the next visit to the app; TEL-15's list was written before that incident existed.
+- **Owner review:** yes — "Stats source format changed", which no French list names, is notified on Telegram.
 
 ### CL-TEL-18 — The « échéance modifiée » message
 

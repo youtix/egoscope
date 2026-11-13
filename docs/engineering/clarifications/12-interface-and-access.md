@@ -212,6 +212,14 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** two places to edit one value would disagree, and a Lot 1 owner has no use for what only Lot 2 reads.
 - **Owner review:** no
 
+### CL-IHM-24 — Case origins on Lot 1 screens
+
+- **Affects:** IHM-46, CA-IHM-09, SEN-21; CL-VUE-13 (file 00 ruling), CL-IHM-21
+- **Problem:** IHM-46 ends « Au lot 1, tous les cas sont historiques, et les écrans le disent », which stopped being true with CL-VUE-13: a calendar-derived event recorded before its game gives a tracked case in Lot 1 as well.
+- **Ruling:** IHM-46 applies in Lot 1 as written for display: each case reads "Historical" or "Tracked" in full, the summaries give the split (CA-IHM-09) and the case lists filter by origin. Only its last sentence falls. When every valid case of a profile is historical, the split still says so ("7 valid cases: 7 historical"). What stays in Lot 2 is SEN-21: the profile and the trend computed on historical cases only or on tracked cases only.
+- **Why:** once a Lot 1 case can be tracked, a screen saying that every case is historical would be false, while the origin IHM-46 writes on each case stays true.
+- **Owner review:** yes — it follows from CL-VUE-13, itself for owner review: if every calendar-derived case stays historical, IHM-46's last sentence holds again.
+
 ## Passed to the glossary
 
 - Navigation labels, screen titles, banners, empty states and the short notice « Mesure du passé, hypothèse non démontrée, aucune recommandation de pari ».

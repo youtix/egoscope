@@ -162,14 +162,14 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ### CL-SEN-16 — Recalculation runs as a job; what profiles show meanwhile
 
-- **Affects:** SEN-34, SEN-35, SEN-36, IMP-34, TRV-29, TRV-30
+- **Affects:** SEN-34, SEN-35, SEN-36, SEN-37, IMP-34, TRV-29, TRV-30
 - **Problem:** a recalculation "ends together with the processing that triggered it", yet "during a recalculation, the profiles concerned say so": synchronous or background work is not said.
 - **Ruling:**
   - Every change that SEN-34 or SEN-35 lists records a recalculation job in the same transaction as the change, with its scope (SEN-34, items a to d) and its cause (CL-SEN-17). Jobs run one at a time, in the order recorded; jobs with different causes are never merged.
   - The job starts in the same request, right after the commit. If it cannot finish within the request's time budget, it continues in chunks from the external trigger (TRV-30) until done. The operation that caused it — an import save, a manual decision, a parameter save, a statistics update — reports itself complete only when its job has finished; until then its screen says that the recalculation is in progress.
-  - Each profile and general trend is written whole, never half updated. While a job covering it is pending or running, it shows "recalculation in progress" next to its last values and their date. Verdict-history entries are written when the job finishes.
+  - Each profile and general trend is written whole, never half updated. While a job covering it is pending or running, it shows "recalculation in progress" next to its last values and their date. A verdict-history entry is written in the same transaction as the profile or general trend whose verdict level, direction or profile confidence changed (SEN-37), as the job advances; the end of the job only marks the job complete.
   - Results never depend on chunking or timing (SEN-36; order of sums, CL-STA-09). A job requests nothing from the stats source; statistics an import asks for (IMP-34) arrive through the daily update, which records its own job.
-- **Why:** the job cannot be lost, works within the host's time limits, and is visible while it runs.
+- **Why:** the job cannot be lost, works within the host's time limits, and is visible while it runs. SEN-37 asks that every change be recorded, and a long or interrupted job must never leave a profile showing a new verdict without its entry.
 - **Owner review:** no
 
 ### CL-SEN-17 — Causes in the verdict history

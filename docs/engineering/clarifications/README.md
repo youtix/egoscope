@@ -46,12 +46,12 @@ Each rule has one owner: the clarification file of the spec file that defines th
 | [08 Sensibilité et verdict](../../08-sensibilite-et-verdict.md) | [08-sensitivity-and-verdict.md](08-sensitivity-and-verdict.md) | 28 | 7 |
 | [09 Fiche d'alerte](../../09-fiche-d-alerte.md) | [09-alert-sheet.md](09-alert-sheet.md) | 15 | 3 |
 | [10 Suivi automatique et validation](../../10-suivi-automatique-et-validation.md) | [10-automatic-tracking-and-validation.md](10-automatic-tracking-and-validation.md) | 15 | 5 |
-| [11 Notifications Telegram](../../11-notifications-telegram.md) | [11-telegram-notifications.md](11-telegram-notifications.md) | 23 | 4 |
-| [12 Interface et accès](../../12-interface-et-acces.md) | [12-interface-and-access.md](12-interface-and-access.md) | 23 | 1 |
+| [11 Notifications Telegram](../../11-notifications-telegram.md) | [11-telegram-notifications.md](11-telegram-notifications.md) | 23 | 5 |
+| [12 Interface et accès](../../12-interface-et-acces.md) | [12-interface-and-access.md](12-interface-and-access.md) | 24 | 2 |
 | [13 Données sensibles](../../13-donnees-sensibles.md) | [13-sensitive-data.md](13-sensitive-data.md) | 22 | 6 |
 | [14 Exigences transverses](../../14-exigences-transverses.md) | [14-cross-cutting-requirements.md](14-cross-cutting-requirements.md) | 23 | 7 |
 | [90 Journal des décisions](../../90-journal-des-decisions.md) | [90-decision-journal.md](90-decision-journal.md) | 11 | 0 |
-| **Total** | | **362** | **64** |
+| **Total** | | **363** | **66** |
 
 ## Owner review
 
@@ -108,8 +108,10 @@ The app is built as each ruling says. The owner may answer any row differently; 
 | CL-TEL-07 | Once the daily cap is reached, should the day's later messages, urgent ones included, be dropped? | Yes; their facts stay in the app. | They are sent the next day. |
 | CL-TEL-08 | Should an incident's end message wait for the incident recurrence window? | Yes, 6 hours by default. | It leaves at once, possibly before a new outage. |
 | CL-TEL-09 | Should the list of messages Telegram refused to delete be shown once and never kept? | Yes. | A stored list becomes a trace of the withdrawal. |
+| CL-TEL-17 | Should "Stats source format changed" be notified on Telegram like "Stats source unavailable"? | Yes; statistics no longer arrive until the adapter is fixed. | It shows only in the app, until the owner's next visit. |
 | CL-TEL-21 | Should the owner get Telegram alerts for upcoming birthday and first-reunion games? | Yes; nothing after his own birthday change. | No message for these events. |
 | CL-IHM-19 | Should every link to an erased item open the same "This item no longer exists" page? | Yes. | Some causes are explained, at the risk of designating a withdrawn event. |
+| CL-IHM-24 | Should Lot 1 screens show each case's origin, now that a calendar-derived event recorded before its game gives a tracked case? | Yes, as IHM-46 says; only its sentence "in Lot 1 all cases are historical" falls. | As for CL-VUE-13: with every calendar-derived case historical, that sentence holds again. |
 | CL-DSN-04 | Is it acceptable that the withdrawn-events counter counts decisions, so one fact can count twice? | Yes; the page says so. | Each fact needs a trace, against DSN-29. |
 | CL-DSN-07 | Should fingerprints live as long as the backups that may hold the event, possibly beyond eight weeks? | Yes. | They go at eight weeks, even while an older backup holds the event. |
 | CL-DSN-08 | Should fingerprints stay out of backups, so a restore into a new database without the old one cannot re-apply withdrawals? | Yes. | Backups carry fingerprints past their horizon. |
@@ -135,7 +137,7 @@ Each row is an amendment to make to the record or to read into the hypothesis. "
 | Record 0012 | CL-TRV-14, CL-STA-23 | New: at a source replacement, the season in progress is fetched again whole from the new source, consolidated games included (exception to STA-42), as a forced refetch (STA-44) whose differences are traced as corrections; the replacement is a procedure of the service sheet, with no screen of its own. |
 | Record 0013, open point | CL-IMP-07 | Settled as recommended: a citation marker inside a text value gives the warning "possible citation marker in {field}", never a rewrite; in a link the source is dropped; in a limitation, a whole-result warning. |
 | Record 0015, Derivation and measurement; H-SEN-02 and register row SEN-02 | CL-TRV-03, CL-TAX-18, CL-STA-14, CL-SEN-04 | "Local date at the venue" is the game's date in US Eastern time, for calendar-derived types and the other types known in advance alike; no venue time zone is stored. |
-| Record 0015, open point 1 | CL-VUE-13, CL-VUE-14, CL-SUI-14, CL-ALE-13, CL-TEL-21 | Settled as recommended: tracked when derived before the game's scheduled start; alert sheet for active players with no backtest condition; paused players get the tracked case without sheet; never dismissed; a drop before tip-off cancels the sheet and sends an alert update, except after the owner's own change. |
+| Record 0015, open point 1 | CL-VUE-13, CL-VUE-14, CL-SUI-14, CL-ALE-13, CL-TEL-21, CL-IHM-24 | Settled as recommended: tracked when derived before the game's scheduled start, in Lot 1 too, so that IHM-46's « Au lot 1, tous les cas sont historiques » falls; alert sheet for active players with no backtest condition; paused players get the tracked case without sheet; never dismissed; a drop before tip-off cancels the sheet and sends an alert update, except after the owner's own change. |
 | Record 0015, open point 2 | CL-TAX-19, CL-STA-25, CL-SUI-14 | Settled as recommended: regular runs at the end of every statistics update and every collection pass derive the games started since the player's previous run and his next game; full derivations cover started games only; an upcoming event whose game no longer qualifies is dropped before tip-off. |
 | Record 0015, open point 3 | CL-DET-22, CL-TAX-21 | Settled as recommended: the classifier gets a list of the types handled by the calendar; facts reported against it are dropped. |
 | Record 0015, open point 4 | CL-JOU-18, CL-STA-24 | Settled as recommended, plus a birthday-profile mention when the career may start before the first covered season. |
@@ -342,6 +344,7 @@ The glossary (`docs/engineering/glossary.md`) and the rulings now use the same t
 
 - **Queue resumption** (section 9.1, `classification-resume`): the glossary gives "6 hours after the last run that processed the queue"; CL-DET-04 counts the six hours from that run's end and adds two earlier due instants: a provider's known quota reset, and at once, within the quota, when the owner's new attempt or new classification makes an item eligible.
 - **Game tracking** (section 9.1, `game-tracking`): the glossary gives "Chained after each statistics update"; CL-TRV-08 chains it after both statistics tasks when they ingested statistics, and makes it due otherwise only at the expected availability of an awaiting tracked case's statistics.
+- **Incident kinds** (section 9.2): CL-TEL-17 now gives the full list of what is notified: every incident kind, `stats_source_schema_changed` and `logins_refused` included, except `telegram_link_broken`, which shows only in the app (TEL-37); the silent-source warning and the export reminder; the three warnings the glossary marks "not notified" stay so.
 - **"Add a collection time"** (section 11, point 1): settled by CL-COL-24 as the glossary's provisional reading — the warning closes at the first later read of the source that records no gap.
 - **Correction history** (row « historique des corrections »): the glossary says "never the old value of a description"; CL-DSN-15 keeps the values before and after of structured fields for detected and calendar-derived events, and, as IMP-32 says, no old value at all for a historical event.
 - **New labels and sentences** the glossary does not hold yet: the mention that a BKT-05 proposal waits for the player's request to do (CL-BKT-26); the recovery notice and the save label of a recovered cut result (CL-IMP-18); "player directory" and the add-player screen's "directory still loading" state (CL-STA-29); the Help screen's documentation link and its offline sentence (CL-IHM-09); the read-only mention of a parameter edited in another section (CL-IHM-23); the withdrawal confirmation's sentence on a discarded import draft (CL-DSN-22).
