@@ -1,0 +1,55 @@
+# Secret scanning with gitleaks, which the gitleaks job of .github/workflows/security.yml
+# runs over every commit of the history. The default rules apply, plus the rules below
+# for the deployment secrets of this application that the default rules miss (TRV-64).
+# Before each scan, the job proves on fresh fake values that every deployment secret is
+# caught; a change to a rule changes what that proof expects.
+
+title = "Egoscope secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "postgres-connection-string"
+description = "A Postgres connection string with a password, such as DATABASE_URL or DATABASE_URL_UNPOOLED, in its user information or in a password parameter."
+regex = '''(?i)\bpostgres(?:ql)?://(?:[a-z0-9._~%!$&'()*+,;=-]*:([a-z0-9._~%!$&'()*+,;=:-]+)@|[^\s"'\x60]*[?&]password=([^\s&#"'\x60]+))'''
+keywords = ["postgres"]
+
+[[rules]]
+id = "telegram-bot-token"
+description = "A Telegram bot token wherever it appears, as in a Bot API address; the default rule finds it only next to a name that contains telegram."
+regex = '''(?m)(?:^|[^0-9\n])([0-9]{5,16}:A[A-Za-z0-9_-]{34})(?:[^A-Za-z0-9_-]|$)'''
+keywords = [":a"]
+
+[[rules]]
+id = "cloudflare-api-token"
+description = "A Cloudflare user or account API token in the prefixed format of 2026, which the default rule, written for the former 40-character format, misses."
+regex = '''\b(cf[ua]t_[A-Za-z0-9]{40}[a-f0-9]{8})\b'''
+keywords = ["cfut_", "cfat_"]
+
+[[rules]]
+id = "groq-api-key"
+description = "A Groq API key, which no default rule knows."
+regex = '''\b(gsk_[A-Za-z0-9]{52})\b'''
+keywords = ["gsk_"]
+
+[[rules]]
+id = "generated-secret"
+description = "A 32-byte secret that the owner generates (43 base64url characters, or 43 base64 characters and one equals sign), where an assignment names it."
+regex = '''(?i)[\w.-]{0,50}?(?:cron_secret|telegram_webhook_secret|fingerprint_key|backup_encryption_key)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([a-z0-9+/_-]{43}=?)(?:[\x60'"\s;]|\\[nr]|$)'''
+keywords = ["cron_secret", "telegram_webhook_secret", "fingerprint_key", "backup_encryption_key"]
+
+[[rules]]
+id = "initial-password"
+description = "The initial password of the owner's account, where an environment line or a quoted string assigns it; the default generic rule misses passwords with symbols such as ! or #, and passwords of letters only."
+regex = '''(?im)^[ \t]*(?:export[ \t]+)?\w*initial_password[ \t]*=[ \t]*["']?([^\r\n]{12,}?)["']?[ \t]*$|initial_password\w*["'\x60]?[ \t]*(?::|=>?|,)[ \t]*(?:"([^"\r\n]{12,})"|'([^'\r\n]{12,})')'''
+keywords = ["initial_password"]
+
+# Allow-list: exact dummy values of .env.example and of test fixtures only, never a
+# path or a pattern, since recorded answers of real services are scanned like code.
+# Add one table per value, saying why the value is a harmless dummy:
+#
+#   [[allowlists]]
+#   description = "<why this value is fake, and where it is used>"
+#   targetRules = ["<the rule that reports it>"]
+#   regexes = ['''^<the secret that the finding reports, regex-escaped>$''']
