@@ -865,6 +865,27 @@ const composed = defineConfig(
     },
   },
 
+  // --- Time (CLAUDE.md, "Time") ---------------------------------------------------
+  {
+    // Only src/lib/time reads the clock and parses dates. The lock wrapper still
+    // times its waits with Date.now(): issue #10 rewrites both of its files, which
+    // join this rule once they read the clock of @/lib/time.
+    name: 'egoscope/ambient-time',
+    files: [...SRC_FILES, ...SCRIPT_FILES, ...E2E_FILES],
+    ignores: ['src/lib/time/**', 'scripts/with-lock.ts', 'scripts/with-lock.test.ts'],
+    rules: {
+      'egoscope/no-ambient-time': 'error',
+    },
+  },
+  {
+    // The server and the owner's devices do not share a default locale.
+    name: 'egoscope/default-locale',
+    files: [...SRC_FILES, ...SCRIPT_FILES, ...E2E_FILES],
+    rules: {
+      'egoscope/no-default-locale': 'error',
+    },
+  },
+
   {
     // Coverage leaves route shells out (scripts/route-shells.ts), so lint keeps them
     // thin: SHELL_SYNTAX refuses loops, top-level helpers and stray exports, and

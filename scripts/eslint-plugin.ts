@@ -10,6 +10,8 @@
  *   absolute instant. Methods that read or write local time, string conversions
  *   that print it, and constructors that parse strings or take local calendar
  *   fields all depend on the machine's time zone. The UTC methods stay allowed.
+ * - `no-ambient-time` and `no-default-locale`, in eslint-time-rules.ts: the
+ *   clock, date parsing and default locales, whose results depend on the machine.
  */
 import {
   AST_NODE_TYPES,
@@ -18,6 +20,8 @@ import {
   ESLintUtils,
   TSESLint,
 } from '@typescript-eslint/utils';
+
+import { noAmbientTime, noDefaultLocale } from './eslint-time-rules';
 
 import type { TSESTree } from '@typescript-eslint/utils';
 import type { ESLint } from 'eslint';
@@ -357,7 +361,9 @@ const noLocalTime = createRule({
 });
 
 const rules = {
+  'no-ambient-time': noAmbientTime,
   'no-coverage-hints': noCoverageHints,
+  'no-default-locale': noDefaultLocale,
   'no-local-time': noLocalTime,
   'no-skipped-tests': noSkippedTests,
   'no-tool-pragmas': noToolPragmas,

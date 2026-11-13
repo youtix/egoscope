@@ -69,6 +69,19 @@ gives no difference.
 - Next.js 16.4 is newer than your training data: read the matching guide in
   `node_modules/next/dist/docs/` before writing Next.js code. Cache Components is enabled.
 
+## Time
+
+- Only `@/lib/time` reads the clock, parses dates and converts time zones. Take the instant from
+  `now()`; lint refuses `Date.now()`, `new Date()`, `Date()`, `Date.parse`, `new Date(string)`,
+  `new Date(year, month, …)` and `Temporal.Now` elsewhere in `src/`, `scripts/` and `e2e/`. With
+  Cache Components, a Server Component defers to request time (`await connection()`) before `now()`.
+- An instant is an `EpochMs`, a calendar date an `IsoDate`, and every day names its zone: the
+  owner's day (`userDay`, in the `display.timeZone` setting the caller passes in, never a fixed
+  Paris) for tasks and displays, a game's day (`gameDay`, its US Eastern date) for games.
+- Tests set the time with `fixedClock` and `installFakeClock`, and restore the clock afterwards.
+- People read dates through the `time` formatters, machines in ISO 8601. Nowhere does code call
+  `toLocale*`, `localeCompare` or an `Intl` constructor without an explicit locale.
+
 ## Tests
 
 - A test sits beside the file it tests: `foo.test.ts` next to `foo.ts`. Component tests are
