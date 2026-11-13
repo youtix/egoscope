@@ -61,9 +61,9 @@ bun run dev                  # http://localhost:3000
 `check:changed` runs Prettier, ESLint, markdownlint and the structure check on the files that
 differ from `origin/main` (committed, staged, unstaged or untracked; deletions and renames count),
 type-checks the whole project incrementally, then runs the tests related to the changed files, or
-all of them when tooling changed or a source file was deleted or renamed. It refuses a change to a
-frozen French specification unless `docs/frozen-specs.sha256` changes with it, and it stops at the
-first failing step. CI runs the full gate on every push.
+all of them when tooling changed or a source file was deleted or renamed. It refuses any change to
+the frozen French specifications, and it stops at the first failing step. CI runs the full gate on
+every push.
 
 Several agents may share one machine, so the heavy scripts (`build`, `typecheck`, `lint`,
 `lint:fix`, `test`, `test:coverage`, `knip`, `check:changed` and `gate`) take turns on one lock that

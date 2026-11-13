@@ -20,7 +20,8 @@ export const FROZEN_MANIFEST = 'docs/frozen-specs.sha256';
 // The French specifications are the Markdown files directly inside docs/.
 const FROZEN_SPEC = /^docs\/[^/]+\.md$/u;
 const MANIFEST_LINE = /^(?<hash>[0-9a-f]{64}) {2}(?<file>\S+)$/u;
-const FROZEN_HELP = `A deliberate change to the specifications updates ${FROZEN_MANIFEST} in the same pull request.`;
+/** What to do about a changed French specification; it tells no way around the rule. */
+export const FROZEN_HELP = `The French specifications are frozen: an agent never edits them, so revert the change. Only the coordinator updates ${FROZEN_MANIFEST}, when the owner changes a specification.`;
 
 /** Says whether `file` is one of the frozen French specifications. */
 export function isFrozenSpec(file: string): boolean {
@@ -66,7 +67,8 @@ export function checkFrozenSpecs(
     .filter(([file]) => !listed.has(file))
     .map(([file]) => ({
       path: file,
-      problem: `docs/ holds only the frozen French specifications: put English documents in docs/engineering/ or docs/adr/. ${FROZEN_HELP}`,
+      problem:
+        'docs/ holds only the frozen French specifications: put English documents in docs/engineering/ or docs/adr/.',
     }));
   return [...malformed, ...changed, ...unlisted];
 }

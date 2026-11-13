@@ -7,6 +7,7 @@
 import { spawnSync } from 'node:child_process';
 
 import { describeFiles, parseNameStatus, planCheck, stepsFor, testStep } from './changed-files';
+import { FROZEN_HELP } from './content-rules';
 import { isIgnoredPath } from './ignored-folders';
 
 import type { Change, CheckPlan, Step } from './changed-files';
@@ -66,9 +67,7 @@ function stopEarly(plan: CheckPlan): number | undefined {
     return 0;
   }
   if (plan.frozen.length > 0) {
-    console.error(
-      `✖ check:changed: the frozen French specifications changed (${describeFiles(plan.frozen)}). Revert them, or, if the change is deliberate, update docs/frozen-specs.sha256 in the same PR.`,
-    );
+    console.error(`✖ check:changed: ${describeFiles(plan.frozen)} changed. ${FROZEN_HELP}`);
     return 1;
   }
   return undefined;

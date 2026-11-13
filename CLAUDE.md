@@ -6,8 +6,8 @@ These rules hold for every change. README.md has the overview, the stack and the
 
 - The French functional specifications in `docs/*.md` are the authoritative reference. Never edit,
   move or reformat them. When they disagree, `docs/90-journal-des-decisions.md` wins. They are
-  checksummed in `docs/frozen-specs.sha256`: a deliberate change updates that manifest in the same
-  PR, where the reviewer sees it.
+  checksummed in `docs/frozen-specs.sha256`, which only the coordinator updates, when the owner
+  changes a specification.
 - Cite requirement IDs exactly as the specs write them: requirements `JOU-04`, acceptance criteria
   `CA-TRV-12`, journal entries `D-07`, `H-13`, `Q-04`, local hypotheses `H-STA-03`.
 - Owner decisions override the specs where they conflict. Above all, everything is in English,

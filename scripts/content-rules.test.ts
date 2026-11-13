@@ -63,6 +63,17 @@ describe('checkFrozenSpecs', () => {
     );
   });
 
+  it('says that an agent reverts the change, without teaching how to make it pass', () => {
+    const changed = new Map([...ACTUAL, ['docs/00-vue-d-ensemble.md', HASH_B]]);
+    const message = problems(checkFrozenSpecs(MANIFEST, changed));
+
+    expect(message).toContain('an agent never edits them, so revert the change');
+    expect(message).toContain(
+      'Only the coordinator updates docs/frozen-specs.sha256, when the owner changes a specification.',
+    );
+    expect(message).not.toContain('in the same pull request');
+  });
+
   it('rejects a deleted specification', () => {
     const deleted = new Map([['docs/README.md', HASH_B]]);
 
