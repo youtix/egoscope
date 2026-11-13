@@ -17,6 +17,7 @@ import {
   pragmaViolations,
   unguardedJobs,
 } from './content-rules';
+import { isGeneratedPath } from './generated-files';
 import { isIgnoredPath } from './ignored-folders';
 import { findStructureViolations } from './structure-rules';
 
@@ -60,7 +61,7 @@ const violations = [
     .filter((path) => path.endsWith('.md') && !isFrozenSpec(path))
     .flatMap((path) => brokenLinks(path, read(path), files)),
   ...paths
-    .filter((path) => hasCommentSyntax(path) && !isFrozenSpec(path))
+    .filter((path) => hasCommentSyntax(path) && !isFrozenSpec(path) && !isGeneratedPath(path))
     .flatMap((path) => pragmaViolations(path, read(path))),
   ...(files.has(WORKFLOW)
     ? unguardedJobs(WORKFLOW, read(WORKFLOW))

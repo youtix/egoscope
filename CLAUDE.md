@@ -46,6 +46,13 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
    `[playerId]` excepted). No default exports except where Next.js requires one. No enums: use
    `as const` objects or unions of literals.
 
+Files that a tool generates and the repository commits, such as the drizzle-kit migrations in
+`drizzle/`, live only in the folders listed in `scripts/generated-files.ts`. There, and nowhere
+else, they are exempt from the naming rule, ESLint, knip, Prettier and markdownlint, and counted in
+no coverage; a folder joins the list only by a change to that module. Never edit a generated file
+by hand: regenerate it. The task that adds a generator also adds the CI check that regenerating
+gives no difference.
+
 ## Code
 
 - Expected failures are values: return `{ ok: true, ... } | { ok: false, error }`. `throw` is for

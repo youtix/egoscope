@@ -7,3 +7,6 @@
 /docs/*.md
 
 bun.lock
+
+# Files that a tool generates, never edited by hand (scripts/generated-files.ts).
+/drizzle/

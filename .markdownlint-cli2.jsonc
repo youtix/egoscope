@@ -10,8 +10,9 @@
     // The pull request template starts below the title GitHub already shows.
     "MD041": false,
   },
-  // .claude/ holds the other agents' worktrees (scripts/ignored-folders.ts).
-  "ignores": ["docs/*.md", ".claude/**"],
+  // .claude/ holds the other agents' worktrees (scripts/ignored-folders.ts), and
+  // drizzle/ files that a tool generates (scripts/generated-files.ts).
+  "ignores": ["docs/*.md", ".claude/**", "drizzle/**"],
   // markdownlint obeys no inline configuration comment, which the structure check
   // refuses too.
   "noInlineConfig": true,

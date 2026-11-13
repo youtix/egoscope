@@ -137,6 +137,15 @@ describe('planCheck', () => {
     ]);
   });
 
+  it('leaves generated files to their generator', () => {
+    const plan = planCheck(
+      present('drizzle/0000_bright_ironclad.sql', 'drizzle/meta/_journal.json', 'README.md'),
+    );
+
+    expect(plan.files).toStrictEqual(['README.md']);
+    expect(plan.changed).toBe(true);
+  });
+
   it('lists each file once', () => {
     expect(planCheck(present('src/app/page.tsx', 'src/app/page.tsx')).files).toStrictEqual([
       'src/app/page.tsx',

@@ -34,6 +34,7 @@ import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 
 import { egoscopePlugin } from './scripts/eslint-plugin';
+import { GENERATED_FOLDERS } from './scripts/generated-files';
 import { IGNORED_FOLDERS } from './scripts/ignored-folders';
 import { ROUTE_SHELLS, SHELL_KINDS } from './scripts/route-shells';
 
@@ -478,6 +479,8 @@ const UNDISABLEABLE_RULES = [
 const composed = defineConfig(
   globalIgnores([
     ...IGNORED_FOLDERS,
+    // Generated files are never edited by hand: their generator answers for them.
+    ...GENERATED_FOLDERS,
     '.next/',
     '.vitest/',
     'coverage/',

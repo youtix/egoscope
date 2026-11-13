@@ -3,6 +3,7 @@ import path from 'node:path';
 import { configDefaults, defineConfig } from 'vitest/config';
 
 // The extensions let Vite's native config loader, Node itself, import the files.
+import { GENERATED_FOLDERS } from './scripts/generated-files.ts';
 import { IGNORED_FOLDERS } from './scripts/ignored-folders.ts';
 import { ROUTE_SHELLS } from './scripts/route-shells.ts';
 
@@ -53,8 +54,14 @@ const config: ViteUserConfig = defineConfig({
       provider: 'v8',
       // Listing every source file makes untested files count as uncovered.
       include: ['src/**/*.{ts,tsx,mts,cts}'],
-      // Route shells are left out: scripts/route-shells.ts says which, and why.
-      exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.d.ts', ...ROUTE_SHELLS],
+      // Route shells are left out (scripts/route-shells.ts says which, and why), and
+      // so are generated files (scripts/generated-files.ts).
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/**/*.d.ts',
+        ...ROUTE_SHELLS,
+        ...GENERATED_FOLDERS.map((folder) => `${folder}**`),
+      ],
       reporter: ['text', 'html', 'json-summary'],
       thresholds: {
         // Never lower these: add the missing tests instead.

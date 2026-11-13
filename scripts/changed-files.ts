@@ -4,6 +4,7 @@
  * rename counts as a change.
  */
 import { FROZEN_MANIFEST, isFrozenSpec } from './content-rules';
+import { isGeneratedPath } from './generated-files';
 
 /** One changed path: present in the working tree, or removed (deleted, or renamed away). */
 export type Change = Readonly<{ path: string; removed: boolean }>;
@@ -75,7 +76,8 @@ export function planCheck(changes: readonly Change[]): CheckPlan {
   ].toSorted(byPath);
   const all = [...new Set([...present, ...removed])].toSorted(byPath);
   const hasManifestChanged = all.includes(FROZEN_MANIFEST);
-  const files = present.filter((file) => !isFrozenSpec(file));
+  // Generated files answer to their generator, not to Prettier, ESLint or markdownlint.
+  const files = present.filter((file) => !isFrozenSpec(file) && !isGeneratedPath(file));
   return {
     changed: all.length > 0,
     files,

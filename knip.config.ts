@@ -1,3 +1,4 @@
+import { GENERATED_FOLDERS } from './scripts/generated-files';
 import { IGNORED_FOLDERS } from './scripts/ignored-folders';
 
 import type { KnipConfig } from 'knip';
@@ -14,8 +15,12 @@ const config: KnipConfig = {
     // Started through scripts/with-lock.ts, where Knip does not look for entries.
     'scripts/check-changed.ts',
   ],
-  // The other agents' worktrees are not part of this project.
-  project: ['**/*.{ts,tsx,mts,cts,css}', ...IGNORED_FOLDERS.map((folder) => `!${folder}**`)],
+  // The other agents' worktrees are not part of this project, and generated files
+  // answer to their generator.
+  project: [
+    '**/*.{ts,tsx,mts,cts,css}',
+    ...[...IGNORED_FOLDERS, ...GENERATED_FOLDERS].map((folder) => `!${folder}**`),
+  ],
   // A system tool from util-linux, not an npm package.
   ignoreBinaries: ['flock'],
 };

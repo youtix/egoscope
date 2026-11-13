@@ -3,6 +3,7 @@
  * repository: module rules 2, 5 and 6 of CLAUDE.md, the code/data split, and
  * the TypeScript extensions that every tool understands.
  */
+import { isGeneratedPath } from './generated-files';
 
 export type StructureViolation = Readonly<{ path: string; problem: string }>;
 
@@ -72,7 +73,8 @@ const checkRouteFolders: Check = (path) =>
 
 const checkNames: Check = (path) => {
   const segments = path.split('/');
-  if (!NAMED_TREES.has(segments[0] ?? '')) {
+  // A generator names its own files (scripts/generated-files.ts).
+  if (!NAMED_TREES.has(segments[0] ?? '') || isGeneratedPath(path)) {
     return [];
   }
   const fileName = segments.at(-1) ?? '';
