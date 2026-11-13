@@ -19,7 +19,7 @@ import {
 } from '@typescript-eslint/utils';
 
 import { noAmbientTime, noDefaultLocale, noLocalTime } from './eslint-time-rules';
-import { vitestFunction } from './vitest-names';
+import { vitestNames } from './vitest-names';
 
 import type { TSESTree } from '@typescript-eslint/utils';
 import type { ESLint } from 'eslint';
@@ -204,7 +204,7 @@ function isTestContext(scope: TSESLint.Scope.Scope, node: TSESTree.Identifier): 
   return (
     definition?.type === TSESLint.Scope.DefinitionType.Parameter &&
     owner?.type === AST_NODE_TYPES.CallExpression &&
-    CONTEXT_OWNERS.has(vitestFunction(owner.callee, scope) ?? '')
+    vitestNames(owner.callee, scope).some((name) => CONTEXT_OWNERS.has(name))
   );
 }
 
@@ -226,7 +226,7 @@ function vitestSkippingMember(
   return callee.type === AST_NODE_TYPES.MemberExpression &&
     callee.property.type === AST_NODE_TYPES.Identifier &&
     SKIPPING_CALLS.has(callee.property.name) &&
-    VITEST_OBJECTS.has(vitestFunction(callee.object, scope) ?? '')
+    vitestNames(callee.object, scope).some((name) => VITEST_OBJECTS.has(name))
     ? callee.property.name
     : undefined;
 }
