@@ -20,6 +20,14 @@ These rules hold for every change. README.md has the overview, the stack and the
 - No real NBA player names anywhere, fixtures included: invent players. No personal names or email
   addresses.
 
+## Reference documents
+
+[`docs/engineering/README.md`](docs/engineering/README.md) lists them in reading order. Precedence:
+
+The specs decide behavior; a ruling outranks a reading of a spec. The glossary owns terms, labels
+and the stored values it lists; the data model, tables, columns and the other stored values (showing
+one adds its glossary label); the module map, module names, routes, parameter keys and task keys.
+
 ## Layout and module rules
 
 Page-specific code sits flat in `src/app/<route>/`. Shared code, and code that belongs to no page
