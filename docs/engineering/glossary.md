@@ -36,7 +36,7 @@ The functional specifications in `docs/` are written in French and stay the refe
 
 **Identifiers with a fixed shape.**
 
-- Event-type identifiers are kebab-case slugs, immutable once given (TAX-02, section 5). A type created later gets its slug from its English name: Unicode NFKD, diacritics removed, lowercase, every run of other characters than a–z and 0–9 replaced by one hyphen, no leading or trailing hyphen, cut at a hyphen to at most 40 characters, then `-2`, `-3`… if already used (CL-TAX-02).
+- Event-type identifiers are kebab-case slugs, immutable once given (TAX-02, section 5). A type created later gets its slug from its English name: Unicode NFKD, diacritics removed, lowercase, every run of other characters than a–z and 0–9 replaced by one hyphen, no leading or trailing hyphen, cut at a hyphen to at most 40 characters, then `-2`, `-3`… if already used by a type in any state or by a fixed route segment under `/types`, today `merge` and `explore` (a type named "Merge" gets `merge-2`, CL-TAX-02).
 - Route segments, module names, scheduled-task keys and parameter keys are the module map's (its sections 3, 2, 4 and 6); this file never renames them. Incident kinds and outbox fact kinds are enumeration values of this file (sections 4 and 9).
 - The human-readable backtest-request reference is `REQ-YYYY-NNNN` (the specs' indicative « DEM-2026-0007 » becomes `REQ-2026-0007`, BKT-12).
 
@@ -508,6 +508,7 @@ Decisions:
 | consolidé | consolidated | `consolidated` | Consolidated | Game past its correction window; never re-requested. | STA-33, STA-42 |
 | journal des corrections | stats correction journal | `StatCorrection` | Corrections | Every changed element with old and new values; a store separate from the events' correction history (CL-STA-26). | STA-33, STA-34, CL-STA-26 |
 | — (term of the league and the stats source) | game log | `gameLog` | — | A player's games with his box-score lines, as the NBA and the stats source call it; the map's read keeps the name, which is no « journal ». | STA-08, STA-46 |
+| — (CL-STA-29) | player directory | table `player_directory_entries` | Player directory | The players the stats source lists for a season, with names, teams and seasons; every covered season read once at installation, the current one at each daily update; candidate search runs on it. | CL-STA-29, JOU-10, STA-03 |
 | équipe, équipe NBA | team | `Team`; key `teamId` | Team | One NBA franchise, identified by the stats source's stable team identifier; every stored team is an NBA team, so the code says `Team`. | STA-05, CL-JOU-18 |
 | relance manuelle, forcer la récupération | manual refetch | `refetch()` | Refetch | Owner forces fetching a game, a season or a career; uses quota. | STA-34, STA-44 |
 | file de récupération | fetch queue | `FetchQueueItem` | — | Pending source requests with priority (1 to 5), attempts and waiting reason. | STA-36, STA-40 |
@@ -685,7 +686,7 @@ Decisions:
 | décompte d'exposition | exposure count | `ExposureCount` | — | Per player and day, articles citing him; feeds the exposure indicator. | DET-57, JOU-03 |
 | file d'attente (de classification), file d'attente de classification, file, élément de la file | classification queue, queue item | `ClassificationQueueItem`; route `/collection/queue` | Classification queue | Articles waiting for the model, in priority order within quota; empty when no item has a pending part without "classification failed". | DET-08, DET-09, CL-DET-04 |
 | horizon de priorité | priority horizon | `detection.priorityHorizonHours` | — | Parameter ordering the queue by next game. | DET-09 |
-| reprise de la file, tâche de reprise | queue resumption | task `classification-resume` | — | Due 6 h after the end of the last run that processed the queue, or at the provider's quota reset when that comes first, while an item is eligible; an owner's retry or reclassification makes it due at once. | DET-10, CL-DET-04 |
+| reprise de la file, tâche de reprise | queue resumption | task `classification-resume` | — | While an item is eligible, due 6 h after the end of the last run that processed the queue, earlier at the provider's known quota reset when that run stopped for quota, and at once, within the quota, when the owner's new attempt or new classification makes an item eligible. | DET-10, CL-DET-04 |
 | quota, palier gratuit | quota, free tier | — | Quota | Limits of the free language-model service. | DET-08, TRV-03 |
 | incident « quota atteint » (classification) | quota reached | `quota_reached` | Quota reached | Opened or kept open when a run stops at a call refused for quota, refused before the declared limit or not answered, with items left; the message names the cause (section 9.2); closes at the end of the first run after which the queue is empty. | DET-11, CL-DET-04 |
 | modèle, modèle de langage | language model | — | Language model | Free model that classifies articles; designated by its function only. | DET-08, TRV-09 |
@@ -800,7 +801,7 @@ Decisions:
 | French | English | Code | UI label | Meaning | IDs |
 | --- | --- | --- | --- | --- | --- |
 | suivi automatique | automatic tracking | — | — | Lot 2: every detected event's case is followed to its measurement without any action. | SUI-01–SUI-30 |
-| suivi du match, suivi des matchs | game tracking | task `game-tracking` | — | Chained after each stats update: measure the pending tracked cases. | SUI-12, TRV-25 |
+| suivi du match, suivi des matchs | game tracking | task `game-tracking` | — | Reads what the statistics runs, the calendar derivation and the recalculation changed for Lot 2 and measures the pending tracked cases (section 9.1). | SUI-12, TRV-25, CL-TRV-08 |
 | cas suivi | tracked case | `Case` with origin `tracked` | Tracked case | Case born from a detected event, or from a calendar-derived event created before its game's scheduled start (always recorded in time). | SUI-01, SUI-05, CL-VUE-13, CL-SUI-14 |
 | instant de création | creation instant | `createdAt` | Created | Fixed at creation; compared with the measured game's scheduled start. | SUI-01, SUI-06 |
 | enregistrement à temps | recording timing | `RecordingTiming` | — | recorded in time or recorded after tip-off. | SUI-06 |
@@ -862,6 +863,7 @@ Decisions:
 | relier, relier la conversation, « Relier Telegram » | link, link Telegram | `linkTelegram()` | Link Telegram | Produces a one-time code carried by "Open Telegram". | TEL-29 |
 | délier, « Délier » | unlink | `unlinkTelegram()` | Unlink | Stops all sending. | TEL-30 |
 | état de la liaison | link status | `TelegramLinkStatus` | Status | not linked, awaiting confirmation, linked, broken. | TEL-32 |
+| — (Lot 2 model) | inbound mode | `TelegramInboundMode` | Updates from Telegram | How Telegram updates reach the app, direct (webhook) or by a periodic check (polling); set by the installation check, shown on the status screen (section 4). | TEL-29, TEL-30 |
 | rompue | broken | `broken` | Broken | Permanent send failure; relinking required; shown on Home and in the to-do list. | TEL-37 |
 | code à usage unique, code de liaison | one-time link code | `linkCode` | — | Valid 15 minutes; refused if expired, used or unknown. | TEL-29, TEL-31 |
 | « Ouvrir Telegram », « Démarrer » | Open Telegram, Start | — | Open Telegram; Start | The app button, then Telegram's own button. | TEL-29 |
@@ -925,7 +927,7 @@ Decisions:
 | État de l'application | App status | route `/status` | App status | Tasks, services, quotas, volume, backups, pending items, incidents. | IHM-70, TRV-46 |
 | Journal d'activité | Activity journal | route `/journal` | Activity journal | — | IHM-38, TRV-41 |
 | Méthode et limites, page « Méthode et limites » | Method and limits | route `/method` | Method and limits | Hypothesis, known limits, caution notes, withdrawn-events counter. | VUE-09, IHM-69 |
-| Aide | Help | route `/help` | Help | — | IHM-16, IHM-53 |
+| Aide | Help | route `/help` | Help | Installing the app, glossary, reopening the getting-started guide, the documentation link (opens outside the app), version. | IHM-16, IHM-53, CL-IHM-09 |
 | Événements détectés | Detected events | route `/detected-events` | Detected events | Lot 2. | IHM-16, IHM-32 |
 | Tableau de validation | Validation table | route `/validation` | Validation table | Lot 2. | IHM-16, IHM-35 |
 | Collecte et détection | Collection and detection | route `/collection` | Collection and detection | Lot 2: hub to press sources, runs, queue, not-relevant articles, detection journal and model instructions. | IHM-71 |
@@ -2169,6 +2171,13 @@ Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the
 | reliée | `linked` | Linked since {date} |
 | rompue | `broken` | Broken |
 
+`TelegramInboundMode` — TEL-29, TEL-30 (how Telegram updates reach the app; shown on the status screen)
+
+| French | Code value | UI label |
+| --- | --- | --- |
+| — (Lot 2 model) | `webhook` | Direct (webhook) |
+| — (Lot 2 model) | `polling` | Periodic check (polling) |
+
 `NotificationMessageStatus` — TEL-33
 
 | French | Code value | UI label |
@@ -2888,6 +2897,7 @@ Wording the specs quote and require as written. The English is the approved text
 | possible, à la hausse / possible, à la baisse | possible, increase / possible, decrease | 08 example, 10 example |
 | cas historiques seuls | historical cases only | SUI-08, SEN-21 |
 | 7 cas valides : 5 historiques, 2 suivis | 7 valid cases: 5 historical, 2 tracked | IHM-46 |
+| — (CL-IHM-24, tous les cas historiques) | 7 valid cases: 7 historical | IHM-46, CL-IHM-24 |
 | 3 profils “probable” sur 41 | 3 "probable" profiles of 41 | IHM-49 |
 | en attente de statistiques | awaiting statistics | 12 edge cases |
 | recalcul en cours | recalculation in progress | SEN-36, ALE edge cases |
@@ -2998,7 +3008,7 @@ Wording the specs quote and require as written. The English is the approved text
 | N événements refusés manqueront au backtest tant qu'ils n'auront pas été corrigés et réimportés | N refused events will be missing from the backtest until they are corrected and imported again | IMP-24 |
 | — (résultat coupé, récupération proposée) | The answer stops during event {n}. {k} complete events can be recovered: the covered period then ends on {date}, and the leads and limitations are lost. To get the rest instead, copy the correction message for the AI. | IMP-05, CL-IMP-18, CL-IMP-04 |
 | — (bouton d'enregistrement d'une récupération) | Save {k} recovered events | IMP-05, CL-IMP-18 |
-| — (complément en attente de la demande à faire) | Available once the current request is imported or canceled. | BKT-05, BKT-07 |
+| — (complément en attente de la demande à faire) | Available once the current request is imported or canceled. | BKT-05, BKT-07, CL-BKT-26 |
 | aucun événement nouveau | no new event | 06 edge cases |
 | vers le 12e événement | around event 12 | IMP-04 |
 | (texte trop volumineux) | The pasted text is {size} MB, over the {limit} MB limit. | IMP-02, CL-IMP-27 |
@@ -3051,7 +3061,7 @@ Expected correction per refusal reason (`ImportRefusalReason`, section 4):
 | échéance proche | deadline soon | IHM-20 |
 | incidents masqués | hidden incidents | IHM-20 |
 | Ajouter un joueur | Add a player | IHM-54 |
-| — (annuaire des joueurs en cours de chargement) | The stats source's player directory is still loading. Candidates appear once it is ready. | IHM-66, JOU-10, STA-03 |
+| — (annuaire des joueurs en cours de chargement) | The stats source's player directory is still loading. Candidates appear once it is ready. | IHM-66, JOU-10, STA-03, CL-STA-29 |
 | Explorer de nouveaux types | Explore new types | IHM-31 |
 | aucun type validé | no validated type | IHM-55 |
 | la détection ne peut pas fonctionner | detection cannot work | IHM-55 |
@@ -3060,10 +3070,12 @@ Expected correction per refusal reason (`ImportRefusalReason`, section 4):
 | Écarter / Réintégrer | Dismiss / Reinstate | IHM-32 |
 | Retirer (un joueur, un type, une source) | Withdraw | JOU-19, TAX-31, COL-10 |
 | Retirer (un événement) ; bouton de l'écran de retrait | Withdraw and erase | IHM-67, IHM-68, CL-VUE-04 |
-| — (confirmation du retrait, brouillon d'import du joueur) | The import draft in progress for {player} will be discarded. | DSN-27, DSN-32 |
-| — (écran de retrait, copie du brouillon sur un appareil) | A device keeps its copy of that draft until it next connects, and at most until the draft expires. | DSN-32, IHM-42 |
+| — (confirmation du retrait, brouillon d'import du joueur) | The import draft in progress for {player} will be discarded. | DSN-27, DSN-32, CL-DSN-22 |
+| — (écran de retrait, copie du brouillon sur un appareil) | A device keeps its copy of that draft until it next connects, and at most until the draft expires. | DSN-32, IHM-42, CL-DSN-22, CL-DSN-19 |
 | Rétablir la valeur par défaut | Restore default | IHM-37 |
-| — (paramètre réglé sur un autre écran) | Change it in {screen} | IHM-37, TRV-34 |
+| — (paramètre réglé dans une autre rubrique) | Read only here — change it in {section} | IHM-37, TRV-34, CL-IHM-23 |
+| — (Aide, lien vers la documentation) | Documentation (opens outside the app) | TRV-79, CL-IHM-09 |
+| — (Aide, hors connexion) | The documentation link needs a connection. | CL-IHM-09 |
 | tous les profils seront recalculés | all profiles will be recalculated | IHM-37 |
 | tout afficher | show all | IHM-27 |
 | Choisir votre mot de passe | Choose your password | IHM-06 |
@@ -3243,32 +3255,32 @@ The keys are the module map's (`docs/engineering/module-map.md`, section 4); thi
 | `backup` | Backup | sauvegarde | 1 | Every Monday at 05:00. | 14, TRV-50 |
 | `news-collection` | News collection | collecte des actualités | 2 | Every day at 16:30 and 23:00 Paris time (record 0019, CL-TRV-09); on demand. | 03, COL-12 |
 | `detection` | Event detection | détection | 2 | Chained after each collection, in the same pass. | 04, COL-16 |
-| `classification-resume` | Classification queue resumption | reprise de la file de classification | 2 | 6 hours after the end of the last run that processed the queue, or at the provider's quota reset when that comes first, while an item is eligible; an owner's retry or reclassification makes it due at once (CL-DET-04). | 04, DET-10 |
-| `game-tracking` | Game tracking | suivi des matchs des événements détectés | 2 | Chained after each statistics update; forecasts frozen at tip-off. | 10, SUI-12 |
+| `classification-resume` | Classification queue resumption | reprise de la file de classification | 2 | While an item is eligible: 6 hours after the end of the last run that processed the queue, pass or resume; earlier at the provider's known quota reset when that run stopped for quota; at once, as an on-demand run within the quota, when the owner's new attempt or new classification makes an item eligible (CL-DET-04). | 04, DET-10 |
+| `game-tracking` | Game tracking | suivi des matchs des événements détectés | 2 | Chained after the statistics update and the pending statistics fetch resumption when they ingested something, and after each run of the calendar derivation and of the recalculation; otherwise due only at the expected availability of an awaiting tracked case's statistics (its game's scheduled start plus 3 h), never a query at each wake-up; forecasts frozen at tip-off (CL-TRV-08). | 10, SUI-12 |
 | `notification-dispatch` | Notification sending | envoi des notifications différées, des rappels avant échéance et des nouvelles tentatives d'envoi | 2 | At the end of each pass and at every wake-up. | 11 |
 
 A run's result is one of `TaskRunResult` (section 4); "running" is a run without a result yet. A postponement (TRV-28) and a missed run (TRV-31) are journal entries, not results. The run check (« contrôle des exécutions », TRV-31) is not a task: it runs at the end of every database pass and at each app opening (CL-TRV-08; module map section 4).
 
 ### 9.2 Incident kinds
 
-Incidents, and the warnings and reminders handled like them. The key is the `IncidentKind` value; the English name is the title on Home, in the to-do list, in the journal, on the status screen and after "Incident —" in Telegram. Incidents close only automatically, when their cause disappears; the owner can only hide one (CL-TRV-11, CL-IHM-20).
+Incidents, and the warnings and reminders handled like them. The key is the `IncidentKind` value; the English name is the title on Home, in the to-do list, in the journal, on the status screen and, for the kinds marked notified, after "Incident —" in Telegram (CL-TEL-17). Incidents close only automatically, when their cause disappears; the owner can only hide one (CL-TRV-11, CL-IHM-20).
 
 | Key | English name | French | Level | Opens when | Closes when | IDs |
 | --- | --- | --- | --- | --- | --- | --- |
-| `press_source_down` | Press source down | « flux en panne », source de presse en panne | incident | A source has 2 consecutive failed runs, not counting a "collection impossible" run. | A read brings articles again. | COL-41, COL-43, CL-COL-05 |
-| `collection_impossible` | Collection impossible | « collecte impossible » | incident | Every active source failed in the same run, at least two being active. | At the end of the first later run in which at least one active source is read successfully. | COL-44, CL-COL-05 |
+| `press_source_down` | Press source down | « flux en panne », source de presse en panne | incident, notified | A source has 2 consecutive failed runs, not counting a "collection impossible" run. | A read brings articles again. | COL-41, COL-43, CL-COL-05 |
+| `collection_impossible` | Collection impossible | « collecte impossible » | incident, notified | Every active source failed in the same run, at least two being active. | At the end of the first later run in which at least one active source is read successfully. | COL-44, CL-COL-05 |
 | `press_source_silent` | Silent press source | source muette (avertissement) | warning, notified | No new article for the source's silence delay. | A read brings articles again. | COL-42, COL-43, CL-TEL-17 |
 | `feed_too_short` | Add a collection time | avertissement (trou de collecte sans exécution manquée) | warning, not notified | A collection gap is recorded although the previous run read the source. | At the end of the first later successful read of the source that runs the gap test and records no gap; adding a collection time does not close it by itself. | COL-46, CL-COL-13, CL-COL-24, CL-TEL-17 |
-| `quota_reached` | Quota reached — {service function} | « quota atteint », quota de classification atteint | incident | A service stops work for one of the causes below. | Classification: no queue item is eligible; stats source: requests resume; other services: the owner saves a new limit, or a full period passes without refusal. | DET-11, STA-39, TRV-05, TRV-06, CL-TRV-11, CL-DET-04 |
+| `quota_reached` | Quota reached — {service function} | « quota atteint », quota de classification atteint | incident, notified | A service stops work for one of the causes below. | Classification: no queue item is eligible; stats source: requests resume; other services: the owner saves a new limit, or a full period passes without refusal. | DET-11, STA-39, TRV-05, TRV-06, CL-TRV-11, CL-DET-04 |
 | `quota_warning` | Quota warning — {service function} | avertissement de quota | warning, not notified | 80 % of a limit is used. | The period renews. | TRV-05, CL-TEL-17 |
 | `database_volume_warning` | Database volume warning | avertissement de volume | warning, not notified | 80 % of the free capacity is used. | Usage falls below the share. | TRV-07, CL-TEL-17 |
-| `stats_source_unavailable` | Stats source unavailable | « source de statistiques indisponible », statistiques indisponibles | incident | 12 hours of continuous failures; or the source late on 2 consecutive competition days, with the cause "not refreshed since {instant}". | The source answers again; a refresh lands. | STA-37, CL-STA-15, CL-TRV-23 |
-| `stats_source_schema_changed` | Stats source format changed | — (statistics-source service sheet) | incident | A current-season file is missing or its columns changed; nothing is ingested. | The file reads again. | CL-STA-15 |
-| `task_not_run` | Task not run | « tâche non exécutée » | incident | An occurrence of the task is missed; one incident per task. | A run of the task succeeds. | TRV-31, CL-TRV-08 |
-| `backup_failed` | Backup failed | sauvegarde en échec | incident | A backup fails, missing storage configuration included. | A backup succeeds. | TRV-50 |
-| `logins_refused` | Logins refused | « connexions refusées », blocage de la connexion | incident | Login locks after repeated failures. | The next successful login. | TRV-61, H-TEL-06 |
-| `telegram_link_broken` | Telegram link broken | liaison Telegram rompue | incident | A permanent send failure. | The chat is linked again. | TEL-37 |
-| `export_reminder` | Export reminder | rappel d'export | reminder, notified | 30 days without a full export, counted from the first start when none was made. | A full export is downloaded. | TRV-54, CL-TRV-22 |
+| `stats_source_unavailable` | Stats source unavailable | « source de statistiques indisponible », statistiques indisponibles | incident, notified | 12 hours of continuous failures; or the source late on 2 consecutive competition days, with the cause "not refreshed since {instant}". | The source answers again; a refresh lands. | STA-37, CL-STA-15, CL-TRV-23 |
+| `stats_source_schema_changed` | Stats source format changed | — (statistics-source service sheet) | incident, notified | A current-season file is missing or its columns changed; nothing is ingested. | The file reads again. | CL-STA-15, CL-TEL-17 |
+| `task_not_run` | Task not run | « tâche non exécutée » | incident, notified | An occurrence of the task is missed; one incident per task. | A run of the task succeeds. | TRV-31, CL-TRV-08 |
+| `backup_failed` | Backup failed | sauvegarde en échec | incident, notified | A backup fails, missing storage configuration included. | A backup succeeds. | TRV-50 |
+| `logins_refused` | Logins refused | « connexions refusées », blocage de la connexion | incident, notified (security) | Login locks after repeated failures. | The next successful login. | TRV-61, H-TEL-06, CL-TEL-17 |
+| `telegram_link_broken` | Telegram link broken | liaison Telegram rompue | incident, not notified (Home and the to-do list only) | A permanent send failure. | The chat is linked again. | TEL-37, CL-TEL-17 |
+| `export_reminder` | Export reminder | rappel d'export | reminder, notified (one message per reminder) | 30 days without a full export, counted from the first start when none was made. | A full export is downloaded. | TRV-54, CL-TRV-22, CL-TEL-17 |
 
 Causes of `quota_reached` (`QuotaIncidentCause`), named in its message:
 
