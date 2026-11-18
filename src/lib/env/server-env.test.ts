@@ -245,12 +245,32 @@ describe('isCredential', () => {
         .transform((value) => value.length)
         .optional(),
     ],
+    ['before a check, .min()', z.string().register(realCredentials).min(1)],
+    ['before .trim()', z.string().register(realCredentials).trim()],
+    [
+      'before .refine()',
+      z
+        .string()
+        .register(realCredentials)
+        .refine((value) => value !== ''),
+    ],
+    ['before .describe()', z.string().register(realCredentials).describe('A token')],
+    [
+      'before a check, a pipe and a wrapper',
+      z
+        .string()
+        .register(realCredentials)
+        .min(1)
+        .transform((value) => value.length)
+        .optional(),
+    ],
   ])('finds the mark of a real credential placed %s', (_place, schema) => {
     expect(isCredential(schema)).toBe(true);
   });
 
   it.each([
     ['a plain value', z.string()],
+    ['a value under a check', z.string().min(1)],
     ['a value under a wrapper', z.enum(['info']).default('info')],
     [
       'a value under a pipe',

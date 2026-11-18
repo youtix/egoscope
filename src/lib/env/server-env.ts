@@ -29,29 +29,28 @@ const databaseUrl = z
 export const realCredentials = z.registry();
 
 /**
- * The schema that `schema` wraps, if any: the one under `.optional()`,
- * `.default()` and every other wrapper of zod, or the input of a pipe, which
- * `.transform()` and `.pipe()` make.
+ * The schemas that `schema` was made from: the one that a check such as `.min()`,
+ * `.trim()` or `.refine()`, or `.describe()`, copied, which zod keeps as the copy's
+ * parent; the one under `.optional()`, `.default()` and every other wrapper of
+ * zod; and the input of a pipe, which `.transform()` and `.pipe()` make.
  */
-function wrappedSchema({ _zod: { def } }: z.core.$ZodType): unknown {
-  if ('innerType' in def) {
-    return def.innerType;
-  }
-  return 'in' in def ? def.in : undefined;
+function sourceSchemas({ _zod: { def, parent } }: z.core.$ZodType): readonly unknown[] {
+  return [parent, 'innerType' in def ? def.innerType : undefined, 'in' in def ? def.in : undefined];
 }
 
 /**
  * Says whether `schema` carries the mark of a real credential, on itself or on a
- * schema that it wraps (TRV-64): zod keeps a mark on the one schema it was
- * registered on, which `.optional()`, `.default()` or `.transform()` called after
- * `.register()` would otherwise hide from the fakes rule.
+ * schema that it was made from (TRV-64): zod keeps a mark on the one schema it was
+ * registered on, which `.min()`, `.optional()`, `.transform()` or any other call
+ * after `.register()` would otherwise hide from the fakes rule.
  */
 export function isCredential(schema: z.core.$ZodType): boolean {
-  if (realCredentials.has(schema)) {
-    return true;
-  }
-  const wrapped = wrappedSchema(schema);
-  return wrapped instanceof z.core.$ZodType && isCredential(wrapped);
+  return (
+    realCredentials.has(schema) ||
+    sourceSchemas(schema).some(
+      (source) => source instanceof z.core.$ZodType && isCredential(source),
+    )
+  );
 }
 
 // The outside services that a fake can replace, one port each (module map §5).
