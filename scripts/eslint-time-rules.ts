@@ -10,15 +10,19 @@
  *   time zone. The UTC methods stay allowed.
  * - `no-ambient-time`: outside src/lib/time, nothing reads the clock or the
  *   machine's time zone, or parses a date, so that tests can fix the time and a
- *   result is the same on the server and on the owner's devices: no Date made from
- *   anything but an instant, no local-time method of a Date, no `Intl.DateTimeFormat`
+ *   result is the same on the server and on the owner's devices: no import of
+ *   temporal-polyfill, in any of the ways to name a module, no Date made from
+ *   anything but an instant, no local-time method of a Date, no
+ *   `performance.timeOrigin`, read or destructured, no `Intl.DateTimeFormat`
  *   without a `timeZone`, no locale format of a `Temporal.Instant`, and no date,
  *   time of day or instant that Temporal's `from` reads from a value that may be a
- *   string. Client code reads the device's zone with `deviceTimeZone`, which no
- *   server module imports: one that imports `server-only`, starts with
- *   `'use server'` or is a route handler. UTC methods, `Intl.NumberFormat`, date
- *   formats that name their zone, Temporal values made from fields or from other
- *   Temporal values, and the locale formats of the Temporal values that carry
+ *   string, a global `Temporal` included, where a runtime has one. Client code
+ *   reads the device's zone with `deviceTimeZone`, which no server module imports:
+ *   one that imports `server-only`, starts with `'use server'` or is a route
+ *   handler. Its `allowTimeOrigin` option lets the lock wrapper's files read
+ *   `performance.timeOrigin`. UTC methods, `performance.now()`, `Intl.NumberFormat`,
+ *   date formats that name their zone, Temporal values made from fields or from
+ *   other Temporal values, and the locale formats of the Temporal values that carry
  *   their own zone or none stay allowed.
  * - `no-default-locale`: a result that depends on a locale names it, since the
  *   server and the owner's devices do not share one.
@@ -38,43 +42,18 @@ import {
   isNamespaceOf,
   isNumber,
   isServerModule,
+  isTemporalImport,
+  isTimeOrigin,
+  LOCAL_TIME_METHODS,
   temporalFrom,
 } from './eslint-time-checks';
 
-import type { Services } from './eslint-time-checks';
+import type { ModuleReference, Services } from './eslint-time-checks';
 import type { TSESTree } from '@typescript-eslint/utils';
 
 const createRule = ESLintUtils.RuleCreator<{ requiresTypeChecking?: boolean }>(
   (name) => `scripts/eslint-time-rules.ts#${name}`,
 );
-
-// The Date methods that read or write local time, or print it.
-const LOCAL_TIME_METHODS: ReadonlySet<string> = new Set([
-  'getDate',
-  'getDay',
-  'getFullYear',
-  'getHours',
-  'getMilliseconds',
-  'getMinutes',
-  'getMonth',
-  'getSeconds',
-  'getTimezoneOffset',
-  'getYear',
-  'setDate',
-  'setFullYear',
-  'setHours',
-  'setMilliseconds',
-  'setMinutes',
-  'setMonth',
-  'setSeconds',
-  'setYear',
-  'toDateString',
-  'toLocaleDateString',
-  'toLocaleString',
-  'toLocaleTimeString',
-  'toString',
-  'toTimeString',
-]);
 
 /** Forbids time-zone-dependent Date operations, wherever eslint.config.ts applies it. */
 export const noLocalTime = createRule({
@@ -153,15 +132,21 @@ const LOCALE_FORMAT = 'toLocale';
 // and the name under which other modules import it (module rule 4).
 const DEVICE_ZONE = 'deviceTimeZone';
 const TIME_MODULE = '@/lib/time';
+// Every way of naming a module: import, import type, export … from, import(), import
+// types, a call of require(), and the require() of `import x = require('x')`.
+const MODULE_REFERENCES =
+  "ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration, ImportExpression, TSImportType, CallExpression[callee.name='require'], TSExternalModuleReference";
 
 /** What reads the ambient time, as no-ambient-time reports it. */
 type AmbientRead = Readonly<{
-  messageId: 'clock' | 'parse' | 'fields' | 'zone' | 'format' | 'device';
+  messageId: 'clock' | 'parse' | 'fields' | 'zone' | 'format' | 'device' | 'temporal';
   shown: string;
 }>;
 
 const ZONELESS_FORMAT: AmbientRead = { messageId: 'format', shown: 'Intl.DateTimeFormat' };
 const DEVICE_READ: AmbientRead = { messageId: 'device', shown: DEVICE_ZONE };
+const TIME_ORIGIN_READ: AmbientRead = { messageId: 'clock', shown: 'performance.timeOrigin' };
+const TEMPORAL_IMPORT: AmbientRead = { messageId: 'temporal', shown: 'temporal-polyfill' };
 
 /** An `Intl.DateTimeFormat` that `node` makes without a `timeZone`, which follows the machine's. */
 function zonelessFormat(
@@ -232,8 +217,8 @@ function isLocalTimeMethod(
 }
 
 /**
- * What a member reads of the ambient time: the clock, a parse, the local time of
- * a Date, or the locale format of a Temporal.Instant.
+ * What a member reads of the ambient time: the clock, the start of the performance
+ * timer, a parse, the local time of a Date, or the locale format of a Temporal.Instant.
  */
 function ambientMember(
   services: Services,
@@ -246,6 +231,9 @@ function ambientMember(
   if (member !== undefined) {
     return member;
   }
+  if (isTimeOrigin(services, node.object, property)) {
+    return TIME_ORIGIN_READ;
+  }
   if (property !== null && isLocalTimeMethod(services, node.object, property)) {
     return { messageId: 'zone', shown: property };
   }
@@ -253,19 +241,21 @@ function ambientMember(
 }
 
 /**
- * Forbids reading the clock or the machine's time zone, and parsing dates,
- * wherever eslint.config.ts applies it.
+ * Forbids reading the clock or the machine's time zone, parsing dates and importing
+ * temporal-polyfill, wherever eslint.config.ts applies it.
  */
-export const noAmbientTime = createRule({
+export const noAmbientTime = createRule<[{ allowTimeOrigin: boolean }], AmbientRead['messageId']>({
   name: 'no-ambient-time',
   meta: {
     type: 'problem',
     docs: {
       description:
-        "Forbid reading the clock and the machine's time zone, and parsing dates, outside src/lib/time.",
+        "Forbid reading the clock and the machine's time zone, parsing dates and importing temporal-polyfill outside src/lib/time.",
       requiresTypeChecking: true,
     },
     messages: {
+      temporal:
+        '`{{shown}}` is imported only by `@/lib/time`, which reads, parses and converts dates and times for every other module: call its functions, or add the one you need there (CLAUDE.md, "Time").',
       clock:
         '`{{shown}}` reads the ambient time: take the instant from `now()` of `@/lib/time`, whose clock tests can fix (CLAUDE.md, "Time").',
       parse:
@@ -278,14 +268,22 @@ export const noAmbientTime = createRule({
       device:
         '`deviceTimeZone` reads the zone of the machine it runs on, which on the server is not the owner\'s: server code takes the owner\'s zone from the `display.timeZone` setting (CLAUDE.md, "Time").',
     },
-    schema: [],
+    schema: [
+      {
+        type: 'object',
+        properties: { allowTimeOrigin: { type: 'boolean' } },
+        additionalProperties: false,
+      },
+    ],
+    defaultOptions: [{ allowTimeOrigin: false }],
   },
-  create(context) {
+  create(context, [{ allowTimeOrigin }]) {
     const services = ESLintUtils.getParserServices(context);
     const file = path.relative(context.cwd, context.filename);
     const isServerCode = isServerModule(context.sourceCode.ast, file);
+    const allowed = allowTimeOrigin ? TIME_ORIGIN_READ : undefined;
     const report = (node: TSESTree.Node, read: AmbientRead | undefined): void => {
-      if (read !== undefined) {
+      if (read !== undefined && read !== allowed) {
         context.report({ node, messageId: read.messageId, data: { shown: read.shown } });
       }
     };
@@ -299,6 +297,10 @@ export const noAmbientTime = createRule({
           isNamespaceOf(node.object, scope, TIME_MODULE);
         report(node, isDeviceRead ? DEVICE_READ : ambientMember(services, node, property));
       },
+      'ObjectPattern > Property'(node: TSESTree.Property): void {
+        const name = ASTUtils.getPropertyName(node, context.sourceCode.getScope(node));
+        report(node, isTimeOrigin(services, node.parent, name) ? TIME_ORIGIN_READ : undefined);
+      },
       CallExpression(node): void {
         report(node, ambientCall(services, node));
       },
@@ -309,6 +311,9 @@ export const noAmbientTime = createRule({
         const isDeviceImport =
           node.parent.source?.value === TIME_MODULE && importedName(node) === DEVICE_ZONE;
         report(node, isServerCode && isDeviceImport ? DEVICE_READ : undefined);
+      },
+      [MODULE_REFERENCES](node: ModuleReference): void {
+        report(node, isTemporalImport(node) ? TEMPORAL_IMPORT : undefined);
       },
     };
   },

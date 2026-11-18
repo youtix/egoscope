@@ -439,15 +439,14 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
     });
 
     it('allows UTC methods, number formats and date formats that name their zone', async () => {
-      const code = `${TEMPORAL}${[
+      const code = [
         'export const hour = (at: Date): number => at.getUTCHours();',
         'export const iso = (at: Date): string => at.toISOString();',
         "export const count = (value: number): string => new Intl.NumberFormat('en-US').format(value);",
         "export const utc = (at: Date): string => new Intl.DateTimeFormat('en-US', { timeZone: 'UTC' }).format(at);",
         "export const local = (at: Date, zone: string): string => new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric' }).format(at);",
-        'export const at = (milliseconds: number): string => Temporal.Instant.fromEpochMilliseconds(milliseconds).toString();',
         '',
-      ].join('\n')}`;
+      ].join('\n');
 
       expect(await ruleIds('src/lib/probe/probe.ts', code)).not.toContain(
         'egoscope/no-ambient-time',

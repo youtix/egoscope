@@ -40,25 +40,29 @@ export function zonedDateTime(instant: EpochMs, zone: string): Temporal.ZonedDat
   return Temporal.Instant.fromEpochMilliseconds(instant).toZonedDateTimeISO(zone);
 }
 
-/** The ID under which the conversion knows `zone`, or undefined when it knows none. */
-function knownZoneId(zone: string): string | undefined {
+/** An instant as the conversion reads it in `zone`, or undefined when it knows no such zone. */
+function knownZone(zone: string): Temporal.ZonedDateTime | undefined {
   try {
-    return zonedDateTime(ANY_INSTANT, zone).timeZoneId;
+    return zonedDateTime(ANY_INSTANT, zone);
   } catch {
     // The conversion refuses a zone that the time-zone database does not know.
     return undefined;
   }
 }
 
-/** The database's own spelling of `value`, when `value` names one of its zones in any letter case. */
-function databaseSpelling(value: string): string | undefined {
-  const id = knownZoneId(value);
-  const lowerId = id?.toLowerCase();
+/**
+ * An instant read in the zone that `value` names, when `value` names one of the
+ * database's zones in any letter case, the owner's zone among them (IHM-14,
+ * CL-TRV-16); its `timeZoneId` is the database's spelling.
+ */
+export function databaseZone(value: string): Temporal.ZonedDateTime | undefined {
+  const zoned = knownZone(value);
+  const lowerId = zoned?.timeZoneId.toLowerCase();
   const isZoneName =
     lowerId === value.toLowerCase() &&
     !OFFSET_ID.test(lowerId) &&
     !lowerId.startsWith(ICU_ONLY_AREA);
-  return isZoneName ? id : undefined;
+  return isZoneName ? zoned : undefined;
 }
 
 /**
@@ -69,7 +73,7 @@ function databaseSpelling(value: string): string | undefined {
  * conversion itself, never throws, and answers the same on Node.js and on Bun.
  */
 export function isTimeZone(value: string): boolean {
-  return databaseSpelling(value) !== undefined;
+  return databaseZone(value) !== undefined;
 }
 
 /**
@@ -84,7 +88,7 @@ export function isTimeZone(value: string): boolean {
  * included, is an `unknown_zone`; it never throws.
  */
 export function canonicalTimeZone(value: string): TimeZoneResult {
-  const zone = databaseSpelling(value);
+  const zone = databaseZone(value)?.timeZoneId;
   return zone === undefined ? UNKNOWN_ZONE : { ok: true, zone };
 }
 

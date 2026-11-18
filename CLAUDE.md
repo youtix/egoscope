@@ -72,15 +72,20 @@ gives no difference.
 ## Time
 
 - Only `@/lib/time` reads the clock and the machine's time zone, parses dates and converts time
-  zones. Take the instant from `now()`; lint refuses `Date.now()`, `new Date()`, `Date()`,
-  `Date.parse`, `new Date(string)`, `new Date(year, month, …)`, `Temporal.Now`, the local getters,
+  zones. Take the instant from `now()`; lint refuses any import of `temporal-polyfill`,
+  `Date.now()`, `new Date()`, `Date()`, `Date.parse`, `new Date(string)`,
+  `new Date(year, month, …)`, `Temporal.Now`, `performance.timeOrigin`, the local getters,
   setters and `toLocale*` of a date, the `toLocale*` of a `Temporal.Instant`, `Intl.DateTimeFormat`
   without a `timeZone`, `Temporal.PlainDate.from`, `Temporal.PlainTime.from` or
   `Temporal.PlainDateTime.from` of a string, and
   `Temporal.Instant.from` or `Temporal.ZonedDateTime.from` of a string elsewhere in `src/`,
-  `scripts/` and `e2e/`. With Cache Components, a Server Component calls
-  `await io()` (from `next/cache`) inside `<Suspense>` before `now()`, and a Client Component
-  `use(io())`; keep `connection()` for code that must wait for a real request.
+  `scripts/` and `e2e/`, while `performance.now()`, which measures a duration, stays allowed.
+  The lock wrapper (`scripts/with-lock.ts`, `scripts/signal-relay.ts`), which imports nothing from
+  `src/`, stamps its records with `performance.timeOrigin + performance.now()` instead, a Unix
+  time that another process reads and that does not jump when the system clock moves. With Cache
+  Components, a Server Component calls `await io()` (from `next/cache`) inside `<Suspense>` before
+  `now()`, and a Client Component `use(io())`; keep `connection()` for code that must wait for a
+  real request.
 - An instant is an `EpochMs`, a calendar date an `IsoDate`, and every day names its zone: the
   owner's day (`userDay`, in the `display.timeZone` setting the caller passes in, never a fixed
   Paris) for tasks and displays, a game's day (`gameDay`, its US Eastern date) for games. Only
