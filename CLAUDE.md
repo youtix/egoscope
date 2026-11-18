@@ -153,8 +153,8 @@ neither a test nor a waiver.
 
 ## The local loop
 
-- Heavy scripts (`typecheck`, `lint`, `lint:fix`, `test`, `test:coverage`, `build`, `knip`,
-  `check:changed`, `gate`) queue behind each other across worktrees on one lock,
+- Heavy scripts (`typecheck`, `lint`, `lint:fix`, `test`, `test:coverage`, `test:mutation`,
+  `build`, `knip`, `check:changed`, `gate`) queue behind each other across worktrees on one lock,
   `egoscope-heavy.lock` in the shared git directory, so run the narrowest command that answers your
   question. The lock refuses watch, UI and dev-server modes; for watch mode, run `bun x vitest`.
 - While developing, run `bun run check:changed` (format, lint and tests for what differs from

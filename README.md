@@ -40,40 +40,48 @@ bun run dev                  # http://localhost:3000
 
 ## Scripts
 
-| Script                   | What it does                                                     |
-| ------------------------ | ---------------------------------------------------------------- |
-| `bun run dev`            | Development server.                                              |
-| `bun run build`          | Production build, type check included.                           |
-| `bun run start`          | Serves the production build.                                     |
-| `bun run test [path]`    | Unit tests, optionally only those under `path`.                  |
-| `bun run test:coverage`  | All unit tests, with the coverage thresholds enforced.           |
-| `bun run lint`           | ESLint, markdownlint and the structure check.                    |
-| `bun run lint:fix`       | ESLint and markdownlint, fixing what they can.                   |
-| `bun run format`         | Formats every file with Prettier (`format:check` only checks).   |
-| `bun run typecheck`      | TypeScript, whole repository; the pure core with ES types only.  |
-| `bun run knip`           | Unused files, exports and dependencies.                          |
-| `bun run check`          | Every static check: formatting, linters, knip, workflows, types. |
-| `bun run check:changed`  | The fast local check of what differs from `origin/main`.         |
-| `bun run gate`           | Everything CI runs, in CI's order, under a single lock.          |
-| `bun run gate:ci`        | The same steps, each taking the lock on its own.                 |
-| `bun run lint:workflows` | actionlint on the workflows, when actionlint is installed.       |
+| Script                   | What it does                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `bun run dev`            | Development server.                                                            |
+| `bun run build`          | Production build, type check included.                                         |
+| `bun run start`          | Serves the production build.                                                   |
+| `bun run test [path]`    | Unit tests, optionally only those under `path`.                                |
+| `bun run test:coverage`  | All unit tests, with the coverage thresholds enforced.                         |
+| `bun run test:mutation`  | Mutation tests of the pure core; a score below 100% fails.                     |
+| `bun run lint`           | ESLint, markdownlint and the structure check.                                  |
+| `bun run lint:fix`       | ESLint and markdownlint, fixing what they can.                                 |
+| `bun run format`         | Formats every file with Prettier (`format:check` only checks).                 |
+| `bun run typecheck`      | TypeScript, whole repository; the pure core with ES types only.                |
+| `bun run knip`           | Unused files, exports and dependencies.                                        |
+| `bun run trace`          | Requirement traceability: title IDs exist, the waiver register is sound.       |
+| `bun run trace:strict`   | The same, and every requirement and criterion is tested or waived.             |
+| `bun run check`          | Every static check: formatting, linters, knip, workflows, types, traceability. |
+| `bun run check:changed`  | The fast local check of what differs from `origin/main`.                       |
+| `bun run gate`           | Everything CI runs, in CI's order, under a single lock.                        |
+| `bun run gate:ci`        | The same steps, each taking the lock on its own.                               |
+| `bun run lint:workflows` | actionlint on the workflows, when actionlint is installed.                     |
 
 `check:changed` runs Prettier, ESLint, markdownlint and the structure check on the files that
 differ from `origin/main` (committed, staged, unstaged or untracked; deletions and renames count),
-type-checks the whole project incrementally, then runs the tests related to the changed files, or
-all of them when tooling changed or a source file was deleted or renamed. It refuses a change to a
-frozen French specification, unless the checksum list `docs/frozen-specs.sha256` changes in the
-same diff: that is the coordinator's path, when the owner changes a specification. It stops at the
-first failing step. CI runs the full gate on every push.
+runs `bun run trace` when a specification, a ruling, a test, the waiver register or the criteria
+index differs, type-checks the whole project incrementally, then runs the tests related to the
+changed files, or all of them when tooling changed or a source file was deleted or renamed. It
+refuses a change to a frozen French specification, unless the checksum list
+`docs/frozen-specs.sha256` changes in the same diff: that is the coordinator's path, when the owner
+changes a specification. It stops at the first failing step. CI runs the full gate on every push.
+
+`gate` runs the mutation tests only when the pure core or the way Stryker runs (its configuration
+and workflow, the Vitest configuration, the dependencies, `scripts/mutation-scope.ts`) differs from
+`origin/main`, and the `mutation` workflow does the same in CI.
 
 Several agents may share one machine, so the heavy scripts (`build`, `typecheck`, `lint`,
-`lint:fix`, `test`, `test:coverage`, `knip`, `check:changed` and `gate`) take turns on one lock that
-every worktree of the clone shares: `egoscope-heavy.lock` in the git directory, managed by
-[`scripts/with-lock.ts`](scripts/with-lock.ts). The command holds the lock itself, so the lock lasts
-as long as the command, even if the script that started it is killed, and SIGINT, SIGTERM and SIGHUP
-reach the command. Watch, UI and dev-server modes are refused under the lock. A waiting script says
-whom it waits for and for how long, and gives up when one run has held the lock for more than 30
-minutes. CI never locks.
+`lint:fix`, `test`, `test:coverage`, `test:mutation`, `knip`, `check:changed` and `gate`) take turns
+on one lock that every worktree of the clone shares: `egoscope-heavy.lock` in the git directory,
+managed by [`scripts/with-lock.ts`](scripts/with-lock.ts). The command holds the lock itself, so the
+lock lasts as long as the command, even if the script that started it is killed, and SIGINT, SIGTERM
+and SIGHUP reach the command. Watch, UI and dev-server modes are refused under the lock. A waiting
+script says whom it waits for and for how long, and gives up when one run has held the lock for more
+than 30 minutes. CI never locks.
 
 ## Layout
 
@@ -103,7 +111,7 @@ scripts/                 Tooling: the shared lock, the structure and fast checks
 Every pull request runs the CI workflow, whose ordinary checks (lint, actionlint, typecheck, test,
 build and pr-title) all feed one final job, `ci-ok`, which passes only when each of them succeeded.
 A concern with its own triggers, permissions or runtime gets its own workflow instead: end-to-end
-tests, mutation testing, requirement traceability and security scanning are planned that way, with
+tests (planned), mutation testing, requirement traceability and security scanning, with
 the final jobs `e2e`, `mutation`, `trace` and `security`. Such a final job always starts and always
 reports a result, even when nothing relevant changed: no path filter ever skips it. `ci-ok` and
 those final jobs are the required checks of `main`. Lint rules have no warnings, coverage is

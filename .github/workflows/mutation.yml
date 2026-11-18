@@ -37,9 +37,10 @@ jobs:
         id: incremental
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         env:
-          # Incremental mode cannot see a change of configuration or dependencies, so
-          # these files name the cache: when one of them changes, the run starts afresh.
-          PREFIX: stryker-${{ hashFiles('stryker.config.ts', 'vitest.config.ts', 'tsconfig.json', 'bun.lock') }}-
+          # Incremental mode cannot see a change of configuration, dependencies or
+          # fixtures, which the tests of the pure core may import from data/, so these
+          # files name the cache: when one of them changes, the run starts afresh.
+          PREFIX: stryker-${{ hashFiles('stryker.config.ts', 'vitest.config.ts', 'tsconfig.json', 'bun.lock', 'data/**') }}-
         with:
           path: reports/stryker-incremental.json
           key: ${{ env.PREFIX }}${{ github.run_id }}-${{ github.run_attempt }}

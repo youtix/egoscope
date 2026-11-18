@@ -1,44 +1,16 @@
 /**
  * The fast local check: formats, lints and tests what differs from origin/main
  * (committed, staged, unstaged and untracked changes, deletions and renames
- * included), type-checks the whole project, and stops at the first failing step,
- * which it names. Run with `bun run check:changed`.
+ * included, as changed-files.ts lists them), type-checks the whole project, runs
+ * the traceability check when a file that it reads changed, and stops at the first
+ * failing step, which it names. Run with `bun run check:changed`.
  */
 import { spawnSync } from 'node:child_process';
 
-import { describeFiles, parseNameStatus, planCheck, stepsFor, testStep } from './changed-files';
+import { describeFiles, listChanges, planCheck, stepsFor, testStep } from './changed-files';
 import { FROZEN_HELP } from './content-rules';
-import { isIgnoredPath } from './ignored-folders';
 
-import type { Change, CheckPlan, Step } from './changed-files';
-
-/** Runs git and returns its output, or undefined if it fails. */
-function git(args: readonly string[]): string | undefined {
-  const result = spawnSync('git', args, { encoding: 'utf8' });
-  return result.status === 0 ? result.stdout : undefined;
-}
-
-/** The changes against origin/main, or a one-line reason why they cannot be listed. */
-function changesFromOriginMain(): Readonly<{ changes: Change[] } | { problem: string }> {
-  if (git(['rev-parse', '--verify', '--quiet', 'origin/main']) === undefined) {
-    return { problem: 'origin/main is missing: run `git fetch origin main`, then try again.' };
-  }
-  const base = git(['merge-base', 'origin/main', 'HEAD'])?.trim();
-  if (base === undefined || base === '') {
-    return {
-      problem:
-        'HEAD shares no history with origin/main (stale or rewritten): run `git fetch origin main` and rebase.',
-    };
-  }
-  const differing = parseNameStatus(
-    git(['diff', '--name-status', '-z', '--find-renames', base]) ?? '',
-  );
-  const untracked = (git(['ls-files', '--others', '--exclude-standard', '-z']) ?? '')
-    .split('\0')
-    .filter(Boolean)
-    .map((path) => ({ path, removed: false }));
-  return { changes: [...differing, ...untracked].filter((change) => !isIgnoredPath(change.path)) };
-}
+import type { CheckPlan, Step } from './changed-files';
 
 /** Runs the steps in order and returns the exit code of the first one that fails. */
 function runSteps(steps: readonly Step[]): number {
@@ -74,9 +46,9 @@ function stopEarly(plan: CheckPlan): number | undefined {
 }
 
 function main(): number {
-  const listed = changesFromOriginMain();
-  if ('problem' in listed) {
-    console.error(`✖ check:changed: ${listed.problem}`);
+  const listed = listChanges();
+  if (!listed.ok) {
+    console.error(`✖ check:changed: ${listed.error}`);
     return 1;
   }
   const plan = planCheck(listed.changes);
