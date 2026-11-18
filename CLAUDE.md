@@ -140,8 +140,9 @@ gives no difference.
 - Take `test` and `expect` from `e2e/fixtures/test.ts`, which bring the accessibility watch of
   the next section.
 - Locate elements by role and label (`getByRole`, `getByLabel`), as a person and a screen
-  reader find them, never by CSS, XPath or a test id. No sleeps and no waiting for the network
-  to go quiet: wait with web-first assertions for what the owner would see.
+  reader find them, never by CSS, XPath or a test id, and act on them as a person does, never
+  with `dispatchEvent`, before which the watch cannot check the page. No sleeps and no waiting
+  for the network to go quiet: wait with web-first assertions for what the owner would see.
 - The hermetic mode, `EGOSCOPE_FAKES=all`: every outside service is a fake, and without a
   database URL the database is PGlite in memory, fresh at each start. `EGOSCOPE_FAKES` beside
   a real credential, which `src/lib/env/server-env.ts` marks as such, or on a production

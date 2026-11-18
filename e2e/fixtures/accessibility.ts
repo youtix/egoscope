@@ -379,8 +379,8 @@ export async function watchAccessibility(page: Page): Promise<Watch> {
   });
   // Playwright calls a handler before every action and web-first assertion, and
   // before each of their retries, while its locator is visible, as the body always
-  // is; it calls none before raw keyboard, mouse or touch input, nor before a
-  // navigation.
+  // is. It calls none before raw input, a navigation, or a locator's
+  // `dispatchEvent`, which the lint of e2e/ refuses (scripts/eslint-playwright.ts).
   await page.addLocatorHandler(page.locator('body'), async () => watch.checkIfChanged(), {
     noWaitAfter: true,
   });

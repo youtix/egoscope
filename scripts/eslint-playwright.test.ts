@@ -1,8 +1,9 @@
 // Proves what the Playwright override of eslint.config.ts refuses in the end-to-end
 // specs and their helpers, beside what it lets through: no skipped, focused or
-// failing test in any form, no test without the accessibility check, and no empty
-// pattern but the parameter of a fixture that depends on no other. Deliberate
-// violations are linted in the probe project of lint-probes.ts.
+// failing test in any form, no test without the accessibility check, no event that
+// a test dispatches on a locator, and no empty pattern but the parameter of a
+// fixture that depends on no other. Deliberate violations are linted in the probe
+// project of lint-probes.ts.
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { createProbes } from './lint-probes';
@@ -78,6 +79,20 @@ describe('the Playwright override', { timeout: 120_000 }, () => {
       inSpec("  test['fail']('runs', () => undefined);"),
       'no-restricted-syntax',
     ],
+    [
+      'an event that a test dispatches on a locator, which no handler precedes',
+      inSpec(
+        "  test('runs', async ({ page }) => {\n    await page.getByRole('button').dispatchEvent('click');\n  });",
+      ),
+      'no-restricted-syntax',
+    ],
+    [
+      'an event that a test dispatches on a locator, its type written as a template',
+      inSpec(
+        "  test('runs', async ({ page }) => {\n    await page.getByRole('button').dispatchEvent(`click`);\n  });",
+      ),
+      'no-restricted-syntax',
+    ],
   ])('refuses %s', async (_kind, code, rule) => {
     expect(await ruleIds(SPEC, code)).toContain(rule);
   });
@@ -99,6 +114,13 @@ describe('the Playwright override', { timeout: 120_000 }, () => {
     ],
   ])("refuses %s, which Playwright's preset allows", async (_kind, code) => {
     expect(await ruleIds(HELPER, code)).toContain('no-empty-pattern');
+  });
+
+  it('lets a page dispatch an event of its own, as the DOM does, with the event itself', async () => {
+    const code =
+      "export const probe = (): boolean => globalThis.document.dispatchEvent(new Event('stream'));\n";
+
+    expect(await ruleIds(HELPER, code)).not.toContain('no-restricted-syntax');
   });
 
   it('lets a fixture that depends on no other take the empty object pattern that Playwright requires', async () => {
