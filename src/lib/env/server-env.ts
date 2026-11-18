@@ -2,7 +2,7 @@ import 'server-only';
 
 import { z } from 'zod';
 
-import { Secret } from './secret';
+import { Secret } from './secrets';
 
 // libpq's sslmode that encrypts the connection and checks the server's
 // certificate and host name; pg obeys the last sslmode of a URL, so all of them
