@@ -61,3 +61,13 @@ keywords = ["initial_password"]
 #   description = "<why this value is fake, and where it is used>"
 #   targetRules = ["<the rule that reports it>"]
 #   regexes = ['''^<the secret that the finding reports, regex-escaped>$''']
+
+[[allowlists]]
+description = "The password of the two commented example connection strings of .env.example, DATABASE_URL and DATABASE_URL_UNPOOLED: the word placeholder, for hosts under example.invalid, which resolve nowhere."
+targetRules = ["postgres-connection-string"]
+regexes = ['''^placeholder$''']
+
+[[allowlists]]
+description = "The password of the connection string that scripts/migrate.test.ts gives the deploy step to prove that it refuses a string without sslmode=verify-full and never prints it: a made-up value, for a local port where nothing listens."
+targetRules = ["postgres-connection-string"]
+regexes = ['''^hunter2-value$''']
