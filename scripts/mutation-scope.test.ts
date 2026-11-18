@@ -10,6 +10,7 @@ describe('mutationTriggers', () => {
     'src/lib/ai-exchange/research-prompt.ts',
     'src/lib/ai-exchange/checks/research-result.test.ts',
     'stryker.config.ts',
+    'scripts/mutation-run.ts',
     'vitest.stryker.config.ts',
     '.github/workflows/mutation.yml',
   ])(
@@ -73,6 +74,7 @@ describe('requiresFreshRun', () => {
     'bun.lock',
     'package.json',
     'stryker.config.ts',
+    'scripts/mutation-run.ts',
     'vitest.stryker.config.ts',
     'vitest.config.ts',
     'tsconfig.json',

@@ -25,7 +25,7 @@
     "format:check": "prettier --check .",
     "test": "bun scripts/with-lock.ts vitest run",
     "test:coverage": "bun scripts/with-lock.ts vitest run --coverage",
-    "test:mutation": "bun scripts/with-lock.ts stryker run stryker.config.ts",
+    "test:mutation": "bun scripts/with-lock.ts bun scripts/mutation-run.ts",
     "knip": "bun scripts/with-lock.ts knip --treat-config-hints-as-errors",
     "trace": "bun scripts/trace-requirements.ts",
     "trace:strict": "bun scripts/trace-requirements.ts --strict",

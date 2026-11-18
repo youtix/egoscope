@@ -1,7 +1,8 @@
 /**
  * What mutation testing covers (CLAUDE.md): Stryker mutates the non-test files of
  * the two pure-core modules and runs their own tests against each mutant, as
- * stryker.config.ts and vitest.stryker.config.ts set up from PURE_CORE_MODULES.
+ * stryker.config.ts and vitest.stryker.config.ts set up from PURE_CORE_MODULES, and
+ * records its results in INCREMENTAL_FILE.
  *
  * A change in the mutation scope (the pure core, its tests included, the fixtures
  * that these tests may import, and the way Stryker is set up) can change what
@@ -22,14 +23,23 @@ export const PURE_CORE_TESTS: readonly string[] = PURE_CORE_MODULES.map(
 );
 
 /**
- * How Stryker runs: its configuration and the workflow that runs it in CI; the
- * Vitest configuration that it runs the tests with, and the project's, which that
- * one extends; the dependencies, Stryker, Vitest and fast-check among them, and the
- * `test:mutation` script; this file, which says what Stryker mutates; and
- * tsconfig.json, whose paths resolve the `@data/` imports of the tests.
+ * Where each run of Stryker records its results, for the next run to reuse
+ * (stryker.config.ts): mutation-run.ts edits them before Stryker reads them, and
+ * the mutation workflow caches them.
+ */
+export const INCREMENTAL_FILE = 'reports/stryker-incremental.json';
+
+/**
+ * How Stryker runs: its configuration, the script that starts it, mutation-run.ts,
+ * and the workflow that runs it in CI; the Vitest configuration that it runs the
+ * tests with, and the project's, which that one extends; the dependencies, Stryker,
+ * Vitest and fast-check among them, and the `test:mutation` script; this file,
+ * which says what Stryker mutates; and tsconfig.json, whose paths resolve the
+ * `@data/` imports of the tests.
  */
 export const STRYKER_SETUP: ReadonlySet<string> = new Set([
   'stryker.config.ts',
+  'scripts/mutation-run.ts',
   '.github/workflows/mutation.yml',
   'vitest.stryker.config.ts',
   'vitest.config.ts',

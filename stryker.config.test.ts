@@ -4,8 +4,8 @@
 // a project-wide exclusion, which needs no comment in the code, is a change that a
 // reviewer reads, and that `bun run test:mutation` adds none on the command line;
 // that the Vitest configuration that Stryker runs is the project's, with the tests
-// of the pure core alone; and that CI reuses the results of earlier runs only while
-// what incremental mode cannot see stays the same.
+// of the pure core alone; and that CI caches the results that Stryker records, and
+// reuses them only while what incremental mode cannot see stays the same.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -13,7 +13,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
-import { PURE_CORE_MODULES, STRYKER_SETUP } from './scripts/mutation-scope';
+import { STRYKER_COMMAND } from './scripts/mutation-run';
+import { INCREMENTAL_FILE, PURE_CORE_MODULES, STRYKER_SETUP } from './scripts/mutation-scope';
 import config from './stryker.config';
 import vitestConfig from './vitest.config';
 import strykerVitestConfig from './vitest.stryker.config';
@@ -47,6 +48,7 @@ const OPTIONS = [
   'vitest',
   'thresholds',
   'incremental',
+  'incrementalFile',
   'reporters',
   'ignorePatterns',
   'tempDirName',
@@ -75,16 +77,22 @@ const RESTORE_STEP = z.object({
   env: z.object({ PREFIX: z.string() }),
   with: z.object({ path: z.string(), 'restore-keys': z.string() }),
 });
+// The step that saves the results of the run for later runs.
+const SAVE_STEP = z.object({
+  uses: z.string().startsWith('actions/cache/save@'),
+  with: z.object({ path: z.string(), key: z.string() }),
+});
 const STRYKER_JOB = z.object({ steps: z.array(z.unknown()) });
 const WORKFLOW_JOBS = z.object({ jobs: z.object({ stryker: STRYKER_JOB }) });
 
-/** The step of mutation.yml that restores the results of earlier runs. */
-function restoreStep(): z.infer<typeof RESTORE_STEP> {
+/** The step of mutation.yml that `schema` describes, which must be there. */
+function stepOf<Step>(schema: z.ZodType<Step>): Step {
   const workflow = WORKFLOW_JOBS.parse(parse(readFileSync(WORKFLOW, 'utf8')));
-  return RESTORE_STEP.parse(
-    workflow.jobs.stryker.steps.find((step) => RESTORE_STEP.safeParse(step).success),
-  );
+  return schema.parse(workflow.jobs.stryker.steps.find((step) => schema.safeParse(step).success));
 }
+
+/** The step of mutation.yml that restores the results of earlier runs. */
+const restoreStep = (): z.infer<typeof RESTORE_STEP> => stepOf(RESTORE_STEP);
 
 /** The globs of the files whose content names the cache: those that its prefix hashes. */
 function cacheKeyGlobs(): readonly string[] {
@@ -135,9 +143,10 @@ describe('stryker.config.ts', () => {
     },
   );
 
-  it('fails a run below a 100% mutation score, and records its results for the next run', () => {
+  it('fails a run below a 100% mutation score, and records its results for the next run in the file that scripts/mutation-run.ts edits first', () => {
     expect(config.thresholds).toStrictEqual({ high: 100, low: 100, break: 100 });
     expect(config.incremental).toBe(true);
+    expect(config.incrementalFile).toBe(INCREMENTAL_FILE);
   });
 
   it('sets these options and no other, so that an exclusion such as `mutator` is a deliberate change', async () => {
@@ -156,8 +165,9 @@ describe('stryker.config.ts', () => {
     ]);
   });
 
-  it('is what `bun run test:mutation` runs, under the shared lock, with no option of its own such as `--ignoreStatic`', () => {
-    expect(mutationScript()).toBe('bun scripts/with-lock.ts stryker run stryker.config.ts');
+  it('is what `bun run test:mutation` runs, under the shared lock and through scripts/mutation-run.ts, with no option of its own such as `--ignoreStatic`', () => {
+    expect(mutationScript()).toBe('bun scripts/with-lock.ts bun scripts/mutation-run.ts');
+    expect(STRYKER_COMMAND).toStrictEqual(['stryker', 'run', 'stryker.config.ts']);
   });
 });
 
@@ -195,10 +205,14 @@ describe('the cache of the mutation workflow', () => {
     expect(cacheKeyGlobs().some((glob) => path.matchesGlob(file, glob))).toBe(true);
   });
 
-  it('restores only results that were recorded under the same key prefix', () => {
+  it('restores only results that were recorded under the same key prefix, and saves those that Stryker records', () => {
     expect(restoreStep().with).toStrictEqual({
-      path: 'reports/stryker-incremental.json',
+      path: INCREMENTAL_FILE,
       'restore-keys': '${{ env.PREFIX }}',
+    });
+    expect(stepOf(SAVE_STEP).with).toStrictEqual({
+      path: INCREMENTAL_FILE,
+      key: '${{ steps.incremental.outputs.cache-primary-key }}',
     });
   });
 });
