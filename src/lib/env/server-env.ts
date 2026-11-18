@@ -23,9 +23,36 @@ const databaseUrl = z
   .transform((value) => new Secret(value));
 
 // The real credentials: the values that let this server reach the database or an
-// outside service. The schema declares each one with this mark, by which alone a
-// new credential joins the fakes rule below: there is no list to update.
-const realCredentials = z.registry();
+// outside service. The schema declares each one with this mark, anywhere in its
+// declaration, by which alone a new credential joins the fakes rule below: there
+// is no list to update.
+export const realCredentials = z.registry();
+
+/**
+ * The schema that `schema` wraps, if any: the one under `.optional()`,
+ * `.default()` and every other wrapper of zod, or the input of a pipe, which
+ * `.transform()` and `.pipe()` make.
+ */
+function wrappedSchema({ _zod: { def } }: z.core.$ZodType): unknown {
+  if ('innerType' in def) {
+    return def.innerType;
+  }
+  return 'in' in def ? def.in : undefined;
+}
+
+/**
+ * Says whether `schema` carries the mark of a real credential, on itself or on a
+ * schema that it wraps (TRV-64): zod keeps a mark on the one schema it was
+ * registered on, which `.optional()`, `.default()` or `.transform()` called after
+ * `.register()` would otherwise hide from the fakes rule.
+ */
+export function isCredential(schema: z.core.$ZodType): boolean {
+  if (realCredentials.has(schema)) {
+    return true;
+  }
+  const wrapped = wrappedSchema(schema);
+  return wrapped instanceof z.core.$ZodType && isCredential(wrapped);
+}
 
 // The outside services that a fake can replace, one port each (module map §5).
 const PORTS = [
@@ -70,7 +97,7 @@ const serverEnvSchema = z.object(serverEnvShape);
 
 const VARIABLES = Object.keys(serverEnvShape);
 const CREDENTIALS = Object.entries(serverEnvShape)
-  .filter(([, schema]) => realCredentials.has(schema))
+  .filter(([, schema]) => isCredential(schema))
   .map(([name]) => name);
 const FAKES = 'EGOSCOPE_FAKES';
 

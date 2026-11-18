@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
-import { parseServerEnv } from './server-env';
+import { isCredential, parseServerEnv, realCredentials } from './server-env';
 
 describe('parseServerEnv', () => {
   it('defaults LOG_LEVEL to info when it is unset', () => {
@@ -220,6 +221,46 @@ describe('parseServerEnv, the fakes switch', () => {
         variables: ['LOG_LEVEL', 'DATABASE_URL', 'EGOSCOPE_FAKES'],
       },
     });
+  });
+});
+
+describe('isCredential', () => {
+  it.each([
+    ['as the last call', z.string().optional().register(realCredentials)],
+    ['before .optional()', z.string().register(realCredentials).optional()],
+    ['before .default()', z.string().register(realCredentials).default('unset')],
+    ['before .nullable()', z.string().register(realCredentials).nullable()],
+    [
+      'before .transform()',
+      z
+        .string()
+        .register(realCredentials)
+        .transform((value) => value.length),
+    ],
+    [
+      'under several wrappers',
+      z
+        .string()
+        .register(realCredentials)
+        .transform((value) => value.length)
+        .optional(),
+    ],
+  ])('finds the mark of a real credential placed %s', (_place, schema) => {
+    expect(isCredential(schema)).toBe(true);
+  });
+
+  it.each([
+    ['a plain value', z.string()],
+    ['a value under a wrapper', z.enum(['info']).default('info')],
+    [
+      'a value under a pipe',
+      z
+        .string()
+        .transform((value) => value.length)
+        .optional(),
+    ],
+  ])('finds no mark on %s', (_kind, schema) => {
+    expect(isCredential(schema)).toBe(false);
   });
 });
 
