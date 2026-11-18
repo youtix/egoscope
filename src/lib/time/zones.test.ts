@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { compareIsoDates, toIsoDate } from './calendar-date';
 import { compareInstants, toEpochMs } from './instant';
 import {
+  canonicalTimeZone,
   endOfDayPacific,
   endOfLocalDay,
   gameDay,
@@ -19,6 +20,7 @@ import {
 
 import type { IsoDate } from './calendar-date';
 import type { EpochMs } from './instant';
+import type { TimeZoneResult } from './zones';
 
 const PARIS = 'Europe/Paris';
 const NEW_YORK = 'America/New_York';
@@ -468,6 +470,80 @@ describe('isTimeZone', () => {
     fc.assert(
       fc.property(fc.string(), (text) => {
         expect(typeof isTimeZone(text)).toBe('boolean');
+      }),
+    );
+  });
+});
+
+const spelled = (zone: string): TimeZoneResult => ({ ok: true, zone });
+
+describe('canonicalTimeZone', () => {
+  const listedZones = Intl.supportedValuesOf('timeZone');
+  // A zone that the runtime lists, and its name typed in a random mix of letter cases.
+  const anyMixedCase = fc
+    .constantFrom(...listedZones)
+    .chain((zone) => fc.mixedCase(fc.constant(zone)).map((typed) => ({ zone, typed })));
+
+  it.each([
+    ['europe/paris', PARIS],
+    ['EUROPE/PARIS', PARIS],
+    [PARIS, PARIS],
+    ['utc', 'UTC'],
+    ['Etc/GMT+5', 'Etc/GMT+5'],
+    ['etc/gmt-14', 'Etc/GMT-14'],
+    ['us/pacific', 'US/Pacific'],
+    ['AMERICA/ARGENTINA/BUENOS_AIRES', 'America/Argentina/Buenos_Aires'],
+    ['america/port-au-prince', 'America/Port-au-Prince'],
+  ])('[IHM-14] spells %s as the time-zone database does: %s', (value, zone) => {
+    expect(canonicalTimeZone(value)).toStrictEqual(spelled(zone));
+  });
+
+  it('[IHM-14] keeps an alias under its own name, not that of the zone it links to', () => {
+    expect(canonicalTimeZone('asia/calcutta')).toStrictEqual(spelled('Asia/Calcutta'));
+    expect(canonicalTimeZone('asia/kolkata')).toStrictEqual(spelled('Asia/Kolkata'));
+  });
+
+  it.each([
+    ['an empty name', ''],
+    ['a city without its area', 'Paris'],
+    ['a zone that the database does not have', 'Europe/Atlantis'],
+    ['an offset', '+02:00'],
+    ['a date and time that names a zone', '2026-11-10T19:30[Europe/Paris]'],
+    ['a name with a space in front', ' Europe/Paris'],
+    ['a SystemV name, which only ICU still knows', 'SystemV/EST5'],
+  ])('[IHM-14] refuses %s as an unknown zone: "%s"', (_kind, value) => {
+    expect(canonicalTimeZone(value)).toStrictEqual({ ok: false, error: { kind: 'unknown_zone' } });
+  });
+
+  it('[IHM-14] spells every zone that the runtime lists as it lists it, from any letter case', () => {
+    const expected = listedZones.map((zone) => spelled(zone));
+
+    expect(listedZones.map((zone) => canonicalTimeZone(zone))).toStrictEqual(expected);
+    expect(listedZones.map((zone) => canonicalTimeZone(zone.toLowerCase()))).toStrictEqual(
+      expected,
+    );
+    expect(listedZones.map((zone) => canonicalTimeZone(zone.toUpperCase()))).toStrictEqual(
+      expected,
+    );
+  });
+
+  it('[IHM-14] spells a zone typed in any mix of letter cases as the runtime lists it', () => {
+    fc.assert(
+      fc.property(anyMixedCase, ({ zone, typed }) => {
+        expect(canonicalTimeZone(typed)).toStrictEqual(spelled(zone));
+      }),
+    );
+  });
+
+  it('[IHM-14] accepts a text exactly when isTimeZone does, whatever the text, without throwing', () => {
+    const anyText = fc.oneof(
+      anyMixedCase.map(({ typed }) => typed),
+      fc.string(),
+    );
+
+    fc.assert(
+      fc.property(anyText, (text) => {
+        expect(canonicalTimeZone(text).ok).toBe(isTimeZone(text));
       }),
     );
   });

@@ -16,7 +16,10 @@ export { compareInstants, toEpochMs } from './instant';
 export type { EpochMs } from './instant';
 export { parseTimestamp } from './parse-timestamp';
 export type { ParsedTimestamp, TimestampResult } from './parse-timestamp';
+export { parseTimeOfDay } from './time-of-day';
+export type { TimeOfDayResult } from './time-of-day';
 export {
+  canonicalTimeZone,
   endOfDayPacific,
   endOfLocalDay,
   gameDay,
@@ -28,4 +31,4 @@ export {
   toZoned,
   userDay,
 } from './zones';
-export type { LocalDateTime } from './zones';
+export type { LocalDateTime, TimeZoneError, TimeZoneResult } from './zones';
