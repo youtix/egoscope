@@ -187,17 +187,20 @@ neither a test nor a waiver.
   applied. Close it when the test ends, `onTestFinished(database.close)`, since an open one holds
   about 200 MB.
 - No test reaches the database that the shell running it points to, which may export the
-  production connection strings (TRV-76). `createTestDatabase()` reads no variable; a test of
-  `getDb()`, `getDirectDb()`, `ping()` or `migrateDatabase()` first stubs `DATABASE_URL`,
-  `DATABASE_URL_UNPOOLED` and `VERCEL_ENV` to `''`, then what it needs, as the tests of
-  `src/lib/db/` do. The databases that these functions open stay on `globalThis` for the life of
-  the process, so a test that plays a fresh server also stubs that registry away, as they do.
-- Nor does any test depend on the database variables that the shell exports. The environment is
-  valid or invalid as one whole, so one refused value, such as a connection string with
-  `sslmode=require`, invalidates all of it: a test that loads `@/lib/env` afresh, directly or
-  through a module that reads it such as `@/lib/log`, stubs `DATABASE_URL`,
-  `DATABASE_URL_UNPOOLED` and `VERCEL_ENV` to `''` and `NODE_ENV` to `test`, as the tests of the
-  logger and of `/api/health` do.
+  production connection strings (TRV-76), and no test depends on any other variable that the
+  shell exports. The environment is read once, when `@/lib/env` loads, and is valid or invalid as
+  one whole: one refused value, such as a connection string with `sslmode=require` or
+  `LOG_LEVEL=INFO`, invalidates all of it, and a valid one, such as `LOG_LEVEL=error`, changes
+  what the logger writes. So a test that loads `@/lib/env` afresh, directly or through a module
+  that reads it such as `@/lib/log` or `@/lib/db`, stubs every variable of the schema in
+  `src/lib/env/server-env.ts` before loading it: to what the test needs, and otherwise `NODE_ENV`
+  to `test` and the others to `''`, which leaves them unset. The tests of `src/lib/db/`, of the
+  logger and of `/api/health` do so. A test that starts a script that loads `@/lib/env` pins them
+  the same way in the script's environment, `NODE_ENV` to `test` and the others left out, then
+  adds what it needs, as `scripts/migrate.test.ts` does. `createTestDatabase()` reads no variable.
+- The databases that `getDb()`, `getDirectDb()`, `ping()` and `migrateDatabase()` open stay on
+  `globalThis` for the life of the process, so a test that plays a fresh server also stubs that
+  registry away, as the tests of `src/lib/db/` do.
 
 ## The local loop
 

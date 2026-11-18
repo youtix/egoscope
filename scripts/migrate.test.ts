@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ROOT = path.join(import.meta.dirname, '..');
 // Ports where nothing listens, so that a connection is refused at once.
@@ -11,23 +11,48 @@ const DIRECT_URL = 'postgresql://app@127.0.0.1:2/egoscope?sslmode=verify-full';
 
 type Outcome = Readonly<{ status: number | null; output: string }>;
 
+// Every variable of the server environment (src/lib/env/server-env.ts), which the
+// deploy step validates as one whole, pinned whatever the shell that runs the
+// tests exports: NODE_ENV as Vitest sets it, and the others left out.
+const PINNED_SERVER_ENV = {
+  LOG_LEVEL: undefined,
+  NODE_ENV: 'test',
+  VERCEL_ENV: undefined,
+  DATABASE_URL: undefined,
+  DATABASE_URL_UNPOOLED: undefined,
+} as const;
+
+/**
+ * Exports what a developer's shell may: the production connection strings, for
+ * example to run pg_dump, with VERCEL_ENV=production, and a LOG_LEVEL and a
+ * NODE_ENV that the schema refuses, each of which makes the whole environment
+ * invalid. CI exports none of these, so every test here starts as if the shell
+ * did, and a deploy step that inherited them would migrate the database they
+ * name or stop on an invalid environment (TRV-76).
+ */
+function exportShellVariables(): void {
+  vi.stubEnv('DATABASE_URL', POOLED_URL);
+  vi.stubEnv('DATABASE_URL_UNPOOLED', POOLED_URL);
+  vi.stubEnv('VERCEL_ENV', 'production');
+  vi.stubEnv('LOG_LEVEL', 'INFO');
+  vi.stubEnv('NODE_ENV', 'staging');
+}
+
 /** Runs the deploy step as the production build does, with these deployment variables only. */
 function migrate(variables: Readonly<Record<string, string>>): Outcome {
   const result = spawnSync('bun', ['run', 'db:migrate'], {
     cwd: ROOT,
     encoding: 'utf8',
-    env: {
-      ...process.env,
-      VERCEL_ENV: undefined,
-      DATABASE_URL: undefined,
-      DATABASE_URL_UNPOOLED: undefined,
-      ...variables,
-    },
+    env: { ...process.env, ...PINNED_SERVER_ENV, ...variables },
   });
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
 describe('the deploy step', { timeout: 60_000 }, () => {
+  beforeEach(() => {
+    exportShellVariables();
+  });
+
   it.each([
     ['a preview', { VERCEL_ENV: 'preview' }],
     ['a local run', {}],

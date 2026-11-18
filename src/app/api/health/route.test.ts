@@ -39,11 +39,14 @@ describe('GET /api/health', () => {
     // The environment is read once per server process, so each test loads a fresh one.
     vi.resetModules();
     exportRefusedVariables();
-    // Whatever the shell exports, each test starts outside Vercel with no
-    // database configured, then stubs what it needs.
+    // Whatever the shell exports, each test starts from every variable of the
+    // server environment pinned: outside Vercel with no database configured, at
+    // the default log level, and with NODE_ENV as Vitest sets it. Then it stubs
+    // what it needs.
     vi.stubEnv('DATABASE_URL', '');
     vi.stubEnv('DATABASE_URL_UNPOOLED', '');
     vi.stubEnv('VERCEL_ENV', '');
+    vi.stubEnv('LOG_LEVEL', '');
     vi.stubEnv('NODE_ENV', 'test');
   });
 

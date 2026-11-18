@@ -40,15 +40,18 @@ const SHELL_DATABASE_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify
 const OPENED_DATABASES = Symbol.for('egoscope.db.opened-databases');
 
 /**
- * Exports what a developer's shell may, for example the production connection
- * strings to run pg_dump. CI exports no database variable, so every test here
- * starts as if the shell did, and a test that read them would fail instead of
- * migrating the database they name (TRV-76).
+ * Exports what a developer's shell may: the production connection strings, for
+ * example to run pg_dump, and a LOG_LEVEL and a NODE_ENV that the schema
+ * refuses, each of which makes the whole environment invalid. CI exports none of
+ * these, so every test here starts as if the shell did, and a test that read
+ * them would fail instead of migrating the database they name (TRV-76).
  */
 function exportShellVariables(): void {
   vi.stubEnv('DATABASE_URL', SHELL_DATABASE_URL);
   vi.stubEnv('DATABASE_URL_UNPOOLED', SHELL_DATABASE_URL);
   vi.stubEnv('VERCEL_ENV', 'production');
+  vi.stubEnv('LOG_LEVEL', 'INFO');
+  vi.stubEnv('NODE_ENV', 'staging');
 }
 
 /** An empty project root of its own as the working directory, and its drizzle/ folder. */
@@ -80,11 +83,15 @@ describe('migrateDatabase', { timeout: 60_000 }, () => {
     vi.resetModules();
     vi.stubGlobal(OPENED_DATABASES, undefined);
     exportShellVariables();
-    // Whatever the shell exports, each test starts outside Vercel with no
-    // database configured, then stubs what it needs.
+    // Whatever the shell exports, each test starts from every variable of the
+    // server environment pinned: outside Vercel with no database configured, at
+    // the default log level, and with NODE_ENV as Vitest sets it. Then it stubs
+    // what it needs.
     vi.stubEnv('DATABASE_URL', '');
     vi.stubEnv('DATABASE_URL_UNPOOLED', '');
     vi.stubEnv('VERCEL_ENV', '');
+    vi.stubEnv('LOG_LEVEL', '');
+    vi.stubEnv('NODE_ENV', 'test');
   });
 
   it('[TRV-76] migrates through the direct connection string, never the pooled one', async () => {
