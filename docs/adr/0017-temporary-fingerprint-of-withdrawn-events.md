@@ -101,3 +101,9 @@ From Q-DSN-01:
 
 - A tracked case emptied by a regrouping after its measured game's scheduled start leaves a regrouping exit, which keeps it counted once among the cases now out of the counts of the validation table. The exit is tied to the emptied case's earliest-recorded event and holds no date and no game.
 - A withdrawal of that event removes the exit, as if the case had never existed, so nothing of the case outlives the withdrawal but the counter and, for the horizon, the fingerprint. An erasure by requalification or split and the deletion of the player's data remove it too.
+
+### 2026-11-18 — Drafts typed offline, emptied sheets and shared cases (CL-DSN-22, CL-ALE-16, CL-SUI-17)
+
+- A device's import-draft copy that was never sent to the server cannot be matched to the withdrawal, since nothing on the server may name the player's requests: it carries the withdrawn-events counter's value the device last received, and at the device's next contact it is discarded when the counter has grown since, whatever its player, the device saying only that drafts typed offline were discarded because an event was withdrawn meanwhile (CL-DSN-22). A copy that was sent goes because its server copy is gone.
+- In Lot 2, a sheet or a section that a correction or a merge left without an event goes with the event that left it, and every remaining sheet takes the status its remaining events give it, with no update entry; a status changed that way is an accepted residual limit, like the verdict-history entry of CL-SEN-18 (CL-ALE-16).
+- When the withdrawn event shares its case with other events, the case is rebuilt as if the event had never been recorded: origin, creation instant, recording timing and forecast versions come from the earliest-recorded remaining event, and no message announces it (CL-SUI-17).

@@ -118,10 +118,14 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
 5. Lot 2 sub-steps, in this order, the module map's: notifications — erases the texts and
    identifiers of every message about E, whatever Telegram answered in step 3; alerts — in the
    sheet holding E, everything about it, or the whole sheet and its alert-history entry if E was its
-   only event, with the outbox facts of its sheets and update entries; tracking — its tracked-case
-   data and its regrouping exits, with the outbox facts of its tracked game results; detection — the classification results
+   only event, and every sheet or section a correction or a merge of E left without an event, each
+   remaining sheet taking the status of its remaining events with no entry (CL-ALE-16), with the
+   outbox facts of its sheets and update entries; tracking — its tracked-case data, or, when its case
+   keeps other events, the tracked case rebuilt from them (CL-SUI-17), and its regrouping exits, with
+   the outbox facts of its tracked game results; detection — the classification results
    of its articles and their attachments, then, through collection's eraser, every article attached
-   to E and to no other event, with no dedup trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the
+   to E and to no other event, whatever its other roles, with the type occurrences copied from it,
+   with no dedup trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the
    outbox facts of its own objects by `lot2_subject_id` and nulls the journal's `lot2_object_kind`
    and `lot2_object_id` for what it erases.
 6. `import_event_outcomes` rows whose event is E, and `import_possible_duplicates` rows whose
@@ -131,8 +135,10 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
    row in step 8 (`related_player_event_id`). In the same step, the import drafts of every
    backtest request of E's player, since a pasted result may report the withdrawn fact: the server
    copies here; a device's copy that was sent to the server is dropped at the device's next
-   contact, since its server copy no longer exists, and one never sent expires at the latest at
-   the draft's expiry, counted from its last change, so nothing has to record the discard;
+   contact, since its server copy no longer exists; one never sent is discarded at that contact
+   when the withdrawn-events counter has grown since the device recorded it, whatever its player,
+   and at the latest at the draft's expiry, counted from its last change (operations.md section
+   1.12), so nothing on the server has to record the discard;
    exploration drafts are not concerned (CL-DSN-22, DSN-27, DSN-32; the request ids come from
    `backtest_requests`, and `drafts_import_key` finds each draft).
 7. `journal_technical_details` of journal entries that concerned only E; the entries' references
@@ -142,7 +148,7 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
 8. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),
    `event_import_warnings`, `event_marks`, `event_status_changes`, `event_corrections` and
    `backtest_request_events`, the outbox facts and restore-report rows that name it.
-9. E's case if it holds no other event, with its criteria, flags, decisions and history.
+9. E's case if it holds no other event, with its criteria, flags, decisions and history; otherwise the case is rebuilt as if E had never been recorded (CL-SUI-17): its `origin` and `created_at` become those of its earliest-recorded remaining event, E's decisions go, and tracking has already rebuilt or deleted its tracked case in step 5.
 10. `withdrawn_event_counter.value + 1`.
 11. A journal entry "an event was withdrawn", with no player, type or date (CL-TRV-10).
 12. A full recalculation job with cause `recalculation`; a profile or trend it leaves with no event
@@ -163,7 +169,8 @@ requests were sent.
 What remains afterwards: the counter and, for the horizon, the fingerprint. Accepted residual
 limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); in Lot 2, the forecast
 frozen at a tip-off before the withdrawal on another tracked case of the same pair or type, which
-never changes (SUI-09, CL-SEN-18); backups until they
+never changes (SUI-09, CL-SEN-18); in Lot 2, a sheet whose status changed at the withdrawal with no
+entry, or closed on a day when none of its cases changed (CL-ALE-16); backups until they
 rotate out; exports already downloaded; Telegram messages the bot could not delete; a device left
 offline until its next refresh; in Lot 2, an article still in a feed, collected and classified
 again for at most its maximum age while the fingerprint keeps it from becoming an event

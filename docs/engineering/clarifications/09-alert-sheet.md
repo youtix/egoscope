@@ -137,6 +137,18 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** ALE-05 settles it; the expected game is the only game known at the import.
 - **Owner review:** no
 
+## CL-ALE-16 — A sheet after the withdrawal of one of its events
+
+- **Affects:** ALE-22, ALE-26, ALE-27, ALE-28, ALE-30, ALE-31, DSN-27, DSN-29; CL-ALE-06, CL-SEN-18 (file 08 ruling)
+- **Problem:** ALE-30 erases a sheet whose only event is withdrawn, or else the event's section and every mention of it, but a correction (ALE-31) or a merge (DET-47) can leave a sheet, or a section, with no event at all while it exists only because of the corrected or absorbed event; and ALE-30 does not say which state a sheet takes when the withdrawal leaves it only dismissed events, or only cases already measured, while nothing may record the withdrawal.
+- **Ruling:**
+  - What a correction or a merge left behind belongs to the event that left: a sheet, or a section, left with no event when a player or type correction moved an event to another sheet or section, or when a merge absorbed it into another event, is erased with that event — the corrected event, or the kept event of the merge — at its withdrawal or its erasure by requalification or split (ALE-30, DSN-27): a sheet left with no section after that goes whole, with its alert-history entry, its number never reused.
+  - A sheet that keeps events takes, at once, the state ALE-26 gives its remaining events, as if the withdrawn event had never been on it: « annulée » with the reason "all events dismissed" when every remaining event is dismissed; « close » when every remaining non-dismissed event's case is measured, excluded or not measurable, its outcomes recorded as at any closure (ALE-27); « ouverte » otherwise.
+  - That change writes no `status_changed` update entry and sends no message, since no entry and no message records a withdrawal (ALE-30); the outcomes a closure records name only remaining events.
+  - Accepted residual limit, as for the verdict history (CL-SEN-18): a state that changed with no entry, or a closure on a day when no case of the sheet changed, can let a reader guess that something left the sheet that day.
+- **Why:** ALE-30 and DSN-29 leave nothing that designates the withdrawn event, and a sheet or section that exists only for it designates it; ALE-26 sets a sheet's state from its events at all times.
+- **Owner review:** yes — a sheet emptied by a correction or a merge goes with the event that left it, and a sheet's state follows its remaining events at a withdrawal without a log entry, which can let a reader guess that something left it that day.
+
 ## Passed to the glossary
 
 - The fixed sentences of ALE-10, ALE-12, ALE-13, ALE-16, ALE-17 and ALE-24, and the two forms of the direction caveat (CL-ALE-03).

@@ -156,6 +156,18 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Why:** a sort made after the result was known stays visible, as SUI-17 requires, without inventing a case, whether a correction or a merge made it. Erasing the exit with the event keeps SEN-48 and SUI-30.
 - **Owner review:** yes — a case that no longer exists keeps counting in the table, with the gap it had when it was emptied.
 
+## CL-SUI-17 — Withdrawing an event whose case holds other events
+
+- **Affects:** SUI-05, SUI-06, SUI-07, SUI-09, SUI-30, SEN-05, SEN-48, DSN-27, DSN-29; CL-VUE-03, CL-VUE-13, CL-SEN-18, CL-SUI-03 (file 00 and 08 rulings)
+- **Problem:** SUI-30 erases a withdrawn event's tracked case with its forecast versions, category and transmitted result, and takes it out of every row, but a case can hold several events of its type attached to one game (SEN-05). When the withdrawn event shares its case, the other events still have that case, whose origin and creation instant — which decide whether it tests the hypothesis (SUI-06, SUI-07) — came from the withdrawn event when it was recorded first; kept as they are, the withdrawn event's timing would still decide the remaining case.
+- **Ruling:**
+  - The case is rebuilt as if the withdrawn event had never been recorded (SEN-48, DSN-29): its origin and creation instant become those that SUI-05, SUI-07 and CL-VUE-13 give the earliest-recorded of its remaining events.
+  - When the rebuilt case is tracked, its tracked case is the one tracking would have built at that instant: its forecast versions are cut at that instant — the one in force then becomes the first, effective from it, and the earlier ones are deleted (CL-SUI-03) — and the recording timing is computed again (SUI-06). The forecast frozen at tip-off therefore stays when the new instant still precedes the measured game's scheduled start, since no version at or after it changes; when the new instant is at or after that start, the case is « enregistré après le coup d'envoi », counted apart and never a test, with the forecast state the freeze rule then gives (SUI-09). Its category follows (SUI-22).
+  - When the rebuilt case is historical — its remaining events all imported — its tracked case is deleted with its forecast versions, category history and results (SUI-30), and the case counts in the historical views from then on.
+  - In both, the results transmitted that name the withdrawn event are deleted with their messages (TEL-38), the decisions about that event go, and the decisions about the case stay with it (CL-SEN-12); no message announces the rebuilt case. SUI-30's « il disparaît de toutes les lignes du tableau » holds for the case as it was: the table counts only the rebuilt case.
+- **Why:** SUI-30 and SEN-48 want the table as if the event had never existed, and SUI-07's first recording is then that of the remaining events; keeping the withdrawn event's creation instant would let its timing decide whether the case tests the hypothesis.
+- **Owner review:** yes — when a withdrawn event shares its case, the case is rebuilt from its other events, whose first recording sets its origin, creation instant, recording timing and forecast versions, and no message announces it.
+
 ## Passed to the glossary
 
 - « pronostic », « pronostic figé », « pronostic tardif », « sans pronostic »: the English word must carry no betting sense (ALE-18, TEL-05); the register and ADR 0015 already use both "forecast" and "prognosis".

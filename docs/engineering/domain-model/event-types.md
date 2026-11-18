@@ -220,7 +220,18 @@ mention (CL-DET-18).
 Row check: at most one row per type has `is_originating_fact` (partial unique index
 `type_occurrences_originating_key (event_type_id) WHERE is_originating_fact`).
 
-Indexes: `type_occurrences_type_idx (event_type_id)` serves the occurrence count on the sheet.
+Indexes: `type_occurrences_type_idx (event_type_id)` serves the occurrence count on the sheet;
+`type_occurrences_article_idx (article_url)` finds the occurrences of an article for the withdrawal
+step.
+
+Deletion: with its player (`ON DELETE CASCADE`); and at the withdrawal of an event, or its erasure
+by requalification or split, every occurrence whose article the erasure deletes (an article attached
+to that event and to no other, COL-37, DSN-34) is deleted first, through
+`taxonomy.eraseOccurrencesOf(articleLinks)`, which detection's eraser calls with the links of those
+articles ([detection.md](detection.md) section 1.9). DSN-34, the specific rule for a withdrawn
+event's articles, prevails there over DSN-09's keeping of occurrence references (CL-JRN-01): the
+occurrence is a classification result of the erased article and its link would designate the
+withdrawn event. Otherwise an occurrence outlives its article's purge (DSN-09).
 
 Attaching a proposal P as an occurrence of an entry Q moves P's rows to Q with
 `is_originating_fact = false` and rejects P with `duplicate_of_existing_type`; detaching an

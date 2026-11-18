@@ -200,10 +200,11 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Problem:** an import draft of the player's backtest request can hold the pasted text of a result that reports the withdrawn event, and DSN-27 does not list drafts among what a withdrawal erases: the draft would keep the event's description and sources until it is saved, discarded or expired.
 - **Ruling:**
   - Withdrawing an event discards the import draft of every backtest request of that event's player: the server copy in the withdrawal's transaction; each device's copy at that device's next contact with the server, and at the latest at the draft's expiry (CL-IHM-11). This discard writes no journal entry, unlike the one CL-IHM-10 allows, since an entry naming the request would designate the withdrawn event's player (DSN-29).
+  - At its next contact, a device tells its copies apart without anything stored on the server that names a request: a copy it had sent to the server whose server copy no longer exists is dropped, whatever ended it; a copy it never sent — typed offline, or not sent yet — carries the value of the withdrawn-events counter (DSN-29) that the device last received before it was typed, and is discarded at that contact when the counter has grown since, whatever its request's player, otherwise sent as IHM-42 says. The device then says that drafts typed offline were discarded because an event was withdrawn meanwhile, naming neither the event nor the player.
   - When such a draft exists, the withdrawal confirmation says that it will be discarded, and the limits of CL-DSN-19 say how long a device's copy can remain.
   - Exploration drafts are not concerned.
-- **Why:** a withdrawal reaches every place the event can live (DSN-27), and a pasted text cannot be reliably searched for one event, so the whole draft goes.
-- **Owner review:** yes — the owner loses an import in progress for that player, which no French text foresaw.
+- **Why:** a withdrawal reaches every place the event can live (DSN-27), and a pasted text cannot be reliably searched for one event, so the whole draft goes; a device's unsent copy can only be judged by what every screen may show, the counter, since a record of the requests concerned would designate the player.
+- **Owner review:** yes — the owner loses an import in progress for that player, which no French text foresaw, and a draft typed offline for any player is discarded when an event was withdrawn before the device reconnected.
 
 ## Ruled elsewhere
 

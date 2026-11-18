@@ -150,8 +150,8 @@ Unique: `incidents_open_cause_key (kind, cause_key) WHERE status = 'open'` — o
 cause (TRV-45).
 
 Indexes: `incidents_status_idx (status, opened_at)` — Home, the to-do list, the status screen; the
-counted days of STA-35 read the periods of `stats_source_unavailable` and `quota_reached`
-(CL-STA-11).
+counted days of STA-35 read the periods of `stats_source_unavailable`, `stats_source_schema_changed`
+and the stats source's `quota_reached` (CL-STA-11).
 
 ```ts
 type IncidentKind =
@@ -373,9 +373,12 @@ import draft of a request, for the withdrawal step;
 Lifetime: erased when its import or its proposals are saved, when discarded, `display.draftRetentionDays`
 after its last change, when its request, proposal or player disappears, and at every restore
 (CL-DSN-17). A device copy that was sent to the server is dropped by the device at its next contact
-when the server copy no longer exists, whatever ended it, so nothing records why; a copy never sent,
-typed offline, is sent at that contact (IHM-42) and keeps the last-change instant it was typed at, so
-it expires on the device's own schedule. A withdrawal of one of a player's events also discards the import drafts of every
+when the server copy no longer exists, whatever ended it, so nothing records why. A copy never sent,
+typed offline, carries the value of the withdrawn-events counter the device last received before it
+was typed: at the next contact the device discards it when the counter has grown since, whatever its
+request's player, and says that drafts typed offline were discarded because an event was withdrawn
+meanwhile; otherwise it sends it (IHM-42), with the last-change instant it was typed at, so it expires
+on its own schedule (CL-DSN-22). Nothing on the server names the requests concerned. A withdrawal of one of a player's events also discards the import drafts of every
 backtest request of that player, server copies in the withdrawal's transaction, since a pasted
 result may report the withdrawn fact ([sensitive-data.md](sensitive-data.md) section 2.1).
 
