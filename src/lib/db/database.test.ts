@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -10,6 +10,8 @@ import type { PoolConfig } from 'pg';
 
 // Counts what the module creates: node-postgres pools, and PGlite instances.
 const created = vi.hoisted(() => ({ pools: 0, pglites: 0 }));
+// Counts the PGlite instances that the module closes.
+const closed = vi.hoisted(() => ({ pglites: 0 }));
 
 vi.mock(import('pg'), async (importOriginal) => {
   const pg = await importOriginal();
@@ -23,13 +25,21 @@ vi.mock(import('pg'), async (importOriginal) => {
 });
 
 // PGlite itself cannot be wrapped: a second copy of its module breaks its wire
-// protocol. Its one starter is counted instead, and still starts it.
+// protocol. Its one starter is counted instead, with the closing of what it
+// starts, and still starts and closes PGlite.
 vi.mock(import('./pglite'), async (importOriginal) => {
   const { startPglite } = await importOriginal();
   return {
     startPglite: async (options) => {
       created.pglites += 1;
-      return startPglite(options);
+      const pglite = await startPglite(options);
+      return {
+        ...pglite,
+        close: async () => {
+          closed.pglites += 1;
+          await pglite.close();
+        },
+      };
     },
   };
 });
@@ -98,6 +108,7 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
     vi.stubGlobal(OPENED_DATABASES, undefined);
     created.pools = 0;
     created.pglites = 0;
+    closed.pglites = 0;
     exportShellVariables();
     // Whatever the shell exports, each test starts outside Vercel with no
     // database configured, then stubs what it needs.
@@ -211,5 +222,24 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
     await expect(again?.select().from(reloaded.sequenceCounters)).resolves.toStrictEqual([
       { name: 'import_sequence', lastValue: 3 },
     ]);
+  });
+
+  it('[TRV-76] open .pglite/ again on the next call once a failed migration is fixed, the failed PGlite closed', async () => {
+    const folder = projectFolder();
+    const migration = path.join(folder, 'drizzle', '0000_installation_and_sequence_counters.sql');
+    const generated = readFileSync(migration, 'utf8');
+    writeFileSync(migration, 'SELECT * FROM "missing";');
+    vi.stubEnv('NODE_ENV', 'development');
+    const { getDb, sequenceCounters } = await import('.');
+
+    await expect(getDb()).rejects.toThrow('Failed query: SELECT * FROM "missing";');
+    writeFileSync(migration, generated);
+    const db = dbOf(await getDb());
+
+    expect({ started: created.pglites, closed: closed.pglites }).toStrictEqual({
+      started: 2,
+      closed: 1,
+    });
+    await expect(db?.select().from(sequenceCounters)).resolves.toStrictEqual([]);
   });
 });

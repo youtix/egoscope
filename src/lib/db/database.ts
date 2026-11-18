@@ -22,7 +22,9 @@ type OpenResult =
 
 type ReachableTarget = Exclude<DatabaseTarget, Readonly<{ kind: 'not-configured' }>>;
 
-type OpenedDatabases = Map<Connection | 'pglite', Promise<OpenDatabase>>;
+type OpenedKey = Connection | 'pglite';
+
+type OpenedDatabases = Map<OpenedKey, Promise<OpenDatabase>>;
 
 // Where `next dev` keeps its database, under the project root (git-ignored).
 const LOCAL_DATA_DIR = '.pglite';
@@ -55,8 +57,31 @@ async function open(target: ReachableTarget): Promise<OpenDatabase> {
   const pglite = await startPglite(
     target.isPersistent ? { dataDir: path.join(process.cwd(), LOCAL_DATA_DIR) } : {},
   );
-  await pglite.migrate();
+  try {
+    await pglite.migrate();
+  } catch (error) {
+    // Closed, so that the next attempt is the only PGlite open on .pglite/.
+    await pglite.close();
+    throw error;
+  }
   return pglite;
+}
+
+// Opens `target` for the entry `key` of `opened`, and removes the entry when the
+// opening fails, before any caller learns of it: the next call then tries again,
+// once the migration that failed under `next dev` is fixed for example, instead
+// of getting the same failure for the life of the process.
+async function openOrForget(
+  opened: OpenedDatabases,
+  key: OpenedKey,
+  target: ReachableTarget,
+): Promise<OpenDatabase> {
+  try {
+    return await open(target);
+  } catch (error) {
+    opened.delete(key);
+    throw error;
+  }
 }
 
 /**
@@ -64,6 +89,8 @@ async function open(target: ReachableTarget): Promise<OpenDatabase> {
  * for the life of the server process, whichever copy of this module asks
  * (TRV-14). Outside Vercel, both connections share one PGlite database, which
  * applies every pending migration before it serves its first query (TRV-76).
+ * A database that fails to open rejects its callers and is not kept, so that
+ * the next call opens it again.
  */
 export async function openConnection(connection: Connection): Promise<OpenResult> {
   const target = databaseTarget(readServerEnv(), connection);
@@ -72,7 +99,7 @@ export async function openConnection(connection: Connection): Promise<OpenResult
   }
   const opened = openedDatabases();
   const key = target.kind === 'pglite' ? target.kind : connection;
-  const database = opened.get(key) ?? open(target);
+  const database = opened.get(key) ?? openOrForget(opened, key, target);
   opened.set(key, database);
   return { ok: true, open: await database };
 }
