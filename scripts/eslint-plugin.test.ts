@@ -20,10 +20,14 @@ const withComment = (comment: string): string => `${comment}\nexport const probe
 const inTest = (body: string): string =>
   `import { describe, expect, it } from 'vitest';\n\ndescribe('probe', () => {\n${body}\n});\n`;
 
+/** An end-to-end spec whose suite holds `body`. */
+const inSpec = (body: string): string =>
+  `import { test } from './fixtures';\n\ntest.describe('probe', () => {\n${body}\n});\n`;
+
 describe('comments and directives that switch a check off', { timeout: 120_000 }, () => {
   afterAll(remove);
 
-  describe('ESLint, TypeScript, React and Vitest switches', () => {
+  describe('ESLint, TypeScript, React, Vitest and Playwright switches', () => {
     it.each([
       ['a file-wide disable', '/* eslint-disable */\nexport const probe = 1;\n'],
       ['a same-line disable', 'export const probe = 1; // eslint-disable-line no-new -- trying\n'],
@@ -76,6 +80,22 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
       ['a test left to do', inTest("  it.todo('runs');"), 'vitest/warn-todo'],
     ])('refuses %s', async (_kind, code, rule) => {
       expect(await ruleIds('src/lib/probe/probe.test.ts', code)).toContain(rule);
+    });
+
+    it.each([
+      ['a skipped spec', "  test.skip('runs', () => undefined);", 'playwright/no-skipped-test'],
+      ['a spec to fix', "  test.fixme('runs', () => undefined);", 'playwright/no-skipped-test'],
+      ['a focused spec', "  test.only('runs', () => undefined);", 'playwright/no-focused-test'],
+      ['a spec expected to fail', "  test.fail('runs', () => undefined);", 'no-restricted-syntax'],
+      ['a failing suite', "  test.describe.fail('runs', () => undefined);", 'no-restricted-syntax'],
+    ])('refuses %s in an end-to-end spec', async (_kind, body, rule) => {
+      expect(await ruleIds('e2e/smoke.spec.ts', inSpec(body))).toContain(rule);
+    });
+
+    it("refuses a spec that takes Playwright's own test, without the accessibility check", async () => {
+      const code = "import { test } from '@playwright/test';\n\nexport const probe = test;\n";
+
+      expect(await ruleIds('e2e/smoke.spec.ts', code)).toContain('no-restricted-imports');
     });
 
     it('lets a test expect a type error, with its reason', async () => {

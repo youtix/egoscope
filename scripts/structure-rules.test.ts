@@ -12,6 +12,8 @@ const VALID_LAYOUT = [
   'data/fixtures/box-scores.json',
   'scripts/with-lock.ts',
   'src/proxy.ts',
+  'src/instrumentation.ts',
+  'src/instrumentation.test.ts',
   'src/app/favicon.ico',
   'src/app/globals.css',
   'src/app/layout.tsx',
@@ -50,6 +52,7 @@ describe('findStructureViolations', () => {
     ['src/app/players/_components/card.tsx', 'private _folders'],
     ['src/components/button.tsx', 'only app/ and lib/'],
     ['src/utils.ts', 'only app/ and lib/'],
+    ['src/utils.test.ts', 'only app/ and lib/'],
   ])('module rule 5: rejects %s', (path, problem) => {
     const paths = [...VALID_LAYOUT, path];
 

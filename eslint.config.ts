@@ -26,6 +26,7 @@ import importX from 'eslint-plugin-import-x';
 import jestDom from 'eslint-plugin-jest-dom';
 import jsdoc from 'eslint-plugin-jsdoc';
 import jsxA11y from 'eslint-plugin-jsx-a11y-x';
+import playwright from 'eslint-plugin-playwright';
 import promise from 'eslint-plugin-promise';
 import reactHooks from 'eslint-plugin-react-hooks';
 import regexp from 'eslint-plugin-regexp';
@@ -67,6 +68,28 @@ function asPlugin(value: unknown): ESLint.Plugin {
 }
 
 // ---------------------------------------------------------------------------
+// End-to-end specs (CLAUDE.md, "End-to-end tests"): Playwright's rules, and two
+// of this project. A spec takes `test` and `expect` from e2e/fixtures/test.ts,
+// which checks every page that a test visits for accessibility, and no test is
+// expected to fail.
+// ---------------------------------------------------------------------------
+
+const E2E_TEST_IMPORT = {
+  name: '@playwright/test',
+  importNames: ['test', 'expect'],
+  message:
+    'Import test and expect from e2e/fixtures/test.ts, which checks every page that a test visits for accessibility.',
+};
+// `test.fail` and `test.describe.fail`, with or without a condition.
+const E2E_SYNTAX = [
+  {
+    selector:
+      "MemberExpression[property.name='fail']:matches([object.name='test'], [object.object.name='test'])",
+    message: '`fail` turns a failing test into a pass: a test runs and passes, or it is deleted.',
+  },
+];
+
+// ---------------------------------------------------------------------------
 // File sets. Every TypeScript extension is covered; the structure check then
 // allows only .ts and .tsx in src/ and scripts/, and only .ts in the pure core.
 // ---------------------------------------------------------------------------
@@ -79,6 +102,7 @@ const CONFIG_FILES = ['*.config.ts', 'vitest.dom-setup.ts'];
 const SCRIPT_FILES = [`scripts/**/*.${TS}`];
 // End-to-end specs and their helpers, which live in e2e/, outside src/ (structure check).
 const E2E_FILES = [`e2e/**/*.${TS}`, `**/*.spec.${TS}`];
+const E2E_SPEC_FILES = [`**/*.spec.${TS}`];
 const SRC_FILES = [`src/**/*.${TS}`];
 const PURE_CORE_FILES = [`src/lib/{stats-engine,ai-exchange}/**/*.${TS}`];
 
@@ -1052,6 +1076,60 @@ const composed = defineConfig(
     name: 'egoscope/component-tests',
     files: COMPONENT_TEST_FILES,
     extends: [testingLibrary.configs['flat/react']],
+  },
+
+  // --- End-to-end specs (CLAUDE.md, "End-to-end tests") ----------------------------
+  {
+    // Every action and assertion is awaited, and nothing sleeps, waits for the
+    // network to go quiet or forces an action past the checks that a person's
+    // click would meet.
+    name: 'egoscope/playwright',
+    files: E2E_FILES,
+    extends: [playwright.configs['flat/recommended']],
+    rules: {
+      'check-file/folder-naming-convention': ['error', { 'e2e/**/': 'KEBAB_CASE' }],
+      'no-restricted-syntax': ['error', ...EVERYWHERE_SYNTAX, ...E2E_SYNTAX],
+      'playwright/no-skipped-test': ['error', { disallowFixme: true }],
+    },
+  },
+  {
+    name: 'egoscope/playwright-specs',
+    files: E2E_SPEC_FILES,
+    rules: {
+      // Literal expected values are the point of a test, and a suite holds many tests.
+      '@typescript-eslint/no-magic-numbers': 'off',
+      'max-lines-per-function': 'off',
+      'max-statements': 'off',
+      'max-nested-callbacks': ['error', { max: 4 }],
+      'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+      'no-restricted-imports': ['error', { paths: [E2E_TEST_IMPORT] }],
+      // Elements are found as a person and a screen reader find them: by role,
+      // label or text, never by CSS, XPath or a test id.
+      'playwright/no-get-by-title': 'error',
+      'playwright/no-raw-locators': 'error',
+      'playwright/prefer-native-locators': 'error',
+      'playwright/max-nested-describe': ['error', { max: 2 }],
+      'playwright/no-commented-out-tests': 'error',
+      'playwright/prefer-comparison-matcher': 'error',
+      'playwright/prefer-equality-matcher': 'error',
+      'playwright/prefer-strict-equal': 'error',
+      'playwright/prefer-to-be': 'error',
+      'playwright/prefer-to-contain': 'error',
+      'playwright/prefer-to-have-length': 'error',
+      'playwright/require-to-throw-message': 'error',
+      'playwright/require-top-level-describe': 'error',
+      'playwright/valid-title': [
+        'error',
+        {
+          mustMatch: {
+            test: [
+              TEST_TITLE,
+              'Start with [REQ-ID] tags if the test verifies requirements, then describe the behavior.',
+            ],
+          },
+        },
+      ],
+    },
   },
 
   {

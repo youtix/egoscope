@@ -22,7 +22,8 @@ vi.mock(import('@/lib/db'), () => {
 const REFUSED_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=require&channel_binding=require';
 
 /**
- * Exports what a developer's shell may and the schema refuses. The environment
+ * Exports what a developer's shell may and the schema refuses, the fakes switch
+ * of .env.example included, which no database URL may join. The environment
  * is valid or invalid as one whole, so one refused variable turns the probe to
  * 503 and joins the logged names. CI exports none of these, so every test here
  * starts as if the shell did, and fails if it reads them.
@@ -32,6 +33,7 @@ function exportRefusedVariables(): void {
   vi.stubEnv('DATABASE_URL_UNPOOLED', REFUSED_URL);
   vi.stubEnv('VERCEL_ENV', 'staging');
   vi.stubEnv('NODE_ENV', 'debugging');
+  vi.stubEnv('EGOSCOPE_FAKES', 'all');
 }
 
 describe('GET /api/health', () => {
@@ -40,14 +42,15 @@ describe('GET /api/health', () => {
     vi.resetModules();
     exportRefusedVariables();
     // Whatever the shell exports, each test starts from every variable of the
-    // server environment pinned: outside Vercel with no database configured, at
-    // the default log level, and with NODE_ENV as Vitest sets it. Then it stubs
-    // what it needs.
+    // server environment pinned: outside Vercel with no database configured and
+    // no fakes, at the default log level, and with NODE_ENV as Vitest sets it.
+    // Then it stubs what it needs.
     vi.stubEnv('DATABASE_URL', '');
     vi.stubEnv('DATABASE_URL_UNPOOLED', '');
     vi.stubEnv('VERCEL_ENV', '');
     vi.stubEnv('LOG_LEVEL', '');
     vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('EGOSCOPE_FAKES', '');
   });
 
   it('answers 200 with an uncached body while the environment is valid', async () => {

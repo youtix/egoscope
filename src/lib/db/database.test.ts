@@ -53,10 +53,11 @@ const OPENED_DATABASES = Symbol.for('egoscope.db.opened-databases');
 
 /**
  * Exports what a developer's shell may: the production connection strings, for
- * example to run pg_dump, and a LOG_LEVEL and a NODE_ENV that the schema
- * refuses, each of which makes the whole environment invalid. CI exports none of
- * these, so every test here starts as if the shell did, and a test that read
- * them would fail instead of reaching the database they name (TRV-76).
+ * example to run pg_dump, the fakes switch of .env.example, which no database URL
+ * may join, and a LOG_LEVEL and a NODE_ENV that the schema refuses, each of which
+ * makes the whole environment invalid. CI exports none of these, so every test
+ * here starts as if the shell did, and a test that read them would fail instead
+ * of reaching the database they name (TRV-76).
  */
 function exportShellVariables(): void {
   vi.stubEnv('DATABASE_URL', SHELL_DATABASE_URL);
@@ -64,6 +65,7 @@ function exportShellVariables(): void {
   vi.stubEnv('VERCEL_ENV', 'production');
   vi.stubEnv('LOG_LEVEL', 'INFO');
   vi.stubEnv('NODE_ENV', 'staging');
+  vi.stubEnv('EGOSCOPE_FAKES', 'all');
 }
 
 /** The database of a result, or undefined when there is none. */
@@ -114,14 +116,15 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
     closed.pglites = 0;
     exportShellVariables();
     // Whatever the shell exports, each test starts from every variable of the
-    // server environment pinned: outside Vercel with no database configured, at
-    // the default log level, and with NODE_ENV as Vitest sets it. Then it stubs
-    // what it needs.
+    // server environment pinned: outside Vercel with no database configured and
+    // no fakes, at the default log level, and with NODE_ENV as Vitest sets it.
+    // Then it stubs what it needs.
     vi.stubEnv('DATABASE_URL', '');
     vi.stubEnv('DATABASE_URL_UNPOOLED', '');
     vi.stubEnv('VERCEL_ENV', '');
     vi.stubEnv('LOG_LEVEL', '');
     vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('EGOSCOPE_FAKES', '');
   });
 
   it('[D-23] create no pool and open no connection when the module is imported', async () => {

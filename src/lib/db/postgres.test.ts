@@ -18,12 +18,13 @@ describe('createPool', () => {
     exportShellVariables();
     // Whatever the shell exports, each test starts from every variable of the
     // server environment pinned: at the default log level, info, outside Vercel
-    // with no database configured, and with NODE_ENV as Vitest sets it.
+    // with no database configured and no fakes, and with NODE_ENV as Vitest sets it.
     vi.stubEnv('LOG_LEVEL', '');
     vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('VERCEL_ENV', '');
     vi.stubEnv('DATABASE_URL', '');
     vi.stubEnv('DATABASE_URL_UNPOOLED', '');
+    vi.stubEnv('EGOSCOPE_FAKES', '');
   });
 
   it('opens no connection until a query needs one', async () => {

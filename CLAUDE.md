@@ -127,6 +127,30 @@ gives no difference.
   condition, an inline callback) goes untested, so keep it trivial; `route.ts` handlers are
   covered.
 
+## End-to-end tests
+
+- `bun run e2e` builds the app and runs `e2e/` with Playwright in Chromium, on a desktop in the
+  light theme and on a phone in the dark one, against `next start`, never `next dev`. Each lot
+  has its own hermetic server, with `EGOSCOPE_LOT` set, on a port that the system picks
+  (`playwright.config.ts`). `bun run e2e:ui` opens Playwright's UI, without the lock. Install
+  the browser once with `bun x playwright install chromium`.
+- One journey per screen task, in `e2e/<screen>.spec.ts` (`e2e/lot2/` for Lot 2), its titles
+  citing the requirement IDs it verifies, as in unit tests.
+- Take `test` and `expect` from `e2e/fixtures/test.ts`: it runs axe's WCAG 2.2 A and AA rules on
+  every page a test visits, before the first action or assertion on each address and on the
+  page the test ends on, and fails the test on any violation.
+- Locate elements by role and label (`getByRole`, `getByLabel`), as a person and a screen
+  reader find them, never by CSS, XPath or a test id. No sleeps and no waiting for the network
+  to go quiet: wait with web-first assertions for what the owner would see.
+- The hermetic mode, `EGOSCOPE_FAKES=all`: every outside service is a fake, and without a
+  database URL the database is PGlite in memory, fresh at each start. `EGOSCOPE_FAKES` beside
+  a real credential, which `src/lib/env/server-env.ts` marks as such, or on a production
+  deployment makes the configuration invalid, and the server refuses to start. `isHermetic()`
+  from `@/lib/env` says whether the mode is on.
+- `/api/test/*` controls the running app from the specs, in the hermetic mode only: every route
+  there calls `isHermetic()` first, after `await connection()`, and answers 404 otherwise, as
+  `/api/test/ping` does. A new control is a coordinator decision.
+
 ## Mutation testing
 
 - Stryker mutates the non-test files of the pure core (`src/lib/stats-engine/` and

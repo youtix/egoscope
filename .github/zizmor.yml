@@ -18,3 +18,7 @@ rules:
       # not edit either. Its use of ./.github/actions/setup-project moves to $/... in the
       # same change, which removes this entry too.
       - trace.yml
+      # e2e.yml, of the end-to-end task, loads the setup action as the workflows above do. Its
+      # use of ./.github/actions/setup-project moves to $/... in the same change, which
+      # removes this entry too.
+      - e2e.yml

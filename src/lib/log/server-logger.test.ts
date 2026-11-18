@@ -27,6 +27,7 @@ describe('logger', () => {
     vi.stubEnv('DATABASE_URL_UNPOOLED', '');
     vi.stubEnv('VERCEL_ENV', '');
     vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('EGOSCOPE_FAKES', '');
   });
 
   it('logs at the level that LOG_LEVEL sets', async () => {
