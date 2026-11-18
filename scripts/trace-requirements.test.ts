@@ -200,14 +200,17 @@ describe('runTrace', () => {
   });
 
   it('fails a description without the "Requirements covered" heading, unless the dependency-update bot opened the pull request', async () => {
-    // GitHub shows no heading inside a comment, a reworded heading is another one, and the
-    // bot's name in the text exempts nothing: only the author does.
+    // GitHub shows no heading inside a comment, here over three lines as the template writes
+    // them, a reworded heading is another one, and the bot's name in the text exempts
+    // nothing: only the author does.
     const description = [
       '## Summary',
       '',
       'Bumps a dependency, as dependabot[bot] does.',
       '',
-      '<!-- ## Requirements covered -->',
+      '<!--',
+      '## Requirements covered',
+      '-->',
       '',
       '## Requirements covered (Lot 1)',
       '',
@@ -398,6 +401,13 @@ describe('claimedIds', () => {
     ).toStrictEqual(['JOU-04']);
   });
 
+  it('hides the whole body after an unclosed comment that opens it, and nothing after <!--> or <!--->, as GitHub does', () => {
+    // GitHub shows nothing of the first body, not even its heading, while `<!-->` and
+    // `<!--->` are whole comments.
+    expect(claimedIds(`<!-- unclosed\r\n${body('- JOU-04')}`, SPEC_IDS)).toBeUndefined();
+    expect(claimsOf(['<!--> JOU-04', '<!---> JOU-05'])).toStrictEqual(['JOU-04', 'JOU-05']);
+  });
+
   it(
     'reads a crafted body of 64 KB in well under a second',
     { timeout: WELL_UNDER_A_SECOND },
@@ -427,8 +437,10 @@ describe('claimedIds', () => {
   });
 
   it('reads an ID that emphasis or punctuation touches, and none that a letter or digit touches', () => {
+    // The claims hold each ID once, so each token that a letter or digit touches holds an
+    // ID that no other token gives: read by mistake, it would show.
     const description = body(
-      '_JOU-04_, *JOU-05*, (H-13); not xJOU-04, JOU-04x, 9JOU-05, JOU-05é or éH-13',
+      '_JOU-04_, *JOU-05*, (H-13); not xJOU-06, JOU-07x, 9JOU-08, JOU-09é or éH-14',
     );
 
     expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['JOU-04', 'JOU-05', 'H-13']);

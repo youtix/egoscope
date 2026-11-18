@@ -2,13 +2,15 @@
 
 Each mode of `scripts/trace-requirements.ts` checks exactly this:
 
-- `bun run trace`, one of the static checks: every ID that a test title cites, in the square
-  brackets it starts with, is one that the specs define, and its other square brackets hold no ID;
-  this register is sound; the acceptance criteria index is up to date. It requires no ID to have a
-  test or a waiver.
+- `bun run trace`, one of the static checks: the specs define each of their IDs once, in the form
+  that `scripts/spec-ids.ts` reads; every ID that a test title cites, in the square brackets it
+  starts with, is one that the specs define, and its other square brackets hold no ID; this
+  register is sound; the acceptance criteria index is up to date. It requires no ID to have a test
+  or a waiver.
 - The `trace` workflow, on a pull request: the same; the description has a "Requirements covered"
-  heading, unless the dependency-update bot opened the pull request; and each requirement and
-  acceptance criterion listed under it has a test that names it in its title, as in
+  heading, unless the dependency-update bot opened the pull request; every ID listed under it is
+  one that the specs define, so that a typo such as `JOU-4` fails; and each requirement and
+  acceptance criterion among them has a test that names it in its title, as in
   `it('[JOU-04] rejects a 31st active player', …)`, or a waiver in this register.
 - `bun run trace:strict`: the same as `bun run trace`, and every requirement and acceptance
   criterion of the French specifications has such a test or a waiver.

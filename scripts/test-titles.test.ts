@@ -100,6 +100,7 @@ describe('findTitleTags', () => {
       "it('[IMP-05] [H-13] signs with [HMAC-SHA-256], unlike [IMP-06]', () => {});",
       "it('[JOU-04, JOU-05] [JOU-06] puts two IDs in one pair of brackets', () => {});",
       "it('[JOU-07] keeps [_JOU-08_, xJOU-09 and JOU-10x] apart', () => {});",
+      "it('[JOU-11] keeps [9JOU-12, JOU-13é and éJOU-14] apart too', () => {});",
     ];
     const { stray } = findTitleTags(FILE, source.join('\n'));
 
@@ -116,7 +117,13 @@ describe('findTitleTags', () => {
       where: `${FILE}:1`,
       title: 'refuses a 31st player [JOU-4]',
     });
-    expect(tagsOf(source)).toStrictEqual(['IMP-05@2', 'H-13@2', 'JOU-06@3', 'JOU-07@4']);
+    expect(tagsOf(source)).toStrictEqual([
+      'IMP-05@2',
+      'H-13@2',
+      'JOU-06@3',
+      'JOU-07@4',
+      'JOU-11@5',
+    ]);
   });
 
   it('reads the titles of a component test, JSX included', () => {
