@@ -137,8 +137,13 @@ gives no difference.
 - One journey per screen task, in `e2e/<screen>.spec.ts` (`e2e/lot2/` for Lot 2), its titles
   citing the requirement IDs it verifies, as in unit tests.
 - Take `test` and `expect` from `e2e/fixtures/test.ts`: it runs axe's WCAG 2.2 A and AA rules on
-  every page a test visits, before the first action or assertion on each address and on the
-  page the test ends on, and fails the test on any violation.
+  every page of the app that the test's `page` visits, a visit starting each time the page moves
+  to another address: before the first action or web-first assertion of each visit, and on the
+  page the test ends on, in the state it ends in. The test fails on any violation, and on a page
+  that it left before any action or web-first assertion there, which went unchecked. Check
+  another state of a visit, such as a dialog that the test closes, where it shows:
+  `expect(await accessibilityViolations(page)).toStrictEqual([])`, from
+  `e2e/fixtures/accessibility.ts`.
 - Locate elements by role and label (`getByRole`, `getByLabel`), as a person and a screen
   reader find them, never by CSS, XPath or a test id. No sleeps and no waiting for the network
   to go quiet: wait with web-first assertions for what the owner would see.
