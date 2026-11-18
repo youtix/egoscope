@@ -137,18 +137,8 @@ gives no difference.
   failed tests land in `reports/e2e/`.
 - One journey per screen task, in `e2e/<screen>.spec.ts` (`e2e/lot2/` for Lot 2), its titles
   citing the requirement IDs it verifies, as in unit tests.
-- Take `test` and `expect` from `e2e/fixtures/test.ts`: it runs axe's WCAG 2.2 A and AA rules on
-  every page of the app that the test's `page` shows, whenever the page changed since its last
-  check: another address, a new document (a reload included), or a change to its DOM or to a
-  form control. It checks before each action and web-first assertion, and before each of their
-  retries, so that what an assertion waits for is checked; before each navigation that the test
-  starts (`goto`, `reload`, `goBack`, `goForward`, `close`); and, whatever changed, on the page
-  the test ends on, in the state it ends in. Each check first lets the page's animations end,
-  for a second at most. The test fails on any violation, and on a page that raw keyboard or
-  mouse input, a script or the app itself left before any check. Check a state that differs
-  only by its focus or hover, or that goes away before the test's next step, where it shows:
-  `expect(await accessibilityViolations(page)).toStrictEqual([])`, from
-  `e2e/fixtures/accessibility.ts`.
+- Take `test` and `expect` from `e2e/fixtures/test.ts`, which bring the accessibility watch of
+  the next section.
 - Locate elements by role and label (`getByRole`, `getByLabel`), as a person and a screen
   reader find them, never by CSS, XPath or a test id. No sleeps and no waiting for the network
   to go quiet: wait with web-first assertions for what the owner would see.
@@ -160,6 +150,35 @@ gives no difference.
 - `/api/test/*` controls the running app from the specs, in the hermetic mode only: every route
   there calls `isHermetic()` first, after `await connection()`, and answers 404 otherwise, as
   `/api/test/ping` does. A new control is a coordinator decision.
+
+### The accessibility watch
+
+The watch of `e2e/fixtures/test.ts` checks the document of a watched page with axe's WCAG 2.2 A
+and AA rules:
+
+1. before every action and every web-first assertion on a locator, and before each of their
+   retries, when the document changed since its last check;
+2. before every navigation that the test itself starts on the page (`goto`, `reload`, `goBack`,
+   `goForward`) and before `close`, when it changed since its last check;
+3. when the test ends, whatever changed.
+
+- A change is one of these signals: a new document or a new address; a DOM mutation of any kind
+  (child list, attributes, character data); an `input` or `change` event; the top layer opening
+  or closing (the toggle events of a popover or of a dialog); a new viewport size; new emulated
+  media (color scheme, reduced motion, forced colors); a move of the focus.
+- Each check first lets the page's animations end, for a second at most, and clears the mark of
+  a change before axe runs, so that a change made during the check is not lost.
+- The watch does not see a state that shows by CSS alone with none of these signals, such as a
+  hover style or the end of an animation that the one-second wait did not cover. Check such a
+  state, or any state at a moment of your choosing, with `await accessibility.check()`, or
+  `accessibility.check(otherPage)` for another page.
+- A check that a new document interrupts is dropped: the state that it was reading is gone, and
+  the new document is checked in its turn. A document that the app leaves by itself before the
+  test acts on it is not reported as unchecked. Only a violation, or a document that the test
+  itself left unchecked (by raw keyboard, mouse or touch input), fails the test.
+- A page that the test opens beside its `page`, such as a popup or the page of a second browser
+  context for another device, is watched once the test passes it to
+  `await accessibility.watch(otherPage)`.
 
 ## Mutation testing
 

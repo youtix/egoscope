@@ -1,73 +1,91 @@
-import { accessibilityViolations, LEFT_UNCHECKED, watchAccessibility } from './accessibility';
+import {
+  accessibilityViolations,
+  LEFT_UNCHECKED,
+  watchAccessibility,
+  watchPages,
+} from './accessibility';
+import {
+  addressOf,
+  append,
+  BROKEN,
+  IMAGE_WITHOUT_ALT,
+  onStream,
+  OTHER,
+  pageWith,
+  PLAIN,
+  rulesOf,
+  servedPage,
+  streamIn,
+} from './probe-pages';
 import { expect, test } from './test';
 
-import type { Finding } from './accessibility';
-import type { BrowserContext, Page } from '@playwright/test';
-
-/** A page that meets WCAG 2.2 AA, with `body` as the content of its main landmark. */
-const pageWith = (body: string, heading = 'Probe'): string =>
-  `<!doctype html><html lang="en"><head><title>Probe</title></head><body><main><h1>${heading}</h1>${body}</main></body></html>`;
+import type { Page } from '@playwright/test';
 
 // Two buttons of 16 by 16 CSS pixels, side by side: under the 24 by 24 of WCAG 2.2.
 const SMALL_TARGETS =
   '<button type="button" style="width:16px;height:16px;padding:0;margin:0">A</button><button type="button" style="width:16px;height:16px;padding:0;margin:0">B</button>';
 
-const IMAGE_WITHOUT_ALT = '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">';
-
-/**
- * A script that adds `html` to the main landmark once the page hears `stream`:
- * content that streams in after the page has rendered, when `streamIn` says so.
- */
-const onStream = (html: string): string =>
-  `document.addEventListener('stream', () => document.querySelector('main').insertAdjacentHTML('beforeend', '${html}'));`;
-
-/**
- * Streams into `page` what it holds back, as a server does after the first
- * render, between two steps of the test and so after the check of the first.
- */
-const streamIn = async (page: Page): Promise<void> => {
-  await page.evaluate(() => {
-    globalThis.document.dispatchEvent(new Event('stream'));
-  });
-};
-
-// Pages that meet WCAG 2.2 AA, one linking to the other, and two that break it: one
-// at once, one once its button has shown an image without a text alternative.
-const PLAIN = pageWith('<p><a href="/probe/other">Another page</a></p>');
-const OTHER = pageWith('<p>Every case counts.</p>', 'Another page');
-const BROKEN = pageWith(IMAGE_WITHOUT_ALT);
+// A page that breaks WCAG 2.2 AA once its button has shown an image without a text
+// alternative.
 const REVEALING = pageWith(
   `<button type="button" style="min-width:44px;min-height:44px" onclick="const image = document.createElement('img'); image.src = 'data:image/gif;base64,R0lGODlhAQABAAAAACw='; this.after(image);">Show the image</button>`,
 );
-// Pages that break it later: once an image without a text alternative streams in
+// One that breaks it later: once an image without a text alternative streams in
 // after the page has loaded, until a button hides it again.
 const LATE = pageWith(
-  `<button type="button" style="min-width:44px;min-height:44px" onclick="document.querySelector('img').remove()">Hide the image</button><script>${onStream(IMAGE_WITHOUT_ALT)}</script>`,
+  `<button type="button" style="min-width:44px;min-height:44px" onclick="document.querySelector('img').remove()">Hide the image</button>${onStream(append(IMAGE_WITHOUT_ALT))}`,
 );
 // Once a link has opened its page as a link of Next.js does: at another address,
 // without a new document, the page's shell at once, then what streams in.
 const LOADED = `<h2>Loaded</h2>${IMAGE_WITHOUT_ALT}`;
 const LINKING = pageWith(
-  `<p><a href="/probe/streamed">Open the streamed page</a></p><script>document.querySelector('a').addEventListener('click', (event) => { event.preventDefault(); history.pushState(null, '', '/probe/streamed'); document.querySelector('main').innerHTML = '<h1>Streamed page</h1>'; ${onStream(LOADED)} });</script>`,
+  `<p><a href="/probe/streamed">Open the streamed page</a></p><script>document.querySelector('a').addEventListener('click', (event) => { event.preventDefault(); history.pushState(null, '', '/probe/streamed'); document.querySelector('main').innerHTML = '<h1>Streamed page</h1>'; document.addEventListener('stream', () => { ${append(LOADED)} }); });</script>`,
   'Linking page',
 );
-// Once a button has moved the page to another address of its own, without a new
-// document, and what it shows there has streamed in.
-const PUSHING = pageWith(
-  `<button type="button" style="min-width:44px;min-height:44px">Show the results</button><script>document.querySelector('button').addEventListener('click', () => { history.pushState(null, '', '/probe/pushed'); ${onStream(IMAGE_WITHOUT_ALT)} });</script>`,
-);
-// Once a change of state that leaves the DOM as it was has made a text fall below
-// the AA contrast ratio: a button that has the focus, a checkbox that is ticked.
-const PALE_WHEN_FOCUSED = pageWith(
-  '<style>button { min-width: 44px; min-height: 44px; color: #000; background: #fff; } button:focus { color: #bbb; }</style><button type="button">Pale when focused</button>',
-);
-const PALE_WHEN_TICKED = pageWith(
-  '<style>input:checked + label { color: #bbb; }</style><input type="checkbox" id="pale" style="width:24px;height:24px"><label for="pale">Pale once ticked</label>',
+// While the pointer is on its button, which is a state that CSS alone shows: a text
+// below the AA contrast ratio.
+const PALE_WHEN_HOVERED = pageWith(
+  '<style>button { min-width: 44px; min-height: 44px; color: #000; background: #fff; } button:hover { color: #bbb; }</style><button type="button">Pale when hovered</button>',
 );
 // Until its animation has ended, a text that a button shows and that fades in,
 // held at a tenth of its opacity, below the AA contrast ratio, for 900 ms.
 const FADING_IN = pageWith(
   `<style>@keyframes appear { from { opacity: 0.1; } } p { animation: appear 900ms steps(1, end); }</style><button type="button" style="min-width:44px;min-height:44px">Show the text</button><script>document.querySelector('button').addEventListener('click', () => document.querySelector('main').insertAdjacentHTML('beforeend', '<p>Faded in</p>'));</script>`,
+);
+// A page whose button shows a message, then leaves for another page `delayMs`
+// later, as an app does once it has saved something.
+const saving = (delayMs: number): string =>
+  pageWith(
+    `<button type="button" style="min-width:44px;min-height:44px" onclick="this.insertAdjacentHTML('afterend', '<p>Saved.</p>'); setTimeout(() => location.assign('/probe/other'), ${String(delayMs)});">Save</button>`,
+  );
+
+/**
+ * A script that gives the axe that a check injects into the page a `run` of its
+ * own, `wrap(run)`: a page that does something while the watch checks it, at the
+ * point of the check that `wrap` picks.
+ */
+const whileChecked = (wrap: string): string =>
+  `<script>let axe; Object.defineProperty(globalThis, 'axe', { configurable: true, set: (value) => { axe = value; }, get: () => axe && new Proxy(axe, { get: (target, key) => key === 'run' ? (${wrap})(target.run.bind(target)) : Reflect.get(target, key) }) });</script>`;
+// A page that shows an image without a text alternative once the first check has
+// read it, before the check ends.
+const CHANGING_WHILE_CHECKED = pageWith(
+  whileChecked(
+    `(run) => async (...args) => { const results = await run(...args); if (document.querySelector('img') === null) { ${append(IMAGE_WITHOUT_ALT)} } return results; }`,
+  ),
+);
+// A page that leaves for the broken one while the first check reads it, which
+// never ends: the page's new document interrupts it.
+const LEAVING_WHILE_CHECKED = pageWith(
+  whileChecked(`() => () => { location.assign('/probe/broken'); return new Promise(() => {}); }`),
+);
+// A page that the app leaves at once, as a redirect does.
+const REDIRECTING = pageWith(`<script>location.replace('/probe/other');</script>`);
+// A page whose link opens another page beside it, which shows an image without a
+// text alternative once it has loaded.
+const OPENING = pageWith('<p><a href="/probe/opened" target="_blank">Open a page beside</a></p>');
+const OPENED = pageWith(
+  `<p>Opened beside.</p>${onStream(append(IMAGE_WITHOUT_ALT))}`,
+  'Opened page',
 );
 
 /**
@@ -114,37 +132,9 @@ const NAVIGATIONS: readonly Readonly<{
   },
 ];
 
-/**
- * A page of its own in the test's browser context, which the watch of the test's
- * `page` does not see, where each address of `pages` answers with its bodies in
- * turn, then with its last body again.
- */
-async function servedPage(
-  context: BrowserContext,
-  pages: Readonly<Record<string, readonly string[]>>,
-): Promise<Page> {
-  const page = await context.newPage();
-  const served = new Map<string, number>();
-  await page.route('**/probe/**', async (route) => {
-    const { pathname } = new URL(route.request().url());
-    const bodies = pages[pathname] ?? [];
-    const count = served.get(pathname) ?? 0;
-    served.set(pathname, count + 1);
-    await route.fulfill({
-      contentType: 'text/html',
-      body: bodies[Math.min(count, bodies.length - 1)] ?? '',
-    });
-  });
-  return page;
-}
-
-/** The findings, each with the ids of the rules it breaks instead of the whole violations. */
-const rulesOf = (findings: readonly Finding[]): readonly unknown[] =>
-  findings.map((finding) =>
-    'violations' in finding
-      ? { address: finding.address, rules: finding.violations.map(({ rule }) => rule) }
-      : finding,
-  );
+// The delays, from the click, after which a page that the reviews probed leaves by
+// itself: from before a check has injected axe to after it has run.
+const LEAVING_DELAYS_MS = [50, 100, 150, 200, 250];
 
 test.describe('the accessibility check', () => {
   test('passes a page that meets WCAG 2.2 AA', async ({ page }) => {
@@ -194,84 +184,38 @@ test.describe('the watch of every page a test visits', () => {
     expect(await watch.finish()).toStrictEqual([]);
   });
 
-  test('reports the violations of the page a test ends on, in the state it ends in', async ({
+  test('checks a page before the first action or web-first assertion of a visit, and reports each violation once', async ({
     context,
     baseURL,
   }) => {
-    const probe = await servedPage(context, { '/probe/revealing': [REVEALING] });
+    const probe = await servedPage(context, { '/probe/broken': [BROKEN] });
     const watch = await watchAccessibility(probe);
 
-    await probe.goto('/probe/revealing');
-    await probe.getByRole('button', { name: 'Show the image' }).click();
+    await probe.goto('/probe/broken');
+    await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
     await expect(probe.getByRole('img')).toHaveCount(1);
 
     expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/revealing', baseURL).href, rules: ['image-alt'] },
+      { address: addressOf('/probe/broken', baseURL), rules: ['image-alt'] },
     ]);
   });
 
-  test('checks the page that a test ends on, in the state it ends in, though only its focus changed since the last check', async ({
+  test('checks what shows after a page has loaded, which the test waits for, before it acts on the page', async ({
     context,
     baseURL,
   }) => {
-    const probe = await servedPage(context, { '/probe/pale': [PALE_WHEN_FOCUSED] });
+    const probe = await servedPage(context, { '/probe/late': [LATE] });
     const watch = await watchAccessibility(probe);
 
-    await probe.goto('/probe/pale');
-    await probe.getByRole('button', { name: 'Pale when focused' }).focus();
-
-    expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/pale', baseURL).href, rules: ['color-contrast'] },
-    ]);
-  });
-
-  test('checks a page again once a test has changed a form control, which leaves the DOM as it was', async ({
-    context,
-    baseURL,
-  }) => {
-    const probe = await servedPage(context, { '/probe/ticked': [PALE_WHEN_TICKED] });
-    const watch = await watchAccessibility(probe);
-    const checkbox = probe.getByRole('checkbox', { name: 'Pale once ticked' });
-
-    await probe.goto('/probe/ticked');
+    await probe.goto('/probe/late');
     await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
-    await checkbox.check();
-    await expect(checkbox).toBeChecked();
-    await checkbox.uncheck();
-    await expect(checkbox).not.toBeChecked();
+    await streamIn(probe);
+    await expect(probe.getByRole('img')).toHaveCount(1);
+    await probe.getByRole('button', { name: 'Hide the image' }).click();
+    await expect(probe.getByRole('img')).toHaveCount(0);
 
     expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/ticked', baseURL).href, rules: ['color-contrast'] },
-    ]);
-  });
-
-  test('lets the animations of a page end before it checks the page, so that a transition reports nothing', async ({
-    context,
-  }) => {
-    const probe = await servedPage(context, { '/probe/fading': [FADING_IN] });
-    const watch = await watchAccessibility(probe);
-
-    await probe.goto('/probe/fading');
-    await probe.getByRole('button', { name: 'Show the text' }).click();
-    await expect(probe.getByText('Faded in')).toBeVisible();
-
-    expect(await watch.finish()).toStrictEqual([]);
-  });
-
-  test('checks nothing more once the test has closed the page, though it closes the page again', async ({
-    context,
-    baseURL,
-  }) => {
-    const probe = await servedPage(context, { '/probe/revealing': [REVEALING] });
-    const watch = await watchAccessibility(probe);
-
-    await probe.goto('/probe/revealing');
-    await probe.getByRole('button', { name: 'Show the image' }).click();
-    await probe.close();
-    await probe.close();
-
-    expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/revealing', baseURL).href, rules: ['image-alt'] },
+      { address: addressOf('/probe/late', baseURL), rules: ['image-alt'] },
     ]);
   });
 
@@ -294,72 +238,51 @@ test.describe('the watch of every page a test visits', () => {
     await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
     expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/streamed', baseURL).href, rules: ['image-alt'] },
+      { address: addressOf('/probe/streamed', baseURL), rules: ['image-alt'] },
     ]);
   });
 
-  test('checks what shows after a page has loaded, which the test waits for, before it leaves the page', async ({
-    context,
-    baseURL,
-  }) => {
-    const probe = await servedPage(context, { '/probe/late': [LATE], '/probe/other': [OTHER] });
-    const watch = await watchAccessibility(probe);
+  for (const { name, arrive, leave } of NAVIGATIONS) {
+    test(`checks the page that a test leaves with ${name}(), in the state it leaves it in`, async ({
+      context,
+      baseURL,
+    }) => {
+      const probe = await servedPage(context, {
+        '/probe/revealing': [REVEALING],
+        '/probe/other': [OTHER],
+      });
+      const watch = await watchAccessibility(probe);
 
-    await probe.goto('/probe/late');
-    await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
-    await streamIn(probe);
-    await expect(probe.getByRole('img')).toHaveCount(1);
-    await probe.goto('/probe/other');
-    await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
+      await arrive(probe);
+      await probe.getByRole('button', { name: 'Show the image' }).click();
+      await leave(probe);
 
-    expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/late', baseURL).href, rules: ['image-alt'] },
-    ]);
-  });
-
-  test('checks what shows after a page has loaded, which the test waits for, before it acts on the page', async ({
-    context,
-    baseURL,
-  }) => {
-    const probe = await servedPage(context, { '/probe/late': [LATE] });
-    const watch = await watchAccessibility(probe);
-
-    await probe.goto('/probe/late');
-    await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
-    await streamIn(probe);
-    await expect(probe.getByRole('img')).toHaveCount(1);
-    await probe.getByRole('button', { name: 'Hide the image' }).click();
-    await expect(probe.getByRole('img')).toHaveCount(0);
-
-    expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/late', baseURL).href, rules: ['image-alt'] },
-    ]);
-  });
-
-  test('checks what shows after a page moves to another address of its own, which the test waits for, before it leaves the page', async ({
-    context,
-    baseURL,
-  }) => {
-    const probe = await servedPage(context, {
-      '/probe/pushing': [PUSHING],
-      '/probe/other': [OTHER],
+      expect(rulesOf(await watch.finish())).toStrictEqual([
+        { address: addressOf('/probe/revealing', baseURL), rules: ['image-alt'] },
+      ]);
     });
+  }
+
+  test('checks a page that a test leaves with a navigation of its own, though it took no other step there', async ({
+    context,
+    baseURL,
+  }) => {
+    const probe = await servedPage(context, { '/probe/broken': [BROKEN], '/probe/plain': [PLAIN] });
     const watch = await watchAccessibility(probe);
 
-    await probe.goto('/probe/pushing');
-    await probe.getByRole('button', { name: 'Show the results' }).click();
-    await expect(probe).toHaveURL(/\/probe\/pushed$/u);
-    await streamIn(probe);
-    await expect(probe.getByRole('img')).toHaveCount(1);
-    await probe.goto('/probe/other');
-    await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
+    await probe.goto('/probe/broken');
+    await probe.goto('/probe/plain');
+    await expect(probe).toHaveTitle('Probe');
 
     expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/pushed', baseURL).href, rules: ['image-alt'] },
+      { address: addressOf('/probe/broken', baseURL), rules: ['image-alt'] },
     ]);
   });
 
-  test('checks a page again when the test reloads it', async ({ context, baseURL }) => {
+  test('checks a page again when the test reloads it, which gives it a new document', async ({
+    context,
+    baseURL,
+  }) => {
     const probe = await servedPage(context, {
       '/probe/plain': [PLAIN, BROKEN],
       '/probe/other': [OTHER],
@@ -374,7 +297,7 @@ test.describe('the watch of every page a test visits', () => {
     await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
     expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/plain', baseURL).href, rules: ['image-alt'] },
+      { address: addressOf('/probe/plain', baseURL), rules: ['image-alt'] },
     ]);
   });
 
@@ -396,48 +319,121 @@ test.describe('the watch of every page a test visits', () => {
     await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
     expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/plain', baseURL).href, rules: ['image-alt'] },
+      { address: addressOf('/probe/plain', baseURL), rules: ['image-alt'] },
     ]);
   });
 
-  for (const { name, arrive, leave } of NAVIGATIONS) {
-    test(`checks the page that a test leaves with ${name}(), in the state it leaves it in`, async ({
+  test('checks the page that a test ends on, in the state it ends in, though nothing that the watch sees changed since its last check', async ({
+    context,
+    baseURL,
+  }) => {
+    const probe = await servedPage(context, { '/probe/hovered': [PALE_WHEN_HOVERED] });
+    const watch = await watchAccessibility(probe);
+
+    await probe.goto('/probe/hovered');
+    await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
+    await probe.getByRole('button', { name: 'Pale when hovered' }).hover();
+
+    expect(rulesOf(await watch.finish())).toStrictEqual([
+      { address: addressOf('/probe/hovered', baseURL), rules: ['color-contrast'] },
+    ]);
+  });
+
+  test('checks a state that shows by CSS alone, such as a hover style, when the test asks for it', async ({
+    context,
+    baseURL,
+  }) => {
+    const probe = await servedPage(context, {
+      '/probe/hovered': [PALE_WHEN_HOVERED],
+      '/probe/other': [OTHER],
+    });
+    const watches = watchPages();
+    await watches.watch(probe);
+
+    await probe.goto('/probe/hovered');
+    await probe.getByRole('button', { name: 'Pale when hovered' }).hover();
+    await watches.check(probe);
+    await probe.getByRole('heading', { name: 'Probe' }).hover();
+    await probe.goto('/probe/other');
+    await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
+
+    expect(rulesOf(await watches.finish())).toStrictEqual([
+      { address: addressOf('/probe/hovered', baseURL), rules: ['color-contrast'] },
+    ]);
+  });
+
+  test('lets the animations of a page end before it checks the page, so that a transition reports nothing', async ({
+    context,
+  }) => {
+    const probe = await servedPage(context, { '/probe/fading': [FADING_IN] });
+    const watch = await watchAccessibility(probe);
+
+    await probe.goto('/probe/fading');
+    await probe.getByRole('button', { name: 'Show the text' }).click();
+    await expect(probe.getByText('Faded in')).toBeVisible();
+
+    expect(await watch.finish()).toStrictEqual([]);
+  });
+
+  test('checks a page again when it changed during a check, which clears the mark of a change before axe reads the page', async ({
+    context,
+    baseURL,
+  }) => {
+    const probe = await servedPage(context, {
+      '/probe/changing': [CHANGING_WHILE_CHECKED],
+      '/probe/other': [OTHER],
+    });
+    const watch = await watchAccessibility(probe);
+
+    await probe.goto('/probe/changing');
+    await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
+    await probe.goto('/probe/other');
+    await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
+
+    expect(rulesOf(await watch.finish())).toStrictEqual([
+      { address: addressOf('/probe/changing', baseURL), rules: ['image-alt'] },
+    ]);
+  });
+
+  test('drops a check that a new document interrupts, and checks the new document in its turn', async ({
+    context,
+    baseURL,
+  }) => {
+    const probe = await servedPage(context, {
+      '/probe/leaving': [LEAVING_WHILE_CHECKED],
+      '/probe/broken': [BROKEN],
+    });
+    const watch = await watchAccessibility(probe);
+
+    await probe.goto('/probe/leaving');
+    await expect(probe).toHaveURL(/\/probe\/broken$/u);
+    await expect(probe.getByRole('img')).toBeVisible();
+
+    expect(rulesOf(await watch.finish())).toStrictEqual([
+      { address: addressOf('/probe/broken', baseURL), rules: ['image-alt'] },
+    ]);
+  });
+
+  for (const delayMs of LEAVING_DELAYS_MS) {
+    test(`finds nothing on pages that meet WCAG 2.2 AA, though the app leaves the first ${String(delayMs)} ms after a click, during a check or not`, async ({
       context,
-      baseURL,
     }) => {
       const probe = await servedPage(context, {
-        '/probe/revealing': [REVEALING],
+        '/probe/saving': [saving(delayMs)],
         '/probe/other': [OTHER],
       });
       const watch = await watchAccessibility(probe);
 
-      await arrive(probe);
-      await probe.getByRole('button', { name: 'Show the image' }).click();
-      await leave(probe);
+      await probe.goto('/probe/saving');
+      await probe.getByRole('button', { name: 'Save' }).click();
+      await expect(probe).toHaveURL(/\/probe\/other$/u);
+      await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
-      expect(rulesOf(await watch.finish())).toStrictEqual([
-        { address: new URL('/probe/revealing', baseURL).href, rules: ['image-alt'] },
-      ]);
+      expect(await watch.finish()).toStrictEqual([]);
     });
   }
 
-  test('checks a page that a test leaves with a navigation of its own, though it took no other step there', async ({
-    context,
-    baseURL,
-  }) => {
-    const probe = await servedPage(context, { '/probe/broken': [BROKEN], '/probe/plain': [PLAIN] });
-    const watch = await watchAccessibility(probe);
-
-    await probe.goto('/probe/broken');
-    await probe.goto('/probe/plain');
-    await expect(probe).toHaveTitle('Probe');
-
-    expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/broken', baseURL).href, rules: ['image-alt'] },
-    ]);
-  });
-
-  test('reports a page that raw keyboard input leaves before any check, since nothing of the test runs between them', async ({
+  test('reports a page that the test leaves by raw keyboard input before any check', async ({
     context,
     baseURL,
   }) => {
@@ -451,43 +447,49 @@ test.describe('the watch of every page a test visits', () => {
     await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
     expect(await watch.finish()).toStrictEqual([
-      { address: new URL('/probe/plain', baseURL).href, error: LEFT_UNCHECKED },
+      { address: addressOf('/probe/plain', baseURL), error: LEFT_UNCHECKED },
     ]);
   });
 
-  test('checks a page before the first action or web-first assertion of a visit, and reports each violation once', async ({
+  test('reports no page that the app leaves by itself before the test acts on it', async ({
     context,
-    baseURL,
   }) => {
-    const probe = await servedPage(context, { '/probe/broken': [BROKEN] });
-    const watch = await watchAccessibility(probe);
-
-    await probe.goto('/probe/broken');
-    await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
-    await expect(probe.getByRole('img')).toHaveCount(1);
-
-    expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/broken', baseURL).href, rules: ['image-alt'] },
-    ]);
-  });
-
-  test('checks a page again each time a test comes back to it', async ({ context, baseURL }) => {
     const probe = await servedPage(context, {
-      '/probe/plain': [PLAIN, BROKEN],
+      '/probe/redirecting': [REDIRECTING],
       '/probe/other': [OTHER],
     });
     const watch = await watchAccessibility(probe);
 
-    await probe.goto('/probe/plain');
-    await probe.getByRole('link', { name: 'Another page' }).click();
-    await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
-    await probe.goto('/probe/plain');
-    await expect(probe.getByRole('img')).toHaveCount(1);
-    await probe.goto('/probe/other');
+    await probe.goto('/probe/redirecting');
+    await probe.waitForURL('**/probe/other');
     await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
-    expect(rulesOf(await watch.finish())).toStrictEqual([
-      { address: new URL('/probe/plain', baseURL).href, rules: ['image-alt'] },
+    expect(await watch.finish()).toStrictEqual([]);
+  });
+
+  test('watches a page that a test opens beside its own once the test passes it to watch()', async ({
+    context,
+    baseURL,
+  }) => {
+    const probe = await servedPage(context, {
+      '/probe/opening': [OPENING],
+      '/probe/opened': [OPENED],
+    });
+    const watches = watchPages();
+    await watches.watch(probe);
+
+    await probe.goto('/probe/opening');
+    const popup = probe.waitForEvent('popup');
+    await probe.getByRole('link', { name: 'Open a page beside' }).click();
+    const opened = await popup;
+    await opened.waitForLoadState();
+    await watches.watch(opened);
+    await expect(opened.getByRole('heading', { name: 'Opened page' })).toBeVisible();
+    await streamIn(opened);
+    await opened.close();
+
+    expect(rulesOf(await watches.finish())).toStrictEqual([
+      { address: addressOf('/probe/opened', baseURL), rules: ['image-alt'] },
     ]);
   });
 
