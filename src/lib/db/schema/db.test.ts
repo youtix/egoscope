@@ -1,12 +1,15 @@
 import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { toEpochMs } from '@/lib/time';
+
 import { createTestDatabase } from '../test-database';
 import { installation, sequenceCounters } from './db';
 
 import type { Database } from '../types';
 
-const GO_LIVE = new Date('2026-11-13T08:30:00.000Z');
+// The go-live instant, 2026-11-13 08:30 UTC, as the Date that the column maps.
+const GO_LIVE = new Date(toEpochMs(Date.UTC(2026, 10, 13, 8, 30)));
 
 /** The check violation that a failed query reports, with the check's name. */
 const violationOf = (constraint: string): Readonly<Record<string, unknown>> => ({
