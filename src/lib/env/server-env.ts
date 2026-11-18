@@ -23,19 +23,25 @@ const databaseUrl = z
   .transform((value) => new Secret(value));
 
 // The real credentials: the values that let this server reach the database or an
-// outside service. The schema declares each one with this mark, anywhere in its
-// declaration, by which alone a new credential joins the fakes rule below: there
-// is no list to update.
+// outside service. The schema declares each one with this mark, by which alone a
+// new credential joins the fakes rule below: there is no list to update. The mark
+// counts before or after a check, a wrapper or a pipe, at either end of the pipe.
 export const realCredentials = z.registry();
 
 /**
  * The schemas that `schema` was made from: the one that a check such as `.min()`,
  * `.trim()` or `.refine()`, or `.describe()`, copied, which zod keeps as the copy's
  * parent; the one under `.optional()`, `.default()` and every other wrapper of
- * zod; and the input of a pipe, which `.transform()` and `.pipe()` make.
+ * zod; and both ends of a pipe, which `.transform()`, `.pipe()` and
+ * `z.preprocess()` make.
  */
 function sourceSchemas({ _zod: { def, parent } }: z.core.$ZodType): readonly unknown[] {
-  return [parent, 'innerType' in def ? def.innerType : undefined, 'in' in def ? def.in : undefined];
+  return [
+    parent,
+    'innerType' in def ? def.innerType : undefined,
+    'in' in def ? def.in : undefined,
+    'out' in def ? def.out : undefined,
+  ];
 }
 
 /**

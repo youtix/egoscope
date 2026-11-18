@@ -264,6 +264,11 @@ describe('isCredential', () => {
         .transform((value) => value.length)
         .optional(),
     ],
+    ['at the output of .pipe()', z.string().pipe(z.string().register(realCredentials))],
+    [
+      'at the output of z.preprocess()',
+      z.preprocess((value) => value, z.string().register(realCredentials)),
+    ],
   ])('finds the mark of a real credential placed %s', (_place, schema) => {
     expect(isCredential(schema)).toBe(true);
   });
