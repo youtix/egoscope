@@ -117,7 +117,7 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
     vi.stubEnv('VERCEL_ENV', '');
   });
 
-  it('[TRV-14] create no pool and open no connection when the module is imported', async () => {
+  it('[D-23] create no pool and open no connection when the module is imported', async () => {
     const server = await serverWithoutTls();
     vi.stubEnv('DATABASE_URL', server.url);
     vi.stubEnv('DATABASE_URL_UNPOOLED', server.url);
@@ -128,7 +128,7 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
     expect(server.connections()).toBe(0);
   });
 
-  it('[TRV-14] create the pool on the first call and its first connection on the first query', async () => {
+  it('[D-23] create the pool on the first call and its first connection on the first query', async () => {
     const server = await serverWithoutTls();
     vi.stubEnv('DATABASE_URL', server.url);
     const { getDb } = await import('.');
@@ -142,7 +142,7 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
     expect(server.connections()).toBe(1);
   });
 
-  it('[TRV-14] keep one database per connection string for the life of the server', async () => {
+  it('[D-23] keep one database per connection string for the life of the server', async () => {
     const pooled = await serverWithoutTls();
     const direct = await serverWithoutTls();
     vi.stubEnv('DATABASE_URL', pooled.url);
