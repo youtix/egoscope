@@ -21,6 +21,10 @@ const isGlobalIgnores = (block: Linter.Config): boolean =>
   block.ignores !== undefined &&
   Object.keys(block).every((key) => ['name', 'basePath', 'ignores'].includes(key));
 
+/** A module that runs `query` on a Drizzle-like database `db`, a transaction `tx` or a Map `seen`. */
+const drizzleProbe = (query: string): string =>
+  `type Rows = Promise<void> & { where: (on: boolean) => Promise<void> };\ndeclare const db: { delete: (table: string) => Rows };\ndeclare const tx: { update: (table: string) => { set: (values: object) => Rows } };\ndeclare const seen: Map<string, number>;\n\nexport const change = async (): Promise<unknown> => ${query};\n`;
+
 describe('eslint.config.ts', { timeout: 120_000 }, () => {
   afterAll(remove);
 
@@ -548,6 +552,21 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
         'reports/',
         'next-env.d.ts',
       ]);
+    });
+  });
+
+  describe('Drizzle rules', () => {
+    // A delete or an update of `db` or `tx` without `.where(...)` changes every row.
+    it.each([
+      [['drizzle/enforce-delete-with-where'], "db.delete('sessions')"],
+      [['drizzle/enforce-update-with-where'], "tx.update('sessions').set({ revoked: true })"],
+      [[], "db.delete('sessions').where(true)"],
+      [[], "tx.update('sessions').set({ revoked: true }).where(true)"],
+      [[], "seen.delete('sessions')"],
+    ])('report %j on %s: only a query of db or tx without where', async (rules, query) => {
+      const reported = await ruleIds('src/lib/probe/probe.ts', drizzleProbe(query));
+
+      expect(reported.filter((rule) => rule?.startsWith('drizzle/') === true)).toStrictEqual(rules);
     });
   });
 });

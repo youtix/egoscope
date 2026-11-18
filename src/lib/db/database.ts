@@ -1,0 +1,134 @@
+import 'server-only';
+
+import path from 'node:path';
+
+import { readServerEnv } from '@/lib/env';
+
+import { startPglite } from './pglite';
+import { openPostgres } from './postgres';
+import { databaseTarget } from './target';
+
+import type { Connection, DatabaseTarget } from './target';
+import type { Database, OpenDatabase } from './types';
+
+/** Why no database can be given: on Vercel without a URL, or with an invalid environment. */
+export type DatabaseError = Readonly<{ kind: 'database-not-configured' }>;
+
+export type DatabaseResult =
+  Readonly<{ ok: true; db: Database }> | Readonly<{ ok: false; error: DatabaseError }>;
+
+type OpenResult =
+  Readonly<{ ok: true; open: OpenDatabase }> | Readonly<{ ok: false; error: DatabaseError }>;
+
+type ReachableTarget = Exclude<DatabaseTarget, Readonly<{ kind: 'not-configured' }>>;
+
+type OpenedKey = Connection | 'pglite';
+
+type OpenedDatabases = Map<OpenedKey, Promise<OpenDatabase>>;
+
+// Where `next dev` keeps its database, under the project root (git-ignored).
+const LOCAL_DATA_DIR = '.pglite';
+const NOT_CONFIGURED = { ok: false, error: { kind: 'database-not-configured' } } as const;
+
+// Nothing is opened when this module loads: each database is opened by its
+// first caller, and kept for the life of the server process. The databases live
+// on globalThis under a registered symbol, so that every copy of this module
+// shares them: `next dev` evaluates a module again when it reloads it, and a
+// second PGlite opened on .pglite/ by the new copy would diverge from the first
+// one and lose writes.
+const OPENED_DATABASES = Symbol.for('egoscope.db.opened-databases');
+
+const isOpenedDatabases = (value: unknown): value is OpenedDatabases => value instanceof Map;
+
+function openedDatabases(): OpenedDatabases {
+  const existing: unknown = Reflect.get(globalThis, OPENED_DATABASES);
+  if (isOpenedDatabases(existing)) {
+    return existing;
+  }
+  const opened: OpenedDatabases = new Map();
+  Reflect.set(globalThis, OPENED_DATABASES, opened);
+  return opened;
+}
+
+async function open(target: ReachableTarget): Promise<OpenDatabase> {
+  if (target.kind === 'postgres') {
+    return openPostgres(target.url);
+  }
+  const pglite = await startPglite(
+    target.isPersistent ? { dataDir: path.join(process.cwd(), LOCAL_DATA_DIR) } : {},
+  );
+  try {
+    await pglite.migrate();
+  } catch (error) {
+    // Closed, so that the next attempt is the only PGlite open on .pglite/.
+    await pglite.close();
+    throw error;
+  }
+  return pglite;
+}
+
+// Opens `target` for the entry `key` of `opened`, and removes the entry when the
+// opening fails, before any caller learns of it: the next call then tries again,
+// once the migration that failed under `next dev` is fixed for example, instead
+// of getting the same failure for the life of the process.
+async function openOrForget(
+  opened: OpenedDatabases,
+  key: OpenedKey,
+  target: ReachableTarget,
+): Promise<OpenDatabase> {
+  try {
+    return await open(target);
+  } catch (error) {
+    opened.delete(key);
+    throw error;
+  }
+}
+
+/**
+ * The opened database behind `connection`, opened by the first call and kept
+ * for the life of the server process, whichever copy of this module asks
+ * (TRV-14). Outside Vercel, both connections share one PGlite database, which
+ * applies every pending migration before it serves its first query (TRV-76).
+ * A database that fails to open rejects its callers and is not kept, so that
+ * the next call opens it again.
+ */
+export async function openConnection(connection: Connection): Promise<OpenResult> {
+  const target = databaseTarget(readServerEnv(), connection);
+  if (target.kind === 'not-configured') {
+    return NOT_CONFIGURED;
+  }
+  const opened = openedDatabases();
+  const key = target.kind === 'pglite' ? target.kind : connection;
+  const database = opened.get(key) ?? openOrForget(opened, key, target);
+  opened.set(key, database);
+  return { ok: true, open: await database };
+}
+
+async function databaseFor(connection: Connection): Promise<DatabaseResult> {
+  const result = await openConnection(connection);
+  return result.ok ? { ok: true, db: result.open.db } : result;
+}
+
+/**
+ * The database for everything the application does (TRV-14): Neon through its
+ * pooled connection string (PgBouncer in transaction mode) when `DATABASE_URL`
+ * is set; PGlite outside Vercel without it, migrated first (TRV-76); "not
+ * configured" on Vercel without it, never PGlite. The first call creates the
+ * client and its pool, which opens no connection before the first query: call
+ * it where a query follows, never at import or start-up, since every query keeps
+ * the database's compute billed for five minutes.
+ */
+export async function getDb(): Promise<DatabaseResult> {
+  return databaseFor('pooled');
+}
+
+/**
+ * The database through Neon's direct connection string, `DATABASE_URL_UNPOOLED`,
+ * for migrations (TRV-76) and long reads such as the backup export (TRV-14).
+ * Outside Vercel without a URL, it is the same PGlite database as `getDb()`; with
+ * a pooled URL but no direct one, it is "not configured". Like `getDb()`, it
+ * opens no connection before its first query.
+ */
+export async function getDirectDb(): Promise<DatabaseResult> {
+  return databaseFor('direct');
+}

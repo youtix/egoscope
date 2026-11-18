@@ -42,3 +42,8 @@ reason = "qs 6.15.1, moderate: qs.stringify with the comma array format throws o
 id = "GHSA-fc5q-39xc-vjpf"
 ignoreUntil = 2027-02-18
 reason = "picomatch 2.3.2 and 4.0.7, high: denial of service through a single-branch repeated extglob pattern such as +(*), whose regular expression backtracks exponentially. Development only: ESLint and its plugins, markdownlint-cli2, knip, Vite and Vitest match this repository's own glob patterns with it; a pull request could at worst slow down its own jobs. No release fixes it yet: 4.0.7 is the latest picomatch. A fixed 2.3.x and 4.0.x release would fit the ^2.3.1, ^4.0.4 and ^4.0.7 ranges of the packages that use it."
+
+[[IgnoredVulns]]
+id = "GHSA-67mh-4wv8-2f99"
+ignoreUntil = 2027-02-18
+reason = "esbuild 0.18.20, moderate: its development server lets any website send it requests and read the answers. Development only and never run: drizzle-kit 0.31.11, its latest stable release, declares @esbuild-kit/esm-loader ^2.5.5 but never loads it, and that loader's @esbuild-kit/core-utils 3.3.2, its last release, pins esbuild ~0.18.20 and would only call its transform functions, never its server. drizzle-kit itself runs esbuild 0.25.12. The fix exists only in esbuild 0.25.0, outside that ~0.18.20 range; a drizzle-kit release without @esbuild-kit/esm-loader removes it."
