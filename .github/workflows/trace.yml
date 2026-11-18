@@ -43,13 +43,14 @@ jobs:
           # The same description, without the "Requirements covered" heading, from a
           # contributor, then from the dependency-update bot: the claims check of the next
           # step must refuse the first, naming the heading to add, and pass the second.
+          # The grep prints the refusal.
           claims() {
             printf '## Summary\n\nBumps a dependency.\n' | bun run trace --require-claimed --author="$1"
           }
           log="$RUNNER_TEMP/no-heading.log"
           status=0
           claims contributor > "$log" 2>&1 || status=$?
-          if [ "$status" -ne 1 ] || ! grep --quiet --fixed-strings '## Requirements covered' "$log"; then
+          if [ "$status" -ne 1 ] || ! grep --fixed-strings '## Requirements covered' "$log"; then
             cat "$log"
             echo "::error::The claims check did not refuse a description without its heading (exit code $status)."
             exit 1
