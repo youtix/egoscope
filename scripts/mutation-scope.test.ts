@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mutationTriggers } from './mutation-scope';
+import { mutationTriggers, requiresFreshRun } from './mutation-scope';
 
 describe('mutationTriggers', () => {
   it.each([
@@ -10,11 +10,24 @@ describe('mutationTriggers', () => {
     'src/lib/ai-exchange/research-prompt.ts',
     'src/lib/ai-exchange/checks/research-result.test.ts',
     'stryker.config.ts',
+    'scripts/mutation-run.ts',
+    'vitest.stryker.config.ts',
     '.github/workflows/mutation.yml',
   ])(
     'runs the mutation tests after a change to %s, in the pure core or the Stryker setup',
     (path) => {
       expect(mutationTriggers(['src/app/page.tsx', path, 'README.md'])).toStrictEqual([path]);
+    },
+  );
+
+  it.each([
+    'data/fixtures/ai-exchange/extract-json/comment.json',
+    'data/fixtures/stats-source/season/game-log.json',
+    'tsconfig.json',
+  ])(
+    'runs them after a change to %s alone: a fixture that the tests may import, or the paths that resolve `@data/`',
+    (path) => {
+      expect(mutationTriggers([path])).toStrictEqual([path]);
     },
   );
 
@@ -40,7 +53,6 @@ describe('mutationTriggers', () => {
   });
 
   it('does not run them when nothing in the scope changed', () => {
-    // A fixture or tsconfig.json starts the next run afresh instead (mutation.yml).
     expect(
       mutationTriggers([
         'src/lib/stats-engine-next/game-score.ts',
@@ -48,10 +60,36 @@ describe('mutationTriggers', () => {
         'src/app/page.tsx',
         '.github/workflows/ci.yml',
         'docs/07-statistiques-de-match.md',
-        'data/fixtures/trace/spec-id-counts.json',
-        'tsconfig.json',
+        'scripts/mutation-gate.ts',
+        'tsconfig.pure-core.json',
+        'database/fixture.json',
       ]),
     ).toStrictEqual([]);
     expect(mutationTriggers([])).toStrictEqual([]);
+  });
+});
+
+describe('requiresFreshRun', () => {
+  it.each([
+    'bun.lock',
+    'package.json',
+    'stryker.config.ts',
+    'scripts/mutation-run.ts',
+    'vitest.stryker.config.ts',
+    'vitest.config.ts',
+    'tsconfig.json',
+    'data/fixtures/ai-exchange/extract-json/comment.json',
+  ])('starts a run afresh when %s, outside the pure core, is among its triggers', (path) => {
+    expect(requiresFreshRun(['src/lib/ai-exchange/text-rules.ts', path])).toBe(true);
+  });
+
+  it('keeps the results of earlier runs when every trigger lies in the pure core, tests included', () => {
+    expect(
+      requiresFreshRun([
+        'src/lib/stats-engine/performance/game-score.ts',
+        'src/lib/ai-exchange/text-rules.test.ts',
+      ]),
+    ).toBe(false);
+    expect(requiresFreshRun([])).toBe(false);
   });
 });

@@ -37,10 +37,12 @@ jobs:
         id: incremental
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         env:
-          # Incremental mode cannot see a change of configuration, dependencies or
-          # fixtures, which the tests of the pure core may import from data/, so these
-          # files name the cache: when one of them changes, the run starts afresh.
-          PREFIX: stryker-${{ hashFiles('stryker.config.ts', 'vitest.config.ts', 'tsconfig.json', 'bun.lock', 'data/**') }}-
+          # Incremental mode compares only the code of the pure core and its tests, so
+          # it cannot see a change outside them: of configuration, dependencies or
+          # fixtures, which these tests may import from data/. The files of the Stryker
+          # setup (scripts/mutation-scope.ts) and data/ name the cache: when one of
+          # them changes, the run starts afresh, as `--force` makes it locally.
+          PREFIX: stryker-${{ hashFiles('stryker.config.ts', 'scripts/mutation-run.ts', '.github/workflows/mutation.yml', 'vitest.stryker.config.ts', 'vitest.config.ts', 'package.json', 'bun.lock', 'scripts/mutation-scope.ts', 'tsconfig.json', 'data/**') }}-
         with:
           path: reports/stryker-incremental.json
           key: ${{ env.PREFIX }}${{ github.run_id }}-${{ github.run_attempt }}
@@ -55,6 +57,9 @@ jobs:
           name: mutation-report
           path: reports/mutation/
           retention-days: 14
+      # After a failing run too: the next run tests a survivor again once a test that
+      # covers it changes or is added, and a mutant of code that runs when its module
+      # loads in every run (scripts/mutation-run.ts).
       - name: Save the results for later mutation runs
         if: ${{ !cancelled() && hashFiles('reports/mutation/mutation.json') != '' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
