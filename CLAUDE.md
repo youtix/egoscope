@@ -192,6 +192,12 @@ neither a test nor a waiver.
   `DATABASE_URL_UNPOOLED` and `VERCEL_ENV` to `''`, then what it needs, as the tests of
   `src/lib/db/` do. The databases that these functions open stay on `globalThis` for the life of
   the process, so a test that plays a fresh server also stubs that registry away, as they do.
+- Nor does any test depend on the database variables that the shell exports. The environment is
+  valid or invalid as one whole, so one refused value, such as a connection string with
+  `sslmode=require`, invalidates all of it: a test that loads `@/lib/env` afresh, directly or
+  through a module that reads it such as `@/lib/log`, stubs `DATABASE_URL`,
+  `DATABASE_URL_UNPOOLED` and `VERCEL_ENV` to `''` and `NODE_ENV` to `test`, as the tests of the
+  logger and of `/api/health` do.
 
 ## The local loop
 
