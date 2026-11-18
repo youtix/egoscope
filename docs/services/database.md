@@ -77,8 +77,9 @@ opens the database only when the plan is missing, older than an hour, written by
 or due. Every database pass rewrites the plan, any change that moves a due instant (a setting, a new
 queue item, a failed send) updates it, and probes that need no database (the statistics source's
 hourly refresh check, Telegram polling while a link code is pending) run from the plan alone.
-Nothing connects at import or start-up, the health route reads no table, and the interface never
-polls the server on a timer.
+Nothing connects at import or start-up, the health route does only the session check of every
+session-protected handler (the session and its account, and the account check of an instance's
+first request, module map §3.6), and the interface never polls the server on a timer.
 
 ### Compute estimate
 
@@ -238,8 +239,14 @@ console stays the authority on the real figure and period.
 ## Replaceable by
 
 Any hosted Postgres reachable over TLS, at Neon or elsewhere. Procedure (TRV-77): download a full
-export, create the new database, set `DATABASE_URL` and `DATABASE_URL_UNPOOLED`, restore into the
-empty database (TRV-53), then run the installation check (TRV-47). Supabase's free plan was not
+export; create the new database and keep the old project as it is; run the restore script into the
+empty new database (TRV-53) with the old database's direct connection string given as the previous
+database, so that it first copies the withdrawal ledger from it — the full export holds no ledger
+(CL-TRV-06, CL-DSN-08) — and only then loads the export; set `DATABASE_URL` and
+`DATABASE_URL_UNPOOLED` to the new database; run the installation check (TRV-47); and delete the
+old project only after that check passes. Without the old database the new one would start with an
+empty ledger, and a later restore of a backup made before a withdrawal or a player-data deletion
+would bring that event or that player back (DSN-28, DSN-29, JOU-24). Supabase's free plan was not
 retained because free projects are paused after a week of inactivity
 ([Supabase pricing](https://supabase.com/pricing)).
 

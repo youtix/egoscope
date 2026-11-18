@@ -21,13 +21,13 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## CL-VUE-03 — What a case is
 
-- **Affects:** 00 glossary « Cas », 00 relations, SEN-05, SEN-06
+- **Affects:** 00 glossary « Cas », 00 relations, SEN-05, SEN-06, SEN-33, SUI-07; CL-SUI-17 (file 10 ruling)
 - **Problem:** the glossary defines a case as "an event and its measured game", while the relations section groups several same-type events attached to the same game into one case.
 - **Ruling:** the relation wins over the glossary sentence.
   - A case is identified by one player, one type and one measured game, and holds one or more events of that type attached to that game; an event belongs to at most one case. Events of different types attached to the same game give one case per type, marked co-occurring (SEN-06).
   - An event attached to a game that already has a case of its type joins that case; no second case is created.
-  - Only an erasure or an attachment to another game after a correction takes an event out of its case; a case with no event left disappears. A dismissed event stays in its case and only stops counting (DET-44, SEN-48): the case counts while at least one of its events is not dismissed, and its reference instant is the earliest among those events (SEN-05). A case all of whose events are dismissed stays, out of every calculation, keeping the state and gap it had, or measured apart when the dismissal came at or after tip-off (CL-SEN-05, CL-DET-15), with the earliest of its events as reference instant; a reinstatement brings it back.
-  - A case's origin, historical or tracked, is set by the first of its events recorded and never changes afterwards (SUI-07); CL-VUE-13 gives the origin of calendar-derived cases.
+  - Only an erasure, a change of the event's type or player — a correction (DET-47, IMP-32), a reassignment (TAX-25) or a distribution (TAX-29) — or an attachment to another game after a correction takes an event out of its case; the event then joins, or forms, the case of its new player, type and game, so that a change of type moves it from one profile to another (SEN-33), and a case with no event left disappears. A dismissed event stays in its case and only stops counting (DET-44, SEN-48): the case counts while at least one of its events is not dismissed, and its reference instant is the earliest among those events (SEN-05). A case all of whose events are dismissed stays, out of every calculation, keeping the state and gap it had, or measured apart when the dismissal came at or after tip-off (CL-SEN-05, CL-DET-15), with the earliest of its events as reference instant; a reinstatement brings it back.
+  - A case's origin, historical or tracked, is set by the first of its events recorded and never changes afterwards (SUI-07), except when an erasure with the scope of a withdrawal — a withdrawal, or an erasure by requalification or split (CL-TAX-09) — takes an event out of a case that keeps others: the case is then rebuilt from its remaining events, its origin and creation instant included (CL-SUI-17). CL-VUE-13 gives the origin of calendar-derived cases.
 - **Why:** the relations section and SEN-05 are the owning rules; counting one game once per type keeps profiles free of duplicates.
 - **Owner review:** no
 

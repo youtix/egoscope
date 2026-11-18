@@ -217,9 +217,9 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ## CL-BKT-23 — "Upcoming" measured game and the urgent deadline (lot 2)
 
-- **Affects:** BKT-16, BKT-18, CA-BKT-04, CA-BKT-05, CA-BKT-11
-- **Problem:** BKT-18 shows each attached event's measured game as upcoming with the time remaining, but 08 knows the measured game only after the player has played it.
-- **Ruling:** An attached detected event's measured game is « à venir » while its case is pending for the reason "game not yet played" (CL-SEN-05) and « joué » once the case leaves that reason. For an upcoming one, the time remaining runs to its expected game: the first official game of the player's current team whose scheduled start is after both now and the event's reference instant (SUI-03, ALE-15). An urgent request's deadline is the earliest of these expected games; urgent requests with the same deadline are ordered oldest first. Dismissed and withdrawn events are left out.
+- **Affects:** BKT-16, BKT-18, CA-BKT-04, CA-BKT-05, CA-BKT-11; CL-SEN-05 (file 08 ruling)
+- **Problem:** BKT-18 shows each attached event's measured game as upcoming with the time remaining, but 08 knows the measured game only after the player has played it, and a case can wait for another reason before any game is attached.
+- **Ruling:** An attached detected event's measured game is « à venir » while its case is pending for the reason "game not yet played" (CL-SEN-05), or while no measured game is established for it yet — its case pending for another reason, such as "stats-source mapping not established" or "dating to verify" (CL-SEN-05, steps 3 to 5) — and its expected game has not started; it is « joué » otherwise. For an upcoming one, the time remaining runs to its expected game: the first official game of the player's current team whose scheduled start is after both now and the event's reference instant (SUI-03, ALE-15); while no such game is stored (between seasons, schedule not published), the game is upcoming with no time remaining. An urgent request's deadline is the earliest of these expected games; urgent requests with the same deadline are ordered oldest first, and an urgent request with no expected game known comes after them. Dismissed and withdrawn events are left out.
 - **Why:** the expected game is the only deadline knowable before the game, and docs 09 and 10 use the same one.
 - **Owner review:** no
 

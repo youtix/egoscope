@@ -30,7 +30,7 @@ The publisher compiles the files from ESPN's web API, whose terms forbid extract
 - No secret and no environment variable are needed; an optional base-address override serves a mirror or the tests. The installation check fetches the refresh probe.
 - The adapter applies the rules of section 10 of the evaluation: the season assigned from the game's date; the game's day in US Eastern time ([0028](0028-a-game-day-is-its-us-eastern-date.md)); All-Star games and the NBA Cup final excluded; booleans read without regard to case; no did-not-play reason kept; whole minutes, never a value filled with zero; ejection unknown; make-up games linked to their postponed originals; team history from box-score lines, not from past-season player files; every file validated against its expected columns, a changed file stopping its ingestion with the "Stats source format changed" incident (CL-STA-15).
 - Since the provider publishes no quota, the application's own courtesy ceilings are entered as the quota settings (TRV-03), with the 80 % warning of TRV-05.
-- No refresh happens from mid-July to mid-October: until the publisher restarts, the next game shows « aucun match prévu » with « intersaison » or « calendrier non publié » (STA-26).
+- No refresh happens from mid-July to mid-October: until the publisher restarts, the next game shows « aucun match prévu » with « intersaison », or « joueur sans équipe » for a player with no team (STA-26, CL-STA-20).
 - A few games of older seasons are missing — up to 12 regular-season games and 1 playoff game in a season from 2003-04 on, more before — and become « feuille indisponible » (STA-35).
 - The risks the service sheet lists stay visible: provenance and takedown, a volunteer-maintained pipeline, late refreshes, precision gaps, data quirks.
 
@@ -55,3 +55,7 @@ From section 4 of the evaluation:
 
 - The daily statistics update is one run per competition day. From 15:00 it probes the source's refresh about every 60 minutes, and a probe opens no database connection ([0025](0025-database-compute-budget-shapes-the-scheduler.md)), so a probe that finds nothing records nothing of its own. The run ends "succeeded" when a probe sees the refresh and the data is ingested, or, at the 20:00 cut-off, fetches what is published and ends "source late"; after a competition day without games it does not wait.
 - Besides the outages of STA-37, the "Stats source unavailable" incident opens after 2 consecutive competition days whose runs ended "source late", and closes when a refresh lands. A late source is never "task not run".
+
+### 2026-11-18 — The off-season reason (CL-STA-20)
+
+- Between seasons the reason of "no game scheduled" is « intersaison » for every player who has a team, since CL-STA-20 takes the first reason that applies and the Finals are then over; « joueur sans équipe » goes first for a player with no team, and « calendrier non publié » never applies then. The Consequences say so.

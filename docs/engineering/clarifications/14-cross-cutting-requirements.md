@@ -53,9 +53,9 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
   - A backup holds all the application's data — players, types and sheets, requests, events of every origin, import traces, articles, cases, statistics, profiles and verdict history, alert sheets, tracked cases, Telegram texts and the link to the conversation, settings, the activity journal with its technical details, incidents and task-run history — and the value of the withdrawn-events counter.
   - It never holds: deployment configuration values; drafts, server copies included (CL-DSN-17, CL-IHM-10); the entries of the withdrawal ledger (CL-DSN-08); the account's password data (its hash and the fingerprint of the initial password, TRV-63); sessions and login-failure state.
   - A full export (TRV-52) holds the same as a backup, unencrypted, in its documented open format.
-  - A restore keeps the target database's account data, if it has any, and closes all sessions; otherwise the account is initialized from the configured initial password (TRV-57) and the owner chooses a new one.
+  - A restore keeps the target database's account data, if it has any, and closes all sessions, with the end reason "restored"; otherwise the account is initialized from the configured initial password (TRV-57) and the owner chooses a new one. A device that presents a session the restore closed is told "Data restored" and erases its device data, drafts typed offline included, as at a reset (IHM-08, DSN-33, CL-IHM-10): what it holds came from the data before the restore.
 - **Why:** the exclusions are what 13 forbids or what must not travel between installations; the rest rebuilds the application identically.
-- **Owner review:** yes — after a restore into a new database the owner logs in with the initial password and sets a new one.
+- **Owner review:** yes — after a restore into a new database the owner logs in with the initial password and sets a new one; after any restore, each device erases what it held, offline drafts included, at its next contact.
 
 ## CL-TRV-06 — What a restore does with withdrawals and deletions made since the backup
 
@@ -340,6 +340,18 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 - **Why:** record 0001 and VUE-06 make Lot 1 work alone and never depend on Lot 2; a Lot 1 deletion that a Lot 2 row could refuse would make it depend on Lot 2.
 - **Owner review:** no
+
+## CL-TRV-25 — Refusals recorded without the database
+
+- **Affects:** TRV-41, TRV-65, TRV-67, TEL-31, CA-TRV-21, CA-TRV-34; CL-TRV-21, CL-TEL-06 (file 11 ruling); record 0025
+- **Problem:** a refused tick (TRV-65) and a stranger's Telegram update (TEL-31, CL-TRV-21) must be journaled, but neither may open the database, so that a stream of refused calls never wakes it (record 0025); each server instance therefore keeps them in memory and hands them to the next database pass through the Runtime Cache. A serverless instance can be recycled at any moment, a flood of calls would outgrow any buffer, and the journal's categories have none for a refused trigger.
+- **Ruling:**
+  - An instance records each refused tick and each ignored Telegram update in memory, with its instant and its kind (for an update, the kind of conversation, CL-TRV-21). The request that records an attempt writes the instance's buffer to the Runtime Cache after its response when the instance's last write is a minute old or more, so an isolated attempt is written at once; otherwise the buffer waits for the next such request.
+  - The next database pass journals each attempt as its own entry with its instant and kind — a refused tick in the category `trigger_refused`, an ignored update in `telegram_message` — and empties what it journaled.
+  - Beyond 1,000 attempts pending in one instance, the instance keeps only their count by kind, with the first and the last instant, and the pass journals one entry with that count.
+  - Accepted limits: an instance recycled before writing loses the attempts it recorded since its last write, at most a minute of them; beyond 1,000 pending attempts the journal holds a count, not one entry per attempt. No refused call runs a task or opens the database, which is what TRV-65 protects.
+- **Why:** record 0025 forbids a database connection on these paths; one cache write a minute per busy instance keeps a flood from exhausting the cache's allowance, the cap bounds the cache entry and the journal, and an isolated refusal, the usual case, is never lost.
+- **Owner review:** yes — a flood of refused calls is journaled as a count beyond 1,000 per instance, the last minute of a burst can be lost when the host recycles the instance, and refused triggers get a journal category of their own.
 
 ## Ruled elsewhere
 

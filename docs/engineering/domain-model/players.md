@@ -120,8 +120,13 @@ type PlayerStatusChangeReason =
 ### 1.4 `player_team_changes` — `PlayerTeamChange`
 
 The team history from the day the player is followed: observed changes, entered changes and
-their confirmation (JOU-13, CL-JOU-02, CL-JOU-03). It also bounds team membership for absence
-counts (CL-STA-05). The team chosen at addition is not a change.
+their confirmation (JOU-13, CL-JOU-02, CL-JOU-03). Its rows also bound team membership, for absence
+counts and the calendar derivation alike (CL-STA-05, CL-TAX-18): each ends the old membership and
+starts the new one at `changed_at`, except an entered row taken back, which is one whose first
+official game played after `changed_at` is for another team than `new_team_id` (CL-JOU-03); the
+observed row that game records then follows it. The team chosen at addition is not a change and
+starts no membership. An entered row, and its take-back, start a full calendar derivation for the
+player (CL-TAX-19).
 
 | column             | type        | null | default  | constraint or reference                                                                                                                                                               | class | spec IDs                                |
 | ------------------ | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------- |
@@ -136,7 +141,8 @@ counts (CL-STA-05). The team chosen at addition is not a change.
 Row check: `previous_team_id IS DISTINCT FROM new_team_id`.
 
 Indexes: `player_team_changes_player_changed_idx (player_id, changed_at)` serves the history
-display and the membership walk of CL-STA-05 (latest change before a game's start).
+display and the membership walk of CL-STA-05 (latest change before a game's start, entered rows
+taken back skipped).
 
 ```ts
 type TeamChangeOrigin = 'observed' | 'entered';

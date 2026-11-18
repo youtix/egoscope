@@ -66,4 +66,8 @@ Free, no payment card, automated access permitted, replaceable:
 
 ### 2026-11-13 — The Telegram webhook (coordinator)
 
-- The webhook is registered with `max_connections` 1, and the stored update identifier only moves forward, so each update is handled once and in order.
+- The webhook is registered with `max_connections` 1, and the stored update identifier only moves forward, so each update is handled once and in order (refined on 2026-11-18, below).
+
+### 2026-11-18 — A new sequence of Telegram updates (Bot API, `Update.update_id`)
+
+- After at least a week without updates, Telegram picks the next `update_id` at random (Bot API, `Update`). The application therefore stores, with the last identifier handled, the instant it handled it: once that instant is a week old, a lower identifier starts a new sequence instead of being dropped as a redelivery, and polling asks with no offset. Within a week, the identifier only moves forward, as above.

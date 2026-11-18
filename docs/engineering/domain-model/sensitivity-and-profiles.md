@@ -176,28 +176,32 @@ not fit one request (CL-SEN-16).
 | `event_type_ids`        | text[]      | yes  | —           | types concerned (their trends); null means every type of those players                                  | —     | SEN-34            |
 | `game_ids`              | integer[]   | yes  | —           | the new or modified games a statistics update signals (STA-32)                                          | —     | STA-32, SEN-34    |
 | `cause`                 | text        | no   | —           | values of `VerdictChangeCause`; never merged with another cause                                         | —     | SEN-37, CL-SEN-17 |
-| `status`                | text        | no   | `'pending'` | `CHECK (status IN ('pending','running','done'))`                                                        | —     | CL-SEN-16         |
+| `status`                | text        | no   | `'pending'` | `CHECK (status IN ('pending','running'))`; a job is deleted when it ends                                | —     | CL-SEN-16         |
 | `started_at`            | timestamptz | yes  | —           | —                                                                                                       | —     | CL-SEN-16         |
 | `lease_expires_at`      | timestamptz | yes  | —           | technical: a crashed invocation frees the job when it passes                                            | —     | TRV-30, CL-TRV-07 |
 | `progress_cursor`       | text        | yes  | —           | technical: where the next chunk resumes                                                                 | —     | TRV-30            |
 | `parameter_snapshot_id` | integer     | yes  | —           | `REFERENCES parameter_snapshots(id) ON DELETE RESTRICT`; set when it starts                             | —     | SEN-36            |
-| `finished_at`           | timestamptz | yes  | —           | —                                                                                                       | —     | CL-SEN-16         |
 
-Row checks: `scope = 'full'` iff `player_ids IS NULL`; `(status = 'done') = (finished_at IS NOT NULL)`.
+Row check: `scope = 'full'` iff `player_ids IS NULL`.
 
 Unique: `recalculation_jobs_one_running_key ((true)) WHERE status = 'running'` — one job at a time.
 
-Indexes: `recalculation_jobs_pending_idx (id) WHERE status <> 'done'` serves the runner and the
+Indexes: the primary key's order serves the runner and the
 "recalculation in progress" notice (SEN-36).
 
-Lifetime: done jobs are deleted by the daily purge once older than `journal.retentionDays`; a
-player-data deletion removes his id from pending jobs and deletes done jobs naming him
-(CL-JOU-06).
+Lifetime: a job is deleted in the transaction that ends its last chunk. Nothing reads a finished
+job, and its scope and cause would keep, for a withdrawn event, the player and type of each action
+the owner took on it, beside a journal entry that no longer names it (TRV-41, DSN-27, DSN-29); its
+`profile_recalculation` journal entry names neither player nor type (§2.1). A player-data deletion
+removes his id from the pending and running jobs and deletes a job left with no player
+(`sensitivity.erasePlayerJobs`, CL-JOU-06); a job running between two of its chunks is reached the
+same way, so no job keeps his identifier.
 
 ### 1.5 `profile_value_versions` — `ProfileValueVersion`
 
-The append-only history of the historical-only view: for each player–type profile and each type's
-trend in that view, a row per change of its values with the instant it took effect, which Lot 2
+The history of the historical-only view: for each player–type profile and each type's trend in
+that view, a row per change of its values with the instant it took effect, never updated, replaced
+after a withdrawal and pruned by the daily purge (below), which Lot 2
 tracking reads to build forecast versions and freeze the last one before tip-off (SUI-08, SUI-09,
 CL-SEN-19, CL-SUI-03). The glossary's `ProfileSnapshot` is the alert sheet's frozen copy, hence
 another name.
@@ -227,8 +231,10 @@ instant t" for a pair or a type (SUI-08, SUI-09).
 
 Deletion: with its profile or trend, so a withdrawal or player deletion that erases them erases
 these rows too (CL-SEN-18). The versions also leave no trace of a withdrawal on a profile or trend
-that survives it (SEN-33, DSN-29, CL-SEN-18): the full job that follows a withdrawal replaces all
-the versions of every historical-only profile and trend whose values it changes by one version
+that survives it (SEN-33, DSN-29, CL-SEN-18): the full job that follows a withdrawal, a player-data
+deletion (JOU-24, which withdraws each of his events; sensitive-data.md section 2.2) or a restore's
+re-application of the withdrawal ledger (CL-TRV-06; operations.md section 2.5) replaces all the
+versions of every historical-only profile and trend whose values it changes by one version
 holding the new values, effective at the creation of the earliest tracked case of that pair (for a
 trend, of that type) whose measured game has not started, or at the job's instant when none waits;
 so no count or mean gap from before the withdrawal stays to be compared with the new one. Outside a
@@ -250,13 +256,13 @@ interface ProfileValueVersion {
 
 ### 2.1 Recalculation job (CL-SEN-16)
 
-| from    | to      | trigger                                                 | guard                                      | side effects                                                                                                                                                                                                                                                                                                       |
-| ------- | ------- | ------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| (none)  | pending | a change listed by SEN-34 or SEN-35, in its transaction | —                                          | profiles and trends it covers show "recalculation in progress"                                                                                                                                                                                                                                                     |
-| pending | running | right after the commit, or the next trigger wake-up     | it is the oldest pending job; none running | `parameter_snapshot_id` and `started_at` set; the lease taken                                                                                                                                                                                                                                                      |
-| running | running | a chunk ends                                            | —                                          | cases written; each profile and trend written whole, with its verdict-history entries (default view) and its value version (historical-only view); `progress_cursor` and the lease moved                                                                                                                           |
-| running | done    | the last chunk ends                                     | —                                          | the job marked done; journal entry `profile_recalculation` (TRV-41); the triggering operation reports itself complete; Lot 2 reads the change: `game-tracking`, chained after `recalculation`, compares each open sheet's frozen sections with the current default-view profiles (ALE-19, module map section 1.10) |
-| running | running | the lease expires (crashed invocation)                  | —                                          | the next wake-up resumes from `progress_cursor`                                                                                                                                                                                                                                                                    |
+| from    | to        | trigger                                                 | guard                                      | side effects                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------- | --------- | ------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)  | pending   | a change listed by SEN-34 or SEN-35, in its transaction | —                                          | profiles and trends it covers show "recalculation in progress"                                                                                                                                                                                                                                                                                                                                                 |
+| pending | running   | right after the commit, or the next trigger wake-up     | it is the oldest pending job; none running | `parameter_snapshot_id` and `started_at` set; the lease taken                                                                                                                                                                                                                                                                                                                                                  |
+| running | running   | a chunk ends                                            | —                                          | cases written; each profile and trend written whole, with its verdict-history entries (default view) and its value version (historical-only view); `progress_cursor` and the lease moved                                                                                                                                                                                                                       |
+| running | (deleted) | the last chunk ends                                     | —                                          | the job deleted in that transaction; journal entry `profile_recalculation` with its scope kind, cause and counts, naming no player and no type (TRV-41, DSN-29); the triggering operation reports itself complete; Lot 2 reads the change: `game-tracking`, chained after `recalculation`, compares each open sheet's frozen sections with the current default-view profiles (ALE-19, module map section 1.10) |
+| running | running   | the lease expires (crashed invocation)                  | —                                          | the next wake-up resumes from `progress_cursor`                                                                                                                                                                                                                                                                                                                                                                |
 
 ### 2.2 Profile and trend presentation states — `ProfileNotice`, derived
 
@@ -330,7 +336,8 @@ Profiles appear in the spreadsheet export of profiles and in the full export
   `sensitivity` does not read; nothing is handed to Lot 2 when a job ends, `game-tracking` reading
   the profiles after `recalculation` instead.
 - Own choice, at Lot 2's request: `profile_value_versions` (`ProfileValueVersion`) is the
-  append-only history of the historical-only view that the module map calls profile snapshots;
+  history of the historical-only view, its rows never updated, that the module map calls profile
+  snapshots;
   it keeps only the five values tracking reads (store less), and its name leaves `ProfileSnapshot`
   to the alert sheet's frozen copy (glossary section 3.10).
 

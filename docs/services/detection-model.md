@@ -70,16 +70,22 @@ input and 1,000 output.
 
 ### Daily budget per provider
 
-| Provider                             | Daily budget                                                  | Daily reset                                                                | Per-minute limits         | One realistic call                                                      | Realistic calls a day         |
-| ------------------------------------ | ------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------- | ----------------------------- |
-| Workers AI `glm-4.7-flash`           | 10,000 neurons                                                | 00:00 UTC                                                                  | 300 requests              | 52 neurons                                                              | about 190                     |
-| Groq `openai/gpt-oss-120b`, optional | 1,000 requests and 200,000 tokens (cached tokens not counted) | Not published; the `x-ratelimit-reset-requests` header gives the time left | 30 requests, 8,000 tokens | 6,100 tokens, about 1,600 counted when the 4,500-token prefix is cached | about 32 uncached, 125 cached |
+| Provider                             | Daily budget                                                  | Daily reset                                                                                                                                                         | Per-minute limits         | One realistic call                                                      | Realistic calls a day         |
+| ------------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------- | ----------------------------- |
+| Workers AI `glm-4.7-flash`           | 10,000 neurons                                                | 00:00 UTC                                                                                                                                                           | 300 requests              | 52 neurons                                                              | about 190                     |
+| Groq `openai/gpt-oss-120b`, optional | 1,000 requests and 200,000 tokens (cached tokens not counted) | Not published: `x-ratelimit-reset-requests` gives the time left before the requests a day refill; nothing reports the tokens a day, counted over a rolling 24 hours | 30 requests, 8,000 tokens | 6,100 tokens, about 1,600 counted when the 4,500-token prefix is cached | about 32 uncached, 125 cached |
 
 Sources: [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/),
 [Workers AI limits](https://developers.cloudflare.com/workers-ai/platform/limits/),
 [Groq rate limits](https://console.groq.com/docs/rate-limits). The application counts each provider
-against its own budget (TRV-03), on Workers AI's UTC day; for Groq it follows the reset times the
-response headers report, since Groq publishes no daily boundary.
+against its own budget (TRV-03), on Workers AI's UTC day. Groq publishes no boundary, and its
+headers describe two of its four limits only: `x-ratelimit-reset-requests` always refers to the
+requests a day and `x-ratelimit-reset-tokens` to the tokens a minute
+([Groq rate limits](https://console.groq.com/docs/rate-limits), section on headers). The application
+therefore resets the requests a day and the tokens a minute at the instants those headers report,
+counts the requests a minute over a rolling minute and the tokens a day over a rolling 24 hours,
+which no header reports, and treats a `429` with `retry-after` as that limit reached until then
+(TRV-06, CL-TRV-12).
 
 ### Workers AI alone, the default
 
@@ -238,7 +244,9 @@ Both over plain HTTPS with `fetch`; no SDK is required.
   otherwise leaves the remaining articles queued until the renewal.
 - **Groq**: `429 Too Many Requests` with a `retry-after` header in seconds
   ([Groq rate limits](https://console.groq.com/docs/rate-limits)). A per-minute limit means wait and
-  retry from a later tick; the daily limits mean Groq is done until the reset its headers report.
+  retry from a later tick; the requests a day mean Groq is done until the reset
+  `x-ratelimit-reset-requests` reports, the tokens a day until enough of the rolling 24 hours has
+  passed, or the `retry-after` of the refusal when it comes later.
 - **Every provider exhausted or failing**: articles stay "awaiting classification" without loss, in
   the priority order of DET-09; the "quota reached" incident opens with the number waiting and the
   next resumption (DET-08, DET-11); the owner can classify an article himself (DET-13).

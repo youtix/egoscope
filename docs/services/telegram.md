@@ -125,14 +125,20 @@ that carries it is passed through `env.redact` before it goes anywhere (TRV-64; 
   - `allowed_updates: ["message", "my_chat_member"]` and `drop_pending_updates: true`;
   - `max_connections: 1`, so that Telegram delivers one update at a time, in order; its default is
     40 simultaneous connections ([setWebhook](https://core.telegram.org/bots/api#setwebhook),
-    parameter `max_connections`, 1 to 100). The application stores the highest `update_id` it has
-    handled, which only moves forward, so parallel deliveries could make a lower update arrive after
-    a higher one and be dropped as a redelivery, a `/start` code with it (record 0024, amendment of
-    2026-11-13).
+    parameter `max_connections`, 1 to 100). The application stores the last `update_id` it has
+    handled and when, so parallel deliveries could make a lower update arrive after a higher one and
+    be dropped as a redelivery, a `/start` code with it (record 0024, amendments of 2026-11-13 and
+    2026-11-18). Telegram numbers a bot's updates sequentially, but after at least a week without
+    any update it picks the next identifier at random ([Update](https://core.telegram.org/bots/api#update),
+    field `update_id`), so a lower identifier then starts a new sequence.
 
   The handler compares the header in constant time and rejects a mismatch with `401`; answers `200`
   quickly to every genuine update, since any other status makes Telegram retry; deduplicates on
-  `update_id`, an update at or below the stored `last_update_id` being a redelivery that is ignored;
+  `update_id`, an update at or below the stored `last_update_id` being a redelivery that is ignored
+  while the last update handled is less than a week old — Telegram keeps an undelivered update at
+  most 24 hours — and, once it is older, the start of a new sequence that is handled and becomes the
+  stored one; in polling mode, `getUpdates` is called without an offset in that case, since an
+  offset above the new identifiers would confirm and drop them;
   accepts only `message.chat.type == "private"`; links the chat on a valid, unused, unexpired
   `/start <code>`; and counts everything else without replying and without opening the database,
   telling a valid code or the linked chat from a stranger by the keyed inbound filter of the module
@@ -149,9 +155,14 @@ that carries it is passed through `env.redact` before it goes anywhere (TRV-64; 
   link code is pending, or at the end of a database pass, which comes at least hourly. Messages from
   other chats are still logged (TEL-31), since Telegram keeps updates for 24 hours.
 - **Deleting after a withdrawal** (TEL-38, H-TEL-04, CL-TEL-09): the application asks Telegram once
-  to delete every sent message about the event, whatever its age and even in a chat no longer
-  linked ([deleteMessages](https://core.telegram.org/bots/api#deletemessages)). Telegram refuses the
-  messages older than 48 hours; the refusals, and the messages that could not be reached, are kept
+  to delete each sent message about the event, one `deleteMessage` call per message, whatever its
+  age and even in a chat no longer linked
+  ([deleteMessage](https://core.telegram.org/bots/api#deletemessage)). Its answer is per message —
+  deleted, refused (a message older than 48 hours) or not found, which a second attempt counts as
+  deleted (CL-TEL-09) — whereas `deleteMessages`, which takes up to 100 messages of one chat, answers
+  only `true` and skips the messages it cannot find, so it could not list the refusals. The calls
+  go one at a time, within the sending rate of the bot. The refusals, and the messages that could
+  not be reached, are kept
   in memory only and listed once, on the screen shown right after the withdrawal, so that the owner
   can delete them himself, as the withdrawal screen announces (DSN-28); the list is never stored.
 - **Retries** (TEL-35): on `429`, the response's `parameters.retry_after` gives the seconds to wait

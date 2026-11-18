@@ -110,7 +110,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** DET-44, DET-46, SUI-16, SUI-17, SUI-25, IHM-32, CA-DET-24, CA-SUI-13
 - **Problem:** DET-44 says a dismissed event's case leaves the validation table, while SUI-17, IHM-32 and CA-SUI-13 show a case dismissed after tip-off in a separate count of that table.
-- **Ruling:** a dismissed event's case leaves every calculation: profiles, general trends and every computed figure of the validation table (testing set, assessments). When the dismissal instant is at or after the measured game's scheduled start, the case appears only in its rows' separate count of post-tip-off decisions, as an exit with its gap in the forecast direction (SUI-17, SUI-25, CL-SUI-10); otherwise it appears nowhere in the table (SUI-16). DET-44's « tableau de validation » means its calculations.
+- **Ruling:** a case all of whose events are dismissed leaves every calculation: profiles, general trends and every computed figure of the validation table (testing set, assessments). When the dismissal that leaves none of its events undismissed is at or after the measured game's scheduled start, the case appears only in its rows' separate count of post-tip-off decisions, as an exit with its gap in the forecast direction (SUI-17, SUI-25, CL-SUI-10); otherwise it appears nowhere in the table (SUI-16). Dismissing one event of a case that keeps another one not dismissed takes nothing out of a calculation and is no post-tip-off decision: only the case's events and its reference instant change (CL-VUE-03). DET-44's « tableau de validation » means its calculations.
 - **Why:** both texts then hold, and a sorting made after seeing the result stays visible (SUI-17).
 - **Owner review:** no
 
@@ -128,10 +128,10 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 ## CL-DET-11 — Which events the model receives
 
-- **Affects:** DET-14, DET-28, DET-29, DET-31
-- **Problem:** DET-14 can be read as limiting only the historical events to the grouping window, or both kinds, and does not say whether events dated after the article are sent.
-- **Ruling:** for each recognized player the model receives his detected events, dismissed ones included, and his historical events, both kinds limited to those whose reference date is at or after the article's retained instant minus the grouping window (default 72 hours): an older event is never proposed for grouping (DET-29). There is no upper bound: events created from later articles are sent, so an older article can attach to them and move the reference date earlier (DET-31). Calendar-derived events are never sent (ADR 0015).
-- **Why:** DET-29 bars only older events from grouping, and the nominal scenario sends "the recent events, detected or historical".
+- **Affects:** DET-14, DET-28, DET-29, DET-31, DET-44, CA-DET-25
+- **Problem:** DET-14 can be read as limiting only the historical events to the grouping window, or both kinds, and does not say whether events dated after the article are sent; DET-44 attaches to a dismissed event any later article that reports the same fact, with no delay.
+- **Ruling:** for each recognized player the model receives his detected events that are not dismissed and his historical events, both kinds limited to those whose reference date is at or after the article's retained instant minus the grouping window (default 72 hours): an older one is never proposed for grouping (DET-29). It also receives his dismissed events whatever their age: a later article that reports the same fact is attached to the dismissed event and gives no new one (DET-44, CA-DET-25), the specific rule for dismissed events prevailing over DET-29's general one (CL-JRN-01). There is no upper bound: events created from later articles are sent, so an older article can attach to them and move the reference date earlier (DET-31). Calendar-derived events are never sent (ADR 0015).
+- **Why:** DET-29 bars only older events from grouping, and the nominal scenario sends "the recent events, detected or historical"; DET-44 and CA-DET-25 set no delay for a dismissed event, which would otherwise be born again from an article arriving after the window.
 - **Owner review:** no
 
 ## CL-DET-12 — Reason for a detached article
@@ -171,8 +171,9 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Problem:** DET-46 records whether a dismissal came before or after the measured game's tip-off, but that game may not be established yet or may change (DET-31); and DET-44 stops tracking the game, so a case dismissed after tip-off but before its statistics arrive has no gap for SUI-17's separate count.
 - **Ruling:**
   - Only the dismissal instant is stored. Its position is derived at each display, against the measured game's scheduled start once established, otherwise against the expected game's; with neither known it is "before".
-  - A case whose event is dismissed before the expected game's scheduled start stops being tracked.
-  - A case whose event is dismissed at or after that start keeps being attached and measured by file 08, outside every calculation, so that SUI-17's separate count can show its gap; no tracked-game result is sent for it (TEL-23, TEL-38). If its measured game turns out to start after the dismissal, it is a dismissal before tip-off (SUI-16) and appears nowhere in the table.
+  - A case whose last event not dismissed is dismissed before the expected game's scheduled start stops being tracked.
+  - A case whose last event not dismissed is dismissed at or after that start keeps being attached and measured by file 08, outside every calculation, so that SUI-17's separate count can show its gap; no tracked-game result is sent for it (TEL-23, TEL-38). If its measured game turns out to start after that dismissal, it is a dismissal before tip-off (SUI-16) and appears nowhere in the table.
+  - While a case keeps an event not dismissed, dismissing another of its events changes neither its tracking nor its counting: it stays tracked, measured and counted, with the reference instant of its remaining events (CL-VUE-03, CL-DET-09).
 - **Why:** a dismissal made after watching the game is exactly the sorting SUI-17 must keep visible, and without measurement its gap would be lost.
 - **Owner review:** yes
 

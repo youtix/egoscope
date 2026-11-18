@@ -238,7 +238,7 @@ origin and creation instant is a stored result of the last recalculation (CL-SEN
 | `id`                              | integer          | no   | identity | primary key; unique `(id, player_id, event_type_id)` is the target of the events' foreign key                                                                                                                                                                                                                                                              | EV    | SEN-07                               |
 | `player_id`                       | uuid             | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                                                                                                                                                                                                                                                                        | EV    | SEN-19                               |
 | `event_type_id`                   | text             | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                                                                                                                                                                                                                                                                            | EV    | SEN-19                               |
-| `origin`                          | text             | no   | —        | `CHECK (origin IN ('historical','tracked'))`; set by the first event recorded, never changed, except at the withdrawal of that event while the case keeps others: it then becomes the origin of the earliest-recorded remaining event (CL-SUI-17)                                                                                                          | EV    | SEN-21, SUI-07, CL-VUE-03, CL-VUE-13 |
+| `origin`                          | text             | no   | —        | `CHECK (origin IN ('historical','tracked'))`; set by the first event recorded, never changed, except at the withdrawal of that event, or its erasure by requalification or split, while the case keeps others: it then becomes the origin of the earliest-recorded remaining event (CL-SUI-17, CL-VUE-03)                                                  | EV    | SEN-21, SUI-07, CL-VUE-03, CL-VUE-13 |
 | `created_at`                      | timestamptz      | no   | `now()`  | creation instant, never changed except as `origin` (CL-SUI-17: the creation instant of the earliest-recorded remaining event); for a detected event's case, the event's `created_at`, written in its transaction (DET-37, SUI-01); a tracked case is recorded in time when it precedes its measured game's scheduled start                                 | EV    | SUI-01, SUI-04, SUI-06               |
 | `status`                          | text             | no   | —        | `CHECK (status IN ('awaiting_game','measured','excluded','not_measurable'))`                                                                                                                                                                                                                                                                               | EV    | SEN-07                               |
 | `status_reason`                   | text             | yes  | —        | `CHECK (status_reason IN ('game_not_played_yet','statistics_pending','mapping_not_established','baseline_building','precedence_to_verify','dating_to_verify','no_game_within_window','box_score_incomplete','box_score_suspect','box_score_unavailable','insufficient_baseline','season_not_covered','precedence_not_established','derived_game_missed'))` | EV    | SEN-07, SEN-47, CL-SEN-03, CL-SEN-05 |
@@ -372,7 +372,11 @@ Index: `case_manual_decisions_case_idx (case_id, decided_at)`.
 ### 1.11 `case_history_entries` — `CaseHistoryEntry`
 
 The append-only history of a case's status, measured game and gap (08 « Données manipulées »,
-« Cas limites »). A row is written only when one of these values changes.
+« Cas limites »). A row is written only when one of these values changes. Its one deletion besides
+the case's own: when a withdrawal, or an erasure by requalification or split, rebuilds the case
+from its remaining events, the rows recorded before its new `created_at` are deleted in that
+transaction (CL-SUI-17); the rebuild writes no row, and the recalculation job that follows records
+any change with the cause `recalculation`.
 
 | column             | type             | null | default  | constraint or reference                                         | class | spec IDs          |
 | ------------------ | ---------------- | ---- | -------- | --------------------------------------------------------------- | ----- | ----------------- |
@@ -466,11 +470,11 @@ type DerivationCause =
 
 ### 2.1 Detected-event status (Lot 2; DET-43 to DET-46, SEN-48)
 
-| from      | to        | trigger                                                                           | guard                                                                                                                | side effects                                                                                                                                                                                               |
-| --------- | --------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (none)    | detected  | classification at or above the threshold, or the owner's classification or rescue | no matching historical event (DET-58); for a model-origin fact, no live withdrawal fingerprint (ADR 0017, CL-DSN-06) | event and its tracked case created pending (SUI-01); routing (DET-37 to DET-40)                                                                                                                            |
-| detected  | dismissed | owner dismisses                                                                   | a reason; a comment for `other`                                                                                      | status change row with its instant, its position against tip-off derived (CL-DET-15); event and case leave every calculation, the case keeping its values (SEN-48); recalculation, cause "event dismissed" |
-| dismissed | detected  | owner reinstates                                                                  | —                                                                                                                    | back into the calculations; recalculation, cause "event reinstated" (CL-SEN-17)                                                                                                                            |
+| from      | to        | trigger                                                                           | guard                                                                                                                | side effects                                                                                                                                                                                                                                                                  |
+| --------- | --------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)    | detected  | classification at or above the threshold, or the owner's classification or rescue | no matching historical event (DET-58); for a model-origin fact, no live withdrawal fingerprint (ADR 0017, CL-DSN-06) | event and its tracked case created pending (SUI-01); routing (DET-37 to DET-40)                                                                                                                                                                                               |
+| detected  | dismissed | owner dismisses                                                                   | a reason; a comment for `other`                                                                                      | status change row with its instant, its position against tip-off derived (CL-DET-15); the event leaves every calculation, and its case too when no event of it is left undismissed, keeping its values (SEN-48, CL-VUE-03, CL-DET-09); recalculation, cause "event dismissed" |
+| dismissed | detected  | owner reinstates                                                                  | —                                                                                                                    | back into the calculations; recalculation, cause "event reinstated" (CL-SEN-17)                                                                                                                                                                                               |
 
 Historical and calendar-derived events have no status (CL-VUE-07): they exist until erased.
 
@@ -490,8 +494,11 @@ The birthday type counts every game of his team whose day (`game_day_on`, CL-TRV
 and month of birth — 28 February in common years for a 29 February birthday (CL-JOU-17); the
 former-team type counts, per stint with a former team, the first game between his team and it after
 his last game played for it in that stint, when every season in between is covered (CL-JOU-18). "His
-team" is the membership of CL-TAX-18 — that of CL-STA-05, a team change recorded while current
-starting the new membership at its recorded instant — and at his next game his current team.
+team", at a past game and at his next game alike, is the membership of CL-STA-05 (CL-TAX-18): a team
+change recorded while current, from the source's player file or entered, ends the old membership
+and starts the new one at its recorded instant, an entered change taken back moves nothing, and the
+team chosen at addition starts none. The next game (STA-26) is his current team's, and it qualifies
+only when he belongs to that team at its scheduled start (CL-STA-25).
 
 - **Regular runs**, at the end of every statistics update and, in Lot 2, of every
   collection-and-detection pass: every qualifying game started since the player's previous run
@@ -502,8 +509,9 @@ starting the new membership at its recorded instant — and at his next game his
 - **Full derivations**, over every game already started: at the validation, the reactivation and
   the substantive change of the type, for every eligible player; for one player, at a change of his
   birthday (birthday type), of his mapping, at a box-score correction that changes his team history
-  (former-team type), or when his first game after an entered team change is for another team (both
-  types). They create the missing events and delete those whose game no longer qualifies.
+  (former-team type), at a team change the owner enters, and when his first game after it is for
+  another team, which takes it back (both types; cause `team_history_changed`). They create the
+  missing events and delete those whose game no longer qualifies.
 - **Every run**, regular or full, re-checks the upcoming events of the players it covers and deletes,
   before tip-off, one whose game no longer qualifies (CL-TAX-19).
 
@@ -562,11 +570,12 @@ changed, that left awaiting their game, or whose gap, status, baseline or catego
 SUI-15, SUI-21, ALE-26, CL-ALE-12; module map section 1.10). The owner's composed actions
 (exclusion, reinstatement, dismissal, corrections, the lift of the dating mark) record their
 post-tip-off decision for tracking in their own transaction, through their composition caller
-(module map section 1.7). In Lot 2, a case
-whose detected event was dismissed at or after its expected game's scheduled start keeps being
-evaluated, outside every profile, trend, control and verdict, so that the validation table counts it
-apart (SUI-17); one dismissed earlier keeps the state and gap it had until a reinstatement
-(SEN-48, CL-SEN-05).
+(module map section 1.7). In Lot 2, a case that keeps an event not dismissed counts as usual, from
+those events (CL-VUE-03); a case all of whose detected events are dismissed, the last of them at or
+after its expected game's scheduled start, keeps being evaluated, outside every profile, trend,
+control and verdict, so that the validation table counts it apart (SUI-17); one whose last
+dismissal came earlier keeps the state and gap it had until a reinstatement (SEN-48, CL-SEN-05,
+CL-DET-09).
 
 ### 2.5 Case grouping (SEN-05, SEN-06, CL-VUE-03, CL-SEN-06, SUI-04)
 
@@ -595,23 +604,23 @@ run, for each player and type:
 
 ## 3. Invariants
 
-| rule                                                                                                             | spec IDs                                     | enforced by                                                                             |
-| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------- |
-| An event concerns exactly one followed player and one type, and names an existing sheet version                  | VUE-04, TAX-23, CL-TAX-08                    | not-null foreign keys                                                                   |
-| An event holds the DSN-06 items of its origin and no other                                                       | DSN-06, CL-DSN-20                            | table shape; per-origin row checks                                                      |
-| No event is ever stored with a "withdrawn" state; a withdrawal erases the row                                    | DSN-26, glossary 4.2                         | no such value in `detected_status`                                                      |
-| A description is one sentence within `events.maxDescriptionLength` with no quotation mark                        | DSN-20, DSN-21, CL-DSN-03                    | writing services (import, detection, correction, derivation template)                   |
-| A historical event produces no counted case while its precedence is to verify or not established                 | IMP-18, SEN-44, CL-SEN-08                    | engine (CL-SEN-05 steps 5 and 7)                                                        |
-| An event belongs to at most one case, of its own player and type                                                 | CL-VUE-03, SEN-05                            | `case_id` column with the composite foreign key                                         |
-| One case per player, type and measured game; a case always holds at least one event                              | SEN-05, CL-VUE-03                            | partial unique index; recalculation service deletes empty cases in the same transaction |
-| A case's origin and creation instant never change                                                                | SUI-04, SUI-07, CL-VUE-03                    | recalculation service (no update of these columns)                                      |
-| A measured case is a valid case: it carries no triggered criterion                                               | SEN-07, CL-SEN-27                            | recalculation service                                                                   |
-| A manual decision applies only to the game it was made on                                                        | CL-SEN-12                                    | engine reads `case_manual_decisions.measured_game_id`                                   |
-| Only cases of non-dismissed, non-erased events of validated or archived types count                              | SEN-19, SEN-48                               | engine                                                                                  |
-| One calendar-derived event per player, type and game; its player, type and date are never edited                 | CL-TAX-18, ADR 0015                          | partial unique index; event service                                                     |
-| A detected event's reference date moves earlier by itself, never later except by detaching its reference article | DET-31                                       | detection service (Lot 2)                                                               |
-| Every exit from the count but a withdrawal leaves a tally exit                                                   | SEN-33; CL-SEN-25 for calendar-derived drops | the erasure step                                                                        |
-| No rule and no action selects cases by their gap                                                                 | SEN-33, SEN-11                               | no reason value refers to performance                                                   |
+| rule                                                                                                                                                                                           | spec IDs                                     | enforced by                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| An event concerns exactly one followed player and one type, and names an existing sheet version                                                                                                | VUE-04, TAX-23, CL-TAX-08                    | not-null foreign keys                                                                                               |
+| An event holds the DSN-06 items of its origin and no other                                                                                                                                     | DSN-06, CL-DSN-20                            | table shape; per-origin row checks                                                                                  |
+| No event is ever stored with a "withdrawn" state; a withdrawal erases the row                                                                                                                  | DSN-26, glossary 4.2                         | no such value in `detected_status`                                                                                  |
+| A description is one sentence within `events.maxDescriptionLength` with no quotation mark                                                                                                      | DSN-20, DSN-21, CL-DSN-03                    | writing services (import, detection, correction, derivation template)                                               |
+| A historical event produces no counted case while its precedence is to verify or not established                                                                                               | IMP-18, SEN-44, CL-SEN-08                    | engine (CL-SEN-05 steps 5 and 7)                                                                                    |
+| An event belongs to at most one case, of its own player and type                                                                                                                               | CL-VUE-03, SEN-05                            | `case_id` column with the composite foreign key                                                                     |
+| One case per player, type and measured game; a case always holds at least one event                                                                                                            | SEN-05, CL-VUE-03                            | partial unique index; recalculation service deletes empty cases in the same transaction                             |
+| A case's origin and creation instant never change, except at the rebuild of a case whose event recorded first is withdrawn, or erased by requalification or split, while the case keeps others | SUI-04, SUI-07, CL-VUE-03, CL-SUI-17         | recalculation service (no other update of these columns); the erasure step of sensitive-data.md section 2.1, step 9 |
+| A measured case is a valid case: it carries no triggered criterion                                                                                                                             | SEN-07, CL-SEN-27                            | recalculation service                                                                                               |
+| A manual decision applies only to the game it was made on                                                                                                                                      | CL-SEN-12                                    | engine reads `case_manual_decisions.measured_game_id`                                                               |
+| Only cases holding at least one non-dismissed, non-erased event of a validated or archived type count                                                                                          | SEN-19, SEN-48                               | engine                                                                                                              |
+| One calendar-derived event per player, type and game; its player, type and date are never edited                                                                                               | CL-TAX-18, ADR 0015                          | partial unique index; event service                                                                                 |
+| A detected event's reference date moves earlier by itself, never later except by detaching its reference article                                                                               | DET-31                                       | detection service (Lot 2)                                                                                           |
+| Every exit from the count but a withdrawal leaves a tally exit                                                                                                                                 | SEN-33; CL-SEN-25 for calendar-derived drops | the erasure step                                                                                                    |
+| No rule and no action selects cases by their gap                                                                                                                                               | SEN-33, SEN-11                               | no reason value refers to performance                                                                               |
 
 ## 4. Stored or derived
 

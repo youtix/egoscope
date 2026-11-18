@@ -64,7 +64,10 @@ data and the events of deleted players (DSN-29, CL-DSN-04). One row.
 The row carries no date, so that it cannot date the last withdrawal (DSN-29: no player, no type,
 no date). It belongs to the withdrawal ledger (CL-DSN-08): the row is in no backup or export, and
 only its value is written into each one's manifest (operations.md section 5.1), so a restore can
-never load it as data and lower it (CL-TRV-06).
+never load it as data and lower it (CL-TRV-06). Unlike the hashes of the ledger, its value is
+shown — on the "Method and limits" page and, in Lot 2, in the validation table (DSN-29, VUE-09)
+— and the server returns it to the devices at each contact (CL-DSN-22, operations.md section
+1.12); the row is never erased, by the purge or otherwise.
 
 ## 2. Erasures
 
@@ -148,7 +151,7 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
 8. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),
    `event_import_warnings`, `event_marks`, `event_status_changes`, `event_corrections` and
    `backtest_request_events`, the outbox facts and restore-report rows that name it.
-9. E's case if it holds no other event, with its criteria, flags, decisions and history; otherwise the case is rebuilt as if E had never been recorded (CL-SUI-17): its `origin` and `created_at` become those of its earliest-recorded remaining event, E's decisions go, and tracking has already rebuilt or deleted its tracked case in step 5.
+9. E's case if it holds no other event, with its criteria, flags, decisions and history; otherwise the case is rebuilt as if E had never been recorded (CL-SUI-17): its `origin` and `created_at` become those of its earliest-recorded remaining event, its `case_history_entries` recorded before that new `created_at` are deleted, and the rebuild writes no history row of its own (the job of step 12 records any change, cause `recalculation`). The case's own manual decisions (`case_manual_decisions`) stay, since they apply to its remaining events too; the decisions about E, tracking's, went in step 5, where tracking also rebuilt, created or deleted its tracked case.
 10. `withdrawn_event_counter.value + 1`.
 11. A journal entry "an event was withdrawn", with no player, type or date (CL-TRV-10).
 12. A full recalculation job with cause `recalculation`; a profile or trend it leaves with no event
@@ -167,10 +170,15 @@ would instead leave messages in the chat with no record of them if the process s
 requests were sent.
 
 What remains afterwards: the counter and, for the horizon, the fingerprint. Accepted residual
-limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); in Lot 2, the forecast
-frozen at a tip-off before the withdrawal on another tracked case of the same pair or type, which
-never changes (SUI-09, CL-SEN-18); in Lot 2, a sheet whose status changed at the withdrawal with no
-entry, or closed on a day when none of its cases changed (CL-ALE-16); backups until they
+limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); for a case rebuilt from
+its other events, its own decisions dated before its new creation instant and its history rows
+recorded since that instant while E was in it (CL-SUI-17); in Lot 2, the values in force before the
+withdrawal wherever a requirement froze them for another event of the same pair or type — the
+forecast frozen at a tip-off on another tracked case (SUI-09), the profile and trend snapshots and
+outcomes of other sheets and sections (ALE-19), the tracked-game results transmitted and the
+messages sent about other events (SUI-19, TEL-11 to TEL-13) — which never change (CL-SEN-18); in
+Lot 2, a sheet whose status changed at the withdrawal with no entry, or closed on a day when none
+of its cases changed, and the number of a sheet whose initial section went (CL-ALE-16); backups until they
 rotate out; exports already downloaded; Telegram messages the bot could not delete; a device left
 offline until its next refresh; in Lot 2, an article still in a feed, collected and classified
 again for at most its maximum age while the fingerprint keeps it from becoming an event
@@ -190,9 +198,11 @@ the refusals from memory. Then, in one transaction:
    tracking, detection, collection — for his remaining rows: his exposure counts, article parts and
    every other Lot 2 row that points at him or at his requests and cases, so that nothing restricts
    the cascades of step 6 (collection.md section 8).
-3. One `deleted_player_entries` row (CL-JOU-24).
+3. One `deleted_player_entries` row (CL-JOU-24), written by `events.recordDeletedPlayer`.
 4. In `event_corrections` of other players' events, before or after values holding his id are set
-   to null; pending `recalculation_jobs` drop his id and done jobs naming him are deleted.
+   to null; the pending and running `recalculation_jobs` drop his id, and a job left with no player
+   is deleted (`sensitivity.erasePlayerJobs`; finished jobs are not kept, sensitivity-and-profiles.md
+   section 1.4).
 5. Journal references to him and his events become null ("a deleted player", "an item that no
    longer exists"); technical details concerning only him are deleted (CL-TRV-10).
 6. The `followed_players` row, which cascades to his variants, status and team histories, mappings
@@ -201,7 +211,11 @@ the refusals from memory. Then, in one transaction:
    exits, the drafts of his requests, his type occurrences (the proposals stay), his outbox
    facts through his requests, and his calendar derivation requests.
 7. A full recalculation job with cause `recalculation`; the journal records the deletion without
-   his name.
+   his name. As after a withdrawal (2.1, step 12, CL-SEN-18), a profile or trend the job leaves with
+   no event is erased, every other historical-only profile and trend whose values it changes has
+   all its versions replaced by one version holding the new values, and tracking derives again,
+   from it alone, the forecast versions of the waiting tracked cases (sensitivity-and-profiles.md
+   section 1.5).
 
 The player directory keeps its rows: public roster data linked to no followed player
 ([games-and-statistics.md](games-and-statistics.md) section 1.12).
@@ -214,19 +228,21 @@ downloaded exports keep it, undeletable Telegram messages stay (CL-JOU-06, CL-JO
 
 The daily purge task (`purge`, 04:00 by default, TRV-25) removes:
 
-| what                                                                                                                                                              | when                                                                                                                                                                     | spec IDs                        |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| Journal entries and their technical details                                                                                                                       | older than `journal.retentionDays` (90), except entries tied to an incident still open                                                                                   | TRV-48, H-TRV-08                |
-| Closed incidents                                                                                                                                                  | closed for longer than `journal.retentionDays`                                                                                                                           | TRV-48                          |
-| Withdrawal fingerprints and deleted-player entries                                                                                                                | older than the horizon (`backups.kept` × the backup interval, 8 weeks by default) and no backup in the register made before them; nothing while the register is in doubt | CL-DSN-07, ADR 0017             |
-| Drafts                                                                                                                                                            | `display.draftRetentionDays` (7) after their last change                                                                                                                 | IHM-42, CL-IHM-11               |
-| Done recalculation jobs, finished task runs, quota-usage periods, ended sessions and login failures outside the observation period                                | older than `journal.retentionDays`; an ended session once past its `expires_at` (operations.md section 1.10); login failures outside the observation period              | own choice (store less)         |
-| Consumed outbox facts; unconsumed ones older than `journal.retentionDays`                                                                                         | at once once consumed; otherwise after `journal.retentionDays`                                                                                                           | TEL-17, own choice (store less) |
-| Database activity minutes; database size samples and restore reports                                                                                              | before the previous month; older than `journal.retentionDays`                                                                                                            | TRV-03, TRV-08, own choice      |
-| Lot 2: the purge steps of collection.md section 1.11 (non-relevant articles, excerpts, dedup traces) and detection's exposure counts, the three figures journaled | per `collection.md` and `detection.md` (COL-34 to COL-39, CL-JOU-19)                                                                                                     | COL-39, CL-JOU-19               |
+| what                                                                                                                                                                                                                                                                                       | when                                                                                                                                                                     | spec IDs                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Journal entries and their technical details                                                                                                                                                                                                                                                | older than `journal.retentionDays` (90), except entries tied to an incident still open                                                                                   | TRV-48, H-TRV-08                                            |
+| Closed incidents                                                                                                                                                                                                                                                                           | closed for longer than `journal.retentionDays`                                                                                                                           | TRV-48                                                      |
+| Withdrawal fingerprints and deleted-player entries                                                                                                                                                                                                                                         | older than the horizon (`backups.kept` × the backup interval, 8 weeks by default) and no backup in the register made before them; nothing while the register is in doubt | CL-DSN-07, ADR 0017                                         |
+| Drafts                                                                                                                                                                                                                                                                                     | `display.draftRetentionDays` (7) after their last change                                                                                                                 | IHM-42, CL-IHM-11                                           |
+| Finished task runs, quota-usage periods, ended sessions and login failures outside the observation period                                                                                                                                                                                  | older than `journal.retentionDays`; an ended session once past its `expires_at` (operations.md section 1.10); login failures outside the observation period              | own choice (store less)                                     |
+| Consumed outbox facts; unconsumed ones older than `journal.retentionDays`                                                                                                                                                                                                                  | at once once consumed; otherwise after `journal.retentionDays`                                                                                                           | TEL-17, own choice (store less)                             |
+| Database activity minutes; database size samples and restore reports                                                                                                                                                                                                                       | before the previous month; older than `journal.retentionDays`                                                                                                            | TRV-03, TRV-08, own choice                                  |
+| Historical-only profile value versions that no waiting tracked case needs: of each pair or trend, every version older than the last one effective before the creation of its earliest tracked case still waiting for its measured game, and with no such case every version but the latest | daily                                                                                                                                                                    | CL-SEN-18, SUI-09 (sensitivity-and-profiles.md section 1.5) |
+| Lot 2: the purge steps of collection.md section 1.11 (non-relevant articles, excerpts, dedup traces) and detection's exposure counts, the three figures journaled                                                                                                                          | per `collection.md` and `detection.md` (COL-34 to COL-39, CL-JOU-19)                                                                                                     | COL-39, CL-JOU-19                                           |
 
 Core data — players, types, events, cases, statistics, profiles — is never purged, not even to
-free space (TRV-07).
+free space (TRV-07); the value versions above are a working copy of the profiles' past values for
+Lot 2 forecasts, not the profiles themselves.
 
 ## 3. What leaves the database
 
@@ -312,8 +328,10 @@ these values ever leaves the database.
 - CL-TAX-09: requalification and split erasures have a withdrawal's scope without fingerprint or
   counter.
 - Own choice: the counter row has no date column, the strictest reading of DSN-29.
-- Own choice: done jobs, finished runs, usage periods and old login failures are purged with the
-  journal's retention, since no rule keeps them longer; an ended session is kept until its idle
+- Own choice: finished runs, usage periods and old login failures are purged with the journal's
+  retention, since no rule keeps them longer, and a recalculation job is deleted when it ends, since
+  its scope would name the player and type of a withdrawn event's actions (sensitivity-and-profiles.md
+  section 1.4); an ended session is kept until its idle
   expiry, so that its device is told at its next contact (IHM-08, CL-IHM-10), then purged.
 
 ## 9. Diagram

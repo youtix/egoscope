@@ -313,7 +313,7 @@ from validated or withdrawn do not exist.
 | Do-not-repropose list (name, definition, rejection reason for the exploration prompt) | derived           | on read: proposed, rejected and withdrawn types; the classification's list never holds a calendar-derived one (CL-TAX-21), the exploration prompt's does (CL-TAX-10) | TAX-11, CL-TAX-10, CL-TAX-21 |
 | "Handled by the calendar" list for the classifier (Lot 2)                             | derived           | every type with `calendar_derivation`, whatever its status                                                                                                           | CL-TAX-21                    |
 | Occurrence count                                                                      | derived           | from `type_occurrences`                                                                                                                                              | TAX-18                       |
-| Possible duplicates between types                                                     | derived           | on read, by the name rule of CL-TAX-05                                                                                                                               | TAX-17, TAX-18, CL-TAX-05    |
+| Possible duplicates between types                                                     | derived           | on read, by the name and definition rules of CL-TAX-05                                                                                                               | TAX-17, TAX-18, CL-TAX-05    |
 | Broadening version of a type (latest `is_broadening`)                                 | derived           | on read                                                                                                                                                              | CL-BKT-05                    |
 | Cases on an earlier sheet version                                                     | derived           | per profile, its cases holding at least one event marked `to_requalify`; per trend, the same over all players                                                        | SEN-46, CL-TAX-07            |
 | Exploration prompt                                                                    | derived           | produced on request, never stored                                                                                                                                    | TAX-16                       |
@@ -363,7 +363,7 @@ stored (IMP-04, IMP-06, IMP-16). Only the ticked types become proposals of origi
 - ADR 0016, CL-TAX-17, CL-SEN-13: `switched_off_criterion`, its history entry and recalculation.
 - CL-TAX-02: the slug rule and its check.
 - CL-TAX-04: the exploration response.
-- CL-TAX-05: possible duplicates by name, derived.
+- CL-TAX-05: possible duplicates by name or definition, derived.
 - CL-TAX-06: current content, versions and history are three things; `kind` of a version.
 - CL-TAX-07, CL-TAX-08: "both", the pair (sheet type, version) and the merge cases.
 - CL-TAX-09: erasure counts on the version.
@@ -374,8 +374,9 @@ stored (IMP-04, IMP-06, IMP-16). Only the ticked types become proposals of origi
 - CL-TAX-16: illustration sources and their erasure.
 - CL-BKT-05, CL-BKT-06: `is_broadening` and the version 0 of split-inherited coverage.
 - Own choice: the version's `kind` (`validation`, `substantive_change`, `merge`) and the history's
-  `change_kind` (`formal`, `substantive`, `criterion_switch`) are new enumerations: the glossary's
-  `SheetChangeQualification` has only formal and substantive, and CL-TAX-06 asks for both lists.
+  `change_kind` (`formal`, `substantive`, `criterion_switch`) are two enumerations, since CL-TAX-06
+  asks for both lists; the glossary lists them, with their labels, as `TypeSheetVersionKind` and
+  `TypeSheetChangeKind`.
 - Own choice: a proposal attached as an occurrence of another entry is rejected as a duplicate
   rather than deleted, so its identifier stays taken (TAX-02).
 - Own choice: the AI's `possible_overlaps` are shown in the preview and not stored (store less);
