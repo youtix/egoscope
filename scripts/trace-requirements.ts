@@ -95,10 +95,17 @@ function prefixesOf(specs: SpecIds): ReadonlySet<string> {
  * section, up to the next heading of the same level, outside HTML comments. A token
  * shaped like an ID is one only when `specs` define an ID of its prefix, so that
  * UTF-8 or SHA-256 claims nothing, while a typo such as JOU-4 is claimed, and fails as
- * an ID that the specs do not define.
+ * an ID that the specs do not define. Comments are removed until none is left, since
+ * removing one can join the text around it into a new one: `<!-<!-- -->- JOU-04 -->`.
  */
 export function claimedIds(body: string, specs: SpecIds): readonly string[] {
-  const lines = body.replaceAll(COMMENT, '').split(/\r?\n/u);
+  let text = body;
+  let previous: string;
+  do {
+    previous = text;
+    text = text.replaceAll(COMMENT, '');
+  } while (text !== previous);
+  const lines = text.split(/\r?\n/u);
   const start = lines.findIndex((line) => CLAIMS_HEADING.test(line));
   if (start === -1) {
     return [];

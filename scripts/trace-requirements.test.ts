@@ -301,6 +301,16 @@ describe('claimedIds', () => {
     expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['JOU-05', 'CA-JOU-01', 'H-13']);
   });
 
+  it('removes comments until none is left, as one removal can join the text around a comment into a new one', () => {
+    // One removal leaves `<!-- JOU-04 -->` and `<!-<!-- -->- JOU-05 -->`, a second one
+    // `<!-- JOU-05 -->`, and a third one none.
+    const description = body(
+      ['<!-<!-- x -->- JOU-04 -->', '<!-<!-<!-- x -->- -->- JOU-05 -->', '- H-13'].join('\r\n'),
+    );
+
+    expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['H-13']);
+  });
+
   it('claims nothing without the section, or when the section says None', () => {
     const tooling = '## Summary\n\nTooling only, JOU-04 untouched.\n';
 
