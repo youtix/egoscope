@@ -109,7 +109,7 @@ jobs:
       - name: '[TRV-64] Prove that the scan catches every deployment secret'
         run: |
           # Fake values in the shape of every deployment secret, drawn afresh at each run,
-          # in a scratch commit outside the checkout. Scanned with the flags of the next
+          # in a scratch repository outside the checkout. Scanned with the flags of the next
           # step, each line must be reported by the rule named next to it.
           export LC_ALL=C
           samples="$RUNNER_TEMP/secret-samples"
@@ -135,8 +135,12 @@ jobs:
           groq_key() { printf 'gsk_%s' "$(random A-Za-z0-9 52)"; }
           github_token() { printf 'github_pat_%s_%s' "$(random A-Za-z0-9 22)" "$(random A-Za-z0-9 59)"; }
           password() { printf '%s#!' "$(random A-Za-z0-9 14)"; }
+          commit() {
+            git -C "$samples" -c user.name=self-test -c user.email=self-test@example.invalid \
+              commit --quiet "$@"
+          }
 
-          git init --quiet "$samples"
+          git init --quiet --initial-branch=main "$samples"
           env_line postgres-connection-string DATABASE_URL "$(neon_url -pooler)?sslmode=require"
           env_line postgres-connection-string DATABASE_URL_UNPOOLED "$(neon_url '')?sslmode=require"
           env_line telegram-bot-token TELEGRAM_BOT_TOKEN "$(telegram_token)"
@@ -162,8 +166,26 @@ jobs:
           recorded github-fine-grained-pat "Authorization: Bearer $(github_token)"
           recorded postgres-connection-string "error: cannot connect to $(neon_url '')"
           git -C "$samples" add --all
-          git -C "$samples" -c user.name=self-test -c user.email=self-test@example.invalid \
-            commit --quiet --message 'test: add fake secrets'
+          commit --message 'test: add fake secrets'
+          # A merge commit that adds a secret of its own, which neither parent holds, as a
+          # conflict resolution does when a branch merges main: both sides change the last
+          # line of .env.example, and the resolution keeps the branch's line and adds one.
+          git -C "$samples" switch --quiet --create branch
+          echo 'LOG_LEVEL=debug' >> "$samples/.env.example"
+          commit --all --message 'chore: log more on the branch'
+          git -C "$samples" switch --quiet main
+          echo 'LOG_LEVEL=warn' >> "$samples/.env.example"
+          commit --all --message 'chore: log less on main'
+          git -C "$samples" switch --quiet branch
+          git -C "$samples" merge --quiet main > /dev/null || true
+          git -C "$samples" checkout --quiet --ours .env.example
+          env_line generated-secret CRON_SECRET "$(base64url)"
+          git -C "$samples" add .env.example
+          commit --message 'chore: merge main into branch'
+          if ! git -C "$samples" rev-parse --quiet --verify 'HEAD^2' > /dev/null; then
+            echo "::error::The last commit of the samples is not a merge commit."
+            exit 1
+          fi
 
           "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --ignore-gitleaks-allow --redact \
             --no-banner --log-opts=HEAD --exit-code 0 --report-format json \
