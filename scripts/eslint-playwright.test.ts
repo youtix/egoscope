@@ -1,8 +1,8 @@
 // Proves what the Playwright override of eslint.config.ts refuses in the end-to-end
 // specs and their helpers, beside what it lets through: no skipped, focused or
-// failing test, no test without the accessibility check, and no empty pattern but
-// the parameter of a fixture that depends on no other. Deliberate violations are
-// linted in the probe project of lint-probes.ts.
+// failing test in any form, no test without the accessibility check, and no empty
+// pattern but the parameter of a fixture that depends on no other. Deliberate
+// violations are linted in the probe project of lint-probes.ts.
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { createProbes } from './lint-probes';
@@ -14,6 +14,12 @@ const HELPER = 'e2e/fixtures.ts';
 /** An end-to-end spec whose suite holds `body`. */
 const inSpec = (body: string): string =>
   `import { test } from './fixtures';\n\ntest.describe('probe', () => {\n${body}\n});\n`;
+
+/** A test of an end-to-end spec whose body holds `statement`. */
+const inTest = (statement: string): string =>
+  inSpec(
+    `  test('runs', async ({}, testInfo) => {\n    ${statement}\n    await testInfo.attach('x');\n  });`,
+  );
 
 describe('the Playwright override', { timeout: 120_000 }, () => {
   afterAll(remove);
@@ -42,6 +48,34 @@ describe('the Playwright override', { timeout: 120_000 }, () => {
     [
       'a failing suite',
       inSpec("  test.describe.fail('runs', () => undefined);"),
+      'no-restricted-syntax',
+    ],
+    ['a test that skips itself', inTest('testInfo.skip();'), 'playwright/no-skipped-test'],
+    ['a test left to fix by itself', inTest('testInfo.fixme();'), 'playwright/no-skipped-test'],
+    ['a test that expects itself to fail', inTest('testInfo.fail();'), 'no-restricted-syntax'],
+    [
+      'a test that skips itself through test.info()',
+      inTest('test.info().skip();'),
+      'no-restricted-syntax',
+    ],
+    [
+      'a test left to fix through test.info()',
+      inTest('test.info().fixme();'),
+      'no-restricted-syntax',
+    ],
+    [
+      'a test that expects itself to fail through test.info()',
+      inTest('test.info().fail();'),
+      'no-restricted-syntax',
+    ],
+    [
+      'a test that skips itself through its info kept in a variable',
+      inTest('const info = test.info();\n    info.skip();'),
+      'no-restricted-syntax',
+    ],
+    [
+      'a spec expected to fail, its annotation written as a string',
+      inSpec("  test['fail']('runs', () => undefined);"),
       'no-restricted-syntax',
     ],
   ])('refuses %s', async (_kind, code, rule) => {

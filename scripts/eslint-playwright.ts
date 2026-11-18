@@ -5,7 +5,10 @@
  *
  * - A spec takes `test` and `expect` from e2e/fixtures/test.ts, which checks
  *   every page that a test visits for accessibility.
- * - No test is expected to fail: nothing of Playwright's refuses `fail`.
+ * - No test is skipped, left to fix or expected to fail, in any form: on `test`,
+ *   on `test.describe`, or on a test's info, whatever its name or however it is
+ *   reached. Playwright's `no-skipped-test` finds a test's info only as a named
+ *   parameter, and nothing of Playwright's refuses `fail`.
  */
 
 /** Playwright's own `test` and `expect`, which lack the accessibility check. */
@@ -16,11 +19,15 @@ export const E2E_TEST_IMPORT = {
     'Import test and expect from e2e/fixtures/test.ts, which checks every page that a test visits for accessibility.',
 };
 
-/** `test.fail` and `test.describe.fail`, with or without a condition. */
+/**
+ * The three annotations of Playwright that leave a test unrun or expect it to
+ * fail, whether their name is written as such or as a string.
+ */
 export const E2E_SYNTAX = [
   {
     selector:
-      "MemberExpression[property.name='fail']:matches([object.name='test'], [object.object.name='test'])",
-    message: '`fail` turns a failing test into a pass: a test runs and passes, or it is deleted.',
+      'MemberExpression:matches([property.name=/^(?:skip|fixme|fail)$/u], [property.value=/^(?:skip|fixme|fail)$/u])',
+    message:
+      '`skip`, `fixme` and `fail` leave a test unrun or turn its failure into a pass: a test runs and passes, or it is deleted.',
   },
 ];
