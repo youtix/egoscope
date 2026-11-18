@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import { findTitleTags, isTestFile } from './test-titles';
 
+import type { TitleTag } from './test-titles';
+
 const FILE = 'src/lib/players/cap.test.ts';
+
+/** The tags of `lines` of one kind, each with its line. */
+const linesOf = (tags: readonly TitleTag[]): readonly string[] =>
+  tags.map((tag) => `${tag.id}@${tag.where.slice(tag.where.lastIndexOf(':') + 1)}`);
 
 /** The IDs that the titles of `lines` cite, each with its line. */
 const tagsOf = (lines: readonly string[], file = FILE): readonly string[] =>
-  findTitleTags(file, lines.join('\n')).map(
-    (tag) => `${tag.id}@${tag.where.slice(tag.where.lastIndexOf(':') + 1)}`,
-  );
+  linesOf(findTitleTags(file, lines.join('\n')).cited);
 
 describe('findTitleTags', () => {
   it('reads the IDs of test and suite titles, with their place and title', () => {
@@ -18,19 +22,22 @@ describe('findTitleTags', () => {
       '});',
     ];
 
-    expect(findTitleTags(FILE, source.join('\n'))).toStrictEqual([
-      { id: 'JOU-04', where: `${FILE}:1`, title: '[JOU-04] the cap on active players' },
-      {
-        id: 'CA-JOU-02',
-        where: `${FILE}:2`,
-        title: '[CA-JOU-02] [JOU-05] refuses a 31st active player',
-      },
-      {
-        id: 'JOU-05',
-        where: `${FILE}:2`,
-        title: '[CA-JOU-02] [JOU-05] refuses a 31st active player',
-      },
-    ]);
+    expect(findTitleTags(FILE, source.join('\n'))).toStrictEqual({
+      cited: [
+        { id: 'JOU-04', where: `${FILE}:1`, title: '[JOU-04] the cap on active players' },
+        {
+          id: 'CA-JOU-02',
+          where: `${FILE}:2`,
+          title: '[CA-JOU-02] [JOU-05] refuses a 31st active player',
+        },
+        {
+          id: 'JOU-05',
+          where: `${FILE}:2`,
+          title: '[CA-JOU-02] [JOU-05] refuses a 31st active player',
+        },
+      ],
+      stray: [],
+    });
   });
 
   it('reads the titles of modifiers, tables, templates and Playwright suites', () => {
@@ -87,6 +94,38 @@ describe('findTitleTags', () => {
     ]);
   });
 
+  it('keeps apart the tokens shaped like an ID in the other brackets of a title, which cite nothing', () => {
+    const source = [
+      "it('refuses a 31st player [JOU-4]', () => {});",
+      "it('[IMP-05] [H-13] signs with [HMAC-SHA-256], unlike [IMP-06]', () => {});",
+      "it('[JOU-04, JOU-05] [JOU-06] puts two IDs in one pair of brackets', () => {});",
+      "it('[JOU-07] keeps [_JOU-08_, xJOU-09 and JOU-10x] apart', () => {});",
+      "it('[JOU-11] keeps [9JOU-12, JOU-13é and éJOU-14] apart too', () => {});",
+    ];
+    const { stray } = findTitleTags(FILE, source.join('\n'));
+
+    expect(linesOf(stray)).toStrictEqual([
+      'JOU-4@1',
+      'HMAC-SHA-256@2',
+      'IMP-06@2',
+      'JOU-04@3',
+      'JOU-05@3',
+      'JOU-08@4',
+    ]);
+    expect(stray[0]).toStrictEqual({
+      id: 'JOU-4',
+      where: `${FILE}:1`,
+      title: 'refuses a 31st player [JOU-4]',
+    });
+    expect(tagsOf(source)).toStrictEqual([
+      'IMP-05@2',
+      'H-13@2',
+      'JOU-06@3',
+      'JOU-07@4',
+      'JOU-11@5',
+    ]);
+  });
+
   it('reads the titles of a component test, JSX included', () => {
     const source = [
       "it('[IHM-01] renders one column', () => {",
@@ -98,7 +137,10 @@ describe('findTitleTags', () => {
   });
 
   it('shows an interpolation of a title as an ellipsis', () => {
-    const [tag] = findTitleTags(FILE, 'it(`[STA-14] scores ${String(25.9)} points`, () => {});');
+    const [tag] = findTitleTags(
+      FILE,
+      'it(`[STA-14] scores ${String(25.9)} points`, () => {});',
+    ).cited;
 
     expect(tag?.title).toBe('[STA-14] scores … points');
   });

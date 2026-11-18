@@ -1,8 +1,21 @@
 # Requirement waivers
 
-`bun run trace` holds every requirement and acceptance criterion of the French specifications to
-one rule: a test names it in its title, as in `it('[JOU-04] rejects a 31st active player', …)`, or
-this register lists it with its reason. Reviewers read every entry.
+Each mode of `scripts/trace-requirements.ts` checks exactly this:
+
+- `bun run trace`, one of the static checks: the specs define each of their IDs once, in the form
+  that `scripts/spec-ids.ts` reads; every ID that a test title cites, in the square brackets it
+  starts with, is one that the specs define, and its other square brackets hold no ID; this
+  register is sound; the acceptance criteria index is up to date. It requires no ID to have a test
+  or a waiver.
+- The `trace` workflow, on a pull request: the same; the description has a "Requirements covered"
+  heading, unless the dependency-update bot opened the pull request; every ID listed under it is
+  one that the specs define, so that a typo such as `JOU-4` fails; and each requirement and
+  acceptance criterion among them has a test that names it in its title, as in
+  `it('[JOU-04] rejects a 31st active player', …)`, or a waiver in this register.
+- `bun run trace:strict`: the same as `bun run trace`, and every requirement and acceptance
+  criterion of the French specifications has such a test or a waiver.
+
+Reviewers read every entry.
 
 An entry is one of two kinds:
 
@@ -15,8 +28,9 @@ An entry is one of two kinds:
   text that an outside AI writes. The entry names that part, and its manual check in the last
   column: a script, or a step of the deployment guide. The ID keeps its tests.
 
-An ID has at most one entry, and every entry gives its reason. Acceptance criteria are cited by the
-IDs of the [acceptance criteria index](acceptance-criteria-index.md).
+An ID has at most one entry, and every entry gives its reason. `bun run trace` refuses a row that
+breaks one of these rules, and names it. Acceptance criteria are cited by the IDs of the
+[acceptance criteria index](acceptance-criteria-index.md).
 
 | ID  | kind | part | reason | manual check or reference |
 | --- | ---- | ---- | ------ | ------------------------- |

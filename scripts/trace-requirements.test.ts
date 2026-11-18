@@ -32,6 +32,17 @@ const SPEC_FILES = Object.entries(SPECS).map(([path, text]) => ({ path, text }))
 // They define IDs of the prefixes JOU, CA and H only.
 const SPEC_IDS = readSpecIds(SPEC_FILES);
 const INDEX = await criteriaIndex(SPEC_IDS.criteria);
+// The most characters that GitHub accepts in a pull request body.
+const BODY_LIMIT = 65_536;
+// What the claims of the longest body must be read in: one linear scan takes a few
+// milliseconds, while removing nested comments until none is left takes minutes.
+const WELL_UNDER_A_SECOND = 250;
+// A comment nested in the text around it: `<!-<!-- x -->- -->`.
+const NESTED_OPEN = '<!-';
+const NESTED_CLOSE = '- -->';
+const UNCLOSED = '<!--';
+// Capitals chained with hyphens and no number: `A-A-A-`.
+const CHAIN_LINK = 'A-';
 
 /** The waiver register, with these rows in its table. */
 const register = (...rows: readonly string[]): string =>
@@ -50,6 +61,10 @@ const testOf = (title: string): string => `it('${title}', () => {});\n`;
 /** A pull request body that lists `claims` under "Requirements covered". */
 const body = (claims: string): string =>
   ['## Summary', '', 'Adds the cap.', '', '## Requirements covered', '', claims, ''].join('\r\n');
+
+/** The IDs that a body claims whose section holds these lines. */
+const claimsOf = (lines: readonly string[]): readonly string[] | undefined =>
+  claimedIds(body(lines.join('\r\n')), SPEC_IDS);
 
 type Run = Readonly<{
   code: number;
@@ -177,11 +192,55 @@ describe('runTrace', () => {
     ]);
   });
 
-  it('passes a pull request that claims no ID, and a push, which has no description', async () => {
-    const none = await run(['--require-claimed'], {}, body('None.'));
-    const push = await run(['--require-claimed'], {}, '\n');
+  it('passes a pull request that claims no ID', async () => {
+    const result = await run(['--require-claimed', '--author=contributor'], {}, body('None.'));
 
-    expect([none.code, push.code]).toStrictEqual([0, 0]);
+    expect(result.code).toBe(0);
+    expect(result.errors).toStrictEqual([]);
+  });
+
+  it('fails a description without the "Requirements covered" heading, unless the dependency-update bot opened the pull request', async () => {
+    // GitHub shows no heading inside a comment, here over three lines as the template writes
+    // them, a reworded heading is another one, and the bot's name in the text exempts
+    // nothing: only the author does.
+    const description = [
+      '## Summary',
+      '',
+      'Bumps a dependency, as dependabot[bot] does.',
+      '',
+      '<!--',
+      '## Requirements covered',
+      '-->',
+      '',
+      '## Requirements covered (Lot 1)',
+      '',
+      '- JOU-05',
+      '',
+    ].join('\r\n');
+    const contributor = await run(['--require-claimed', '--author=contributor'], {}, description);
+    const unnamed = await run(['--require-claimed'], {}, description);
+    const bot = await run(['--require-claimed', '--author=dependabot[bot]'], {}, description);
+
+    expect(contributor.errors).toStrictEqual([
+      'Pull request: The description has no "Requirements covered" heading outside comments, so it claims nothing: add `## Requirements covered`, then list below it the requirements and criteria that the pull request covers, or write "None" for tooling only.',
+      '\nRequirement traceability failed: 1 problem(s).',
+    ]);
+    expect(unnamed.errors).toStrictEqual(contributor.errors);
+    expect([contributor.code, unnamed.code, bot.code]).toStrictEqual([1, 1, 0]);
+    expect(bot.errors).toStrictEqual([]);
+  });
+
+  it('fails on a claim in underscores that no test names, as Prettier writes emphasis', async () => {
+    const result = await run(
+      ['--require-claimed'],
+      { [TEST]: testOf('[JOU-04] refuses a 31st active player') },
+      body('| _JOU-04_, _JOU-05_ | The cap test |'),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.errors.slice(0, -1)).toStrictEqual([
+      `${PLAYERS}:6: JOU-05 is required, but no test names it and the register does not waive it.`,
+    ]);
   });
 
   it('requires only the real ID of a section that also names UTF-8, SHA-256, AES-256 and HMAC-SHA-256', async () => {
@@ -203,11 +262,11 @@ describe('runTrace', () => {
     ).toStrictEqual(['Required by name:', `  JOU-04: covered by ${TEST}:1`]);
   });
 
-  it('fails on a claimed typo of a known prefix, such as JOU-4, JOU-999 or CA-JOU-99', async () => {
+  it('fails on a claimed typo of a known prefix, such as JOU-4, JOU-999, CA-JOU-99 or CA-JUO-02', async () => {
     const result = await run(
       ['--require-claimed'],
       {},
-      body('| JOU-4, JOU-999, CA-JOU-99 | The cap test, on UTF-8 input |'),
+      body('| JOU-4, JOU-999, CA-JOU-99, CA-JUO-02 | The cap test, on UTF-8 input |'),
     );
 
     expect(result.code).toBe(1);
@@ -215,6 +274,16 @@ describe('runTrace', () => {
       'Required IDs: JOU-4 is required, but the specs define no such ID.',
       'Required IDs: JOU-999 is required, but the specs define no such ID.',
       'Required IDs: CA-JOU-99 is required, but the specs define no such ID.',
+      'Required IDs: CA-JUO-02 is required, but the specs define no such ID.',
+    ]);
+  });
+
+  it('fails on a bracketed ID after the start of a title, where it cites nothing', async () => {
+    const result = await run([], { [TEST]: testOf('refuses a 31st player [JOU-4]') });
+
+    expect(result.code).toBe(1);
+    expect(result.errors.slice(0, -1)).toStrictEqual([
+      `${TEST}:1: JOU-4 cites nothing there: IDs go in the square brackets that a title starts with, one per pair, as in it('[JOU-04] [CA-JOU-02] refuses a 31st active player', …).`,
     ]);
   });
 
@@ -282,7 +351,7 @@ describe('runTrace', () => {
 });
 
 describe('claimedIds', () => {
-  it('reads every ID of the "Requirements covered" section, outside comments', () => {
+  it('reads every ID of a known prefix in the "Requirements covered" section, outside comments', () => {
     const description = [
       '## Requirements covered',
       '',
@@ -301,21 +370,80 @@ describe('claimedIds', () => {
     expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['JOU-05', 'CA-JOU-01', 'H-13']);
   });
 
-  it('removes comments until none is left, as one removal can join the text around a comment into a new one', () => {
-    // One removal leaves `<!-- JOU-04 -->` and `<!-<!-- -->- JOU-05 -->`, a second one
-    // `<!-- JOU-05 -->`, and a third one none.
+  it('reads the comments in one scan, as GitHub does, so the text around a comment never joins into a new one', () => {
+    // Each line holds one comment, `<!-- x -->`: GitHub shows the rest, `<!-- JOU-04 -->`
+    // and `<!-<!-- -->- JOU-05 -->`, as text.
     const description = body(
       ['<!-<!-- x -->- JOU-04 -->', '<!-<!-<!-- x -->- -->- JOU-05 -->', '- H-13'].join('\r\n'),
     );
 
-    expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['H-13']);
+    expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['JOU-04', 'JOU-05', 'H-13']);
   });
 
-  it('claims nothing without the section, or when the section says None', () => {
+  it('hides the rest of the body after an unclosed comment that starts a line, and reads one inside a line as text, as GitHub does', () => {
+    expect(claimsOf(['- JOU-04', '<!-- unclosed', '- JOU-05'])).toStrictEqual(['JOU-04']);
+    expect(
+      claimsOf(['- JOU-04', '   <!-- unclosed, after three spaces', '- JOU-05']),
+    ).toStrictEqual(['JOU-04']);
+    expect(claimsOf(['- JOU-04 <!-- unclosed, inside a line', '- JOU-05'])).toStrictEqual([
+      'JOU-04',
+      'JOU-05',
+    ]);
+    expect(
+      claimsOf(['JOU-04', '', '    <!-- unclosed, in an indented code block', '', 'JOU-05']),
+    ).toStrictEqual(['JOU-04', 'JOU-05']);
+    expect(
+      claimsOf([
+        '- JOU-04 <!-- unclosed, inside a line',
+        '<!-- then at the start of one',
+        '- JOU-05',
+      ]),
+    ).toStrictEqual(['JOU-04']);
+  });
+
+  it('hides the whole body after an unclosed comment that opens it, and nothing after <!--> or <!--->, as GitHub does', () => {
+    // GitHub shows nothing of the first body, not even its heading, while `<!-->` and
+    // `<!--->` are whole comments.
+    expect(claimedIds(`<!-- unclosed\r\n${body('- JOU-04')}`, SPEC_IDS)).toBeUndefined();
+    expect(claimsOf(['<!--> JOU-04', '<!---> JOU-05'])).toStrictEqual(['JOU-04', 'JOU-05']);
+  });
+
+  it(
+    'reads a crafted body of 64 KB in well under a second',
+    { timeout: WELL_UNDER_A_SECOND },
+    () => {
+      // A third nests comments in the text around them, which a removal repeated until
+      // nothing changes undoes one level per pass. A third opens comments inside a line that
+      // never close, after each of which a search for its end reads to the end of the body.
+      // A third chains capitals with hyphens and no number, the rest of which a search for an
+      // ID reads again from each capital.
+      const third = BODY_LIMIT / 3;
+      const levels = Math.ceil(third / (NESTED_OPEN.length + NESTED_CLOSE.length));
+      const nested = `${NESTED_OPEN.repeat(levels)}<!-- x -->${NESTED_CLOSE.repeat(levels)}`;
+      const unclosed = `- JOU-04 ${UNCLOSED.repeat(Math.ceil(third / UNCLOSED.length))}`;
+      const chain = CHAIN_LINK.repeat(Math.ceil(third / CHAIN_LINK.length));
+      const description = body([nested, unclosed, chain].join('\r\n'));
+
+      expect(description.length).toBeGreaterThan(BODY_LIMIT);
+      expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['JOU-04']);
+    },
+  );
+
+  it('finds no section without its heading, and no ID in a section that says None', () => {
     const tooling = '## Summary\n\nTooling only, JOU-04 untouched.\n';
 
-    expect(claimedIds(tooling, SPEC_IDS)).toStrictEqual([]);
+    expect(claimedIds(tooling, SPEC_IDS)).toBeUndefined();
     expect(claimedIds(body('None.'), SPEC_IDS)).toStrictEqual([]);
+  });
+
+  it('reads an ID that emphasis or punctuation touches, and none that a letter or digit touches', () => {
+    // The claims hold each ID once, so each token that a letter or digit touches holds an
+    // ID that no other token gives: read by mistake, it would show.
+    const description = body(
+      '_JOU-04_, *JOU-05*, (H-13); not xJOU-06, JOU-07x, 9JOU-08, JOU-09é or éH-14',
+    );
+
+    expect(claimedIds(description, SPEC_IDS)).toStrictEqual(['JOU-04', 'JOU-05', 'H-13']);
   });
 
   it('keeps a subsection inside the section', () => {
@@ -370,7 +498,7 @@ describe('runTrace on the repository', () => {
     };
     const cited = io.paths
       .filter((file) => isTestFile(file))
-      .flatMap((file) => findTitleTags(file, io.read(file)).map((tag) => tag.id));
+      .flatMap((file) => findTitleTags(file, io.read(file)).cited.map((tag) => tag.id));
 
     const code = await runTrace([], io);
 

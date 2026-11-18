@@ -3,21 +3,26 @@
  * specs define (spec-ids.ts), the IDs that test titles cite (test-titles.ts) and the
  * waiver register (waiver-register.ts):
  *
- * - Always: every ID that a title cites is defined by the specs; the register names
- *   only requirements and acceptance criteria, and never waives an ID that a test
- *   names.
+ * - Always: every ID that a title cites is defined by the specs, and no title holds an
+ *   ID in other square brackets than those it starts with; the register names only
+ *   requirements and acceptance criteria, and never waives an ID that a test names.
  * - For each required ID (those of --require, or all of them with --strict): it is
  *   tested or waived, and a limit has its tests. Hypotheses, questions, decisions and
  *   rulings are never required.
  *
  * An ID is covered when a test names it, a limit beside it included; waived when the
- * register waives it; open otherwise.
+ * register waives it; open otherwise. Among the tokens shaped like an ID, in titles and
+ * in the claims of a pull request alike, an ID is one of a known prefix (ofKnownPrefix).
  */
 import type { DefinedId, Problem, SpecIds } from './spec-ids';
 import type { TitleTag } from './test-titles';
 import type { RegisterEntry } from './waiver-register';
 
 type Status = 'covered' | 'waived' | 'open';
+
+// The prefix of a token shaped like an ID: its letters before the first hyphen, CA of
+// CA-JOU-02 and HMAC of HMAC-SHA-256.
+const PREFIX = /^[A-Z]+/u;
 
 /** A requirement or acceptance criterion, with the tests that name it and its entry. */
 export type TracedId = DefinedId &
@@ -30,7 +35,10 @@ export type TracedId = DefinedId &
 
 type TraceInputs = Readonly<{
   specs: SpecIds;
+  /** The IDs that test and suite titles cite. */
   tags: readonly TitleTag[];
+  /** The tokens shaped like an ID in the other square brackets of the titles. */
+  stray: readonly TitleTag[];
   entries: readonly RegisterEntry[];
 }>;
 
@@ -38,6 +46,21 @@ type TraceInputs = Readonly<{
 export type Requirements = Readonly<{ strict: boolean; required: readonly string[] }>;
 
 export type Trace = Readonly<{ ids: readonly TracedId[]; problems: readonly Problem[] }>;
+
+const prefixOf = (token: string): string => PREFIX.exec(token)?.[0] ?? '';
+
+/**
+ * Tells the IDs among the tokens shaped like one: a token is an ID when its prefix is
+ * that of an ID that `specs` define, the prefix of a requirement, CA of the criteria, H,
+ * Q and D of the hypotheses, questions and decisions, CL of the rulings. So UTF-8 or
+ * SHA-256 is none, while a typo such as JOU-4 or CA-JUO-02 is one, and fails as an ID
+ * that the specs do not define.
+ */
+export function ofKnownPrefix(specs: SpecIds): (token: string) => boolean {
+  const defined = [...specs.requirements, ...specs.criteria].map(({ id }) => id);
+  const prefixes = new Set([...defined, ...specs.citable].map((id) => prefixOf(id)));
+  return (token) => prefixes.has(prefixOf(token));
+}
 
 function statusOf(tests: readonly TitleTag[], entry: RegisterEntry | undefined): Status {
   if (tests.length > 0) {
@@ -68,6 +91,17 @@ function unknownTags(inputs: TraceInputs, ids: ReadonlyMap<string, TracedId>): P
     .map((tag) => ({
       where: tag.where,
       problem: `[${tag.id}] is not an ID that the specs define: check it against the spec, or against docs/engineering/acceptance-criteria-index.md for a criterion.`,
+    }));
+}
+
+/** The IDs in square brackets where a title cites nothing: `[JOU-4]` of `refuses a 31st player [JOU-4]`. */
+function strayTags(inputs: TraceInputs): Problem[] {
+  const isId = ofKnownPrefix(inputs.specs);
+  return inputs.stray
+    .filter((tag) => isId(tag.id))
+    .map((tag) => ({
+      where: tag.where,
+      problem: `${tag.id} cites nothing there: IDs go in the square brackets that a title starts with, one per pair, as in it('[JOU-04] [CA-JOU-02] refuses a 31st active player', …).`,
     }));
 }
 
@@ -129,6 +163,7 @@ export function traceIds(inputs: TraceInputs, requirements: Requirements): Trace
     ids: all,
     problems: [
       ...unknownTags(inputs, ids),
+      ...strayTags(inputs),
       ...registerProblems(inputs.entries, ids),
       ...requiredProblems(requirements, ids, inputs.specs.citable),
     ],

@@ -137,16 +137,21 @@ gives no difference.
 
 Every requirement and acceptance criterion of the specs is verified by a test that names it, or
 listed in `docs/engineering/requirement-waivers.md` with its reason. `bun run trace`, one of the
-static checks, fails on a title ID that the specs do not define and on an unsound register; the
-`trace` workflow also fails when an ID that a pull request lists under "Requirements covered" has
-neither a test nor a waiver.
+static checks, fails on a title ID that the specs do not define, on an ID in other square brackets
+than those a title starts with, and on an unsound register. On a pull request, the `trace` workflow
+also fails on a description without a "Requirements covered" heading, unless the dependency-update
+bot opened the pull request, and when an ID listed under that heading has neither a test nor a
+waiver. There, and in the other brackets of a title, a token counts as an ID when no letter or digit
+touches it and its prefix, its letters before the first hyphen, is that of an ID the specs define:
+`JOU-4` counts, and fails, while `SHA-256` does not.
 
-- A test or suite title cites the IDs it verifies in square brackets: `[JOU-04]`, and
-  `[CA-JOU-02]` for a criterion, numbered as `docs/engineering/acceptance-criteria-index.md` says.
-  Hypotheses, questions, decisions and rulings (`[H-13]`, `[CL-STA-01]`) may be cited; none needs a
-  test.
+- A test or suite title cites the IDs it verifies in the square brackets it starts with, one per
+  pair: `[JOU-04]`, and `[CA-JOU-02]` for a criterion, numbered as
+  `docs/engineering/acceptance-criteria-index.md` says. Hypotheses, questions, decisions and
+  rulings (`[H-13]`, `[CL-STA-01]`) may be cited; none needs a test.
 - A `waiver` is legitimate only when no automated test can or must verify the requirement: a
-  documentation requirement, or one that a decision record overrides. A waived ID has no test.
+  documentation requirement, or one that a decision record overrides. A waived ID has no test, and
+  its entry names no part and gives its reference.
 - A `limit` is legitimate only when tests prove the application's part and one named part can only
   be checked by hand, such as a real language model's answers or a text an outside AI writes. It
   names that part and its manual check, and the ID keeps its tests.

@@ -1,10 +1,11 @@
-# Requirement traceability (scripts/trace-requirements.ts). On a pull request, each
-# requirement and acceptance criterion that the description lists under
-# "Requirements covered" must have a test that names it, or a waiver. Whatever the
-# event, every ID that a test title cites must exist in the specs, the waiver
-# register must hold, and the criteria index must be up to date. `main` requires the
-# final job, `trace`, which passes only when every other job succeeded
-# (scripts/ci-ok.sh).
+# Requirement traceability (scripts/trace-requirements.ts). On a pull request, the
+# description must have a "Requirements covered" heading, unless the dependency-update
+# bot opened the pull request, and each requirement and acceptance criterion listed
+# under it must have a test that names it, or a waiver. Whatever the event, every ID
+# that a test title cites must exist in the specs and sit in the square brackets that
+# the title starts with, the waiver register must hold, and the criteria index must be
+# up to date. `main` requires the final job, `trace`, which passes only when every other
+# job succeeded (scripts/ci-ok.sh).
 name: Trace
 
 on:
@@ -33,10 +34,36 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-project
       # A push has no description, so it claims nothing and runs the other rules only.
+      - name: Every cited ID exists, the register holds and the criteria index is up to date
+        if: ${{ github.event_name != 'pull_request' }}
+        run: bun run trace
+      - name: Prove that a description without its heading fails, unless the bot opened the pull request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          # The same description, without the "Requirements covered" heading, from a
+          # contributor, then from the dependency-update bot: the claims check of the next
+          # step must refuse the first, naming the heading to add, and pass the second.
+          # The grep prints the refusal.
+          claims() {
+            printf '## Summary\n\nBumps a dependency.\n' | bun run trace --require-claimed --author="$1"
+          }
+          log="$RUNNER_TEMP/no-heading.log"
+          status=0
+          claims contributor > "$log" 2>&1 || status=$?
+          if [ "$status" -ne 1 ] || ! grep --fixed-strings '## Requirements covered' "$log"; then
+            cat "$log"
+            echo "::error::The claims check did not refuse a description without its heading (exit code $status)."
+            exit 1
+          fi
+          claims 'dependabot[bot]'
+          echo "The claims check refuses a description without its heading, unless the dependency-update bot opened the pull request."
       - name: Every claimed requirement is tested or waived, and every cited ID exists
+        if: ${{ github.event_name == 'pull_request' }}
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
-        run: printf '%s\n' "$PR_BODY" | bun run trace --require-claimed
+          # Who opened the pull request, as the event says: the body cannot exempt itself.
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: printf '%s\n' "$PR_BODY" | bun run trace --require-claimed --author="$PR_AUTHOR"
 
   trace:
     name: trace

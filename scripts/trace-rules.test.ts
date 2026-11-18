@@ -46,6 +46,7 @@ describe('traceIds', () => {
       {
         specs: SPECS,
         tags: [tag('JOU-04'), tag('JOU-04', 9)],
+        stray: [],
         entries: [entry('JOU-05', 'waiver')],
       },
       NOTHING_REQUIRED,
@@ -61,7 +62,12 @@ describe('traceIds', () => {
 
   it('refuses a title ID that the specs do not define, and accepts one that needs no test', () => {
     const trace = traceIds(
-      { specs: SPECS, tags: [tag('JOU-99'), tag('H-13'), tag('CL-JOU-01')], entries: [] },
+      {
+        specs: SPECS,
+        tags: [tag('JOU-99'), tag('H-13'), tag('CL-JOU-01')],
+        stray: [],
+        entries: [],
+      },
       NOTHING_REQUIRED,
     );
 
@@ -70,12 +76,28 @@ describe('traceIds', () => {
     ]);
   });
 
+  it('refuses a bracketed token of a known prefix where a title cites nothing, typos included', () => {
+    // The specs define IDs of the prefixes JOU, CA, H and CL: the letters before the first hyphen.
+    const tokens = ['JOU-4', 'CA-JUO-02', 'H-SAT-03', 'JUO-04', 'SHA-256', 'HMAC-SHA-256'];
+    const trace = traceIds(
+      { specs: SPECS, tags: [], stray: tokens.map((id) => tag(id, 7)), entries: [] },
+      NOTHING_REQUIRED,
+    );
+
+    expect(problemsOf(trace)).toStrictEqual(
+      ['JOU-4', 'CA-JUO-02', 'H-SAT-03'].map(
+        (id) =>
+          `src/lib/players/cap.test.ts:7: ${id} cites nothing there: IDs go in the square brackets that a title starts with, one per pair, as in it('[JOU-04] [CA-JOU-02] refuses a 31st active player', …).`,
+      ),
+    );
+  });
+
   it.each([
     ['an unknown ID', 'JOU-99'],
     ['a hypothesis, which needs no test', 'H-13'],
   ])('refuses a register entry for %s', (_case, id) => {
     const trace = traceIds(
-      { specs: SPECS, tags: [], entries: [entry(id, 'waiver')] },
+      { specs: SPECS, tags: [], stray: [], entries: [entry(id, 'waiver')] },
       NOTHING_REQUIRED,
     );
 
@@ -86,7 +108,7 @@ describe('traceIds', () => {
 
   it('refuses a waiver beside a test', () => {
     const trace = traceIds(
-      { specs: SPECS, tags: [tag('JOU-04', 12)], entries: [entry('JOU-04', 'waiver')] },
+      { specs: SPECS, tags: [tag('JOU-04', 12)], stray: [], entries: [entry('JOU-04', 'waiver')] },
       NOTHING_REQUIRED,
     );
 
@@ -97,7 +119,7 @@ describe('traceIds', () => {
 
   it('accepts a limit beside a test, which leaves the ID covered', () => {
     const trace = traceIds(
-      { specs: SPECS, tags: [tag('JOU-04')], entries: [entry('JOU-04', 'limit')] },
+      { specs: SPECS, tags: [tag('JOU-04')], stray: [], entries: [entry('JOU-04', 'limit')] },
       { strict: false, required: ['JOU-04'] },
     );
 
@@ -106,7 +128,7 @@ describe('traceIds', () => {
   });
 
   it('accepts a limit before its test, unless the ID is required', () => {
-    const inputs = { specs: SPECS, tags: [], entries: [entry('JOU-04', 'limit')] };
+    const inputs = { specs: SPECS, tags: [], stray: [], entries: [entry('JOU-04', 'limit')] };
 
     expect(problemsOf(traceIds(inputs, NOTHING_REQUIRED))).toStrictEqual([]);
     expect(problemsOf(traceIds(inputs, { strict: false, required: ['JOU-04'] }))).toStrictEqual([
@@ -116,7 +138,7 @@ describe('traceIds', () => {
 
   it('requires each listed ID to be tested or waived, and an ID of the specs', () => {
     const trace = traceIds(
-      { specs: SPECS, tags: [tag('JOU-04')], entries: [entry('JOU-05', 'waiver')] },
+      { specs: SPECS, tags: [tag('JOU-04')], stray: [], entries: [entry('JOU-05', 'waiver')] },
       { strict: false, required: ['JOU-04', 'JOU-05', 'CA-JOU-02', 'H-13', 'JOU-99'] },
     );
 
@@ -128,7 +150,7 @@ describe('traceIds', () => {
 
   it('requires every requirement and criterion when strict', () => {
     const trace = traceIds(
-      { specs: SPECS, tags: [tag('JOU-04')], entries: [] },
+      { specs: SPECS, tags: [tag('JOU-04')], stray: [], entries: [] },
       { strict: true, required: [] },
     );
 

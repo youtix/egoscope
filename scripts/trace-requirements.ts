@@ -5,17 +5,20 @@
  * CLAUDE.md ("Requirement traceability") says how to tag tests and when an entry of
  * the register is legitimate.
  *
- *   bun scripts/trace-requirements.ts [--strict] [--require <ids>] [--require-claimed] [--write-index]
+ *   bun scripts/trace-requirements.ts [--strict] [--require <ids>] [--require-claimed [--author <login>]] [--write-index]
  *
  * - Always (`bun run trace`, one of the static checks): every ID that a test or suite
- *   title cites in square brackets is one that the specs define (spec-ids.ts); the
- *   register names only requirements and criteria, each once, with a known kind, and
- *   waives no tested ID (trace-rules.ts); the criteria index is up to date
- *   (criteria-index.ts).
+ *   title cites in the square brackets it starts with is one that the specs define
+ *   (spec-ids.ts), and no other square brackets of a title hold an ID; the register
+ *   names only requirements and criteria, each once, with a known kind and the columns
+ *   that its kind fills, and waives no tested ID (waiver-register.ts, trace-rules.ts);
+ *   the criteria index is up to date (criteria-index.ts).
  * - --require <ids>, separated by commas or spaces, and --require-claimed, which reads
  *   a pull request body on standard input and requires the IDs of its "Requirements
- *   covered" section: each of these IDs is tested or waived, and one with a limit has
- *   its tests. The trace workflow runs --require-claimed on every pull request.
+ *   covered" section (claimedIds): each of these IDs is tested or waived, and one with
+ *   a limit has its tests. The body needs that heading, unless --author names the
+ *   dependency-update bot. The trace workflow runs --require-claimed on every pull
+ *   request, with the login of the author who opened it.
  * - --strict (`bun run trace:strict`): the same for every requirement and criterion.
  * - --write-index rewrites docs/engineering/acceptance-criteria-index.md first.
  *
@@ -31,9 +34,9 @@ import { parseArgs } from 'node:util';
 import { criteriaIndex, INDEX_PATH } from './criteria-index';
 import { isIgnoredPath } from './ignored-folders';
 import { isSpecSource, readSpecIds } from './spec-ids';
-import { findTitleTags, isTestFile } from './test-titles';
+import { findTitleTags, idTokens, isTestFile } from './test-titles';
 import { REPORT_PATH, reportMarkdown, summaryLines } from './trace-report';
-import { traceIds } from './trace-rules';
+import { ofKnownPrefix, traceIds } from './trace-rules';
 import { readRegister, REGISTER_PATH } from './waiver-register';
 
 import type { Criterion, MarkdownFile, Problem, SpecIds } from './spec-ids';
@@ -57,65 +60,114 @@ type Options = Readonly<{
   strict: boolean;
   required: readonly string[];
   claimed: boolean;
+  /** The login of the author who opened the pull request whose body --require-claimed reads. */
+  author: string | undefined;
   writeIndex: boolean;
 }>;
 type Outcome = Readonly<{ trace: Trace; problems: readonly Problem[]; required: Required }>;
+/** What a pull request body claims, and what is wrong with it. */
+type Claims = Readonly<{ ids: readonly string[]; problems: readonly Problem[] }>;
 
 const USAGE =
-  'Usage: bun scripts/trace-requirements.ts [--strict] [--require <ids>] [--require-claimed] [--write-index]';
+  'Usage: bun scripts/trace-requirements.ts [--strict] [--require <ids>] [--require-claimed [--author <login>]] [--write-index]';
 const EXIT_PROBLEMS = 1;
 const EXIT_USAGE = 2;
+// The author of the pull requests that update dependencies, which cover no requirement.
+const DEPENDENCY_BOT = 'dependabot[bot]';
 const CLAIMS_HEADING = /^#{1,6}\s+Requirements covered\s*$/iu;
+const NO_HEADING =
+  'The description has no "Requirements covered" heading outside comments, so it claims nothing: add `## Requirements covered`, then list below it the requirements and criteria that the pull request covers, or write "None" for tooling only.';
+const NO_CLAIMS: Claims = { ids: [], problems: [] };
 const HEADING = /^(?<hashes>#{1,6})\s/u;
-const COMMENT = /<!--[\s\S]*?-->/gu;
-// A token shaped like an ID: CA-JOU-02, and also UTF-8 or HMAC-SHA-256.
-const ID = /\b[A-Z]+(?:-[A-Z]+)*-\d+\b/gu;
-const PREFIX = /^[A-Z]+/u;
+const COMMENT_OPEN = '<!--';
+const COMMENT_CLOSE = '-->';
+// Where the end of a comment may start, past `<!`: `<!-->` and `<!--->` are whole comments.
+const CLOSE_FROM = '<!'.length;
+// The text before a comment that starts a line, as an HTML block does: the start of the
+// body or a line break, then at most three spaces, which fit in the last four characters.
+const BLOCK_START = /(?:^|\n) {0,3}$/u;
+const BLOCK_START_LENGTH = 4;
 const ID_SEPARATORS = /[\s,]+/u;
 
 /** The level of a heading line; any other line ranks below every heading. */
 const headingLevel = (line: string): number =>
   HEADING.exec(line)?.groups?.['hashes']?.length ?? Infinity;
 
-/** The prefix of an ID, or of a token shaped like one: CA of CA-JOU-02, HMAC of HMAC-SHA-256. */
-const prefixOf = (token: string): string => PREFIX.exec(token)?.[0] ?? '';
+/** Says whether the comment that opens at `open` starts a line, as an HTML block does. */
+const isBlockStart = (body: string, open: number): boolean =>
+  BLOCK_START.test(body.slice(Math.max(0, open - BLOCK_START_LENGTH), open));
 
 /**
- * The prefixes of the IDs that the specs and the rulings define: those of the
- * requirements, CA of the criteria, H, Q and D of the hypotheses, questions and
- * decisions, CL of the rulings.
+ * Where the text that GitHub shows ends, when no comment closes after `open`: at the
+ * first of the comments from there that starts a line, since, as an HTML block, it hides
+ * the rest of the body. An unclosed comment inside a line is text.
  */
-function prefixesOf(specs: SpecIds): ReadonlySet<string> {
-  const defined = [...specs.requirements, ...specs.criteria].map(({ id }) => id);
-  return new Set([...defined, ...specs.citable].map((id) => prefixOf(id)));
+function shownUntil(body: string, open: number): number {
+  for (let at = open; at !== -1; at = body.indexOf(COMMENT_OPEN, at + 1)) {
+    if (isBlockStart(body, at)) {
+      return at;
+    }
+  }
+  return body.length;
 }
 
 /**
- * The IDs that a pull request body claims: every ID of its "Requirements covered"
- * section, up to the next heading of the same level, outside HTML comments. A token
- * shaped like an ID is one only when `specs` define an ID of its prefix, so that
- * UTF-8 or SHA-256 claims nothing, while a typo such as JOU-4 is claimed, and fails as
- * an ID that the specs do not define. Comments are removed until none is left, since
- * removing one can join the text around it into a new one: `<!-<!-- -->- JOU-04 -->`.
+ * The text of a pull request body that GitHub shows, without its HTML comments, read in
+ * one scan from left to right: a comment runs from `<!--` to the next `-->`, and one
+ * that never closes is read as GitHub does (shownUntil). So the text around a comment
+ * never joins into a new one: GitHub shows `<!-<!-- x -->- JOU-04 -->` as
+ * `<!-- JOU-04 -->`. The scan does not tell code apart: a `<!--` in a code span opens a
+ * comment here, while GitHub shows it.
  */
-export function claimedIds(body: string, specs: SpecIds): readonly string[] {
-  let text = body;
-  let previous: string;
-  do {
-    previous = text;
-    text = text.replaceAll(COMMENT, '');
-  } while (text !== previous);
-  const lines = text.split(/\r?\n/u);
+function shownText(body: string): string {
+  const shown: string[] = [];
+  let from = 0;
+  for (
+    let open = body.indexOf(COMMENT_OPEN);
+    open !== -1;
+    open = body.indexOf(COMMENT_OPEN, from)
+  ) {
+    const close = body.indexOf(COMMENT_CLOSE, open + CLOSE_FROM);
+    if (close === -1) {
+      return [...shown, body.slice(from, shownUntil(body, open))].join('');
+    }
+    shown.push(body.slice(from, open));
+    from = close + COMMENT_CLOSE.length;
+  }
+  return [...shown, body.slice(from)].join('');
+}
+
+/**
+ * The IDs that a pull request body claims, or undefined when it has no "Requirements
+ * covered" heading: the tokens shaped like an ID (idTokens) of that section, up to the
+ * next heading of the same level, in the text that GitHub shows (shownText), which are
+ * IDs of a known prefix (ofKnownPrefix). So UTF-8 or SHA-256 claims nothing, while a
+ * typo such as JOU-4 is claimed, and fails as an ID that the specs do not define.
+ */
+export function claimedIds(body: string, specs: SpecIds): readonly string[] | undefined {
+  const lines = shownText(body).split(/\r?\n/u);
   const start = lines.findIndex((line) => CLAIMS_HEADING.test(line));
   if (start === -1) {
-    return [];
+    return undefined;
   }
   const level = headingLevel(lines[start] ?? '');
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((line) => headingLevel(line) <= level);
   const section = (end === -1 ? rest : rest.slice(0, end)).join('\n');
-  const prefixes = prefixesOf(specs);
-  return [...new Set(section.match(ID))].filter((token) => prefixes.has(prefixOf(token)));
+  const isId = ofKnownPrefix(specs);
+  return [...new Set(idTokens(section))].filter((token) => isId(token));
+}
+
+/**
+ * What the body of a pull request that `author` opened claims, and the problem of a
+ * body without the claims heading. Only the dependency-update bot may leave it out, as
+ * its pull requests cover no requirement: the event names the author, the body cannot.
+ */
+function claimsOf(body: string, specs: SpecIds, author: string | undefined): Claims {
+  const ids = claimedIds(body, specs);
+  return ids !== undefined || author === DEPENDENCY_BOT
+    ? { ids: ids ?? [], problems: [] }
+    : { ids: [], problems: [{ where: 'Pull request', problem: NO_HEADING }] };
 }
 
 /** The options that `args` give, or what is wrong with them. */
@@ -127,6 +179,7 @@ function optionsOf(args: readonly string[]): Options | string {
         strict: { type: 'boolean', default: false },
         require: { type: 'string', multiple: true, default: [] },
         'require-claimed': { type: 'boolean', default: false },
+        author: { type: 'string' },
         'write-index': { type: 'boolean', default: false },
       },
       strict: true,
@@ -136,6 +189,7 @@ function optionsOf(args: readonly string[]): Options | string {
       strict: values.strict,
       required: values.require.flatMap((ids) => ids.split(ID_SEPARATORS)).filter((id) => id !== ''),
       claimed: values['require-claimed'],
+      author: values.author,
       writeIndex: values['write-index'],
     };
   } catch (error) {
@@ -207,18 +261,25 @@ export async function runTrace(args: readonly string[], io: TraceIo): Promise<nu
       .map((file): MarkdownFile => ({ path: file, text: io.read(file) })),
   );
   const register = registerOf(io);
-  const tags = io.paths
+  const titles = io.paths
     .filter((file) => isTestFile(file))
-    .flatMap((file) => findTitleTags(file, io.read(file)));
-  const required = [...options.required, ...(options.claimed ? claimedIds(io.input(), specs) : [])];
+    .map((file) => findTitleTags(file, io.read(file)));
+  const claims = options.claimed ? claimsOf(io.input(), specs, options.author) : NO_CLAIMS;
+  const required = [...options.required, ...claims.ids];
   const trace = traceIds(
-    { specs, tags, entries: register.entries },
+    {
+      specs,
+      tags: titles.flatMap((each) => each.cited),
+      stray: titles.flatMap((each) => each.stray),
+      entries: register.entries,
+    },
     { strict: options.strict, required },
   );
   const problems = [
     ...specs.problems,
     ...register.problems,
     ...(await indexProblems(specs.criteria, io, options)),
+    ...claims.problems,
     ...trace.problems,
   ];
   return report(io, { trace, problems, required: { ids: required, citable: specs.citable } });
