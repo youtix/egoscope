@@ -186,6 +186,8 @@ neither a test nor a waiver.
 - A test gets a database of its own from `createTestDatabase()`: in memory, every migration
   applied. Close it when the test ends, `onTestFinished(database.close)`, since an open one holds
   about 200 MB.
+- `next dev` migrates the PGlite of `.pglite/` at its first query, then keeps it through every
+  reload until it stops: restart `next dev` after `bun run db:generate` to apply a new migration.
 - No test reaches the database that the shell running it points to, which may export the
   production connection strings (TRV-76), and no test depends on any other variable that the
   shell exports. The environment is read once, when `@/lib/env` loads, and is valid or invalid as
