@@ -183,8 +183,6 @@ describe('ignored folders', { timeout: 120_000 }, () => {
       'command',
       '--commandRunner.command',
       'true',
-      '--testFiles',
-      '',
       '--coverageAnalysis',
       'off',
       '--concurrency',

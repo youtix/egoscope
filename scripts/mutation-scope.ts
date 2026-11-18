@@ -7,8 +7,8 @@
  * A change in the mutation scope (the pure core, its tests included, the fixtures
  * that these tests may import, and the way Stryker is set up) can change what
  * mutation testing finds. `bun run gate` and the mutation workflow run the mutation
- * tests when such a change differs from their base, and only then, which keeps the
- * common gate fast (scripts/mutation-gate.ts).
+ * tests, from scratch, when such a change differs from their base, and only then,
+ * which keeps the common gate fast (scripts/mutation-gate.ts).
  */
 
 /** The folders of the pure-core modules, whose non-test files Stryker mutates. */
@@ -24,8 +24,7 @@ export const PURE_CORE_TESTS: readonly string[] = PURE_CORE_MODULES.map(
 
 /**
  * Where each run of Stryker records its results, for the next run to reuse
- * (stryker.config.ts): mutation-run.ts edits them before Stryker reads them, and
- * the mutation workflow caches them.
+ * (stryker.config.ts): mutation-run.ts edits them before Stryker reads them.
  */
 export const INCREMENTAL_FILE = 'reports/stryker-incremental.json';
 
@@ -37,7 +36,7 @@ export const INCREMENTAL_FILE = 'reports/stryker-incremental.json';
  * which says what Stryker mutates; and tsconfig.json, whose paths resolve the
  * `@data/` imports of the tests.
  */
-export const STRYKER_SETUP: ReadonlySet<string> = new Set([
+const STRYKER_SETUP: ReadonlySet<string> = new Set([
   'stryker.config.ts',
   'scripts/mutation-run.ts',
   '.github/workflows/mutation.yml',
@@ -64,14 +63,4 @@ const isInMutationScope = (path: string): boolean =>
  */
 export function mutationTriggers(changed: readonly string[]): readonly string[] {
   return changed.filter((path) => isInMutationScope(path));
-}
-
-/**
- * Says whether a run of the mutation tests that `triggers` started must start
- * afresh, without the results of earlier runs: when one of them lies outside the
- * pure core, since incremental mode compares only the pure core's code and tests,
- * and so would keep results that such a change, an upgrade for one, may overturn.
- */
-export function requiresFreshRun(triggers: readonly string[]): boolean {
-  return triggers.some((path) => !isInPureCore(path));
 }

@@ -3,8 +3,8 @@
 // that edit the recorded results are tested on results written out below; the
 // script itself runs in a throwaway folder, where a stand-in for Stryker records the
 // options and the results it is given, then records the results of a prepared run
-// and exits with that run's status.
-import { spawnSync } from 'node:child_process';
+// and exits with that run's status, or first waits for the signal that stops it.
+import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
@@ -16,6 +16,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { describe, expect, it, onTestFinished } from 'vitest';
 
@@ -174,7 +175,8 @@ const SCRIPT = path.join(import.meta.dirname, 'mutation-run.ts');
 const STAND_IN_FOLDER = 'stand-in';
 // Stands in for Stryker: records the options it gets and the results it finds at
 // $STAND_IN_RESULTS, then records there the results of its next prepared run, and
-// exits with that run's status.
+// exits with that run's status. A run prepared to wait does the last two only once
+// SIGTERM has ended its wait, as Stryker records its results when a signal stops it.
 const STAND_IN = `#!/bin/sh
 set -eu
 here=$(dirname "$0")
@@ -182,14 +184,26 @@ run=$(( $(cat "$here/runs" 2>/dev/null || echo 0) + 1 ))
 echo "$run" > "$here/runs"
 printf '%s\\n' "$@" > "$here/args-$run"
 if [ -f "$STAND_IN_RESULTS" ]; then cp "$STAND_IN_RESULTS" "$here/seen-$run.json"; fi
-mkdir -p "$(dirname "$STAND_IN_RESULTS")"
-cp "$here/results-$run.json" "$STAND_IN_RESULTS"
-exit "$(cat "$here/status-$run")"
+finish() {
+  mkdir -p "$(dirname "$STAND_IN_RESULTS")"
+  cp "$here/results-$run.json" "$STAND_IN_RESULTS"
+  exit "$(cat "$here/status-$run")"
+}
+if [ -f "$here/waits-$run" ]; then
+  trap 'kill "$pid"; finish' TERM
+  sleep 20 & pid=$!
+  touch "$here/waiting-$run"
+  wait "$pid"
+fi
+finish
 `;
 // Each run starts Bun, and the stand-in once or twice, on a machine that other runs may share.
 const TIMEOUT_MS = 30_000;
+// What Stryker exits with when SIGTERM stops it: 128 plus the number of the signal.
+const STOPPED_STATUS = 143;
+const POLL_MS = 50;
 
-type Play = Readonly<{ results: Results; status: number }>;
+type Play = Readonly<{ results: Results; status: number; waits?: boolean }>;
 type Outcome = Readonly<{ status: number | null; stdout: string[]; stderr: string[] }>;
 
 const linesOf = (text: string): string[] => text.split('\n').filter(Boolean);
@@ -212,6 +226,9 @@ function playground(file: string, recorded: string | undefined, plays: readonly 
     const run = String(index + 1);
     writeFileSync(path.join(standIn, `results-${run}.json`), JSON.stringify(play.results));
     writeFileSync(path.join(standIn, `status-${run}`), String(play.status));
+    if (play.waits === true) {
+      writeFileSync(path.join(standIn, `waits-${run}`), '');
+    }
   }
   if (recorded !== undefined) {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
@@ -220,19 +237,55 @@ function playground(file: string, recorded: string | undefined, plays: readonly 
   return root;
 }
 
+/** The environment of the script in `root`: the stand-in comes first on the PATH and reads `file`. */
+const envOf = (root: string, file: string): NodeJS.ProcessEnv => ({
+  ...process.env,
+  PATH: [path.join(root, STAND_IN_FOLDER), process.env['PATH']].join(path.delimiter),
+  STAND_IN_RESULTS: file,
+});
+
 /** Runs the script in `root` with Stryker's options `args`, the stand-in reading `file`. */
 function testMutation(root: string, file: string, args: readonly string[]): Outcome {
   const result = spawnSync('bun', [SCRIPT, ...args], {
     cwd: root,
     encoding: 'utf8',
-    env: {
-      ...process.env,
-      PATH: [path.join(root, STAND_IN_FOLDER), process.env['PATH']].join(path.delimiter),
-      STAND_IN_RESULTS: file,
-    },
+    env: envOf(root, file),
   });
   return { status: result.status, stdout: linesOf(result.stdout), stderr: linesOf(result.stderr) };
 }
+
+/** Resolves once `isDone` holds. */
+async function until(isDone: () => boolean): Promise<void> {
+  while (!isDone()) {
+    await sleep(POLL_MS);
+  }
+}
+
+/**
+ * Runs the script in `root` without options, the stand-in reading `file`, and sends
+ * it SIGTERM once the stand-in's first run waits.
+ */
+async function stopMutation(root: string, file: string): Promise<Outcome> {
+  const child = spawn('bun', [SCRIPT], { cwd: root, env: envOf(root, file) });
+  const output = { stdout: '', stderr: '' };
+  child.stdout.on('data', (chunk: Buffer) => {
+    output.stdout += chunk.toString();
+  });
+  child.stderr.on('data', (chunk: Buffer) => {
+    output.stderr += chunk.toString();
+  });
+  const ended = new Promise<number | null>((resolve) => {
+    child.on('close', resolve);
+  });
+  await until(() => existsSync(path.join(root, STAND_IN_FOLDER, 'waiting-1')));
+  child.kill('SIGTERM');
+  const status = await ended;
+  return { status, stdout: linesOf(output.stdout), stderr: linesOf(output.stderr) };
+}
+
+/** The results that `file` in `root` holds now. */
+const resultsIn = (root: string, file: string): unknown =>
+  JSON.parse(readFileSync(path.join(root, file), 'utf8'));
 
 /** How many times the stand-in ran. */
 function runsIn(root: string): number {
@@ -295,6 +348,22 @@ describe('bun run test:mutation', { timeout: TIMEOUT_MS }, () => {
       args: ['run', 'stryker.config.ts'],
       results: results([STATIC_KILL]),
     });
+  });
+
+  it('ends with the run of Stryker that a signal stopped: Stryker runs once, and its results and status stand', async () => {
+    // The same runs as above, where the reused kill makes Stryker run once more.
+    const root = playground(INCREMENTAL_FILE, JSON.stringify(results([RUNTIME_KILL])), [
+      { results: reusedKill, status: STOPPED_STATUS, waits: true },
+      { results: retested, status: 1 },
+    ]);
+
+    await expect(stopMutation(root, INCREMENTAL_FILE)).resolves.toStrictEqual({
+      status: STOPPED_STATUS,
+      stdout: [],
+      stderr: [],
+    });
+    expect(runsIn(root)).toBe(1);
+    expect(resultsIn(root, INCREMENTAL_FILE)).toStrictEqual(reusedKill);
   });
 
   it('only runs Stryker under --force, which reuses no result', () => {
