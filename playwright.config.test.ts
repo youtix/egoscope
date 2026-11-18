@@ -121,6 +121,15 @@ describe('playwright.config.ts', () => {
     });
   });
 
+  it('writes the report and the results of the failed tests under reports/, which no tool reads', async () => {
+    const { outputDir, reporter } = await loadConfig();
+
+    expect({ outputDir, reporter }).toStrictEqual({
+      outputDir: 'reports/e2e/results',
+      reporter: [['list'], ['html', { open: 'never', outputFolder: 'reports/e2e/report' }]],
+    });
+  });
+
   it('keeps the commented slot of the Lot 2 server and of the projects that run e2e/lot2/ on it', () => {
     const source = readFileSync(path.join(import.meta.dirname, 'playwright.config.ts'), 'utf8');
 

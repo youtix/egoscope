@@ -28,7 +28,13 @@ export default defineConfig({
   forbidOnly: true,
   retries: 0,
   ...(!isCi && { workers: '50%' }),
-  reporter: [[isCi ? 'github' : 'list'], ['html', { open: 'never' }]],
+  // The report, its trace viewer included, and the traces and screenshots of the
+  // failed tests go under reports/, which no tool reads, like every other report.
+  outputDir: 'reports/e2e/results',
+  reporter: [
+    [isCi ? 'github' : 'list'],
+    ['html', { open: 'never', outputFolder: 'reports/e2e/report' }],
+  ],
   use: {
     // The device's language and time zone, the app's defaults, on every machine.
     locale: 'en-US',

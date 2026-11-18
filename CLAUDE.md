@@ -133,7 +133,8 @@ gives no difference.
   light theme and on a phone in the dark one, against `next start`, never `next dev`. Each lot
   has its own hermetic server, with `EGOSCOPE_LOT` set, on a port that the system picks
   (`playwright.config.ts`). `bun run e2e:ui` opens Playwright's UI, without the lock. Install
-  the browser once with `bun x playwright install chromium`.
+  the browser once with `bun x playwright install chromium`. The report and the traces of the
+  failed tests land in `reports/e2e/`.
 - One journey per screen task, in `e2e/<screen>.spec.ts` (`e2e/lot2/` for Lot 2), its titles
   citing the requirement IDs it verifies, as in unit tests.
 - Take `test` and `expect` from `e2e/fixtures/test.ts`: it runs axe's WCAG 2.2 A and AA rules on
