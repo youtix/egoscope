@@ -89,6 +89,21 @@ describe('readRegister', () => {
     ]);
   });
 
+  it('refuses a waiver that names a part or gives no reference, at its row', () => {
+    const read = readRegister(
+      register([
+        '| TRV-79 | waiver | Its wording | A documentation requirement. | ADR 0014 |',
+        '| TRV-80 | waiver |             | A documentation requirement. |          |',
+        '| TRV-81 | waiver |             | A documentation requirement. | ADR 0015 |',
+      ]),
+    );
+
+    expect(problemsOf(read)).toStrictEqual([
+      `${REGISTER_PATH}:7: TRV-79 is a waiver that names a part: a waiver leaves the part empty, since only a limit has a part checked by hand.`,
+      `${REGISTER_PATH}:8: TRV-80 is a waiver that gives no reference, such as the decision record or the document that fulfills the requirement.`,
+    ]);
+  });
+
   it('refuses a second entry for the same ID', () => {
     const read = readRegister(
       register([

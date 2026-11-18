@@ -11,8 +11,9 @@ them (JOU-04, CA-TRV-12), with how it is verified: the test that carries the ID 
 the check that proves it. Hypotheses, questions, decisions and rulings (H-13, Q-04, D-07,
 CL-STA-01) may be cited too; they need no test. Write "None" for tooling-only work.
 
-The trace workflow reads every ID of this section outside this comment, and fails unless each
-requirement and criterion among them has a test that names it, or a waiver in
+The trace workflow fails a description without this heading. Outside this comment, it reads every
+token of this section shaped like an ID whose prefix the specs use (JOU-4 is one, SHA-256 is not),
+and fails unless each requirement and criterion among them has a test that names it, or a waiver in
 docs/engineering/requirement-waivers.md.
 -->
 

@@ -4,13 +4,14 @@
  * `ID | kind | part | reason | manual check or reference`, with one row per entry:
  *
  * - `waiver`: no automated test can or must verify the requirement, so its ID has no
- *   test;
+ *   test, its part stays empty, and its last column gives the reference;
  * - `limit`: tests prove the application's part of the requirement, and the part
  *   that the entry names is checked by hand, as its last column says; the ID keeps
  *   its tests.
  *
- * Every entry gives its reason, a limit names its part and its manual check, and an
- * ID has one entry at most. Whether the ID exists is for trace-rules.ts to say.
+ * Every entry gives its reason, a waiver its reference and no part, a limit its part
+ * and its manual check, and an ID has one entry at most. Whether the ID exists is for
+ * trace-rules.ts to say.
  */
 import { repeats } from './spec-ids';
 
@@ -55,18 +56,29 @@ function cellsOf(row: string): readonly string[] {
     .map((cell) => cell.trim().replaceAll(String.raw`\|`, '|'));
 }
 
-/** What is missing from an entry whose kind is known. */
-function gaps(entry: RegisterEntry): readonly string[] {
-  const isLimit = entry.kind === 'limit';
-  return [
-    ...(entry.reason === '' ? [`${entry.id} gives no reason.`] : []),
-    ...(isLimit && entry.part === ''
-      ? [`${entry.id} is a limit that names no part: a limit names the part checked by hand.`]
-      : []),
-    ...(isLimit && entry.check === ''
-      ? [`${entry.id} is a limit that gives no manual check, such as a script or a guide step.`]
-      : []),
+/** What the columns of an entry whose kind is known lack, or hold that its kind leaves empty. */
+function gaps({ id, kind, part, reason, check }: RegisterEntry): readonly string[] {
+  const isLimit = kind === 'limit';
+  const rules: readonly (readonly [broken: boolean, problem: string])[] = [
+    [reason === '', `${id} gives no reason.`],
+    [
+      isLimit && part === '',
+      `${id} is a limit that names no part: a limit names the part checked by hand.`,
+    ],
+    [
+      isLimit && check === '',
+      `${id} is a limit that gives no manual check, such as a script or a guide step.`,
+    ],
+    [
+      !isLimit && part !== '',
+      `${id} is a waiver that names a part: a waiver leaves the part empty, since only a limit has a part checked by hand.`,
+    ],
+    [
+      !isLimit && check === '',
+      `${id} is a waiver that gives no reference, such as the decision record or the document that fulfills the requirement.`,
+    ],
   ];
+  return rules.filter(([broken]) => broken).map(([, problem]) => problem);
 }
 
 function readEntry(cells: readonly string[], where: string): Register {
