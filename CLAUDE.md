@@ -145,10 +145,10 @@ gives no difference.
   the same in CI, where no result of an earlier run is kept.
 - A run of your own is incremental: it records its results in `reports/` (git-ignored), and the
   next tests only the mutants of what changed, and those of code that runs when a module loads.
-  Stryker tells that a mutant changed by its own code alone, and that a test changed by its own
-  lines alone, from its start to the start of the next test. So an incremental run does not see a
-  change to anything else that a test runs or reads: a helper, a constant or an arbitrary of a
-  test file (above its first test, say), another function of the pure core, a fixture, a
+  Stryker tells whether a mutant changed by its own code alone, and whether a test changed by its
+  own lines alone, from its start to the start of the next test. So an incremental run does not
+  see a change to anything else that a test runs or reads: a helper, a constant or an arbitrary
+  of a test file (above its first test, say), another function of the pure core, a fixture, a
   dependency or the configuration. After such a change, run `bun run test:mutation --force`.
 - A survivor, shown in `reports/mutation/mutation.html`, is a wrong formula or check that the
   tests let through: write the test that fails on it, with exact expected values. Prompt and
