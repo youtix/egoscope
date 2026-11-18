@@ -138,11 +138,15 @@ gives no difference.
 - One journey per screen task, in `e2e/<screen>.spec.ts` (`e2e/lot2/` for Lot 2), its titles
   citing the requirement IDs it verifies, as in unit tests.
 - Take `test` and `expect` from `e2e/fixtures/test.ts`: it runs axe's WCAG 2.2 A and AA rules on
-  every page of the app that the test's `page` visits, a visit starting each time the page moves
-  to another address: before the first action or web-first assertion of each visit, and on the
-  page the test ends on, in the state it ends in. The test fails on any violation, and on a page
-  that it left before any action or web-first assertion there, which went unchecked. Check
-  another state of a visit, such as a dialog that the test closes, where it shows:
+  every page of the app that the test's `page` shows, whenever the page changed since its last
+  check: another address, a new document (a reload included), or a change to its DOM or to a
+  form control. It checks before each action and web-first assertion, and before each of their
+  retries, so that what an assertion waits for is checked; before each navigation that the test
+  starts (`goto`, `reload`, `goBack`, `goForward`, `close`); and, whatever changed, on the page
+  the test ends on, in the state it ends in. Each check first lets the page's animations end,
+  for a second at most. The test fails on any violation, and on a page that raw keyboard or
+  mouse input, a script or the app itself left before any check. Check a state that differs
+  only by its focus or hover, or that goes away before the test's next step, where it shows:
   `expect(await accessibilityViolations(page)).toStrictEqual([])`, from
   `e2e/fixtures/accessibility.ts`.
 - Locate elements by role and label (`getByRole`, `getByLabel`), as a person and a screen
