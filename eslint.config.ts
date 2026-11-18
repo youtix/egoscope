@@ -35,6 +35,7 @@ import testingLibrary from 'eslint-plugin-testing-library';
 import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 
+import { E2E_SYNTAX, E2E_TEST_IMPORT } from './scripts/eslint-playwright';
 import { egoscopePlugin } from './scripts/eslint-plugin';
 import { GENERATED_FOLDERS } from './scripts/generated-files';
 import { IGNORED_FOLDERS } from './scripts/ignored-folders';
@@ -66,28 +67,6 @@ function asPlugin(value: unknown): ESLint.Plugin {
   }
   return value;
 }
-
-// ---------------------------------------------------------------------------
-// End-to-end specs (CLAUDE.md, "End-to-end tests"): Playwright's rules, and two
-// of this project. A spec takes `test` and `expect` from e2e/fixtures/test.ts,
-// which checks every page that a test visits for accessibility, and no test is
-// expected to fail.
-// ---------------------------------------------------------------------------
-
-const E2E_TEST_IMPORT = {
-  name: '@playwright/test',
-  importNames: ['test', 'expect'],
-  message:
-    'Import test and expect from e2e/fixtures/test.ts, which checks every page that a test visits for accessibility.',
-};
-// `test.fail` and `test.describe.fail`, with or without a condition.
-const E2E_SYNTAX = [
-  {
-    selector:
-      "MemberExpression[property.name='fail']:matches([object.name='test'], [object.object.name='test'])",
-    message: '`fail` turns a failing test into a pass: a test runs and passes, or it is deleted.',
-  },
-];
 
 // ---------------------------------------------------------------------------
 // File sets. Every TypeScript extension is covered; the structure check then
@@ -1082,7 +1061,7 @@ const composed = defineConfig(
     extends: [testingLibrary.configs['flat/react']],
   },
 
-  // --- End-to-end specs (CLAUDE.md, "End-to-end tests") ----------------------------
+  // --- End-to-end specs (CLAUDE.md, "End-to-end tests"; scripts/eslint-playwright.ts) ---
   {
     // Every action and assertion is awaited, and nothing sleeps, waits for the
     // network to go quiet or forces an action past the checks that a person's
@@ -1092,6 +1071,11 @@ const composed = defineConfig(
     extends: [playwright.configs['flat/recommended']],
     rules: {
       'check-file/folder-naming-convention': ['error', { 'e2e/**/': 'KEBAB_CASE' }],
+      // The preset switches the rule off, for a fixture that depends on no other:
+      // Playwright requires its first parameter to be an object pattern, here empty,
+      // `async ({}, use) => …`. An empty object pattern stays allowed as a
+      // parameter, and only there.
+      'no-empty-pattern': ['error', { allowObjectPatternsAsParameters: true }],
       'no-restricted-syntax': ['error', ...EVERYWHERE_SYNTAX, ...E2E_SYNTAX],
       'playwright/no-skipped-test': ['error', { disallowFixme: true }],
     },

@@ -1,7 +1,7 @@
 /**
  * The harness of the lint policy probes, shared by eslint.config.test.ts,
- * scripts/eslint-plugin.test.ts, scripts/eslint-time-rules.test.ts and
- * scripts/vitest-names.test.ts. Probes are real
+ * scripts/eslint-plugin.test.ts, scripts/eslint-playwright.test.ts,
+ * scripts/eslint-time-rules.test.ts and scripts/vitest-names.test.ts. Probes are real
  * files in a temporary copy of the project, linted with the full configuration,
  * type-aware rules included.
  * typescript-estree's automatic single-run mode is off: under CI=true it would
