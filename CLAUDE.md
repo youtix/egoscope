@@ -189,7 +189,8 @@ neither a test nor a waiver.
   production connection strings (TRV-76). `createTestDatabase()` reads no variable; a test of
   `getDb()`, `getDirectDb()`, `ping()` or `migrateDatabase()` first stubs `DATABASE_URL`,
   `DATABASE_URL_UNPOOLED` and `VERCEL_ENV` to `''`, then what it needs, as the tests of
-  `src/lib/db/` do.
+  `src/lib/db/` do. The databases that these functions open stay on `globalThis` for the life of
+  the process, so a test that plays a fresh server also stubs that registry away, as they do.
 
 ## The local loop
 

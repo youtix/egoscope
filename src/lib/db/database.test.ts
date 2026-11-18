@@ -38,6 +38,8 @@ type Server = Readonly<{ url: string; connections: () => number }>;
 
 // Where the shell's connection strings lead in these tests: a port where nothing listens.
 const SHELL_DATABASE_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full';
+// Where every copy of the module keeps the databases that the process opened.
+const OPENED_DATABASES = Symbol.for('egoscope.db.opened-databases');
 
 /**
  * Exports what a developer's shell may, for example the production connection
@@ -90,8 +92,10 @@ function projectFolder(): string {
 
 describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
   beforeEach(() => {
-    // The environment is read once per server process, so each test loads a fresh one.
+    // Each test is a fresh server process: its modules load again, reading the
+    // environment, and it has opened no database yet.
     vi.resetModules();
+    vi.stubGlobal(OPENED_DATABASES, undefined);
     created.pools = 0;
     created.pglites = 0;
     exportShellVariables();
@@ -189,5 +193,23 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
 
     await expect(db?.select().from(sequenceCounters)).resolves.toStrictEqual([]);
     expect(existsSync(path.join(folder, '.pglite', 'PG_VERSION'))).toBe(true);
+  });
+
+  it('[TRV-76] keep serving the one PGlite of .pglite/ when `next dev` loads the module again', async () => {
+    projectFolder();
+    vi.stubEnv('NODE_ENV', 'development');
+    const first = await import('.');
+    const db = dbOf(await first.getDb());
+    await db?.insert(first.sequenceCounters).values({ name: 'import_sequence', lastValue: 3 });
+
+    vi.resetModules();
+    const reloaded = await import('.');
+    const again = dbOf(await reloaded.getDb());
+
+    expect(again).toBe(db);
+    expect(created.pglites).toBe(1);
+    await expect(again?.select().from(reloaded.sequenceCounters)).resolves.toStrictEqual([
+      { name: 'import_sequence', lastValue: 3 },
+    ]);
   });
 });

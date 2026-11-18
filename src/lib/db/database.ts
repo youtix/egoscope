@@ -22,13 +22,31 @@ type OpenResult =
 
 type ReachableTarget = Exclude<DatabaseTarget, Readonly<{ kind: 'not-configured' }>>;
 
+type OpenedDatabases = Map<Connection | 'pglite', Promise<OpenDatabase>>;
+
 // Where `next dev` keeps its database, under the project root (git-ignored).
 const LOCAL_DATA_DIR = '.pglite';
 const NOT_CONFIGURED = { ok: false, error: { kind: 'database-not-configured' } } as const;
 
 // Nothing is opened when this module loads: each database is opened by its
-// first caller, and kept for the life of the server.
-const opened = new Map<Connection | 'pglite', Promise<OpenDatabase>>();
+// first caller, and kept for the life of the server process. The databases live
+// on globalThis under a registered symbol, so that every copy of this module
+// shares them: `next dev` evaluates a module again when it reloads it, and a
+// second PGlite opened on .pglite/ by the new copy would diverge from the first
+// one and lose writes.
+const OPENED_DATABASES = Symbol.for('egoscope.db.opened-databases');
+
+const isOpenedDatabases = (value: unknown): value is OpenedDatabases => value instanceof Map;
+
+function openedDatabases(): OpenedDatabases {
+  const existing: unknown = Reflect.get(globalThis, OPENED_DATABASES);
+  if (isOpenedDatabases(existing)) {
+    return existing;
+  }
+  const opened: OpenedDatabases = new Map();
+  Reflect.set(globalThis, OPENED_DATABASES, opened);
+  return opened;
+}
 
 async function open(target: ReachableTarget): Promise<OpenDatabase> {
   if (target.kind === 'postgres') {
@@ -43,15 +61,16 @@ async function open(target: ReachableTarget): Promise<OpenDatabase> {
 
 /**
  * The opened database behind `connection`, opened by the first call and kept
- * for the life of the server (TRV-14). Outside Vercel, both connections share
- * one PGlite database, which applies every pending migration before it serves
- * its first query (TRV-76).
+ * for the life of the server process, whichever copy of this module asks
+ * (TRV-14). Outside Vercel, both connections share one PGlite database, which
+ * applies every pending migration before it serves its first query (TRV-76).
  */
 export async function openConnection(connection: Connection): Promise<OpenResult> {
   const target = databaseTarget(readServerEnv(), connection);
   if (target.kind === 'not-configured') {
     return NOT_CONFIGURED;
   }
+  const opened = openedDatabases();
   const key = target.kind === 'pglite' ? target.kind : connection;
   const database = opened.get(key) ?? open(target);
   opened.set(key, database);

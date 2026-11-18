@@ -19,6 +19,8 @@ const urlOf = (port: number): string =>
 
 // Where the shell's connection strings lead in these tests: a port where nothing listens.
 const SHELL_DATABASE_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full';
+// Where every copy of the db module keeps the databases that the process opened.
+const OPENED_DATABASES = Symbol.for('egoscope.db.opened-databases');
 
 /**
  * Exports what a developer's shell may, for example the production connection
@@ -56,8 +58,10 @@ function projectWith(statement: string): void {
 
 describe('migrateDatabase', { timeout: 60_000 }, () => {
   beforeEach(() => {
-    // The environment is read once per server process, so each test loads a fresh one.
+    // Each test is a fresh process: its modules load again, reading the
+    // environment, and it has opened no database yet.
     vi.resetModules();
+    vi.stubGlobal(OPENED_DATABASES, undefined);
     exportShellVariables();
     // Whatever the shell exports, each test starts outside Vercel with no
     // database configured, then stubs what it needs.
