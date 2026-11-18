@@ -1,0 +1,40 @@
+{
+  "pasted": [
+    "Here are the proposed types:",
+    "```json",
+    "{",
+    "  \"format\": \"egoscope-exploration\",",
+    "  \"format_version\": \"1.0\",",
+    "  \"proposed_types\": [",
+    "    {",
+    "      \"name\": \"Trade request made public\",",
+    "      \"definition\": \"A public report that the player asked his team to trade him.\",",
+    "      \"dating_rule\": \"The date of the first published report.\",",
+    "      \"known_in_advance\": false,",
+    "      \"documentation_difficulty\": \"easy\",",
+    "      \"possible_overlaps\": [",
+    "        \"Media storm, when the request sparks wide coverage.\"",
+    "      ],",
+    "      \"illustration_sources\": []",
+    "    }",
+    "  ]",
+    "}",
+    "```",
+    "Tell me if you want more."
+  ],
+  "expected": {
+    "format": "egoscope-exploration",
+    "format_version": "1.0",
+    "proposed_types": [
+      {
+        "name": "Trade request made public",
+        "definition": "A public report that the player asked his team to trade him.",
+        "dating_rule": "The date of the first published report.",
+        "known_in_advance": false,
+        "documentation_difficulty": "easy",
+        "possible_overlaps": ["Media storm, when the request sparks wide coverage."],
+        "illustration_sources": []
+      }
+    ]
+  }
+}
