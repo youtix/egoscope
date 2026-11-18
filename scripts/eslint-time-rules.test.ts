@@ -1,17 +1,106 @@
-// Proves what no-ambient-time refuses of Temporal and of server modules, beside the
-// harmless forms that it lets through: Temporal parses no text, a Temporal.Instant
-// prints no local time, and no server module reads the device's zone. Deliberate
-// violations are linted in the probe project of lint-probes.ts.
+// Proves what no-ambient-time refuses of Temporal, of the performance timer and of
+// server modules, beside the harmless forms that it lets through: only src/lib/time
+// imports temporal-polyfill, Temporal parses no text, a Temporal.Instant prints no
+// local time, a generic type is judged by its constraint, only the lock wrapper reads
+// the start of the performance timer, and no server module reads the device's zone.
+// A probe outside src/lib/time that imports temporal-polyfill also gets the import's
+// refusal, so the probes of the other checks name the message they expect.
+// Deliberate violations are linted in the probe project of lint-probes.ts.
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { createProbes } from './lint-probes';
 
-const { ruleIds, remove } = createProbes();
+const { lint, ruleIds, remove } = createProbes();
 const RULE = 'egoscope/no-ambient-time';
 const TEMPORAL = "import { Temporal } from 'temporal-polyfill';\n\n";
+const PROBE = 'src/lib/probe/probe.ts';
 
-describe('no-ambient-time: Temporal and server modules', { timeout: 120_000 }, () => {
+/** The refusals of no-ambient-time on `code`, linted as `file`, by their message IDs. */
+async function refusals(file: string, code: string): Promise<readonly (string | undefined)[]> {
+  const messages = await lint(file, code);
+  return messages.filter((message) => message.ruleId === RULE).map(({ messageId }) => messageId);
+}
+
+describe('no-ambient-time: Temporal, the timer and server modules', { timeout: 120_000 }, () => {
   afterAll(remove);
+
+  describe('only src/lib/time imports temporal-polyfill', () => {
+    it.each([
+      [
+        'Temporal.PlainDate.compare of two strings',
+        `${TEMPORAL}export const order = (left: string, right: string): number => Temporal.PlainDate.compare(left, right);\n`,
+      ],
+      [
+        'toPlainDateTime given a string',
+        `${TEMPORAL}export const at = (on: Temporal.PlainDate, time: string): Temporal.PlainDateTime => on.toPlainDateTime(time);\n`,
+      ],
+      [
+        'Temporal.PlainYearMonth.from',
+        `${TEMPORAL}export const month = (text: string): number => Temporal.PlainYearMonth.from(text).month;\n`,
+      ],
+      [
+        'Temporal.PlainMonthDay.from',
+        `${TEMPORAL}export const day = (text: string): number => Temporal.PlainMonthDay.from(text).day;\n`,
+      ],
+      [
+        'Temporal.Duration.from',
+        `${TEMPORAL}export const hours = (text: string): number => Temporal.Duration.from(text).hours;\n`,
+      ],
+      [
+        'a parse through a renamed import',
+        "import { Temporal as Time } from 'temporal-polyfill';\n\nexport const day = (text: string): number => Time.PlainDate.from(text).day;\n",
+      ],
+      [
+        'a parse through a destructured class',
+        `${TEMPORAL}const { PlainDate } = Temporal;\n\nexport const day = (text: string): number => PlainDate.from(text).day;\n`,
+      ],
+    ])('rejects %s, which no check of a call sees, by its import', async (_kind, code) => {
+      expect(await refusals(PROBE, code)).toStrictEqual(['temporal']);
+    });
+
+    it.each([
+      [
+        'a type-only import',
+        "import type { Temporal } from 'temporal-polyfill';\n\nexport type Day = Temporal.PlainDate;\n",
+      ],
+      ['a re-export', "export { Temporal } from 'temporal-polyfill';\n"],
+      ['a re-export of everything', "export * as time from 'temporal-polyfill';\n"],
+      [
+        'an import()',
+        "export const load = async (): Promise<unknown> => import('temporal-polyfill');\n",
+      ],
+      ['an import type', "export type Day = import('temporal-polyfill').Temporal.PlainDate;\n"],
+      ['an import of the global entry point', "import 'temporal-polyfill/global';\n"],
+    ])('rejects %s of temporal-polyfill', async (_kind, code) => {
+      expect(await refusals(PROBE, code)).toStrictEqual(['temporal']);
+    });
+
+    it.each([
+      'src/app/probe/helper.ts',
+      'src/lib/probe/probe.test.ts',
+      'scripts/probe.ts',
+      'e2e/fixtures.ts',
+      'e2e/smoke.spec.ts',
+    ])('rejects temporal-polyfill in %s too', async (file) => {
+      const code = `${TEMPORAL}export const iso = (): string => Temporal.Instant.fromEpochMilliseconds(0).toString();\n`;
+
+      expect(await refusals(file, code)).toStrictEqual(['temporal']);
+    });
+
+    it('rejects a require() of temporal-polyfill in a script', async () => {
+      const code = "export const polyfill: unknown = require('temporal-polyfill');\n";
+
+      expect(await refusals('scripts/probe.ts', code)).toStrictEqual(['temporal']);
+    });
+
+    it('lets src/lib/time import temporal-polyfill, and other modules write its name in a string', async () => {
+      const code = `${TEMPORAL}export const iso = (): string => Temporal.Instant.fromEpochMilliseconds(0).toString();\n`;
+      const named = "export const packages: readonly string[] = ['temporal-polyfill'];\n";
+
+      expect(await ruleIds('src/lib/time/probe.ts', code)).not.toContain(RULE);
+      expect(await refusals(PROBE, named)).toStrictEqual([]);
+    });
+  });
 
   describe('Temporal parses no text outside src/lib/time', () => {
     const PARSES = [
@@ -40,17 +129,28 @@ describe('no-ambient-time: Temporal and server modules', { timeout: 120_000 }, (
         'export const at = (input: string | Temporal.Instant): number => Temporal.Instant.from(input).epochMilliseconds;\n',
       ],
       [
+        'an instant of a generic type that may be a string',
+        'export const at = <T extends string | Temporal.Instant>(input: T): number => Temporal.Instant.from(input).epochMilliseconds;\n',
+      ],
+      [
         'a zoned date-time that may be a string',
         'export const at = (input: string | Temporal.ZonedDateTime): number => Temporal.ZonedDateTime.from(input).epochMilliseconds;\n',
       ],
     ];
 
     it.each(PARSES)('rejects %s in src/lib', async (_kind, code) => {
-      expect(await ruleIds('src/lib/probe/probe.ts', `${TEMPORAL}${code}`)).toContain(RULE);
+      expect(await refusals(PROBE, `${TEMPORAL}${code}`)).toStrictEqual(['temporal', 'parse']);
     });
 
     it.each(PARSES)('lets src/lib/time parse %s', async (_kind, code) => {
       expect(await ruleIds('src/lib/time/probe.ts', `${TEMPORAL}${code}`)).not.toContain(RULE);
+    });
+
+    it('rejects a parse by a global Temporal, which a runtime may have, with no import', async () => {
+      const code =
+        'export const day = (text: string): number => Temporal.PlainDate.from(text).day;\n';
+
+      expect(await refusals(PROBE, code)).toStrictEqual(['parse']);
     });
 
     it('allows Temporal values made from fields or from other Temporal values', async () => {
@@ -61,14 +161,15 @@ describe('no-ambient-time: Temporal and server modules', { timeout: 120_000 }, (
         'export const wallClock = (day: Temporal.PlainDate): Temporal.PlainDateTime => Temporal.PlainDateTime.from(day);',
         'export const at = (zoned: Temporal.ZonedDateTime): Temporal.Instant => Temporal.Instant.from(zoned);',
         'export const copy = (zoned: Temporal.ZonedDateTime): Temporal.ZonedDateTime => Temporal.ZonedDateTime.from(zoned);',
+        'export const fromNumber = (milliseconds: number): string => Temporal.Instant.fromEpochMilliseconds(milliseconds).toString();',
         '',
       ].join('\n');
 
-      expect(await ruleIds('src/lib/probe/probe.ts', `${TEMPORAL}${code}`)).not.toContain(RULE);
+      expect(await refusals(PROBE, `${TEMPORAL}${code}`)).toStrictEqual(['temporal']);
     });
   });
 
-  describe('a Temporal.Instant prints no local time outside src/lib/time', () => {
+  describe('a Temporal.Instant or a Date reads no local time outside src/lib/time', () => {
     const FORMATS = [
       [
         'an instant',
@@ -83,13 +184,17 @@ describe('no-ambient-time: Temporal and server modules', { timeout: 120_000 }, (
         "export const text = (at: Temporal.Instant | Temporal.ZonedDateTime): string => at.toLocaleString('en-US');\n",
       ],
       [
+        'an instant of a generic type',
+        "export const text = <T extends Temporal.Instant>(at: T): string => at.toLocaleString('en-US');\n",
+      ],
+      [
         'the instant of a zoned date-time',
         "export const text = (zoned: Temporal.ZonedDateTime): string => zoned.toInstant().toLocaleString('en-US');\n",
       ],
     ];
 
     it.each(FORMATS)('rejects the locale format of %s in src/lib', async (_kind, code) => {
-      expect(await ruleIds('src/lib/probe/probe.ts', `${TEMPORAL}${code}`)).toContain(RULE);
+      expect(await refusals(PROBE, `${TEMPORAL}${code}`)).toStrictEqual(['temporal', 'zone']);
     });
 
     it.each(FORMATS)('lets src/lib/time give the locale format of %s', async (_kind, code) => {
@@ -104,8 +209,70 @@ describe('no-ambient-time: Temporal and server modules', { timeout: 120_000 }, (
         '',
       ].join('\n');
 
-      expect(await ruleIds('src/lib/probe/probe.ts', `${TEMPORAL}${code}`)).not.toContain(RULE);
+      expect(await refusals(PROBE, `${TEMPORAL}${code}`)).toStrictEqual(['temporal']);
     });
+
+    it('rejects the local time of a Date of a generic type, in src/lib and in the pure core', async () => {
+      const code = 'export const hour = <T extends Date>(at: T): number => at.getHours();\n';
+
+      expect(await refusals(PROBE, code)).toStrictEqual(['zone']);
+      expect(await ruleIds('src/lib/stats-engine/probe.ts', code)).toContain(
+        'egoscope/no-local-time',
+      );
+    });
+  });
+
+  describe('only the lock wrapper reads the start of the performance timer', () => {
+    const TIME_ORIGIN = 'export const startedAt = (): number => performance.timeOrigin;\n';
+
+    it.each([
+      PROBE,
+      'src/app/probe/helper.ts',
+      'scripts/probe.ts',
+      'e2e/fixtures.ts',
+      'e2e/smoke.spec.ts',
+    ])('rejects performance.timeOrigin in %s', async (file) => {
+      expect(await refusals(file, TIME_ORIGIN)).toStrictEqual(['clock']);
+    });
+
+    it.each([
+      [
+        'through globalThis',
+        'export const startedAt = (): number => globalThis.performance.timeOrigin;\n',
+      ],
+      [
+        'under another name',
+        "import { performance as timer } from 'node:perf_hooks';\n\nexport const startedAt = (): number => timer.timeOrigin;\n",
+      ],
+    ])('rejects performance.timeOrigin %s', async (_kind, code) => {
+      expect(await refusals('scripts/probe.ts', code)).toStrictEqual(['clock']);
+    });
+
+    it.each(['scripts/with-lock.ts', 'scripts/signal-relay.ts'])(
+      'lets %s, a file of the lock wrapper, read performance.timeOrigin',
+      async (file) => {
+        expect(await refusals(file, TIME_ORIGIN)).toStrictEqual([]);
+      },
+    );
+
+    it.each(['scripts/with-lock.ts', 'scripts/signal-relay.ts'])(
+      'rejects the clock in %s, a file of the lock wrapper',
+      async (file) => {
+        const code = 'export const now = (): number => Date.now();\n';
+
+        expect(await refusals(file, code)).toStrictEqual(['clock']);
+      },
+    );
+
+    it.each([PROBE, 'scripts/probe.ts', 'e2e/fixtures.ts'])(
+      'lets %s time a duration with performance.now()',
+      async (file) => {
+        const code =
+          'export const elapsed = (start: number): number => performance.now() - start;\n';
+
+        expect(await refusals(file, code)).toStrictEqual([]);
+      },
+    );
   });
 
   describe("no server module reads the device's zone", () => {

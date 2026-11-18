@@ -906,13 +906,25 @@ const composed = defineConfig(
 
   // --- Time (CLAUDE.md, "Time") ---------------------------------------------------
   {
-    // Only src/lib/time reads the clock and the machine's time zone, and parses dates;
-    // a server-only module never reads the device's zone through it.
+    // Only src/lib/time reads the clock and the machine's time zone, parses dates and
+    // imports temporal-polyfill; a server-only module never reads the device's zone
+    // through it.
     name: 'egoscope/ambient-time',
     files: [...SRC_FILES, ...SCRIPT_FILES, ...E2E_FILES],
     ignores: ['src/lib/time/**'],
     rules: {
       'egoscope/no-ambient-time': 'error',
+    },
+  },
+  {
+    // The lock wrapper, which imports nothing from src/, stamps the records that other
+    // processes read with `performance.timeOrigin + performance.now()`, a Unix time
+    // that does not jump when the system clock moves. Its files are named one by one:
+    // everything else that no-ambient-time refuses stays refused in them.
+    name: 'egoscope/ambient-time/lock-wrapper',
+    files: ['scripts/with-lock.ts', 'scripts/signal-relay.ts'],
+    rules: {
+      'egoscope/no-ambient-time': ['error', { allowTimeOrigin: true }],
     },
   },
   {

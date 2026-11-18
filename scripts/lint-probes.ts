@@ -54,6 +54,8 @@ const PROBE_FILES: readonly string[] = [
   'e2e/fixtures.ts',
   'e2e/smoke.spec.ts',
   'scripts/probe.ts',
+  'scripts/signal-relay.ts',
+  'scripts/with-lock.ts',
   'src/app/page-helper.ts',
   'src/app/players/[playerId]/page.tsx',
   'src/app/players/page.tsx',

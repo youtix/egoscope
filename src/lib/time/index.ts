@@ -16,6 +16,7 @@ export { compareInstants, toEpochMs } from './instant';
 export type { EpochMs } from './instant';
 export { parseTimestamp } from './parse-timestamp';
 export type { ParsedTimestamp, TimestampResult } from './parse-timestamp';
+export { isSameTimeZone } from './same-zone';
 export { parseTimeOfDay } from './time-of-day';
 export type { TimeOfDayResult } from './time-of-day';
 export {
