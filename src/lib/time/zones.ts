@@ -13,6 +13,13 @@ import type { EpochMs } from './instant';
 export const US_EASTERN = 'America/New_York';
 // The westernmost zone where the league plays, whose day ends last (SEN-01, CL-SEN-02).
 const US_PACIFIC = 'America/Los_Angeles';
+/** An instant at which to look a zone up: its ID and its history are the same at every instant. */
+export const ANY_INSTANT = toEpochMs(0);
+// What the conversion accepts besides the names of the zone database: an offset such
+// as +02:00, and the SystemV names, which only ICU still knows. The database dropped
+// them in 2020b, and Bun's own Temporal refuses them while Node.js accepts them.
+const OFFSET_ID = /^[+-]/u;
+const ICU_ONLY_AREA = 'systemv/';
 
 /** The date and the wall-clock time `HH:MM` at which an instant reads in one zone. */
 export type LocalDateTime = Readonly<{ on: IsoDate; time: string }>;
@@ -23,6 +30,28 @@ export type LocalDateTime = Readonly<{ on: IsoDate; time: string }>;
  */
 export function zonedDateTime(instant: EpochMs, zone: string): Temporal.ZonedDateTime {
   return Temporal.Instant.fromEpochMilliseconds(instant).toZonedDateTimeISO(zone);
+}
+
+/** The ID under which the conversion knows `zone`, or undefined when it knows none. */
+function knownZoneId(zone: string): string | undefined {
+  try {
+    return zonedDateTime(ANY_INSTANT, zone).timeZoneId;
+  } catch {
+    // The conversion refuses a zone that the time-zone database does not know.
+    return undefined;
+  }
+}
+
+/**
+ * Says whether the IANA time-zone database knows `value`, in any letter case:
+ * `Europe/Paris`, `UTC`, `Etc/GMT+12` or the alias `US/Pacific`, but not `Paris`,
+ * `Europe/Atlantis` or an offset such as `+02:00`. The owner's zone may be any
+ * zone of the database, which this checks (IHM-14, CL-TRV-16). It asks the
+ * conversion itself, never throws, and answers the same on Node.js and on Bun.
+ */
+export function isTimeZone(value: string): boolean {
+  const id = knownZoneId(value)?.toLowerCase();
+  return id === value.toLowerCase() && !OFFSET_ID.test(id) && !id.startsWith(ICU_ONLY_AREA);
 }
 
 /**
@@ -106,6 +135,11 @@ function endOfGap(beforeGap: Temporal.ZonedDateTime): Temporal.ZonedDateTime {
   return transition;
 }
 
+/** The wall-clock time `time` on `day`, in no zone yet. */
+function wallClockOf(day: IsoDate, time: string): Temporal.PlainDateTime {
+  return Temporal.PlainDate.from(day).toPlainDateTime(Temporal.PlainTime.from(time));
+}
+
 /**
  * The one instant of a scheduled wall-clock time on `day` in `zone`, such as
  * 16:30 in the owner's zone (TRV-27, CL-TRV-18). `time` is `HH:MM`, seconds
@@ -115,8 +149,21 @@ function endOfGap(beforeGap: Temporal.ZonedDateTime): Temporal.ZonedDateTime {
  * occurrence (TRV-70).
  */
 export function localOccurrenceInstant(day: IsoDate, time: string, zone: string): EpochMs {
-  const wallClock = Temporal.PlainDate.from(day).toPlainDateTime(Temporal.PlainTime.from(time));
+  const wallClock = wallClockOf(day, time);
   const earlier = wallClock.toZonedDateTime(zone, { disambiguation: 'earlier' });
   const occurrence = earlier.toPlainDateTime().equals(wallClock) ? earlier : endOfGap(earlier);
   return toEpochMs(occurrence.epochMilliseconds);
+}
+
+/**
+ * The latest instant that a wall-clock time read without an offset can stand
+ * for, on `day` in `zone`, so that an article is never deemed public too early
+ * (COL-21, CL-COL-02). `time` is `HH:MM`, seconds allowed. On a day of clock
+ * change, a time that occurs twice takes its later occurrence, and a time that
+ * the change skips moves forward by the length of the gap (02:30 becomes 03:30
+ * in Paris), so it is never before `localOccurrenceInstant` (TRV-70).
+ */
+export function latestLocalInstant(day: IsoDate, time: string, zone: string): EpochMs {
+  const latest = wallClockOf(day, time).toZonedDateTime(zone, { disambiguation: 'later' });
+  return toEpochMs(latest.epochMilliseconds);
 }

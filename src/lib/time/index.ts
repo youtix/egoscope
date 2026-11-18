@@ -2,6 +2,7 @@ export { compareIsoDates, parseIsoDate, toIsoDate } from './calendar-date';
 export type { IsoDate, IsoDateResult, TimeParseError } from './calendar-date';
 export { fixedClock, installFakeClock, now, systemClock } from './clock';
 export type { Clock, FixedClock } from './clock';
+export { deviceTimeZone } from './device-zone';
 export {
   formatDate,
   formatGameTime,
@@ -20,6 +21,8 @@ export {
   endOfLocalDay,
   gameDay,
   gameDayStart,
+  isTimeZone,
+  latestLocalInstant,
   localOccurrenceInstant,
   startOfLocalDay,
   toZoned,

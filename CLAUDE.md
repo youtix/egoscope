@@ -71,15 +71,20 @@ gives no difference.
 
 ## Time
 
-- Only `@/lib/time` reads the clock, parses dates and converts time zones. Take the instant from
-  `now()`; lint refuses `Date.now()`, `new Date()`, `Date()`, `Date.parse`, `new Date(string)`,
-  `new Date(year, month, …)` and `Temporal.Now` elsewhere in `src/`, `scripts/` and `e2e/`, except
-  in the lock wrapper (`scripts/with-lock.ts` and its test), which still times its waits with
-  `Date.now()`. With Cache Components, a Server Component defers to request time
-  (`await connection()`) before `now()`.
+- Only `@/lib/time` reads the clock and the machine's time zone, parses dates and converts time
+  zones. Take the instant from `now()`; lint refuses `Date.now()`, `new Date()`, `Date()`,
+  `Date.parse`, `new Date(string)`, `new Date(year, month, …)`, `Temporal.Now`, the local getters,
+  setters and `toLocale*` of a date, `Intl.DateTimeFormat` without a `timeZone`, and
+  `Temporal.Instant.from` or `Temporal.ZonedDateTime.from` of a string elsewhere in `src/`,
+  `scripts/` and `e2e/`, except in the lock wrapper (`scripts/with-lock.ts` and its test), which
+  still times its waits with `Date.now()`. With Cache Components, a Server Component calls
+  `await io()` (from `next/cache`) inside `<Suspense>` before `now()`, and a Client Component
+  `use(io())`; keep `connection()` for code that must wait for a real request.
 - An instant is an `EpochMs`, a calendar date an `IsoDate`, and every day names its zone: the
   owner's day (`userDay`, in the `display.timeZone` setting the caller passes in, never a fixed
-  Paris) for tasks and displays, a game's day (`gameDay`, its US Eastern date) for games.
+  Paris) for tasks and displays, a game's day (`gameDay`, its US Eastern date) for games. Only
+  client code reads the device's zone, with `deviceTimeZone()`; lint refuses it in a server-only
+  module.
 - Tests set the time with `fixedClock` and `installFakeClock`, and restore the clock afterwards.
 - People read dates through the `time` formatters, machines in ISO 8601. Nowhere does code call
   `toLocale*`, `localeCompare` or an `Intl` constructor without an explicit locale.

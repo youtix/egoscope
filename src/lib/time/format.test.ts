@@ -157,14 +157,54 @@ describe('the zone', () => {
     [NEW_YORK, 'New York time'],
     ['America/Argentina/Buenos_Aires', 'Buenos Aires time'],
     ['europe/paris', 'Paris time'],
-    ['UTC', 'UTC time'],
-  ])('[TRV-71] names %s "%s"', (zone, name) => {
+    ['US/Pacific', 'Pacific time'],
+  ])('[TRV-71] [IHM-14] names %s, the zone of a place, "%s"', (zone, name) => {
     expect(formatZoneName(zone)).toBe(name);
   });
 
-  it('[TRV-71] states the zone of a screen that shows times in the short form', () => {
-    expect(formatZoneStatement(PARIS)).toBe('Times in Paris time');
+  it.each([
+    ['Etc/GMT+5', 'UTC-05:00 time'],
+    ['Etc/GMT-14', 'UTC+14:00 time'],
+    ['Etc/GMT+12', 'UTC-12:00 time'],
+    ['UTC', 'UTC time'],
+    ['Etc/UTC', 'UTC time'],
+    ['GMT', 'UTC time'],
+    ['Etc/GMT0', 'UTC time'],
+  ])('[IHM-14] names %s, a zone without a city that is an offset, "%s"', (zone, name) => {
+    expect(formatZoneName(zone)).toBe(name);
   });
+
+  it.each([
+    ['CET', 'CET time'],
+    ['Japan', 'Japan time'],
+  ])(
+    '[IHM-14] names %s, a zone without a city whose offset has changed, by its own name: "%s"',
+    (zone, name) => {
+      expect(formatZoneName(zone)).toBe(name);
+    },
+  );
+
+  it.each([
+    [PARIS, 'Times in Paris time'],
+    ['Etc/GMT+5', 'Times in UTC-05:00 time'],
+    ['Etc/UTC', 'Times in UTC time'],
+  ])(
+    '[TRV-71] [IHM-14] states the zone %s of a screen that shows times in the short form: "%s"',
+    (zone, statement) => {
+      expect(formatZoneStatement(zone)).toBe(statement);
+    },
+  );
+
+  it.each([
+    ['Etc/GMT+5', 'Tuesday 17 November 2026, 19:30 UTC-05:00 time'],
+    ['Etc/GMT-14', 'Wednesday 18 November 2026, 14:30 UTC+14:00 time'],
+    ['UTC', 'Wednesday 18 November 2026, 00:30 UTC time'],
+  ])(
+    '[TRV-71] [IHM-14] names %s in the full form of an instant as it names the zone: "%s"',
+    (zone, shown) => {
+      expect(formatInstant(utc('2026-11-18T00:30:00Z'), zone, 'full')).toBe(shown);
+    },
+  );
 
   it('throws for a zone that does not exist, which validating the setting rules out', () => {
     expect(() => formatZoneName('Mars/Olympus')).toThrow(RangeError);
