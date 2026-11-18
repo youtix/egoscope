@@ -8,7 +8,7 @@
 
 - Record 0012: coverage gives way. Only sources that permit automated access are used, two may be combined if that reaches further back, and seasons the source does not cover give « non mesurable » cases (STA-45). No undocumented endpoints, no change to the Game Score indicator, no pause. Record 0011: free without a payment card, replaceable, fewest accounts first, with a service sheet whose terms are checked on the day.
 - The specs need, without human action (STA-02, TRV-15): every official game with its tip-off instant, status, score and series; one box-score line per player and game with the twelve Game Score items and the minutes; stable identifiers; corrections reflected; an observable quota; history deep enough for the tracked careers. Record 0015 adds the day and month of birth and the team history.
-- Candidates were compared on 2026-11-11 against the live web, without any account or key: `docs/engineering/statistics-source-evaluation.md` holds the evidence and the tests T1 to T21, `docs/services/statistics-source.md` the service sheet.
+- Candidates were compared on 2026-11-11 against the live web, without any account or key: `docs/engineering/statistics-source-evaluation.md` holds the evidence and the tests T1 to T22, `docs/services/statistics-source.md` the service sheet.
 
 ## Decision
 
@@ -39,7 +39,7 @@ The publisher compiles the files from ESPN's web API, whose terms forbid extract
 From section 4 of the evaluation:
 
 - The three replacements above, each ranked below the primary for its later first season, its minutes defect, or its account and smaller reach.
-- Rejected: Highlightly (depth unknown, account, small quota); balldontlie (no free box scores); BigBalls Sports Data (current season only, rebounds missing on the free plan); API Ninjas (no box scores); TheSportsDB (box scores not documented); MySportsFeeds (paid); SportsDataIO (trial with scrambled data); Sportradar (trial only); the other Kaggle NBA database (not current); `llimllib/nba_data` (no license).
+- Rejected: Highlightly (depth unknown, account, small quota); balldontlie (no free box scores); BigBalls Sports Data (current season only, rebounds missing on the free plan); API Ninjas (no box scores); TheSportsDB (box scores not documented); MySportsFeeds (paid); SportsDataIO (trial with scrambled data); Sportradar (trial only); the other Kaggle NBA database (not current); a GitHub repository of NBA data files, `nba_data` (no license).
 - Rejected by the owner's rule: the undocumented nba.com and stats.nba.com endpoints, the ESPN site API, scraping Basketball-Reference.
 
 ## What would change it

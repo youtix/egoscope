@@ -105,7 +105,10 @@ No restriction on France was found.
 
 ## How it is called
 
-Plain HTTPS: `https://api.telegram.org/bot<token>/<method>` with JSON bodies; no SDK needed.
+Plain HTTPS: `https://api.telegram.org/bot<token>/<method>` with JSON bodies; no SDK needed. The
+token sits in the request path, the only way the Bot API accepts it, so the request URL counts as a
+secret: it is never logged, journaled or written into technical details, and an error or a response
+that carries it is passed through `env.redact` before it goes anywhere (TRV-64; module map §7).
 
 - **Sending**: `sendMessage` with `chat_id`, `text`, `parse_mode: "HTML"` and
   `link_preview_options: { is_disabled: true }`. In HTML mode every `<`, `>` and `&` outside a tag
@@ -119,13 +122,22 @@ Plain HTTPS: `https://api.telegram.org/bot<token>/<method>` with JSON bodies; no
     redirect;
   - `secret_token`: the value of `TELEGRAM_WEBHOOK_SECRET`, which Telegram returns in the header
     `X-Telegram-Bot-Api-Secret-Token` of every call ([setWebhook](https://core.telegram.org/bots/api#setwebhook));
-  - `allowed_updates: ["message", "my_chat_member"]` and `drop_pending_updates: true`.
+  - `allowed_updates: ["message", "my_chat_member"]` and `drop_pending_updates: true`;
+  - `max_connections: 1`, so that Telegram delivers one update at a time, in order; its default is
+    40 simultaneous connections ([setWebhook](https://core.telegram.org/bots/api#setwebhook),
+    parameter `max_connections`, 1 to 100). The application stores the highest `update_id` it has
+    handled, which only moves forward, so parallel deliveries could make a lower update arrive after
+    a higher one and be dropped as a redelivery, a `/start` code with it (record 0024, amendment of
+    2026-11-13).
 
   The handler compares the header in constant time and rejects a mismatch with `401`; answers `200`
   quickly to every genuine update, since any other status makes Telegram retry; deduplicates on
-  `update_id`; accepts only `message.chat.type == "private"`; links the chat on a valid, unused,
-  unexpired `/start <code>`; and logs everything else without replying (TEL-31). `getWebhookInfo`
-  reports the last delivery error, which the installation check displays.
+  `update_id`, an update at or below the stored `last_update_id` being a redelivery that is ignored;
+  accepts only `message.chat.type == "private"`; links the chat on a valid, unused, unexpired
+  `/start <code>`; and counts everything else without replying and without opening the database,
+  telling a valid code or the linked chat from a stranger by the keyed inbound filter of the module
+  map (§1.9), the database pass then journaling each such update (TEL-31, CL-TRV-21).
+  `getWebhookInfo` reports the last delivery error, which the installation check displays.
 
 - **Receiving: polling (fallback)**. `getUpdates` cannot be used while a webhook is set, and updates
   wait at most 24 hours ([Getting updates](https://core.telegram.org/bots/api#getting-updates)). If the
@@ -136,10 +148,12 @@ Plain HTTPS: `https://api.telegram.org/bot<token>/<method>` with JSON bodies; no
   while the code is still valid. Otherwise polling only catches up later: at a tick's probe while a
   link code is pending, or at the end of a database pass, which comes at least hourly. Messages from
   other chats are still logged (TEL-31), since Telegram keeps updates for 24 hours.
-- **Deleting after a withdrawal** (TEL-38, H-TEL-04): `deleteMessages` for messages under 48 hours
-  old ([deleteMessages](https://core.telegram.org/bots/api#deletemessages)); older ones cannot be
-  deleted by the bot, so the application lists them for the owner, who can delete them himself, as
-  the withdrawal screen announces (DSN-28).
+- **Deleting after a withdrawal** (TEL-38, H-TEL-04, CL-TEL-09): the application asks Telegram once
+  to delete every sent message about the event, whatever its age and even in a chat no longer
+  linked ([deleteMessages](https://core.telegram.org/bots/api#deletemessages)). Telegram refuses the
+  messages older than 48 hours; the refusals, and the messages that could not be reached, are kept
+  in memory only and listed once, on the screen shown right after the withdrawal, so that the owner
+  can delete them himself, as the withdrawal screen announces (DSN-28); the list is never stored.
 - **Retries** (TEL-35): on `429`, the response's `parameters.retry_after` gives the seconds to wait
   ([ResponseParameters](https://core.telegram.org/bots/api#responseparameters)); the application waits
   the longer of that delay and its own schedule.
@@ -163,10 +177,13 @@ daily cap (TEL-22) keeps it far below Telegram's limits.
 
 ## Quota parameters to enter (TRV-03)
 
-| Parameter                     | Value to enter   |
-| ----------------------------- | ---------------- |
-| Messages per second, one chat | 1                |
-| Maximum message length        | 4,096 characters |
+| Parameter                     | Value to enter |
+| ----------------------------- | -------------- |
+| Messages per second, one chat | 1              |
+
+The maximum message length, 4,096 characters, is not a value to enter: it is a constant of the
+transport, recorded in this sheet and fixed in the code, never a setting (CL-TEL-14; module map §6,
+"Not parameters").
 
 ## Replaceable by
 

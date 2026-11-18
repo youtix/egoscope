@@ -92,9 +92,21 @@ model's rate limit: a chunk stops and the next tick resumes it.
   calling a route ([Fair use guidelines](https://vercel.com/docs/limits/fair-use-guidelines)).
 - **Scraping is excluded**: the fair use guidelines list scrapers as never fair use, and the
   [Acceptable Use Policy](https://vercel.com/legal/acceptable-use-policy), section 2, forbids
-  scraping. Reading a handful of public syndication feeds twice a day is what feeds are published
-  for, and the application never fetches article pages (COL-26), so it is not scraping; the
-  interpretation is Vercel's, so it is recorded as a risk below.
+  scraping. The application makes two kinds of requests to third-party sites, and neither extracts
+  content:
+  - **Feeds** (Lot 2): reading a handful of public syndication feeds twice a day is what feeds are
+    published for, and the news collection never fetches article pages (COL-26).
+  - **The link check** (Lot 1, IMP-17, on by default, `imports.linkCheckEnabled`): after an import,
+    the application opens each saved source once, one request at a time — a `GET` with a generic
+    user agent, up to 5 redirects and a timeout of `imports.linkCheckTimeoutSeconds` — and keeps
+    only whether the page exists: a 404, a 410 or a host that does not resolve marks the source "not
+    found", nothing is read from the body or stored, and nothing is retried (CL-IMP-25; module map
+    §4, `link-check`). That is one request per saved source after each import, one after another
+    like a person clicking the links, and the owner can switch it off.
+
+  Neither reads or keeps a page's content, so neither is scraping; the interpretation is Vercel's,
+  so both are recorded as a risk below.
+
 - **Model training.** On Hobby, Vercel may use the customer's content to train AI models and share
   it with third parties for that purpose, unless the owner opts out in the team settings
   ([Terms of Service](https://vercel.com/legal/terms), section 3). The owner must opt out (see
@@ -197,7 +209,7 @@ The full list with where each value comes from is in [accounts-and-keys.md](acco
   `413 FUNCTION_PAYLOAD_TOO_LARGE`.
 - **Runtime Cache**: over its allowance it is paused for the rest of the period
   ([Runtime Cache](https://vercel.com/docs/runtime-cache)); idle ticks then fall back to the bounded
-  database check described in [scheduler.md](scheduler.md).
+  database check described in [database.md](database.md) and in the module map (§1.9).
 - **Schedules**: above 5,000 runs a month, scheduled runs are skipped until the next period
   ([Schedules limits](https://vercel.com/docs/schedules/limits)).
 
@@ -208,11 +220,18 @@ The full list with where each value comes from is in [accounts-and-keys.md](acco
 | Function invocations       | 1,000,000 per month           |
 | Active CPU                 | 4 hours per month             |
 | Provisioned memory         | 360 GB-hours per month        |
-| Function maximum duration  | 300 seconds                   |
 | Runtime Cache reads/writes | 1,000,000 / 200,000 per month |
 
 Vercel's usage is visible in the dashboard; the application can count its own invocations and
-durations, not Vercel's metering, so these are mainly shown for reference on the status screen.
+durations, not Vercel's metering, so these are reference values shown on the status screen, never
+enforced. Their period: Vercel publishes no reset instant for Hobby, which has no billing cycle — a
+feature over its allowance waits until 30 days have passed ([Hobby plan](https://vercel.com/docs/plans/hobby),
+"Hobby billing cycle") — so the application takes each one's period as the calendar month from 00:00
+UTC on the 1st (CL-TRV-12).
+
+The function maximum duration, 300 seconds on Hobby, is not a value to enter: it is a constant of
+the code recorded in this sheet, which sets the chunk budget and the "interrupted" threshold of twice
+that duration (CL-TRV-07; module map §6, "Not parameters").
 
 ## Replaceable by
 
@@ -243,8 +262,10 @@ opt-out setting in the dashboard.
 - **Hobby is discretionary**: Vercel may change its limits, end the plan, or shut a Hobby project
   down without notice. Mitigation: the data is elsewhere and the replacement path is documented.
 - **Model training on Hobby content** unless the owner opts out.
-- **Fair use wording on scrapers**: the feed collection reads public syndication feeds only, but the
-  final judgment is Vercel's.
+- **Fair use wording on scrapers**: the feed collection reads public syndication feeds only, and the
+  link check of IMP-17 opens each saved source once and keeps only whether it exists, but the final
+  judgment is Vercel's. Mitigation: the link check can be switched off (`imports.linkCheckEnabled`),
+  which leaves the import working without it.
 - **Runtime logs last 1 hour**: diagnosis relies on the application's own journal (TRV-41).
 - **Node.js 22 end of life on 2027-04-30**: the final hardening task must move production to a newer
   LTS before Vercel blocks new Node.js 22 deployments.

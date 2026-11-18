@@ -173,8 +173,10 @@ The flow is the design's ([module map](../engineering/module-map.md), section 1.
 4. **Decide from the wake plan, still without the database**: stop when nothing is due; run a
    database-free probe when the plan asks for one; go on only when the plan is missing, older than an
    hour, written by another deployment, or due.
-5. **Open the database**: take the tick lease (a lease row, or `pg_advisory_xact_lock` inside a
-   transaction, never a session-level lock, see [database.md](database.md)), run the due tasks in
+5. **Open the database**: take the tick lease, the single `scheduler_lease` row with its expiry,
+   which every pass takes (never a session-level lock, and not a transaction-scoped advisory lock,
+   which would not span the several transactions of a pass; see [database.md](database.md) and the
+   [data model](../engineering/domain-model/operations.md), section 1.16), run the due tasks in
    resumable chunks (TRV-28, TRV-30), run the execution check (TRV-31), then rewrite the wake plan.
 
 An idle tick costs a few cache reads and one cache write: about 35,000 reads and 12,000 writes a
@@ -205,10 +207,18 @@ Use the production domain: Vercel's Standard Protection blocks the generated dep
 
 ## Quota parameters to enter (TRV-03)
 
-| Parameter                                     | Value to enter                              |
-| --------------------------------------------- | ------------------------------------------- |
-| Vercel Schedules runs                         | 5,000 per month                             |
-| Expected interval of the primary (monitoring) | 5 minutes; the fallback's is 15 plus jitter |
+| Parameter                                     | Value to enter                              | Period and reset                                                                                                                               |
+| --------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vercel Schedules runs                         | 5,000 per month                             | Vercel's "billing period", whose start it does not publish for Hobby; a reference value, taken as the calendar month from 00:00 UTC on the 1st |
+| Expected interval of the primary (monitoring) | 5 minutes; the fallback's is 15 plus jitter | None: an interval, not a quota                                                                                                                 |
+
+The Cloudflare request allowance needs no parameter, the tick using a fraction of a percent of it;
+for reference, it resets at 00:00 UTC each day ([Workers limits](https://developers.cloudflare.com/workers/platform/limits/)).
+Vercel's Hobby plan has no billing cycle: a feature over its allowance waits until 30 days have
+passed ([Hobby plan](https://vercel.com/docs/plans/hobby), "Hobby billing cycle"). The application
+does not enforce this allowance, which Vercel meters; it shows it as a reference value whose period
+it takes as the calendar month from 00:00 UTC on the 1st, Vercel publishing no reset instant
+(CL-TRV-12).
 
 ## Replaceable by
 

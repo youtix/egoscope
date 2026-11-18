@@ -93,25 +93,26 @@ Assumptions, all to be replaced by the measured figures of the first weeks (TRV-
   the source every hour from 15:00 without the database, then makes one pass once the source has
   refreshed, at 20:00 at the latest (ruling CL-TRV-23); collection and detection at 16:30 and 23:00
   (Lot 2); notifications at the end of quiet hours (08:00) and when a reminder or a retry is due
-  (Lot 2); the classification queue every 6 hours while it is not empty (Lot 2).
+  (Lot 2); the classification queue, while an item is eligible, 6 hours after the last run that
+  processed it, or earlier at the provider's quota reset (ruling CL-DET-04; Lot 2).
 - Work durations are estimates: 1 to 3 minutes for the purge, 5 to 7 for the backup, 10 to 25 for the
   statistics pass (the current season ingested, the touched cases recalculated), 10 to 40 for each
   collection and detection.
 - The owner opens the application 2 to 5 times a day, each visit active for 7 to 15 minutes with the
   tail, outside any pass.
 
-| Activity                                | When                                                      | Active minutes a day | Notes                                                |
-| --------------------------------------- | --------------------------------------------------------- | -------------------- | ---------------------------------------------------- |
-| Hourly passes when nothing else is due  | About 24 a day                                            | 110 to 130           | Seconds of queries plus the 5-minute tail each       |
-| Purge                                   | 04:00                                                     | 1 to 3               | Work time inside that hour's pass                    |
-| Weekly backup                           | Monday 05:00                                              | about 1              | 5 to 7 minutes a week, through the direct connection |
-| Statistics update                       | Probes from 15:00 without the database; one pass by 20:00 | 10 to 25             | Shorter after a day without games                    |
-| Collection and detection (Lot 2)        | 16:30 and 23:00                                           | 20 to 80             | 10 to 40 minutes each                                |
-| Classification-queue resumption (Lot 2) | Every 6 hours while the queue is not empty                | 0 to 20              | Usually empty                                        |
-| Notifications (Lot 2)                   | 08:00, reminders, retries                                 | 0 to 15              | Most fall inside an hourly pass                      |
-| Owner's visits                          | 2 to 5 a day                                              | 15 to 75             | 7 to 15 minutes each                                 |
-| **Total, Lot 1**                        |                                                           | **about 140 to 235** |                                                      |
-| **Total, Lot 2**                        |                                                           | **about 160 to 350** |                                                      |
+| Activity                                | When                                                                         | Active minutes a day | Notes                                                |
+| --------------------------------------- | ---------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------- |
+| Hourly passes when nothing else is due  | About 24 a day                                                               | 110 to 130           | Seconds of queries plus the 5-minute tail each       |
+| Purge                                   | 04:00                                                                        | 1 to 3               | Work time inside that hour's pass                    |
+| Weekly backup                           | Monday 05:00                                                                 | about 1              | 5 to 7 minutes a week, through the direct connection |
+| Statistics update                       | Probes from 15:00 without the database; one pass by 20:00                    | 10 to 25             | Shorter after a day without games                    |
+| Collection and detection (Lot 2)        | 16:30 and 23:00                                                              | 20 to 80             | 10 to 40 minutes each                                |
+| Classification-queue resumption (Lot 2) | While an item is eligible: 6 hours after the last run, or at the quota reset | 0 to 20              | Usually empty                                        |
+| Notifications (Lot 2)                   | 08:00, reminders, retries                                                    | 0 to 15              | Most fall inside an hourly pass                      |
+| Owner's visits                          | 2 to 5 a day                                                                 | 15 to 75             | 7 to 15 minutes each                                 |
+| **Total, Lot 1**                        |                                                                              | **about 140 to 235** |                                                      |
+| **Total, Lot 2**                        |                                                                              | **about 160 to 350** |                                                      |
 
 Over a month of 30.4 days that is 70 to 120 active hours in Lot 1 and 80 to 180 in Lot 2, so **about
 18 to 30 CU-hours in Lot 1 and 20 to 45 in Lot 2** at 0.25 CU, against 100: a margin of 55% or more,
@@ -178,8 +179,10 @@ AWS London (`aws-eu-west-2`) ([Regions](https://neon.com/docs/introduction/regio
   `PREPARE`, temporary tables and session-level advisory locks
   ([Connection pooling](https://neon.com/docs/connect/connection-pooling)). Session state is also
   lost whenever the compute suspends ([Compute lifecycle](https://neon.com/docs/introduction/compute-lifecycle)).
-  So the single-run guarantee of TRV-28 uses a lease row or `pg_advisory_xact_lock` inside a
-  transaction, never a session-level lock.
+  So the single-run guarantee of TRV-28 uses the one `scheduler_lease` row with its expiry, which
+  every pass takes, never a session-level lock; a transaction-scoped advisory lock
+  (`pg_advisory_xact_lock`) would not span the several transactions of a pass
+  ([data model](../engineering/domain-model/operations.md), section 1.16; module map §1.6).
 - **Direct connection** for schema migrations (TRV-76) and for the backup export (TRV-50), which may
   need session features and long reads: Neon advises the direct string for migrations and dumps
   ([Connection pooling](https://neon.com/docs/connect/connection-pooling)).
@@ -220,11 +223,17 @@ require: it estimates its own active time, and the Neon console's usage page giv
 
 ## Quota parameters to enter (TRV-03)
 
-| Parameter               | Value to enter         |
-| ----------------------- | ---------------------- |
-| Database capacity       | 1 GB                   |
-| Compute                 | 100 CU-hours per month |
-| Public network transfer | 5 GB per month         |
+| Parameter               | Value to enter         | Period and reset                                                                 |
+| ----------------------- | ---------------------- | -------------------------------------------------------------------------------- |
+| Database capacity       | 1 GB                   | None: a capacity, not a period                                                   |
+| Compute                 | 100 CU-hours per month | Calendar month, counted by the application from 00:00 UTC on the 1st (see below) |
+| Public network transfer | 5 GB per month         | Calendar month from 00:00 UTC on the 1st, as compute; a reference, not measured  |
+
+Neon resets compute and network transfer "each monthly billing period" but publishes neither the
+day nor the hour on which that period starts ([Plans](https://neon.com/docs/introduction/plans),
+FAQ); the Neon console's Billing page shows the project's own period. The application therefore
+counts its compute estimate per calendar month from 00:00 UTC on the 1st (CL-TRV-12); Neon's
+console stays the authority on the real figure and period.
 
 ## Replaceable by
 

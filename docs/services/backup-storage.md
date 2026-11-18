@@ -112,13 +112,15 @@ Plain HTTPS with `fetch`. Every call sends `Authorization: Bearer <BACKUP_GITHUB
 2. **Each backup**: first check that the repository is still private: the repository's own
    endpoint, `GET https://api.github.com/repos/{owner}/{repo}`, must answer `"private": true`;
    otherwise upload nothing and open "backup failed" (CL-TRV-04). Then
-   `POST https://uploads.github.com/repos/{owner}/{repo}/releases/{release_id}/assets?name=backup-<UTC instant>-<kind>.enc`,
-   for example `backup-2026-11-16T0400Z-weekly.enc`, with `Content-Type: application/octet-stream`
-   and the encrypted bytes as the body; expect `201` with `state: "uploaded"` and the right `size`. A
-   `422` means the name exists; a `502` can leave an empty asset in state `starter`, which is deleted
-   before retrying ([Release assets API](https://docs.github.com/en/rest/releases/assets)). Names use
-   only letters, digits, `.`, `_` and `-`, and hold only the creation instant and the kind (weekly,
-   manual, before an update).
+   `POST https://uploads.github.com/repos/{owner}/{repo}/releases/{release_id}/assets?name=egoscope-backup-<YYYYMMDDTHHMMSSZ>-<kind>.bin`,
+   the object name of the data model ([operations.md](../engineering/domain-model/operations.md),
+   section 5.2), for example `egoscope-backup-20261116T040000Z-weekly.bin`, with
+   `Content-Type: application/octet-stream` and the encrypted bytes as the body; expect `201` with
+   `state: "uploaded"` and the right `size`. A `422` means the name exists; a `502` can leave an
+   empty asset in state `starter`, which is deleted before retrying
+   ([Release assets API](https://docs.github.com/en/rest/releases/assets)). Names use only letters,
+   digits, `.`, `_` and `-`, and hold only the creation instant in UTC and the kind: `weekly`,
+   `manual` or `before_update`.
 3. **Rotate**: list the assets (`GET .../releases/{release_id}/assets?per_page=100`, paging when
    more than 100 are kept), sort them by `created_at`, keep the newest N (`backups.kept`), all kinds
    counted together, and delete an asset only when it is beyond that count:
@@ -131,7 +133,8 @@ Plain HTTPS with `fetch`. Every call sends `Authorization: Bearer <BACKUP_GITHUB
    withdrawn events live as long as a backup made before them is still listed (CL-DSN-07).
 4. **Restore**: `GET https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}` with
    `Accept: application/octet-stream`, following a `302` redirect; decrypt with the key and restore
-   into an empty database (TRV-53).
+   into the current database, whose application data it replaces, or into a new empty one (TRV-53,
+   ruling CL-TRV-06).
 
 Each step is logged; a failure opens an incident (TRV-50). The installation check writes a test
 object, reads it back, decrypts it, deletes it, verifies that it is gone and checks that the
@@ -172,11 +175,16 @@ failed backup opens an incident and the previous backups stay in place (TRV-50).
 
 ## Quota parameters to enter (TRV-03)
 
-| Parameter         | Value to enter                                                                |
-| ----------------- | ----------------------------------------------------------------------------- |
-| Backups kept      | 8 by default (`backups.kept`, H-TRV-09), all kinds together, fewer than 1,000 |
-| Maximum file size | 2 GiB                                                                         |
-| REST requests     | 5,000 an hour                                                                 |
+| Parameter         | Value to enter                                                                | Period and reset                                                                                                               |
+| ----------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Backups kept      | 8 by default (`backups.kept`, H-TRV-09), all kinds together, fewer than 1,000 | None: a count                                                                                                                  |
+| Maximum file size | 2 GiB                                                                         | None: a size per file                                                                                                          |
+| REST requests     | 5,000 an hour                                                                 | GitHub's current hourly window, reset at the instant its `x-ratelimit-reset` header reports, in UTC epoch seconds; a reference |
+
+GitHub publishes no fixed boundary for the hourly window: each response's `x-ratelimit-reset` header
+gives the instant the current window resets, and a refused request waits until then
+([REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)),
+as the application does for Groq (CL-TRV-12).
 
 ## Replaceable by
 

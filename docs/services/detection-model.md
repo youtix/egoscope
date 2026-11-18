@@ -91,15 +91,18 @@ response headers report, since Groq publishes no daily boundary.
 
 With Workers AI alone, the realistic volume is covered with margin. Only days of 150 articles at the
 ceiling size overflow. The overflow is classified at the queue's next resumption once the allocation
-has renewed at 00:00 UTC; by default the queue resumes 6 hours after the previous run (DET-10), so
-after the 23:00 run that is around 05:00 Paris time, after most evening tip-offs in North America.
-Articles about players with the nearest games go first (DET-09), and an event created after its
-game's tip-off is marked as such (DET-33).
+has renewed at 00:00 UTC: the queue resumes 6 hours after the end of the last run that processed it
+(DET-10), or earlier, at the provider's quota reset, when that comes first (ruling CL-DET-04). After
+the 23:00 run the overflow is therefore classified soon after the 00:00 UTC renewal, at 01:00 or
+02:00 Paris time, rather than around 05:00, after most tip-offs. Articles about players with the
+nearest games go first (DET-09), and an event created after its game's tip-off is marked as such
+(DET-33).
 
 ### With Groq added
 
 Groq takes the overflow while each request stays within its 8,000-token minute limit: at realistic
-sizes the two providers handle about 220 to 315 calls a day, a margin of 50% or more over 150. A
+sizes the two providers handle about 220 to 315 calls a day, so 150 calls leave about 30 to 50% of
+that capacity (32% at 220 calls, 52% at 315 when Groq's prompt cache applies). A
 ceiling-size request (9,000 tokens) never fits Groq's minute limit, so at that size the overflow
 still waits for 00:00 UTC. Figures are computed from the published rates; the application measures
 the real sizes in its first weeks (TRV-08).
