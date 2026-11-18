@@ -223,9 +223,9 @@ final job, `security`, passes only when each of these jobs succeeded:
 - `dependency-review`: the pull request adds no dependency with a known vulnerability of high
   severity or above.
 - `osv-scanner`: `bun.lock`, transitive dependencies included, has no known vulnerability.
-- `gitleaks`: no commit of the history holds a secret. `.gitleaks.toml` adds rules for this
-  application's deployment secrets, and the job first proves on fresh fake values that each one is
-  caught (TRV-64).
+- `gitleaks`: no commit of the history, merge commits included, holds a secret. `.gitleaks.toml`
+  adds rules for this application's deployment secrets, and the job first proves on fresh fake
+  values that each one is caught (TRV-64).
 - `zizmor`: the workflows, the setup action and `.github/dependabot.yml` have no security flaw, and
   no workflow reads a repository secret: deployment secrets stay in the hosting configuration.
 - `codeql`: CodeQL's `security-extended` queries find nothing in the JavaScript and TypeScript. On

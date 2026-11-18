@@ -187,8 +187,8 @@ jobs:
           fi
 
           "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --ignore-gitleaks-allow --redact \
-            --no-banner --log-opts=HEAD --exit-code 0 --report-format json \
-            --report-path "$RUNNER_TEMP/secret-samples.json" "$samples"
+            --no-banner --log-opts='HEAD --diff-merges=first-parent' --exit-code 0 \
+            --report-format json --report-path "$RUNNER_TEMP/secret-samples.json" "$samples"
           jq --raw-output '.[] | "\(.File):\(.StartLine):\(.RuleID)"' "$RUNNER_TEMP/secret-samples.json" \
             | sort --unique > "$RUNNER_TEMP/secret-samples.found"
           missed="$(sort "$expected" | comm -23 - "$RUNNER_TEMP/secret-samples.found")"
@@ -207,8 +207,11 @@ jobs:
             echo "::error::Remove .gitleaksignore: allow-list exact dummy values in .gitleaks.toml instead."
             exit 1
           fi
+          # gitleaks reads git log -p, which prints no diff for a merge commit unless asked:
+          # --diff-merges=first-parent also scans what each merge commit changes against its
+          # first parent, a conflict resolution or a change amended into the merge included.
           "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --ignore-gitleaks-allow --redact \
-            --no-banner --log-opts=HEAD --verbose .
+            --no-banner --log-opts='HEAD --diff-merges=first-parent' --verbose .
 
   zizmor:
     name: zizmor
