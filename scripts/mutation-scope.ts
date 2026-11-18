@@ -15,13 +15,26 @@ export const PURE_CORE_MODULES: readonly string[] = [
   'src/lib/ai-exchange/',
 ];
 
-// How Stryker runs: its configuration, and the workflow that runs it in CI.
+// How Stryker runs: its configuration and the workflow that runs it in CI; the
+// Vitest configuration that it runs the tests with; the dependencies, Stryker,
+// Vitest and fast-check among them, and the `test:mutation` script; and this
+// file, which says what Stryker mutates.
 const STRYKER_SETUP: ReadonlySet<string> = new Set([
   'stryker.config.ts',
   '.github/workflows/mutation.yml',
+  'vitest.config.ts',
+  'package.json',
+  'bun.lock',
+  'scripts/mutation-scope.ts',
 ]);
 
-/** Says whether a change to `path` (repository-relative) can change what mutation testing finds. */
-export function isInMutationScope(path: string): boolean {
-  return STRYKER_SETUP.has(path) || PURE_CORE_MODULES.some((folder) => path.startsWith(folder));
+const isInMutationScope = (path: string): boolean =>
+  STRYKER_SETUP.has(path) || PURE_CORE_MODULES.some((folder) => path.startsWith(folder));
+
+/**
+ * The paths among `changed` (repository-relative) whose change can change what
+ * mutation testing finds: the mutation tests run when there is one.
+ */
+export function mutationTriggers(changed: readonly string[]): readonly string[] {
+  return changed.filter((path) => isInMutationScope(path));
 }

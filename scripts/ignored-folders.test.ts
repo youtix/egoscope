@@ -9,6 +9,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -24,6 +25,7 @@ import { getFileInfo } from 'prettier';
 import ts from 'typescript';
 import { afterAll, describe, expect, it } from 'vitest';
 
+import strykerConfig from '../stryker.config';
 import { IGNORED_FOLDERS, isIgnoredPath } from './ignored-folders';
 
 const ROOT = path.join(import.meta.dirname, '..');
@@ -168,6 +170,35 @@ describe('ignored folders', { timeout: 120_000 }, () => {
     // The tool ran to completion, so the absence of the probe is meaningful.
     expect(status).toBe(0);
     expect(output).not.toContain('ignore-probe');
+  });
+
+  it('is never copied into a sandbox by Stryker', () => {
+    // A dry run whose test command does nothing: Stryker reads the project and fills
+    // its sandbox as a real run does, runs no test, and keeps the sandbox.
+    const { status } = tool(BIN('stryker'), [
+      'run',
+      'stryker.config.ts',
+      '--dryRunOnly',
+      '--testRunner',
+      'command',
+      '--commandRunner.command',
+      'true',
+      '--testFiles',
+      '',
+      '--coverageAnalysis',
+      'off',
+      '--concurrency',
+      '1',
+      '--cleanTempDir',
+      'false',
+    ]);
+
+    expect(status).toBe(0);
+    const sandboxes = path.join(PROJECT, strykerConfig.tempDirName);
+    const [sandbox = ''] = readdirSync(sandboxes);
+    // The sandbox holds the project, so the absence of the probe is meaningful.
+    expect(existsSync(path.join(sandboxes, sandbox, 'package.json'))).toBe(true);
+    expect(existsSync(path.join(sandboxes, sandbox, '.claude'))).toBe(false);
   });
 
   it('leaves the real checkout untouched', () => {

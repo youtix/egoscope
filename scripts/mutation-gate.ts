@@ -4,48 +4,32 @@
  * differs from the base, and otherwise says why it does not, so that the common
  * gate stays fast. Run with `bun scripts/mutation-gate.ts [base]`.
  *
- * The base defaults to where HEAD left origin/main, as for check:changed.
- * Committed, staged, unstaged and untracked changes count, and so do deletions
- * and both sides of a rename. CI passes HEAD^1: for a pull request, the base
- * branch of its merge commit; for a push to main, the previous commit.
+ * The base defaults to where HEAD left origin/main, and the changes are listed as
+ * check:changed lists them (changed-files.ts): committed, staged, unstaged and
+ * untracked changes count, and so do deletions and both sides of a rename. CI
+ * passes HEAD^1: for a pull request, the base branch of its merge commit; for a
+ * push to main, the previous commit.
  */
 import { spawnSync } from 'node:child_process';
 
-import { describeFiles } from './changed-files';
-import { isInMutationScope } from './mutation-scope';
-
-/** Runs git and returns its output, or undefined if it fails. */
-function git(args: readonly string[]): string | undefined {
-  const result = spawnSync('git', args, { encoding: 'utf8' });
-  return result.status === 0 ? result.stdout : undefined;
-}
-
-/** The paths that differ from `base`, untracked files included, or undefined if git cannot list them. */
-function changedPaths(base: string): readonly string[] | undefined {
-  const tracked = git(['diff', '--name-only', '--no-renames', '-z', base, '--']);
-  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z']);
-  return tracked === undefined || untracked === undefined
-    ? undefined
-    : `${tracked}${untracked}`.split('\0').filter(Boolean);
-}
+import { describeFiles, listChanges } from './changed-files';
+import { mutationTriggers } from './mutation-scope';
 
 function main(argv: readonly string[]): number {
-  const base = argv[0] ?? git(['merge-base', 'origin/main', 'HEAD'])?.trim();
-  const changed = base === undefined ? undefined : changedPaths(base);
-  if (base === undefined || changed === undefined) {
-    console.error(
-      `✖ Mutation tests: cannot list the changes against ${argv[0] ?? 'origin/main'}. Run \`git fetch origin main\`, then try again.`,
-    );
+  const [base] = argv;
+  const listed = listChanges({ base });
+  if (!listed.ok) {
+    console.error(`✖ Mutation tests: ${listed.error}`);
     return 1;
   }
-  const inScope = changed.filter((path) => isInMutationScope(path));
-  if (inScope.length === 0) {
+  const triggers = mutationTriggers(listed.changes.map((change) => change.path));
+  if (triggers.length === 0) {
     console.info(
-      `Mutation tests: neither the pure core nor the Stryker setup differs from ${base}, so they do not run.`,
+      `Mutation tests: nothing in their scope differs from ${base ?? 'origin/main'}, so they do not run.`,
     );
     return 0;
   }
-  console.info(`Mutation tests, because of ${describeFiles(inScope)}.`);
+  console.info(`Mutation tests, because of ${describeFiles(triggers)}.`);
   const result = spawnSync('bun', ['run', 'test:mutation'], { stdio: 'inherit' });
   return result.status ?? 1;
 }

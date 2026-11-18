@@ -1,13 +1,45 @@
-import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
-import { parseNameStatus, planCheck, stepsFor, testStep } from './changed-files';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+
+import { listChanges, parseNameStatus, planCheck, stepsFor, testStep } from './changed-files';
 
 import type { Change } from './changed-files';
 
 const present = (...paths: readonly string[]): Change[] =>
-  paths.map((path) => ({ path, removed: false }));
+  paths.map((file) => ({ path: file, removed: false }));
 const removed = (...paths: readonly string[]): Change[] =>
-  paths.map((path) => ({ path, removed: true }));
+  paths.map((file) => ({ path: file, removed: true }));
+
+/** Runs git in `root`; a failure fails the test. */
+const gitIn = (root: string, ...args: readonly string[]): void => {
+  execFileSync('git', args, { cwd: root, stdio: 'ignore' });
+};
+
+/** Writes `files`, repository-relative paths and their text, into `root`. */
+function writeFiles(root: string, files: Readonly<Record<string, string>>): void {
+  for (const [file, text] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    writeFileSync(path.join(root, file), text);
+  }
+}
+
+/** A throwaway repository, removed when the test ends, whose one commit is also origin/main. */
+function repository(files: Readonly<Record<string, string>>): string {
+  const root = mkdtempSync(path.join(tmpdir(), 'egoscope-changes-'));
+  onTestFinished(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+  gitIn(root, 'init', '--quiet', '--initial-branch=main');
+  writeFiles(root, files);
+  gitIn(root, 'add', '--all');
+  gitIn(root, 'commit', '--quiet', '--message=base');
+  gitIn(root, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  return root;
+}
 
 describe('parseNameStatus', () => {
   it('reads additions, changes, deletions, renames and copies', () => {
@@ -47,9 +79,28 @@ describe('planCheck', () => {
       code: [],
       markdown: [],
       frozen: [],
+      traced: [],
       related: [],
       wholeSuite: [],
     });
+  });
+
+  it('names the changed files that the traceability check reads, removed ones included', () => {
+    const plan = planCheck([
+      ...present(
+        'src/lib/env/server-env.test.ts',
+        'src/lib/env/server-env.ts',
+        'docs/engineering/requirement-waivers.md',
+        'docs/engineering/glossary.md',
+      ),
+      ...removed('e2e/home.spec.ts'),
+    ]);
+
+    expect(plan.traced).toStrictEqual([
+      'docs/engineering/requirement-waivers.md',
+      'e2e/home.spec.ts',
+      'src/lib/env/server-env.test.ts',
+    ]);
   });
 
   it('sends code to ESLint, Markdown to markdownlint and every present file to Prettier', () => {
@@ -201,5 +252,142 @@ describe('stepsFor', () => {
     const plan = planCheck(present('docs/engineering/glossary.md'));
 
     expect(testStep(plan)).toBeUndefined();
+  });
+
+  it.each([
+    [
+      'a specification, with its checksum manifest',
+      present('docs/07-statistiques-de-match.md', 'docs/frozen-specs.sha256'),
+    ],
+    ['a ruling', present('docs/engineering/clarifications/07-game-statistics.md')],
+    ['a unit test', present('src/lib/env/server-env.test.ts')],
+    ['a removed component test', removed('src/app/page.test.tsx')],
+    ['a test of the scripts', present('scripts/ci-ok.test.ts')],
+    ['an end-to-end spec', present('e2e/home.spec.ts')],
+    ['the waiver register', present('docs/engineering/requirement-waivers.md')],
+    ['the acceptance criteria index', present('docs/engineering/acceptance-criteria-index.md')],
+  ])('runs `bun run trace` when %s changed', (_change, changes) => {
+    const steps = stepsFor(planCheck(changes));
+
+    expect(steps.find((step) => step.name === 'Requirement traceability')?.command).toStrictEqual([
+      'bun',
+      'run',
+      'trace',
+    ]);
+  });
+
+  it('runs the traceability check after the structure check, before the type checks', () => {
+    const steps = stepsFor(planCheck(present('src/lib/env/server-env.test.ts')));
+
+    expect(steps.map((step) => step.name)).toStrictEqual([
+      'Prettier',
+      'ESLint',
+      'Structure check',
+      'Requirement traceability',
+      'Route types',
+      'Type check, whole project',
+      'Type check, pure core',
+      'Related unit tests',
+    ]);
+  });
+
+  it('leaves the traceability check out when none of the files that it reads changed', () => {
+    const plan = planCheck(
+      present('src/lib/env/server-env.ts', 'README.md', 'docs/engineering/glossary.md'),
+    );
+
+    expect(stepsFor(plan).map((step) => step.name)).not.toContain('Requirement traceability');
+  });
+});
+
+describe('listChanges', () => {
+  beforeEach(() => {
+    // git reads neither the machine's nor the user's configuration, and commits under
+    // a neutral identity.
+    vi.stubEnv('GIT_CONFIG_GLOBAL', '/dev/null');
+    vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
+    vi.stubEnv('GIT_AUTHOR_NAME', 'Test');
+    vi.stubEnv('GIT_AUTHOR_EMAIL', 'test@example.invalid');
+    vi.stubEnv('GIT_COMMITTER_NAME', 'Test');
+    vi.stubEnv('GIT_COMMITTER_EMAIL', 'test@example.invalid');
+  });
+
+  it('lists what differs from origin/main: committed, staged, unstaged and untracked', () => {
+    const root = repository({
+      '.gitignore': 'build/\n',
+      'src/committed.ts': 'before\n',
+      'src/staged.ts': 'before\n',
+      'src/unstaged.ts': 'before\n',
+      'src/deleted.ts': 'deleted\n',
+      'src/moved.ts': 'a file long enough to be found again under its new name\n',
+      'src/untouched.ts': 'untouched\n',
+    });
+    writeFiles(root, { 'src/committed.ts': 'after\n' });
+    gitIn(root, 'commit', '--quiet', '--all', '--message=next');
+    writeFiles(root, {
+      'src/staged.ts': 'after\n',
+      'src/unstaged.ts': 'after\n',
+      'src/untracked.ts': 'new\n',
+      'build/output.js': 'built\n',
+      '.claude/worktrees/other/src/theirs.ts': 'theirs\n',
+    });
+    gitIn(root, 'add', 'src/staged.ts');
+    gitIn(root, 'mv', 'src/moved.ts', 'src/renamed.ts');
+    unlinkSync(path.join(root, 'src/deleted.ts'));
+
+    // A deletion and both sides of a rename count; what git ignores and what lies in
+    // a folder that no tool reads do not.
+    expect(listChanges({ cwd: root })).toStrictEqual({
+      ok: true,
+      changes: [
+        ...present('src/committed.ts'),
+        ...removed('src/deleted.ts', 'src/moved.ts'),
+        ...present('src/renamed.ts', 'src/staged.ts', 'src/unstaged.ts', 'src/untracked.ts'),
+      ],
+    });
+  });
+
+  it('measures from the base it is given, as CI gives the previous commit', () => {
+    const root = repository({ 'src/first.ts': 'first\n' });
+    writeFiles(root, { 'src/second.ts': 'second\n' });
+    gitIn(root, 'add', '--all');
+    gitIn(root, 'commit', '--quiet', '--message=next');
+    writeFiles(root, { 'src/third.ts': 'third\n' });
+
+    expect(listChanges({ base: 'HEAD^1', cwd: root })).toStrictEqual({
+      ok: true,
+      changes: present('src/second.ts', 'src/third.ts'),
+    });
+    expect(listChanges({ base: 'HEAD', cwd: root })).toStrictEqual({
+      ok: true,
+      changes: present('src/third.ts'),
+    });
+  });
+
+  it('says why it cannot list the changes, instead of finding none', () => {
+    const root = repository({ 'src/first.ts': 'first\n' });
+
+    expect(listChanges({ base: 'no-such-commit', cwd: root })).toStrictEqual({
+      ok: false,
+      error:
+        'git cannot list the changes against no-such-commit: run `git fetch origin main`, then try again.',
+    });
+    gitIn(root, 'update-ref', '-d', 'refs/remotes/origin/main');
+    expect(listChanges({ cwd: root })).toStrictEqual({
+      ok: false,
+      error: 'origin/main is missing: run `git fetch origin main`, then try again.',
+    });
+  });
+
+  it('refuses a HEAD that shares no history with origin/main', () => {
+    const root = repository({ 'src/first.ts': 'first\n' });
+    gitIn(root, 'checkout', '--quiet', '--orphan', 'unrelated');
+    gitIn(root, 'commit', '--quiet', '--message=unrelated');
+
+    expect(listChanges({ cwd: root })).toStrictEqual({
+      ok: false,
+      error:
+        'HEAD shares no history with origin/main (stale or rewritten): run `git fetch origin main` and rebase.',
+    });
   });
 });
