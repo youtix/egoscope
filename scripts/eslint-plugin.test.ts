@@ -370,6 +370,118 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
     });
   });
 
+  describe("no-ambient-time: only src/lib/time reads the machine's time zone", () => {
+    const TEMPORAL = "import { Temporal } from 'temporal-polyfill';\n\n";
+    const ZONE_READS = [
+      ['a local-time getter', 'export const hour = (at: Date): number => at.getHours();\n'],
+      [
+        'a local-time setter',
+        'export const set = (at: Date): number => at.setHours(0, 0, 0, 0);\n',
+      ],
+      ['the offset', 'export const offset = (at: Date): number => at.getTimezoneOffset();\n'],
+      ['a local date string', 'export const day = (at: Date): string => at.toDateString();\n'],
+      ['a String(date)', 'export const text = (at: Date): string => String(at);\n'],
+      [
+        'a local string with its locale',
+        "export const text = (at: Date): string => at.toLocaleString('en-US');\n",
+      ],
+      [
+        'a local date with its locale',
+        "export const day = (at: Date): string => at.toLocaleDateString('en-US');\n",
+      ],
+      [
+        'a local time with its locale',
+        "export const time = (at: Date): string => at.toLocaleTimeString('en-US');\n",
+      ],
+      [
+        "the machine's zone from a date format",
+        "export const zone = (): string => new Intl.DateTimeFormat('en-US').resolvedOptions().timeZone;\n",
+      ],
+      [
+        'a date format without a zone',
+        "export const text = (at: Date): string => new Intl.DateTimeFormat('en-US', { hour: 'numeric' }).format(at);\n",
+      ],
+      [
+        'a date format called without new',
+        "export const text = (at: Date): string => Intl.DateTimeFormat('en-US').format(at);\n",
+      ],
+      [
+        'a date format whose zone may be left out',
+        "export const format = (options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat => new Intl.DateTimeFormat('en-US', options);\n",
+      ],
+      [
+        'an instant parsed by Temporal',
+        `${TEMPORAL}export const at = (text: string): number => Temporal.Instant.from(text).epochMilliseconds;\n`,
+      ],
+      [
+        'a zoned date-time parsed by Temporal',
+        `${TEMPORAL}export const at = (): number => Temporal.ZonedDateTime.from('2026-11-10T19:30[America/New_York]').epochMilliseconds;\n`,
+      ],
+    ];
+
+    it.each(ZONE_READS)('rejects %s in src/lib', async (_kind, code) => {
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain('egoscope/no-ambient-time');
+    });
+
+    it.each(['src/app/probe/probe-view.tsx', 'scripts/probe.ts', 'e2e/fixtures.ts'])(
+      'rejects a local-time getter in %s too',
+      async (file) => {
+        const code = 'export const hour = (at: Date): number => at.getHours();\n';
+
+        expect(await ruleIds(file, code)).toContain('egoscope/no-ambient-time');
+      },
+    );
+
+    it.each(ZONE_READS)('lets src/lib/time read %s', async (_kind, code) => {
+      expect(await ruleIds('src/lib/time/probe.ts', code)).not.toContain(
+        'egoscope/no-ambient-time',
+      );
+    });
+
+    it('allows UTC methods, number formats and date formats that name their zone', async () => {
+      const code = `${TEMPORAL}${[
+        'export const hour = (at: Date): number => at.getUTCHours();',
+        'export const iso = (at: Date): string => at.toISOString();',
+        "export const count = (value: number): string => new Intl.NumberFormat('en-US').format(value);",
+        "export const utc = (at: Date): string => new Intl.DateTimeFormat('en-US', { timeZone: 'UTC' }).format(at);",
+        "export const local = (at: Date, zone: string): string => new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric' }).format(at);",
+        'export const at = (milliseconds: number): string => Temporal.Instant.fromEpochMilliseconds(milliseconds).toString();',
+        '',
+      ].join('\n')}`;
+
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).not.toContain(
+        'egoscope/no-ambient-time',
+      );
+    });
+
+    it("lets client code read the device's zone through deviceTimeZone", async () => {
+      const code =
+        "'use client';\n\nimport { deviceTimeZone } from '@/lib/time';\n\nexport const zone = (): string => deviceTimeZone();\n";
+
+      expect(await ruleIds('src/app/probe/helper.ts', code)).not.toContain(
+        'egoscope/no-ambient-time',
+      );
+    });
+
+    it.each([
+      ['a named import', "import { deviceTimeZone } from '@/lib/time';", 'deviceTimeZone()'],
+      ['a namespace import', "import * as time from '@/lib/time';", 'time.deviceTimeZone()'],
+    ])('rejects deviceTimeZone in a server-only module, through %s', async (_kind, line, call) => {
+      const code = `import 'server-only';\n\n${line}\n\nexport const zone = (): string => ${call};\n`;
+
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain('egoscope/no-ambient-time');
+    });
+
+    it('lets a server-only module read a property of its own named deviceTimeZone', async () => {
+      const code =
+        "import 'server-only';\n\nexport const zone = (answer: Readonly<{ deviceTimeZone: string }>): string => answer.deviceTimeZone;\n";
+
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).not.toContain(
+        'egoscope/no-ambient-time',
+      );
+    });
+  });
+
   describe('no-default-locale: a result that depends on a locale names it', () => {
     it.each([
       ['a date', 'export const text = (at: Date): string => at.toLocaleString();\n'],

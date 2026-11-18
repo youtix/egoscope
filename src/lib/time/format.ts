@@ -1,7 +1,6 @@
 import { Temporal } from 'temporal-polyfill';
 
-import { toEpochMs } from './instant';
-import { gameDay, US_EASTERN, userDay, zonedDateTime } from './zones';
+import { ANY_INSTANT, gameDay, US_EASTERN, userDay, zonedDateTime } from './zones';
 
 import type { IsoDate } from './calendar-date';
 import type { EpochMs } from './instant';
@@ -43,8 +42,8 @@ const SHORT_NAME_LENGTH = 3;
 // The part of day of a game's start in US Eastern time (CL-IHM-07).
 const AFTERNOON_FROM_HOUR = 12;
 const EVENING_FROM_HOUR = 17;
-// The spelling of a zone's ID, which names the zone, is the same at every instant.
-const ANY_INSTANT = toEpochMs(0);
+// The offset of UTC, as Temporal writes it.
+const UTC_OFFSET = '+00:00';
 
 function nameAt(names: readonly string[], position: number): string {
   const name = names[position - 1];
@@ -72,6 +71,24 @@ function cityTime(timeZoneId: string): string {
   return `${city} time`;
 }
 
+// A zone that has never changed its offset is an offset, not a place: the Etc
+// area, whose POSIX names invert the sign (Etc/GMT+5 is five hours behind UTC),
+// and UTC under its other names. Every zone of a place has changed at least once.
+function isOffsetZone(zoned: Temporal.ZonedDateTime): boolean {
+  return (
+    zoned.getTimeZoneTransition('previous') === null && zoned.getTimeZoneTransition('next') === null
+  );
+}
+
+// The one way this module names a zone: "Paris time", or "UTC-05:00 time" and
+// "UTC time" for a zone that is an offset.
+function zoneName(zoned: Temporal.ZonedDateTime): string {
+  if (!isOffsetZone(zoned)) {
+    return cityTime(zoned.timeZoneId);
+  }
+  return zoned.offset === UTC_OFFSET ? 'UTC time' : `UTC${zoned.offset} time`;
+}
+
 /**
  * A date alone, without a time and without a zone (CL-IHM-04): in short,
  * "Wed 18 Nov 2026", unless told otherwise, or in full, where the date is the
@@ -84,13 +101,13 @@ export function formatDate(day: IsoDate, form: DisplayForm = 'short'): string {
 /**
  * An instant in the owner's zone, on the 24-hour clock (TRV-71, ADR 0010):
  * "Wednesday 18 November 2026, 01:30 Paris time" in full, which names the
- * zone, or "Wed 18 Nov 2026, 01:30" in short, on a screen that states its
- * zone once at the top (CL-IHM-04).
+ * zone as `formatZoneName` does, or "Wed 18 Nov 2026, 01:30" in short, on a
+ * screen that states its zone once at the top (CL-IHM-04).
  */
 export function formatInstant(instant: EpochMs, zone: string, form: DisplayForm): string {
   const local = zonedDateTime(instant, zone);
   const shown = `${formatFields(local, form)}, ${twoDigits(local.hour)}:${twoDigits(local.minute)}`;
-  return form === 'full' ? `${shown} ${cityTime(local.timeZoneId)}` : shown;
+  return form === 'full' ? `${shown} ${zoneName(local)}` : shown;
 }
 
 function partOfDay(hour: number): string {
@@ -124,9 +141,15 @@ export function formatGameTime(tipOff: TipOff, zone: string, form: DisplayForm):
   return gameDay(at) === userDay(at, zone) ? shown : `${shown} — ${usDayRecall(at)}`;
 }
 
-/** The name of a zone, as "<city> time": "Paris time", "New York time" (CL-IHM-04). */
+/**
+ * The name of a zone, as "<city> time": "Paris time", "New York time"
+ * (CL-IHM-04, IHM-14). A zone without a city that is an offset, of the Etc area
+ * or UTC under another name, is named by that offset: "UTC time",
+ * "UTC-05:00 time" for Etc/GMT+5, "UTC+14:00 time" for Etc/GMT-14. A zone
+ * without a city whose offset has changed, such as CET, keeps its own name.
+ */
 export function formatZoneName(zone: string): string {
-  return cityTime(zonedDateTime(ANY_INSTANT, zone).timeZoneId);
+  return zoneName(zonedDateTime(ANY_INSTANT, zone));
 }
 
 /**

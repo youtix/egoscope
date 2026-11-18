@@ -9,6 +9,8 @@ import {
   endOfLocalDay,
   gameDay,
   gameDayStart,
+  isTimeZone,
+  latestLocalInstant,
   localOccurrenceInstant,
   startOfLocalDay,
   toZoned,
@@ -66,6 +68,42 @@ const anyMinute = fc
 const anyDay = fc
   .integer({ min: Date.UTC(1980, 0, 1) / DAY_MS, max: Date.UTC(2099, 11, 31) / DAY_MS })
   .map((dayNumber) => isoDateOf(dayNumber));
+// Up to two hours on either side of a clock change of a zone of ZONES that changes its
+// clocks, where wall times are skipped or repeated.
+const nearClockChange = fc.record({
+  after: anyMinute,
+  zone: fc.constantFrom(PARIS, NEW_YORK, LOS_ANGELES, 'Australia/Sydney'),
+  minutes: fc.integer({ min: -120, max: 120 }),
+});
+
+/** The first clock change of `zone` after `at`, as the zone reads it. */
+function clockChangeAfter(at: EpochMs, zone: string): Temporal.ZonedDateTime {
+  const change = Temporal.Instant.fromEpochMilliseconds(at)
+    .toZonedDateTimeISO(zone)
+    .getTimeZoneTransition('next');
+  if (change === null) {
+    throw new RangeError(`No clock change of ${zone} follows ${String(at)}.`);
+  }
+  return change;
+}
+
+// Times that the clock reads twice on the autumn clock change of 2026, with both instants.
+const REPEATED_TIMES = [
+  {
+    time: '02:30',
+    on: '2026-10-25',
+    zone: PARIS,
+    first: '2026-10-25T00:30:00Z',
+    second: '2026-10-25T01:30:00Z',
+  },
+  {
+    time: '01:30',
+    on: '2026-11-01',
+    zone: NEW_YORK,
+    first: '2026-11-01T05:30:00Z',
+    second: '2026-11-01T06:30:00Z',
+  },
+];
 
 describe('comparing an article with a game', () => {
   it('[TRV-69] [CA-TRV-22] finds an article of 00:30 Paris time on 11 November 2026 one hour before a 19:30 New York tip-off of the 10th', () => {
@@ -279,22 +317,7 @@ describe('the instant of a scheduled local time', () => {
     },
   );
 
-  it.each([
-    {
-      time: '02:30',
-      on: '2026-10-25',
-      zone: PARIS,
-      first: '2026-10-25T00:30:00Z',
-      second: '2026-10-25T01:30:00Z',
-    },
-    {
-      time: '01:30',
-      on: '2026-11-01',
-      zone: NEW_YORK,
-      first: '2026-11-01T05:30:00Z',
-      second: '2026-11-01T06:30:00Z',
-    },
-  ])(
+  it.each(REPEATED_TIMES)(
     '[TRV-70] runs $time on $on in $zone, a time the clock reads twice, exactly once, at its first occurrence',
     ({ time, on, zone, first, second }) => {
       expect(readingsOf(day(on), time, zone)).toStrictEqual([utc(first), utc(second)]);
@@ -334,6 +357,117 @@ describe('the instant of a scheduled local time', () => {
 
         expect(toZoned(occurrence, zone)).toStrictEqual(local);
         expect([0, HOUR_MS]).toContain(at - occurrence);
+      }),
+    );
+  });
+});
+
+describe('the latest instant of a local time read without an offset', () => {
+  it.each([
+    { time: '16:30', on: '2026-11-13', zone: PARIS, expected: '2026-11-13T15:30:00Z' },
+    { time: '19:00', on: '2026-07-04', zone: NEW_YORK, expected: '2026-07-04T23:00:00Z' },
+    {
+      time: '23:59:59.999',
+      on: '2026-11-10',
+      zone: 'Etc/GMT+12',
+      expected: '2026-11-11T11:59:59.999Z',
+    },
+  ])(
+    '[TRV-70] reads $time on $on in $zone, an ordinary time, as its one instant $expected',
+    ({ time, on, zone, expected }) => {
+      expect(latestLocalInstant(day(on), time, zone)).toBe(utc(expected));
+      expect(localOccurrenceInstant(day(on), time, zone)).toBe(utc(expected));
+    },
+  );
+
+  it.each([
+    { time: '02:30', on: '2026-03-29', zone: PARIS, expected: '2026-03-29T01:30:00Z' },
+    { time: '02:30', on: '2026-03-08', zone: NEW_YORK, expected: '2026-03-08T07:30:00Z' },
+  ])(
+    '[TRV-70] moves $time on $on in $zone, a time the clock skips, forward by the one-hour gap, to 03:30',
+    ({ time, on, zone, expected }) => {
+      const latest = latestLocalInstant(day(on), time, zone);
+
+      expect(readingsOf(day(on), time, zone)).toStrictEqual([]);
+      expect(latest).toBe(utc(expected));
+      expect(toZoned(latest, zone)).toStrictEqual({ on, time: '03:30' });
+      expect(latest - localOccurrenceInstant(day(on), time, zone)).toBe(30 * MINUTE_MS);
+    },
+  );
+
+  it.each(REPEATED_TIMES)(
+    '[TRV-70] reads $time on $on in $zone, a time the clock reads twice, as its later occurrence',
+    ({ time, on, zone, first, second }) => {
+      expect(readingsOf(day(on), time, zone)).toStrictEqual([utc(first), utc(second)]);
+      expect(latestLocalInstant(day(on), time, zone)).toBe(utc(second));
+    },
+  );
+
+  it('[TRV-70] is never before the scheduled occurrence of a wall time near a clock change, and at most one hour after it', () => {
+    fc.assert(
+      fc.property(nearClockChange, ({ after, zone, minutes }) => {
+        const wallClock = clockChangeAfter(after, zone).toPlainDateTime().add({ minutes });
+        const on = toIsoDate(wallClock.toPlainDate().toString());
+        const time = wallClock.toPlainTime().toString({ smallestUnit: 'minute' });
+        const lead = latestLocalInstant(on, time, zone) - localOccurrenceInstant(on, time, zone);
+
+        expect(lead).toBeGreaterThanOrEqual(0);
+        expect(lead).toBeLessThanOrEqual(HOUR_MS);
+      }),
+    );
+  });
+
+  it('[TRV-70] reads every minute near a clock change back from its local date and time, or from the later of two that repeat it', () => {
+    fc.assert(
+      fc.property(nearClockChange, ({ after, zone, minutes }) => {
+        const at = toEpochMs(clockChangeAfter(after, zone).epochMilliseconds + minutes * MINUTE_MS);
+        const local = toZoned(at, zone);
+        const latest = latestLocalInstant(local.on, local.time, zone);
+
+        expect(toZoned(latest, zone)).toStrictEqual(local);
+        expect([0, HOUR_MS]).toContain(latest - at);
+      }),
+    );
+  });
+});
+
+describe('isTimeZone', () => {
+  it.each([
+    PARIS,
+    NEW_YORK,
+    'UTC',
+    'Etc/GMT+12',
+    'Etc/GMT-14',
+    'US/Pacific',
+    'America/Argentina/Buenos_Aires',
+    'europe/paris',
+  ])('[IHM-14] accepts %s, a zone of the time-zone database', (zone) => {
+    expect(isTimeZone(zone)).toBe(true);
+  });
+
+  it.each([
+    ['an empty name', ''],
+    ['a city without its area', 'Paris'],
+    ['a zone that the database does not have', 'Europe/Atlantis'],
+    ['an offset', '+02:00'],
+    ['a negative offset', '-05:00'],
+    ['a date and time that names a zone', '2026-11-10T19:30[Europe/Paris]'],
+    ['a name with a space in front', ' Europe/Paris'],
+    ['a SystemV name, which only ICU still knows', 'SystemV/EST5'],
+  ])('[IHM-14] refuses %s: "%s"', (_kind, value) => {
+    expect(isTimeZone(value)).toBe(false);
+  });
+
+  it('[IHM-14] accepts every zone that the runtime lists', () => {
+    expect(Intl.supportedValuesOf('timeZone').filter((zone) => !isTimeZone(zone))).toStrictEqual(
+      [],
+    );
+  });
+
+  it('answers whatever the text, without throwing', () => {
+    fc.assert(
+      fc.property(fc.string(), (text) => {
+        expect(typeof isTimeZone(text)).toBe('boolean');
       }),
     );
   });

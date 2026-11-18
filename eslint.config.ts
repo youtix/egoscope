@@ -867,7 +867,8 @@ const composed = defineConfig(
 
   // --- Time (CLAUDE.md, "Time") ---------------------------------------------------
   {
-    // Only src/lib/time reads the clock and parses dates. The lock wrapper,
+    // Only src/lib/time reads the clock and the machine's time zone, and parses dates;
+    // a server-only module never reads the device's zone through it. The lock wrapper,
     // scripts/with-lock.ts and its test, still times its waits with Date.now(): it
     // stays out, by name, until a follow-up task moves it to the clock of @/lib/time.
     name: 'egoscope/ambient-time',
