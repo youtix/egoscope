@@ -20,6 +20,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 const SCRIPT = path.join(import.meta.dirname, 'with-lock.ts');
 const LOCK = 'egoscope-heavy.lock';
 const HOLDER = { pid: 4242, startedAt: 1_000_000, command: 'vitest run', cwd: '/work/tree' };
+const MISSING_PROGRAM = 'egoscope-missing-program';
 
 type Outcome = Readonly<{
   code: number | null;
@@ -73,7 +74,7 @@ function start(
   });
   const outcome = new Promise<Outcome>((resolve) => {
     child.on('close', (code, signal) => {
-      resolve({ code, signal, stdout, stderr, endedAt: Date.now() });
+      resolve({ code, signal, stdout, stderr, endedAt: performance.now() });
     });
   });
   return { child, stderr: () => stderr, exited, outcome };
@@ -282,46 +283,59 @@ describe('with-lock', { timeout: 30_000 }, () => {
     expect(waited.stderr).toMatch(/Got the lock after waiting \d+s/u);
   });
 
-  it('passes SIGTERM on to the command and waits for the command to end', async () => {
-    const folder = lockFolder();
-    const [started, cleaned] = [path.join(folder, 'started'), path.join(folder, 'cleaned')];
-    const script = [
-      'trap \'kill "$pid"; sleep 0.5; touch "$2"; exit 42\' TERM',
-      'sleep 10 & pid=$!',
-      'touch "$1"',
-      'wait "$pid"',
-    ].join('\n');
-    const run = start(['sh', '-c', script, 'sh', started, cleaned], folder);
-    // The wrapper catches the signals before it starts any process, so a command
-    // that has set its trap shows that both are ready.
-    await until(() => existsSync(started));
+  it.each([
+    ['with the lock', {}],
+    ['without the lock', { CI: 'true' }],
+  ])(
+    'passes SIGTERM on to the command of a run %s and waits for the command to end',
+    async (_run, extra) => {
+      const folder = lockFolder();
+      const [started, cleaned] = [path.join(folder, 'started'), path.join(folder, 'cleaned')];
+      const script = [
+        'trap \'kill "$pid"; sleep 0.5; touch "$2"; exit 42\' TERM',
+        'sleep 10 & pid=$!',
+        'touch "$1"',
+        'wait "$pid"',
+      ].join('\n');
+      const run = start(['sh', '-c', script, 'sh', started, cleaned], folder, extra);
+      // The wrapper catches the signals before it starts any process, so a command
+      // that has set its trap shows that both are ready.
+      await until(() => existsSync(started));
 
-    run.child.kill('SIGTERM');
-    const outcome = await run.outcome;
+      run.child.kill('SIGTERM');
+      const outcome = await run.outcome;
 
-    expect(outcome.code).toBe(42);
-    expect(existsSync(cleaned)).toBe(true);
-  });
+      expect(outcome.code).toBe(42);
+      expect(existsSync(cleaned)).toBe(true);
+    },
+  );
 
-  it('ends with status 143 and starts nothing on a SIGTERM that comes before the command has started', async () => {
-    const folder = lockFolder();
-    const ran = path.join(folder, 'ran');
-    // The first run holds the lock until its input ends, so the second one cannot start.
-    const holder = start(['cat'], folder);
-    await untilHeld(folder);
-    const waiter = start(['touch', ran], folder);
-    // The wrapper writes this line once it has caught the signals and found the lock taken.
-    await until(() => waiter.stderr().includes('[lock] Waiting for'));
+  it.each<[NodeJS.Signals, number]>([
+    ['SIGINT', 130],
+    ['SIGTERM', 143],
+    ['SIGHUP', 129],
+  ])(
+    'ends on a %s that comes before the command has started, with status %i, and starts nothing',
+    async (signal, status) => {
+      const folder = lockFolder();
+      const ran = path.join(folder, 'ran');
+      // The first run holds the lock until its input ends, so the second one cannot start.
+      const holder = start(['cat'], folder);
+      await untilHeld(folder);
+      const waiter = start(['touch', ran], folder);
+      // The wrapper writes this line once it has caught the signals and found the lock taken.
+      await until(() => waiter.stderr().includes('[lock] Waiting for'));
 
-    waiter.child.kill('SIGTERM');
-    const stopped = await waiter.outcome;
-    holder.child.stdin.end();
-    await holder.outcome;
+      waiter.child.kill(signal);
+      const stopped = await waiter.outcome;
+      holder.child.stdin.end();
+      await holder.outcome;
 
-    expect(stopped.code).toBe(143);
-    expect(stopped.signal).toBeNull();
-    expect(existsSync(ran)).toBe(false);
-  });
+      expect(stopped.code).toBe(status);
+      expect(stopped.signal).toBeNull();
+      expect(existsSync(ran)).toBe(false);
+    },
+  );
 
   it.each([
     ['takes the lock', (folder: string) => `echo '${folder}'`, ''],
@@ -334,10 +348,12 @@ describe('with-lock', { timeout: 30_000 }, () => {
     'ends with status 143 and starts nothing on a SIGTERM during the start-up checks of a run that %s',
     async (_run, reply, stderr) => {
       const folder = lockFolder();
-      const ran = path.join(folder, 'ran');
       // Without EGOSCOPE_LOCK_DIR, the wrapper asks git for its lock folder.
       const git = slowGit(folder, reply(folder));
-      const run = start(['touch', ran], folder, { EGOSCOPE_LOCK_DIR: '', PATH: git.path });
+      // Starting a missing program fails at once and loudly, so a signal passed on to
+      // it cannot hide the start: the wrapper reports it without the lock, and the
+      // hold shell, which ignores the signal, under it. A quiet run started nothing.
+      const run = start([MISSING_PROGRAM], folder, { EGOSCOPE_LOCK_DIR: '', PATH: git.path });
       await until(() => existsSync(git.asked));
 
       run.child.kill('SIGTERM');
@@ -348,7 +364,6 @@ describe('with-lock', { timeout: 30_000 }, () => {
       expect(stopped.code).toBe(143);
       expect(stopped.signal).toBeNull();
       expect(stopped.stderr).toBe(stderr);
-      expect(existsSync(ran)).toBe(false);
     },
   );
 
@@ -404,6 +419,14 @@ describe('with-lock', { timeout: 30_000 }, () => {
     expect(inCi.code).toBe(0);
     expect(inCi.stderr).toBe('');
     expect(inCi.endedAt).toBeLessThan(held.endedAt);
+  });
+
+  it('reports a program that cannot start, with status 127, on a run without the lock', async () => {
+    const outcome = await withLock([MISSING_PROGRAM, '--flag'], lockFolder(), { CI: 'true' });
+
+    expect(outcome.code).toBe(127);
+    expect(outcome.stdout).toBe('');
+    expect(outcome.stderr).toMatch(/^\[lock\] Cannot run egoscope-missing-program: .+\n$/u);
   });
 
   it('fails with a clear message when one run holds the lock past the limit', async () => {

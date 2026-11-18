@@ -76,8 +76,7 @@ gives no difference.
   `Date.parse`, `new Date(string)`, `new Date(year, month, …)`, `Temporal.Now`, the local getters,
   setters and `toLocale*` of a date, `Intl.DateTimeFormat` without a `timeZone`, and
   `Temporal.Instant.from` or `Temporal.ZonedDateTime.from` of a string elsewhere in `src/`,
-  `scripts/` and `e2e/`, except in the lock wrapper (`scripts/with-lock.ts` and its test), which
-  still times its waits with `Date.now()`. With Cache Components, a Server Component calls
+  `scripts/` and `e2e/`. With Cache Components, a Server Component calls
   `await io()` (from `next/cache`) inside `<Suspense>` before `now()`, and a Client Component
   `use(io())`; keep `connection()` for code that must wait for a real request.
 - An instant is an `EpochMs`, a calendar date an `IsoDate`, and every day names its zone: the
