@@ -55,7 +55,7 @@ const rulesOf = (findings: readonly Finding[]): readonly unknown[] =>
       : finding,
   );
 
-test.describe('[IHM-61] the accessibility check', () => {
+test.describe('the accessibility check', () => {
   test('passes a page that meets WCAG 2.2 AA', async ({ page }) => {
     await page.setContent(pageWith('<p>Every case counts.</p>'));
 
