@@ -1,9 +1,9 @@
 // Proves that no-skipped-tests, the one rule that uses vitest-names.ts, knows a
 // Vitest object by every name it goes by (an import alias, a member of the vitest
-// namespace, a variable that holds one, such as a test made by it.extend()), and
-// tells the test context from the fixtures that come with it. The rule's other
-// probes are in eslint-plugin.test.ts. Deliberate violations are linted in the
-// probe project of lint-probes.ts.
+// namespace, a variable that holds one, such as a test made by it.extend()), reads
+// every member of its chains, and tells the test context from the fixtures that
+// come with it. The rule's other probes are in eslint-plugin.test.ts. Deliberate
+// violations are linted in the probe project of lint-probes.ts.
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { createProbes } from './lint-probes';
@@ -14,7 +14,7 @@ const { ruleIds, remove } = createProbes();
 const inTest = (body: string, imports = "import { describe, expect, it } from 'vitest';"): string =>
   `${imports}\n\ndescribe('probe', () => {\n${body}\n});\n`;
 
-describe('vitestNames and contextPart, through no-skipped-tests', { timeout: 120_000 }, () => {
+describe('vitestNames, contextPart and chains in no-skipped-tests', { timeout: 120_000 }, () => {
   afterAll(remove);
 
   it.each([
@@ -128,6 +128,47 @@ describe('vitestNames and contextPart, through no-skipped-tests', { timeout: 120
     const body = `  it('skips', (${parameter}) => {\n    ${call};\n  });`;
 
     expect(await ruleIds('src/lib/probe/probe.test.ts', inTest(body))).toContain(
+      'egoscope/no-skipped-tests',
+    );
+  });
+
+  // Vitest carries a modifier along the rest of its chain: `it.fails.each([1])`
+  // makes expected failures, as `it.concurrent.fails` does.
+  it.each([
+    ['an expected failure, then concurrent', "  it.fails.concurrent('fails', () => undefined);"],
+    ['an expected failure, then for', "  it.fails.for([1])('fails', () => undefined);"],
+    ['an expected failure, then each', "  it.fails.each([1])('fails', () => undefined);"],
+    ['a skip, then for', "  it.skip.for([1])('runs', () => undefined);"],
+    ['a skip, then each', "  it.skip.each([1])('runs', () => undefined);"],
+    ['a skip, then concurrent', "  it.skip.concurrent('runs', () => undefined);"],
+    [
+      'a skip held in a variable, then called',
+      "  const pending = it.skip;\n  pending('runs', () => undefined);",
+    ],
+  ])('rejects %s once: every member of a chain counts, not only the last', async (_kind, body) => {
+    const rules = await ruleIds('src/lib/probe/probe.test.ts', inTest(body));
+
+    expect(rules.filter((rule) => rule === 'egoscope/no-skipped-tests')).toHaveLength(1);
+  });
+
+  it('lets each, concurrent and for run, alone or chained, on tests and suites', async () => {
+    const body = [
+      "  it.each([1])('runs %i', (count) => {",
+      '    expect(count).toBe(1);',
+      '  });',
+      "  it.concurrent('runs', () => {",
+      '    expect(Math.max(1, 2)).toBe(2);',
+      '  });',
+      "  it.for([1])('runs %i', (count) => {",
+      '    expect(count).toBe(1);',
+      '  });',
+      "  it.concurrent.each([1])('runs %i', (count) => {",
+      '    expect(count).toBe(1);',
+      '  });',
+      "  describe.each([1])('suite %i', () => undefined);",
+    ].join('\n');
+
+    expect(await ruleIds('src/lib/probe/probe.test.ts', inTest(body))).not.toContain(
       'egoscope/no-skipped-tests',
     );
   });

@@ -541,6 +541,7 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
         ...IGNORED_FOLDERS,
         ...GENERATED_FOLDERS,
         '.next/',
+        '.stryker-tmp/',
         '.vitest/',
         'coverage/',
         'out/',

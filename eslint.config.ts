@@ -482,6 +482,9 @@ const composed = defineConfig(
     // Generated files are never edited by hand: their generator answers for them.
     ...GENERATED_FOLDERS,
     '.next/',
+    // Stryker's default sandbox folder, for a run without stryker.config.ts, which
+    // moves the sandboxes under reports/.
+    '.stryker-tmp/',
     '.vitest/',
     'coverage/',
     'out/',

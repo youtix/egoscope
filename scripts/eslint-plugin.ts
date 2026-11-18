@@ -7,8 +7,9 @@
  * - `no-tool-pragmas`: comments that switch another tool of the gate off.
  * - `no-skipped-tests`: tests switched off while the suite runs.
  * - `no-local-time`, `no-ambient-time` and `no-default-locale`, in
- *   eslint-time-rules.ts: local time in the pure core, the clock, date parsing
- *   and default locales, whose results depend on the machine.
+ *   eslint-time-rules.ts: local time in the pure core, the clock, the machine's
+ *   time zone, date parsing and default locales, whose results depend on the
+ *   machine.
  */
 import { AST_NODE_TYPES, AST_TOKEN_TYPES, ESLintUtils } from '@typescript-eslint/utils';
 
@@ -69,11 +70,14 @@ function isEquivalentMutant(comment: TSESTree.Comment): boolean {
   );
 }
 
-// Vitest calls that skip a test, run it only under a condition, or turn its
-// failure into a pass, on Vitest's own objects and their chains (`it.concurrent.fails`),
-// whatever name an object goes by (vitest-names.ts), such as a test made by `it.extend()`.
-// The Vitest plugin's own rules refuse the skip, only and to-do modifiers too.
-const SKIPPING_CALLS: ReadonlySet<string> = new Set(['skip', 'skipIf', 'runIf', 'fails']);
+// The members of Vitest's own objects that skip a test, run it only under a
+// condition, or turn its failure into a pass, whatever name an object goes by
+// (vitest-names.ts), such as a test made by `it.extend()`. Vitest carries each of
+// them along the rest of a chain, so every member counts, wherever it stands in the
+// chain and whether or not it is called there: `it.fails.each([1])` as much as
+// `it.concurrent.fails`. The Vitest plugin's own rules refuse the skip, only and
+// to-do modifiers too.
+const SKIPPING_MEMBERS: ReadonlySet<string> = new Set(['skip', 'skipIf', 'runIf', 'fails']);
 const VITEST_OBJECTS: ReadonlySet<string> = new Set(['it', 'test', 'describe', 'suite', 'bench']);
 // The calls whose callback receives the test context, whose skip() skips the test.
 const CONTEXT_OWNERS: ReadonlySet<string> = new Set([...VITEST_OBJECTS, 'beforeEach', 'afterEach']);
@@ -205,28 +209,19 @@ function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope)
   );
 }
 
-/** The skipping member that `callee` takes from a Vitest object: `skipIf` in `it.skipIf`. */
-function vitestSkippingMember(
-  callee: TSESTree.Expression,
-  scope: TSESLint.Scope.Scope,
-): string | undefined {
-  return callee.type === AST_NODE_TYPES.MemberExpression &&
-    callee.property.type === AST_NODE_TYPES.Identifier &&
-    SKIPPING_CALLS.has(callee.property.name) &&
-    vitestNames(callee.object, scope).some((name) => VITEST_OBJECTS.has(name))
-    ? callee.property.name
-    : undefined;
-}
-
 /**
- * The skipping call that `callee` makes, if any: a skipping member of a Vitest
- * object (`it.skipIf`), or skip() from the test context.
+ * The skipping member that `node` reads from a Vitest object, if any: `skipIf` in
+ * `it.skipIf`, and `fails` in `it.fails.concurrent` as in `it.concurrent.fails`.
  */
-function skippingCall(
-  callee: TSESTree.Expression,
+function vitestSkippingMember(
+  node: TSESTree.MemberExpression,
   scope: TSESLint.Scope.Scope,
 ): string | undefined {
-  return isContextSkip(callee, scope) ? 'skip' : vitestSkippingMember(callee, scope);
+  return node.property.type === AST_NODE_TYPES.Identifier &&
+    SKIPPING_MEMBERS.has(node.property.name) &&
+    vitestNames(node.object, scope).some((name) => VITEST_OBJECTS.has(name))
+    ? node.property.name
+    : undefined;
 }
 
 const noSkippedTests = createRule({
@@ -244,9 +239,15 @@ const noSkippedTests = createRule({
     const scope = context.sourceCode.getScope(context.sourceCode.ast);
     return {
       CallExpression(node): void {
-        const name = skippingCall(node.callee, scope);
+        if (isContextSkip(node.callee, scope)) {
+          context.report({ node: node.callee, messageId: 'skip', data: { name: 'skip' } });
+        }
+      },
+      // Each member of a chain is visited on its own, so each is reported once.
+      MemberExpression(node): void {
+        const name = vitestSkippingMember(node, scope);
         if (name !== undefined) {
-          context.report({ node: node.callee, messageId: 'skip', data: { name } });
+          context.report({ node, messageId: 'skip', data: { name } });
         }
       },
     };
