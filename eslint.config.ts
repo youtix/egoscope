@@ -538,6 +538,10 @@ const composed = defineConfig(
     '.vitest/',
     'coverage/',
     'out/',
+    // What an end-to-end run writes: Playwright's report, its trace viewer
+    // included, and the traces and screenshots of the failed tests.
+    'playwright-report/',
+    'test-results/',
     'reports/',
     'next-env.d.ts',
   ]),

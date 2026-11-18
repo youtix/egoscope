@@ -556,6 +556,8 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
         '.vitest/',
         'coverage/',
         'out/',
+        'playwright-report/',
+        'test-results/',
         'reports/',
         'next-env.d.ts',
       ]);
