@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -15,7 +15,7 @@ import {
   watchMode,
 } from './with-lock';
 
-import type { ChildProcess } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 
 const SCRIPT = path.join(import.meta.dirname, 'with-lock.ts');
 const LOCK = 'egoscope-heavy.lock';
@@ -29,7 +29,7 @@ type Outcome = Readonly<{
   endedAt: number;
 }>;
 type Run = Readonly<{
-  child: ChildProcess;
+  child: ChildProcessWithoutNullStreams;
   stderr: () => string;
   /** Settles when the wrapper process ends, while its command may still write output. */
   exited: Promise<unknown>;
@@ -96,6 +96,45 @@ async function until(isDone: () => boolean): Promise<void> {
 /** Resolves once a run holds the lock in `folder`. */
 async function untilHeld(folder: string): Promise<void> {
   await until(() => existsSync(path.join(folder, `${LOCK}.json`)));
+}
+
+/**
+ * Resolves once process `pid` has taken delivery of the signals sent to it, so that
+ * it has caught them, even when it is still busy with something else.
+ */
+async function untilDelivered(pid: number): Promise<void> {
+  await until(() => /^ShdPnd:\s+0+$/mu.test(readFileSync(`/proc/${String(pid)}/status`, 'utf8')));
+}
+
+type SlowGit = Readonly<{ path: string; asked: string; answer: () => void }>;
+
+/**
+ * Writes a `git` for the PATH it returns: when the wrapper asks it for the git
+ * directory during its start-up checks, it creates `asked`, then runs `reply` only
+ * once the test calls `answer`. The shells that the wrapper starts from that PATH
+ * ignore SIGTERM, so a signal passed on to them cannot stand in for the go-ahead.
+ */
+function slowGit(folder: string, reply: string): SlowGit {
+  const bin = path.join(folder, 'bin');
+  const [asked, answered] = [path.join(folder, 'asked'), path.join(folder, 'answered')];
+  mkdirSync(bin);
+  const script = [
+    '#!/bin/sh',
+    `touch '${asked}'`,
+    `until [ -e '${answered}' ]; do sleep 0.01; done`,
+    reply,
+  ];
+  writeFileSync(path.join(bin, 'git'), `${script.join('\n')}\n`, { mode: 0o755 });
+  writeFileSync(path.join(bin, 'sh'), '#!/bin/sh\ntrap "" TERM\nexec /bin/sh "$@"\n', {
+    mode: 0o755,
+  });
+  return {
+    path: `${bin}:${process.env['PATH'] ?? ''}`,
+    asked,
+    answer: () => {
+      writeFileSync(answered, '');
+    },
+  };
 }
 
 /** Says whether a process holds the lock in `folder`, by trying to take it. */
@@ -253,6 +292,8 @@ describe('with-lock', { timeout: 30_000 }, () => {
       'wait "$pid"',
     ].join('\n');
     const run = start(['sh', '-c', script, 'sh', started, cleaned], folder);
+    // The wrapper catches the signals before it starts any process, so a command
+    // that has set its trap shows that both are ready.
     await until(() => existsSync(started));
 
     run.child.kill('SIGTERM');
@@ -261,6 +302,55 @@ describe('with-lock', { timeout: 30_000 }, () => {
     expect(outcome.code).toBe(42);
     expect(existsSync(cleaned)).toBe(true);
   });
+
+  it('ends with status 143 and starts nothing on a SIGTERM that comes before the command has started', async () => {
+    const folder = lockFolder();
+    const ran = path.join(folder, 'ran');
+    // The first run holds the lock until its input ends, so the second one cannot start.
+    const holder = start(['cat'], folder);
+    await untilHeld(folder);
+    const waiter = start(['touch', ran], folder);
+    // The wrapper writes this line once it has caught the signals and found the lock taken.
+    await until(() => waiter.stderr().includes('[lock] Waiting for'));
+
+    waiter.child.kill('SIGTERM');
+    const stopped = await waiter.outcome;
+    holder.child.stdin.end();
+    await holder.outcome;
+
+    expect(stopped.code).toBe(143);
+    expect(stopped.signal).toBeNull();
+    expect(existsSync(ran)).toBe(false);
+  });
+
+  it.each([
+    ['takes the lock', (folder: string) => `echo '${folder}'`, ''],
+    [
+      'runs without it',
+      () => 'exit 1',
+      '[lock] No git directory or no flock here: running without the shared lock.\n',
+    ],
+  ])(
+    'ends with status 143 and starts nothing on a SIGTERM during the start-up checks of a run that %s',
+    async (_run, reply, stderr) => {
+      const folder = lockFolder();
+      const ran = path.join(folder, 'ran');
+      // Without EGOSCOPE_LOCK_DIR, the wrapper asks git for its lock folder.
+      const git = slowGit(folder, reply(folder));
+      const run = start(['touch', ran], folder, { EGOSCOPE_LOCK_DIR: '', PATH: git.path });
+      await until(() => existsSync(git.asked));
+
+      run.child.kill('SIGTERM');
+      await untilDelivered(run.child.pid ?? 0);
+      git.answer();
+      const stopped = await run.outcome;
+
+      expect(stopped.code).toBe(143);
+      expect(stopped.signal).toBeNull();
+      expect(stopped.stderr).toBe(stderr);
+      expect(existsSync(ran)).toBe(false);
+    },
+  );
 
   it('keeps the lock until the command ends, even when every wrapper is killed', async () => {
     const folder = lockFolder();
