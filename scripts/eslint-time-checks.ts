@@ -18,7 +18,8 @@ export type Services = ParserServicesWithTypeInformation;
 
 /**
  * A node that names a module: an import, import type or `export … from`, an
- * `import()`, an import type such as `import('x').Y`, or a call of `require`.
+ * `import()`, an import type such as `import('x').Y`, a call of `require`, or the
+ * `require('x')` of `import x = require('x')`.
  */
 export type ModuleReference =
   | TSESTree.CallExpression
@@ -26,6 +27,7 @@ export type ModuleReference =
   | TSESTree.ExportNamedDeclaration
   | TSESTree.ImportDeclaration
   | TSESTree.ImportExpression
+  | TSESTree.TSExternalModuleReference
   | TSESTree.TSImportType;
 
 const INTL_CONSTRUCTOR = /^[A-Z]/u;
@@ -37,6 +39,8 @@ const ROUTE_HANDLER = /^src\/app\/(?:.+\/)?route\.tsx?$/u;
 const TEMPORAL_INSTANT = /(?:^|\.)Temporal\.Instant$/u;
 // Temporal's package, under any of its entry points, such as `temporal-polyfill/global`.
 const TEMPORAL_PACKAGE = /^temporal-polyfill(?:\/|$)/u;
+// The Unix time at which the performance timer of a process starts counting.
+const TIME_ORIGIN = 'timeOrigin';
 
 /** The Date methods that read or write local time, or print it. */
 export const LOCAL_TIME_METHODS: ReadonlySet<string> = new Set([
@@ -108,12 +112,23 @@ export const isServerModule = (program: TSESTree.Program, file: string): boolean
   ROUTE_HANDLER.test(file) || program.body.some((statement) => isServerMarker(statement));
 
 /**
+ * The node whose string names the module of `node`: `'x'` of `import … from 'x'`,
+ * of `require('x')` and of `import y = require('x')`.
+ */
+function moduleSource(node: ModuleReference): TSESTree.Node | null | undefined {
+  if (node.type === AST_NODE_TYPES.CallExpression) {
+    return node.arguments[0];
+  }
+  return node.type === AST_NODE_TYPES.TSExternalModuleReference ? node.expression : node.source;
+}
+
+/**
  * Says whether `node` names temporal-polyfill, or one of its entry points, by a
  * constant string: `import { Temporal } from 'temporal-polyfill'`,
  * `import('temporal-polyfill')` or `require('temporal-polyfill/global')`.
  */
 export function isTemporalImport(node: ModuleReference): boolean {
-  const source = node.type === AST_NODE_TYPES.CallExpression ? node.arguments[0] : node.source;
+  const source = moduleSource(node);
   const name = source ? ASTUtils.getStringIfConstant(source) : null;
   return name !== null && TEMPORAL_PACKAGE.test(name);
 }
@@ -162,11 +177,23 @@ export function canBeDate(services: Services, node: TSESTree.Node): boolean {
  * Says whether the value of `node` may be a `Performance`, the timer of the global
  * `performance` and of `node:perf_hooks`, whatever the name it goes by.
  */
-export function canBePerformance(services: Services, node: TSESTree.Node): boolean {
+function canBePerformance(services: Services, node: TSESTree.Node): boolean {
   return possibleTypes(services, node).some(
     (part) => part.getSymbol()?.getName() === 'Performance',
   );
 }
+
+/**
+ * Says whether `property` of the value of `object` is the Unix time at which a
+ * performance timer started: `performance.timeOrigin`, whatever the name the timer
+ * goes by, or the `timeOrigin` of a pattern that destructures it, whose type is the
+ * timer's.
+ */
+export const isTimeOrigin = (
+  services: Services,
+  object: TSESTree.Node,
+  property: string | null,
+): boolean => property === TIME_ORIGIN && canBePerformance(services, object);
 
 /** Says whether the value of `node` may be a `Temporal.Instant`, alone or among other types. */
 export function canBeInstant(services: Services, node: TSESTree.Node): boolean {

@@ -1,10 +1,11 @@
 // Proves what no-ambient-time refuses of Temporal, of the performance timer and of
 // server modules, beside the harmless forms that it lets through: only src/lib/time
-// imports temporal-polyfill, Temporal parses no text, a Temporal.Instant prints no
-// local time, a generic type is judged by its constraint, only the lock wrapper reads
-// the start of the performance timer, and no server module reads the device's zone.
-// A probe outside src/lib/time that imports temporal-polyfill also gets the import's
-// refusal, so the probes of the other checks name the message they expect.
+// imports temporal-polyfill, Temporal reads no clock and parses no text, a
+// Temporal.Instant prints no local time, a generic type is judged by its constraint,
+// only the lock wrapper reads the start of the performance timer, and no server module
+// reads the device's zone. A probe outside src/lib/time that imports temporal-polyfill
+// also gets the import's refusal, so the probes of the other checks name the message
+// they expect, and those of a global Temporal import nothing.
 // Deliberate violations are linted in the probe project of lint-probes.ts.
 import { afterAll, describe, expect, it } from 'vitest';
 
@@ -71,6 +72,10 @@ describe('no-ambient-time: Temporal, the timer and server modules', { timeout: 1
       ],
       ['an import type', "export type Day = import('temporal-polyfill').Temporal.PlainDate;\n"],
       ['an import of the global entry point', "import 'temporal-polyfill/global';\n"],
+      [
+        'an import = require()',
+        "import polyfill = require('temporal-polyfill');\n\nexport const time: unknown = polyfill;\n",
+      ],
     ])('rejects %s of temporal-polyfill', async (_kind, code) => {
       expect(await refusals(PROBE, code)).toStrictEqual(['temporal']);
     });
@@ -102,7 +107,7 @@ describe('no-ambient-time: Temporal, the timer and server modules', { timeout: 1
     });
   });
 
-  describe('Temporal parses no text outside src/lib/time', () => {
+  describe('Temporal reads no clock and parses no text outside src/lib/time', () => {
     const PARSES = [
       [
         'a date',
@@ -146,12 +151,23 @@ describe('no-ambient-time: Temporal, the timer and server modules', { timeout: 1
       expect(await ruleIds('src/lib/time/probe.ts', `${TEMPORAL}${code}`)).not.toContain(RULE);
     });
 
-    it('rejects a parse by a global Temporal, which a runtime may have, with no import', async () => {
-      const code =
-        'export const day = (text: string): number => Temporal.PlainDate.from(text).day;\n';
-
-      expect(await refusals(PROBE, code)).toStrictEqual(['parse']);
-    });
+    it.each([
+      [
+        'a parse',
+        'export const day = (text: string): number => Temporal.PlainDate.from(text).day;\n',
+        'parse',
+      ],
+      [
+        'a read of the clock',
+        'export const now = (): number => Temporal.Now.instant().epochMilliseconds;\n',
+        'clock',
+      ],
+    ])(
+      'rejects %s by a global Temporal, which a runtime may have, with no import',
+      async (_kind, code, message) => {
+        expect(await refusals(PROBE, code)).toStrictEqual([message]);
+      },
+    );
 
     it('allows Temporal values made from fields or from other Temporal values', async () => {
       const code = [
@@ -224,6 +240,8 @@ describe('no-ambient-time: Temporal, the timer and server modules', { timeout: 1
 
   describe('only the lock wrapper reads the start of the performance timer', () => {
     const TIME_ORIGIN = 'export const startedAt = (): number => performance.timeOrigin;\n';
+    const DESTRUCTURED =
+      'export const startedAt = (): number => {\n  const { timeOrigin } = performance;\n  return timeOrigin;\n};\n';
 
     it.each([
       PROBE,
@@ -244,14 +262,31 @@ describe('no-ambient-time: Temporal, the timer and server modules', { timeout: 1
         'under another name',
         "import { performance as timer } from 'node:perf_hooks';\n\nexport const startedAt = (): number => timer.timeOrigin;\n",
       ],
+      ['destructured', DESTRUCTURED],
+      [
+        'destructured in a parameter',
+        'export const startedAt = ({ timeOrigin }: Performance): number => timeOrigin;\n',
+      ],
     ])('rejects performance.timeOrigin %s', async (_kind, code) => {
       expect(await refusals('scripts/probe.ts', code)).toStrictEqual(['clock']);
     });
 
+    it('lets a module read a timeOrigin of its own, which no performance timer holds', async () => {
+      const code = [
+        'type Lease = Readonly<{ timeOrigin: number }>;',
+        'export const origin = (lease: Lease): number => lease.timeOrigin;',
+        'export const start = ({ timeOrigin }: Lease): number => timeOrigin;',
+        '',
+      ].join('\n');
+
+      expect(await refusals('scripts/probe.ts', code)).toStrictEqual([]);
+    });
+
     it.each(['scripts/with-lock.ts', 'scripts/signal-relay.ts'])(
-      'lets %s, a file of the lock wrapper, read performance.timeOrigin',
+      'lets %s, a file of the lock wrapper, read performance.timeOrigin, destructured or not',
       async (file) => {
         expect(await refusals(file, TIME_ORIGIN)).toStrictEqual([]);
+        expect(await refusals(file, DESTRUCTURED)).toStrictEqual([]);
       },
     );
 

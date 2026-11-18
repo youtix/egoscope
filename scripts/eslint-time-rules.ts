@@ -13,13 +13,13 @@
  *   result is the same on the server and on the owner's devices: no import of
  *   temporal-polyfill, in any of the ways to name a module, no Date made from
  *   anything but an instant, no local-time method of a Date, no
- *   `performance.timeOrigin`, no `Intl.DateTimeFormat` without a `timeZone`, no
- *   locale format of a `Temporal.Instant`, and no date, time of day or instant that
- *   Temporal's `from` reads from a value that may be a string, a global `Temporal`
- *   included, where a runtime has one. Client code reads the device's zone with
- *   `deviceTimeZone`, which no server module imports: one that imports
- *   `server-only`, starts with `'use server'` or is a route handler. Its
- *   `allowTimeOrigin` option lets the lock wrapper's files read
+ *   `performance.timeOrigin`, read or destructured, no `Intl.DateTimeFormat`
+ *   without a `timeZone`, no locale format of a `Temporal.Instant`, and no date,
+ *   time of day or instant that Temporal's `from` reads from a value that may be a
+ *   string, a global `Temporal` included, where a runtime has one. Client code
+ *   reads the device's zone with `deviceTimeZone`, which no server module imports:
+ *   one that imports `server-only`, starts with `'use server'` or is a route
+ *   handler. Its `allowTimeOrigin` option lets the lock wrapper's files read
  *   `performance.timeOrigin`. UTC methods, `performance.now()`, `Intl.NumberFormat`,
  *   date formats that name their zone, Temporal values made from fields or from
  *   other Temporal values, and the locale formats of the Temporal values that carry
@@ -34,7 +34,6 @@ import { AST_NODE_TYPES, ASTUtils, ESLintUtils } from '@typescript-eslint/utils'
 import {
   canBeDate,
   canBeInstant,
-  canBePerformance,
   canBeString,
   hasTimeZone,
   importedName,
@@ -44,6 +43,7 @@ import {
   isNumber,
   isServerModule,
   isTemporalImport,
+  isTimeOrigin,
   LOCAL_TIME_METHODS,
   temporalFrom,
 } from './eslint-time-checks';
@@ -132,12 +132,10 @@ const LOCALE_FORMAT = 'toLocale';
 // and the name under which other modules import it (module rule 4).
 const DEVICE_ZONE = 'deviceTimeZone';
 const TIME_MODULE = '@/lib/time';
-// The Unix time at which the performance timer of a process starts counting.
-const TIME_ORIGIN = 'timeOrigin';
 // Every way of naming a module: import, import type, export … from, import(), import
-// types, and a call of require().
+// types, a call of require(), and the require() of `import x = require('x')`.
 const MODULE_REFERENCES =
-  "ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration, ImportExpression, TSImportType, CallExpression[callee.name='require']";
+  "ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration, ImportExpression, TSImportType, CallExpression[callee.name='require'], TSExternalModuleReference";
 
 /** What reads the ambient time, as no-ambient-time reports it. */
 type AmbientRead = Readonly<{
@@ -233,7 +231,7 @@ function ambientMember(
   if (member !== undefined) {
     return member;
   }
-  if (property === TIME_ORIGIN && canBePerformance(services, node.object)) {
+  if (isTimeOrigin(services, node.object, property)) {
     return TIME_ORIGIN_READ;
   }
   if (property !== null && isLocalTimeMethod(services, node.object, property)) {
@@ -298,6 +296,10 @@ export const noAmbientTime = createRule<[{ allowTimeOrigin: boolean }], AmbientR
           property === DEVICE_ZONE &&
           isNamespaceOf(node.object, scope, TIME_MODULE);
         report(node, isDeviceRead ? DEVICE_READ : ambientMember(services, node, property));
+      },
+      'ObjectPattern > Property'(node: TSESTree.Property): void {
+        const name = ASTUtils.getPropertyName(node, context.sourceCode.getScope(node));
+        report(node, isTimeOrigin(services, node.parent, name) ? TIME_ORIGIN_READ : undefined);
       },
       CallExpression(node): void {
         report(node, ambientCall(services, node));
