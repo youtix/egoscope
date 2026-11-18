@@ -74,7 +74,9 @@ gives no difference.
 - Only `@/lib/time` reads the clock and the machine's time zone, parses dates and converts time
   zones. Take the instant from `now()`; lint refuses `Date.now()`, `new Date()`, `Date()`,
   `Date.parse`, `new Date(string)`, `new Date(year, month, …)`, `Temporal.Now`, the local getters,
-  setters and `toLocale*` of a date, `Intl.DateTimeFormat` without a `timeZone`, and
+  setters and `toLocale*` of a date, the `toLocale*` of a `Temporal.Instant`, `Intl.DateTimeFormat`
+  without a `timeZone`, `Temporal.PlainDate.from`, `Temporal.PlainTime.from` or
+  `Temporal.PlainDateTime.from` of a string, and
   `Temporal.Instant.from` or `Temporal.ZonedDateTime.from` of a string elsewhere in `src/`,
   `scripts/` and `e2e/`. With Cache Components, a Server Component calls
   `await io()` (from `next/cache`) inside `<Suspense>` before `now()`, and a Client Component
@@ -83,7 +85,7 @@ gives no difference.
   owner's day (`userDay`, in the `display.timeZone` setting the caller passes in, never a fixed
   Paris) for tasks and displays, a game's day (`gameDay`, its US Eastern date) for games. Only
   client code reads the device's zone, with `deviceTimeZone()`; lint refuses it in a server-only
-  module.
+  module, a module that starts with `'use server'` and a route handler (`route.ts`).
 - Tests set the time with `fixedClock` and `installFakeClock`, and restore the clock afterwards.
 - People read dates through the `time` formatters, machines in ISO 8601. Nowhere does code call
   `toLocale*`, `localeCompare` or an `Intl` constructor without an explicit locale.

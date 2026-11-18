@@ -24,6 +24,14 @@ const ICU_ONLY_AREA = 'systemv/';
 /** The date and the wall-clock time `HH:MM` at which an instant reads in one zone. */
 export type LocalDateTime = Readonly<{ on: IsoDate; time: string }>;
 
+/** Why a text was refused as a zone: the time-zone database has no zone of that name. */
+export type TimeZoneError = Readonly<{ kind: 'unknown_zone' }>;
+
+export type TimeZoneResult =
+  Readonly<{ ok: true; zone: string }> | Readonly<{ ok: false; error: TimeZoneError }>;
+
+const UNKNOWN_ZONE: TimeZoneResult = { ok: false, error: { kind: 'unknown_zone' } };
+
 /**
  * An instant as Temporal's date-time in `zone`, for this module's formatters.
  * Throws a RangeError for an unknown zone.
@@ -42,6 +50,17 @@ function knownZoneId(zone: string): string | undefined {
   }
 }
 
+/** The database's own spelling of `value`, when `value` names one of its zones in any letter case. */
+function databaseSpelling(value: string): string | undefined {
+  const id = knownZoneId(value);
+  const lowerId = id?.toLowerCase();
+  const isZoneName =
+    lowerId === value.toLowerCase() &&
+    !OFFSET_ID.test(lowerId) &&
+    !lowerId.startsWith(ICU_ONLY_AREA);
+  return isZoneName ? id : undefined;
+}
+
 /**
  * Says whether the IANA time-zone database knows `value`, in any letter case:
  * `Europe/Paris`, `UTC`, `Etc/GMT+12` or the alias `US/Pacific`, but not `Paris`,
@@ -50,8 +69,23 @@ function knownZoneId(zone: string): string | undefined {
  * conversion itself, never throws, and answers the same on Node.js and on Bun.
  */
 export function isTimeZone(value: string): boolean {
-  const id = knownZoneId(value)?.toLowerCase();
-  return id === value.toLowerCase() && !OFFSET_ID.test(id) && !id.startsWith(ICU_ONLY_AREA);
+  return databaseSpelling(value) !== undefined;
+}
+
+/**
+ * The time-zone database's own spelling of a zone that `isTimeZone` accepts, so
+ * that the owner's zone is stored under one name whatever its letter case
+ * (IHM-14, CL-TRV-16): `Europe/Paris` for `europe/paris` or `EUROPE/PARIS`, `UTC`
+ * for `utc`, `Etc/GMT+5` unchanged. The spelling comes from the conversion
+ * itself. An alias keeps its own name, `Asia/Calcutta` and not the `Asia/Kolkata`
+ * it links to: the conversion spells a link as the database does on Node.js and
+ * on Bun alike, while only Node.js's `Intl` would follow it, so that is the one
+ * answer both runtimes give. Any other text, an offset such as `+02:00`
+ * included, is an `unknown_zone`; it never throws.
+ */
+export function canonicalTimeZone(value: string): TimeZoneResult {
+  const zone = databaseSpelling(value);
+  return zone === undefined ? UNKNOWN_ZONE : { ok: true, zone };
 }
 
 /**

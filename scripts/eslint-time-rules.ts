@@ -1,7 +1,8 @@
 /**
  * The three rules of the `egoscope` plugin that keep results independent of the
  * machine's clock, time zone and locale, registered by eslint-plugin.ts and probed
- * in eslint-plugin.test.ts. All three need type information.
+ * in eslint-plugin.test.ts and eslint-time-rules.test.ts. All three need type
+ * information.
  *
  * - `no-local-time`: in the pure core, a date is an absolute instant. Methods that
  *   read or write local time, string conversions that print it, and constructors
@@ -11,24 +12,33 @@
  *   machine's time zone, or parses a date, so that tests can fix the time and a
  *   result is the same on the server and on the owner's devices: no Date made from
  *   anything but an instant, no local-time method of a Date, no `Intl.DateTimeFormat`
- *   without a `timeZone`, no instant parsed by Temporal. Client code reads the
- *   device's zone with `deviceTimeZone`, which a server-only module never imports.
- *   UTC methods, `Intl.NumberFormat` and date formats that name their zone stay
- *   allowed.
+ *   without a `timeZone`, no locale format of a `Temporal.Instant`, and no date,
+ *   time of day or instant that Temporal's `from` reads from a value that may be a
+ *   string. Client code reads the device's zone with `deviceTimeZone`, which no
+ *   server module imports: one that imports `server-only`, starts with
+ *   `'use server'` or is a route handler. UTC methods, `Intl.NumberFormat`, date
+ *   formats that name their zone, Temporal values made from fields or from other
+ *   Temporal values, and the locale formats of the Temporal values that carry
+ *   their own zone or none stay allowed.
  * - `no-default-locale`: a result that depends on a locale names it, since the
  *   server and the owner's devices do not share one.
  */
+import path from 'node:path';
+
 import { AST_NODE_TYPES, ASTUtils, ESLintUtils } from '@typescript-eslint/utils';
 
 import {
   canBeDate,
+  canBeInstant,
+  canBeString,
   hasTimeZone,
   importedName,
   intlConstructor,
   isNamed,
   isNamespaceOf,
-  isOfKind,
-  isServerOnly,
+  isNumber,
+  isServerModule,
+  temporalFrom,
 } from './eslint-time-checks';
 
 import type { Services } from './eslint-time-checks';
@@ -112,11 +122,7 @@ export const noLocalTime = createRule({
         const [argument, ...others] = node.arguments;
         if (others.length > 0) {
           context.report({ node, messageId: 'fields' });
-        } else if (
-          argument !== undefined &&
-          !isOfKind(services, argument, 'number') &&
-          !isDate(argument)
-        ) {
+        } else if (argument !== undefined && !isNumber(services, argument) && !isDate(argument)) {
           context.report({ node, messageId: 'parse' });
         }
       },
@@ -131,8 +137,18 @@ const AMBIENT_MEMBERS = [
   { object: 'Date', property: 'parse', messageId: 'parse', shown: 'Date.parse()' },
   { object: 'Temporal', property: 'Now', messageId: 'clock', shown: 'Temporal.Now' },
 ] as const;
-// The Temporal types whose `from` reads an instant from a string, with its offset or zone.
-const INSTANT_PARSERS: ReadonlySet<string> = new Set(['Instant', 'ZonedDateTime']);
+// The Temporal types whose `from` parses a string by rules of its own: a date, a time of
+// day, a date and time, or an instant with its offset or zone, which @/lib/time reads.
+const TEMPORAL_PARSERS: ReadonlySet<string> = new Set([
+  'Instant',
+  'PlainDate',
+  'PlainDateTime',
+  'PlainTime',
+  'ZonedDateTime',
+]);
+// The methods that print a value with a locale, which a Temporal.Instant does in the
+// time zone of the machine.
+const LOCALE_FORMAT = 'toLocale';
 // The function of @/lib/time that reads the device's zone, which only client code calls,
 // and the name under which other modules import it (module rule 4).
 const DEVICE_ZONE = 'deviceTimeZone';
@@ -156,28 +172,18 @@ function zonelessFormat(
   return isFormat && !hasTimeZone(services, node.arguments[1]) ? ZONELESS_FORMAT : undefined;
 }
 
-/** The Temporal type whose `from` `callee` names: `Instant` in `Temporal.Instant.from`. */
-function temporalFrom(callee: TSESTree.Expression): string | undefined {
-  if (callee.type !== AST_NODE_TYPES.MemberExpression || !isNamed(callee.property, 'from')) {
-    return undefined;
-  }
-  const type = callee.object;
-  return type.type === AST_NODE_TYPES.MemberExpression &&
-    isNamed(type.object, 'Temporal') &&
-    type.property.type === AST_NODE_TYPES.Identifier
-    ? type.property.name
-    : undefined;
-}
-
-/** The instant that `node` parses with Temporal from a string: `Temporal.Instant.from(string)`. */
+/**
+ * The value that `node` parses with Temporal from what may be a string:
+ * `Temporal.PlainDate.from(string)`, `Temporal.Instant.from(string | Temporal.Instant)`.
+ */
 function temporalParse(services: Services, node: TSESTree.CallExpression): AmbientRead | undefined {
   const type = temporalFrom(node.callee);
   const [text] = node.arguments;
-  if (type === undefined || text === undefined || !INSTANT_PARSERS.has(type)) {
+  if (type === undefined || text === undefined || !TEMPORAL_PARSERS.has(type)) {
     return undefined;
   }
   const shown = `Temporal.${type}.from(string)`;
-  return isOfKind(services, text, 'string') ? { messageId: 'parse', shown } : undefined;
+  return canBeString(services, text) ? { messageId: 'parse', shown } : undefined;
 }
 
 /** What a call reads of the ambient time: `Date()`, `String(date)`, a date format or a parse. */
@@ -205,12 +211,30 @@ function ambientNew(services: Services, node: TSESTree.NewExpression): AmbientRe
     return { messageId: 'fields', shown: 'new Date(year, month, …)' };
   }
   const isInstant =
-    isOfKind(services, argument, 'number') ||
+    isNumber(services, argument) ||
     services.getTypeAtLocation(argument).getSymbol()?.getName() === 'Date';
   return isInstant ? undefined : { messageId: 'parse', shown: 'new Date(string)' };
 }
 
-/** What a member reads of the ambient time: the clock, a parse, or the local time of a Date. */
+/**
+ * Says whether `method`, called on the value of `object`, reads or prints local
+ * time in the machine's zone.
+ */
+function isLocalTimeMethod(
+  services: Services,
+  object: TSESTree.Expression,
+  method: string,
+): boolean {
+  return (
+    (LOCAL_TIME_METHODS.has(method) && canBeDate(services, object)) ||
+    (method.startsWith(LOCALE_FORMAT) && canBeInstant(services, object))
+  );
+}
+
+/**
+ * What a member reads of the ambient time: the clock, a parse, the local time of
+ * a Date, or the locale format of a Temporal.Instant.
+ */
 function ambientMember(
   services: Services,
   node: TSESTree.MemberExpression,
@@ -222,7 +246,7 @@ function ambientMember(
   if (member !== undefined) {
     return member;
   }
-  if (property !== null && LOCAL_TIME_METHODS.has(property) && canBeDate(services, node.object)) {
+  if (property !== null && isLocalTimeMethod(services, node.object, property)) {
     return { messageId: 'zone', shown: property };
   }
   return undefined;
@@ -245,7 +269,7 @@ export const noAmbientTime = createRule({
       clock:
         '`{{shown}}` reads the ambient time: take the instant from `now()` of `@/lib/time`, whose clock tests can fix (CLAUDE.md, "Time").',
       parse:
-        '`{{shown}}` parses a date by rules of its own: read it with `parseTimestamp` or `parseIsoDate` of `@/lib/time` (CLAUDE.md, "Time").',
+        '`{{shown}}` parses a date or a time by rules of its own: read it with `parseIsoDate`, `parseTimeOfDay` or `parseTimestamp` of `@/lib/time` (CLAUDE.md, "Time").',
       fields:
         '`new Date(year, month, …)` reads calendar fields in the time zone of the machine: convert them with `@/lib/time` (CLAUDE.md, "Time").',
       zone: '`{{shown}}` depends on the time zone of the machine, which the server and the owner\'s devices do not share: read the local date and time of an instant with `toZoned` of `@/lib/time`, or show it with `formatInstant`, in the zone the caller passes in (CLAUDE.md, "Time").',
@@ -258,7 +282,8 @@ export const noAmbientTime = createRule({
   },
   create(context) {
     const services = ESLintUtils.getParserServices(context);
-    const isServerModule = isServerOnly(context.sourceCode.ast);
+    const file = path.relative(context.cwd, context.filename);
+    const isServerCode = isServerModule(context.sourceCode.ast, file);
     const report = (node: TSESTree.Node, read: AmbientRead | undefined): void => {
       if (read !== undefined) {
         context.report({ node, messageId: read.messageId, data: { shown: read.shown } });
@@ -269,7 +294,7 @@ export const noAmbientTime = createRule({
         const scope = context.sourceCode.getScope(node);
         const property = ASTUtils.getPropertyName(node, scope);
         const isDeviceRead =
-          isServerModule &&
+          isServerCode &&
           property === DEVICE_ZONE &&
           isNamespaceOf(node.object, scope, TIME_MODULE);
         report(node, isDeviceRead ? DEVICE_READ : ambientMember(services, node, property));
@@ -283,7 +308,7 @@ export const noAmbientTime = createRule({
       ImportSpecifier(node): void {
         const isDeviceImport =
           node.parent.source?.value === TIME_MODULE && importedName(node) === DEVICE_ZONE;
-        report(node, isServerModule && isDeviceImport ? DEVICE_READ : undefined);
+        report(node, isServerCode && isDeviceImport ? DEVICE_READ : undefined);
       },
     };
   },
