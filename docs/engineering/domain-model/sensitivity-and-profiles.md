@@ -235,8 +235,12 @@ deletion (JOU-24, which withdraws each of his events; sensitive-data.md section 
 re-application of the withdrawal ledger (CL-TRV-06; operations.md section 2.5) replaces all the
 versions of every historical-only profile and trend whose values it changes by one version
 holding the new values, effective at the creation of the earliest tracked case of that pair (for a
-trend, of that type) whose measured game has not started, or at the job's instant when none waits;
-so no count or mean gap from before the withdrawal stays to be compared with the new one. Outside a
+trend, of that type) whose measured game has not started — before the scheduled start of its
+measured game, or of its expected game while no measured game is established —, or at the job's
+instant when there is none; a waiting case whose expected game has started keeps its forecast
+versions, since SUI-09 freezes the last one before that start, and gets a version dated at the
+job's instant when the job changes its forecast (CL-SUI-03; tracking-and-validation.md section
+1.8); so no count or mean gap from before the withdrawal stays to be compared with the new one. Outside a
 withdrawal, versions are kept only while needed: the daily purge deletes every version of a pair or
 trend older than the last one effective before the creation of its earliest tracked case still
 waiting for its measured game, and, with no such case, every version but the latest.

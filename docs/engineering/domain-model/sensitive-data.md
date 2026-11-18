@@ -125,9 +125,12 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
    its age, and keeps the answers in memory.
 4. Upsert the fingerprint of E into `withdrawal_fingerprints` with `created_at = now()`.
 5. Lot 2 sub-steps, in this order, the module map's: notifications — erases the texts and
-   identifiers of every message concerned, whatever Telegram answered in step 3, after checking
-   that step 2 read every sent one, the whole transaction rolling back and the withdrawal starting
-   again at step 2 otherwise (CL-TEL-09); alerts — in the sheet holding E, everything about it, or
+   identifiers of every message concerned, whatever Telegram answered in step 3, after comparing
+   the sent ones with the identifiers that step 2 read, which the withdrawal passes to it, the
+   whole transaction rolling back and the withdrawal starting again at step 2 when one is not among
+   them, as a player-data deletion and an erasure by requalification or split start again at their
+   own committed step (CL-TEL-09); a restore's re-application, which runs no committed step and
+   asks Telegram nothing (CL-TRV-06), erases them without that comparison; alerts — in the sheet holding E, everything about it, or
    the whole sheet and its alert-history entry if E was its only event, and every sheet or section
    a correction or a merge of E left without an event, each remaining sheet taking the status of its
    remaining events with no entry, and a sheet produced for E initialized again from its earliest
@@ -174,8 +177,12 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
     is erased with its verdict history and its historical-view versions (SEN-48, CL-SEN-18); for
     every other historical-only profile and trend whose values it changes, the job replaces all
     their versions by one version holding the new values (sensitivity-and-profiles.md section 1.5),
-    and tracking derives again, from it alone, the forecast versions of the tracked cases whose
-    measured game has not started (tracking-and-validation.md section 1.8).
+    and tracking derives again, from it alone, the forecast versions of every tracked case whose
+    measured game has not started — before the scheduled start of its measured game, or of its
+    expected game while no measured game is established; a waiting case whose expected game has
+    started keeps its versions, since SUI-09 freezes the last one before that start, and gets a
+    version dated at the job's instant when the job changes its forecast (CL-SUI-03;
+    tracking-and-validation.md section 1.8).
 13. The result screen gives the number of messages deleted and lists, from memory, the ones
     Telegram refused or could not be reached for, with their send date and time and whether each
     was a digest; that list is never stored (CL-DSN-13, CL-TEL-09).
@@ -190,7 +197,8 @@ limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); for 
 its other events, its own decisions dated before its new creation instant and its history rows,
 review flags and category changes recorded since that instant while E was in it (CL-SUI-17); in Lot 2, the values in force before the
 withdrawal wherever a requirement froze them for another event of the same pair or type — the
-forecast frozen at a tip-off on another tracked case (SUI-09), the profile and trend snapshots and
+forecast frozen at a tip-off on another tracked case and the forecast versions that a waiting
+tracked case whose expected game has started keeps (SUI-09), the profile and trend snapshots and
 outcomes of other sheets and sections (ALE-19), the tracked-game results transmitted and the
 messages sent about other events (SUI-19, TEL-11 to TEL-13) — which never change (CL-SEN-18); in
 Lot 2, a sheet whose status changed at the withdrawal with no entry, or closed on a day when none
@@ -232,8 +240,9 @@ the refusals from memory. Then, in one transaction:
    his name. As after a withdrawal (2.1, step 12, CL-SEN-18), a profile or trend the job leaves with
    no event is erased, every other historical-only profile and trend whose values it changes has
    all its versions replaced by one version holding the new values, and tracking derives again,
-   from it alone, the forecast versions of the waiting tracked cases (sensitivity-and-profiles.md
-   section 1.5).
+   from it alone, the forecast versions of every tracked case whose measured game has not started,
+   a waiting case whose expected game has started keeping its versions (2.1, step 12;
+   sensitivity-and-profiles.md section 1.5).
 
 The player directory keeps its rows: public roster data linked to no followed player
 ([games-and-statistics.md](games-and-statistics.md) section 1.12).
