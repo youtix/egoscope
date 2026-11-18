@@ -32,11 +32,7 @@ function edit(file: string, change: (content: string) => string): void {
 function check(folder: string): Outcome {
   const result = spawnSync(
     'bun',
-    [
-      '--no-env-file',
-      '--conditions=react-server',
-      path.join(ROOT, 'scripts', 'check-migrations.ts'),
-    ],
+    ['--no-env-file', path.join(ROOT, 'scripts', 'check-migrations.ts')],
     {
       cwd: folder,
       encoding: 'utf8',
@@ -90,6 +86,23 @@ describe('the drift check', { timeout: 120_000 }, () => {
     expect(status).toBe(1);
     expect(output).toContain(
       '✖ db:check: the migrations do not build the schema from empty: error: type "smallnumber" does not exist',
+    );
+  });
+
+  it('[TRV-76] fails when a migration was edited by hand, though its snapshot still matches the schema', () => {
+    const folder = projectCopy();
+    edit(path.join(folder, FIRST_MIGRATION), (migration) => migration.replace('>= 0', '>= -100'));
+
+    const { status, output } = check(folder);
+
+    expect(status).toBe(1);
+    expect(output).toContain(
+      [
+        '✖ db:check: the migrations build a database that differs from the schema, as when a migration is edited by hand (- built by drizzle/, + built from the schema alone):',
+        "  - constraint sequence_counters sequence_counters_last_value_check CHECK ((last_value >= '-100'::integer))",
+        '  + constraint sequence_counters sequence_counters_last_value_check CHECK ((last_value >= 0))',
+        'Put back each migration as drizzle-kit wrote it: to change the structure, change the schema and run `bun run db:generate`.',
+      ].join('\n'),
     );
   });
 });

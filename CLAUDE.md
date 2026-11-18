@@ -153,7 +153,7 @@ neither a test nor a waiver.
 
 ## Database
 
-- Postgres is reached only through `@/lib/db`: `getDb()` for everything the application does
+- The application reaches Postgres only through `@/lib/db`: `getDb()` for everything it does
   (Neon's pooled connection, PgBouncer in transaction mode), `getDirectDb()` for migrations and
   long reads such as the backup export. Both are async and return `{ ok: true, db }` or
   `{ ok: false, error }`: on Vercel without a URL the database is "not configured", never PGlite.
@@ -178,10 +178,11 @@ neither a test nor a waiver.
   enum types; every foreign key states its `on delete`; `created_at` and `updated_at` exist where
   the specs need them.
 - After a schema change, run `bun run db:generate` and commit `drizzle/`. `bun run db:check`, the
-  drift check of CI, fails when the schema and `drizzle/` differ or when the migrations do not
-  build the schema from an empty database. Nobody migrates by hand (TRV-76): the production build
-  runs `db:migrate` (`scripts/migrate.ts`) before `next build`, through the direct connection, and
-  only when `VERCEL_ENV` is `production`.
+  drift check of CI, fails when the schema and `drizzle/` differ, when the migrations do not
+  build the schema from an empty database, or when they build another database than the SQL that
+  drizzle-kit generates from the schema alone, as a migration edited by hand does. Nobody
+  migrates by hand (TRV-76): the production build runs `db:migrate` (`scripts/migrate.ts`) before
+  `next build`, through the direct connection, and only when `VERCEL_ENV` is `production`.
 - A test gets a database of its own from `createTestDatabase()`: in memory, every migration
   applied. Close it when the test ends, `onTestFinished(database.close)`, since an open one holds
   about 200 MB.

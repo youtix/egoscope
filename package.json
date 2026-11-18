@@ -36,7 +36,7 @@
     "prepare": "if git rev-parse --git-dir >/dev/null 2>&1; then lefthook install; fi",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun --no-env-file --conditions=react-server scripts/migrate.ts",
-    "db:check": "bun --no-env-file --conditions=react-server scripts/check-migrations.ts",
+    "db:check": "bun --no-env-file scripts/check-migrations.ts",
     "vercel-build": "bun run db:migrate && next build"
   },
   "dependencies": {
