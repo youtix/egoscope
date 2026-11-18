@@ -9,11 +9,18 @@
  * untracked changes count, and so do deletions and both sides of a rename. CI
  * passes HEAD^1: for a pull request, the base branch of its merge commit; for a
  * push to main, the previous commit.
+ *
+ * Locally, a run that a path outside the pure core started, an upgrade for one,
+ * starts from scratch (`--force`): the results that earlier runs recorded in
+ * reports/ do not account for such a change. CI already starts from scratch then,
+ * since those paths name the cache of these results (mutation.yml).
  */
 import { spawnSync } from 'node:child_process';
 
 import { describeFiles, listChanges } from './changed-files';
-import { mutationTriggers } from './mutation-scope';
+import { mutationTriggers, requiresFreshRun } from './mutation-scope';
+
+const isCi = process.env['CI'] === 'true';
 
 function main(argv: readonly string[]): number {
   const [base] = argv;
@@ -29,8 +36,14 @@ function main(argv: readonly string[]): number {
     );
     return 0;
   }
-  console.info(`Mutation tests, because of ${describeFiles(triggers)}.`);
-  const result = spawnSync('bun', ['run', 'test:mutation'], { stdio: 'inherit' });
+  const isFreshRun = !isCi && requiresFreshRun(triggers);
+  console.info(
+    isFreshRun
+      ? `Mutation tests from scratch, because of ${describeFiles(triggers)}: earlier results do not account for a change outside the pure core.`
+      : `Mutation tests, because of ${describeFiles(triggers)}.`,
+  );
+  const force = isFreshRun ? ['--force'] : [];
+  const result = spawnSync('bun', ['run', 'test:mutation', ...force], { stdio: 'inherit' });
   return result.status ?? 1;
 }
 

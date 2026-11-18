@@ -122,13 +122,20 @@ gives no difference.
 
 - Stryker mutates the non-test files of the pure core (`src/lib/stats-engine/` and
   `src/lib/ai-exchange/`), one fault at a time, and runs only their own tests against each
-  mutant. Every mutant must be killed: a run below a 100% mutation score fails.
-- `bun run test:mutation` runs it, under the shared lock. `bun run gate` runs it only when the
-  pure core or the Stryker setup (`stryker.config.ts`, `.github/workflows/mutation.yml`)
-  differs from `origin/main`, and the `mutation` workflow does the same in CI.
+  mutant: `vitest.stryker.config.ts` holds no other. Every mutant must be killed: a run below a
+  100% mutation score fails.
+- Code that runs when a module loads, such as a named constant, a pattern or a lookup table, is
+  tested like any other: Stryker activates its mutant before the tests load, and runs against it
+  every test of the pure core that imports its file, directly or not.
+- `bun run test:mutation` runs it, under the shared lock. `bun run gate` runs it only when one of
+  these differs from `origin/main`: a file of the pure core, `stryker.config.ts`,
+  `.github/workflows/mutation.yml`, `vitest.stryker.config.ts`, `vitest.config.ts`,
+  `package.json`, `bun.lock`, `scripts/mutation-scope.ts`, `tsconfig.json` or a file of `data/`.
+  The `mutation` workflow does the same in CI.
 - Runs are incremental: each records its results in `reports/` (git-ignored, cached in CI),
-  and the next tests only the mutants of what changed. After a change to a fixture that these
-  tests import, to the Stryker or Vitest configuration or to a dependency, run
+  and the next tests only the mutants of what changed. Incremental mode cannot see a change
+  outside the pure core: after one, `bun run gate` passes `--force`, the `mutation` workflow
+  starts afresh under another cache name, and a run of your own needs
   `bun run test:mutation --force`.
 - A survivor, shown in `reports/mutation/mutation.html`, is a wrong formula or check that the
   tests let through: write the test that fails on it, with exact expected values. Prompt and

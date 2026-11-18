@@ -6,7 +6,7 @@
  */
 // The extensions let Node itself, which loads this file for Stryker, import the files.
 import { IGNORED_FOLDERS } from './scripts/ignored-folders.ts';
-import { PURE_CORE_MODULES } from './scripts/mutation-scope.ts';
+import { PURE_CORE_MODULES, PURE_CORE_TESTS } from './scripts/mutation-scope.ts';
 
 import type { Stryker } from '@stryker-mutator/core';
 
@@ -17,15 +17,17 @@ type StrykerOptions = ConstructorParameters<typeof Stryker>[0];
 // dedicated, so CI keeps Stryker's default.
 const isCi = process.env['CI'] === 'true';
 
-const sources = PURE_CORE_MODULES.map((folder) => `${folder}**/*.ts`);
-const tests = PURE_CORE_MODULES.map((folder) => `${folder}**/*.test.ts`);
-
 const config = {
   testRunner: 'vitest',
   // The non-test files of both modules, at any depth.
-  mutate: [...sources, ...tests.map((glob) => `!${glob}`)],
-  // Only the core's own tests run, so they alone must catch every mutant.
-  testFiles: tests,
+  mutate: [
+    ...PURE_CORE_MODULES.map((folder) => `${folder}**/*.ts`),
+    ...PURE_CORE_TESTS.map((glob) => `!${glob}`),
+  ],
+  // Only the core's own tests run, so they alone must catch every mutant: this
+  // Vitest configuration holds them alone, and says why Stryker's `testFiles`
+  // option, which would also choose them, must stay unset.
+  vitest: { configFile: 'vitest.stryker.config.ts' },
   // Below a 100% mutation score, the run fails. A survivor gets a better test or,
   // when no test can tell it from the code, the one comment CLAUDE.md allows.
   thresholds: { high: 100, low: 100, break: 100 },

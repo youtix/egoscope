@@ -2,8 +2,10 @@
 // depth, runs their own tests only, and fails a run below a 100% mutation score;
 // that the configuration sets exactly the options below, so that a new one, such as
 // a project-wide exclusion, which needs no comment in the code, is a change that a
-// reviewer reads; and that CI reuses the results of earlier runs only while what
-// incremental mode cannot see stays the same.
+// reviewer reads, and that `bun run test:mutation` adds none on the command line;
+// that the Vitest configuration that Stryker runs is the project's, with the tests
+// of the pure core alone; and that CI reuses the results of earlier runs only while
+// what incremental mode cannot see stays the same.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -11,8 +13,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
-import { PURE_CORE_MODULES } from './scripts/mutation-scope';
+import { PURE_CORE_MODULES, STRYKER_SETUP } from './scripts/mutation-scope';
 import config from './stryker.config';
+import vitestConfig from './vitest.config';
+import strykerVitestConfig from './vitest.stryker.config';
 
 /**
  * Says whether Stryker mutates `file`, reading `mutate` as Stryker does: in order,
@@ -26,14 +30,21 @@ function isMutated(file: string): boolean {
   return deciding !== undefined && !deciding.startsWith('!');
 }
 
+// The projects of the Vitest configuration that Stryker runs, as far as they choose tests.
+const TEST_SELECTION = z.object({ include: z.array(z.string()) });
+const TEST_PROJECTS = z.array(z.object({ test: TEST_SELECTION }));
+
+/** Says whether `file` is among the tests that Stryker runs against the mutants. */
 const isRunAgainstMutants = (file: string): boolean =>
-  config.testFiles.some((glob) => path.matchesGlob(file, glob));
+  TEST_PROJECTS.parse(strykerVitestConfig.test?.projects).some((project) =>
+    project.test.include.some((glob) => path.matchesGlob(file, glob)),
+  );
 
 // Every option that the configuration sets in CI; locally, `concurrency` too.
 const OPTIONS = [
   'testRunner',
   'mutate',
-  'testFiles',
+  'vitest',
   'thresholds',
   'incremental',
   'reporters',
@@ -47,6 +58,14 @@ async function optionsWhere(ci: string): Promise<ReadonlySet<string>> {
   vi.resetModules();
   const loaded = await import('./stryker.config');
   return new Set(Object.keys(loaded.default));
+}
+
+const PACKAGE = z.object({ scripts: z.record(z.string(), z.string()) });
+
+/** The command that `bun run test:mutation` runs, as package.json writes it. */
+function mutationScript(): string | undefined {
+  const manifest = readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8');
+  return PACKAGE.parse(JSON.parse(manifest)).scripts['test:mutation'];
 }
 
 const WORKFLOW = path.join(import.meta.dirname, '.github/workflows/mutation.yml');
@@ -103,7 +122,13 @@ describe('stryker.config.ts', () => {
     expect(isRunAgainstMutants(file)).toBe(true);
   });
 
-  it.each(['src/lib/env/server-env.test.ts', 'src/app/page.test.tsx', 'scripts/ci-ok.test.ts'])(
+  it.each([
+    'src/lib/env/server-env.test.ts',
+    'src/lib/stats-engine-next/game-score.test.ts',
+    'src/app/page.test.tsx',
+    'scripts/ci-ok.test.ts',
+    'stryker.config.test.ts',
+  ])(
     'never runs %s against the mutants, so that only the tests of the pure core kill them',
     (file) => {
       expect(isRunAgainstMutants(file)).toBe(false);
@@ -120,22 +145,52 @@ describe('stryker.config.ts', () => {
     await expect(optionsWhere('')).resolves.toStrictEqual(new Set([...OPTIONS, 'concurrency']));
   });
 
+  it('leaves `testFiles` unset, which would let a mutant of code that runs when a module loads survive', () => {
+    expect(config).not.toHaveProperty('testFiles');
+  });
+
   it('mutates whole files of the pure core, which no other glob, negation or line range narrows', () => {
     expect(config.mutate).toStrictEqual([
       ...PURE_CORE_MODULES.map((folder) => `${folder}**/*.ts`),
       ...PURE_CORE_MODULES.map((folder) => `!${folder}**/*.test.ts`),
     ]);
   });
+
+  it('is what `bun run test:mutation` runs, under the shared lock, with no option of its own such as `--ignoreStatic`', () => {
+    expect(mutationScript()).toBe('bun scripts/with-lock.ts stryker run stryker.config.ts');
+  });
+});
+
+describe('vitest.stryker.config.ts', () => {
+  it('is the Vitest configuration that Stryker runs the tests with, and no other option of the Vitest runner is set', () => {
+    expect(config.vitest).toStrictEqual({ configFile: 'vitest.stryker.config.ts' });
+  });
+
+  it('runs the tests of both pure-core modules, at any depth, in one project in Node, and no other test', () => {
+    expect(strykerVitestConfig.test?.projects).toStrictEqual([
+      {
+        test: {
+          name: 'pure-core',
+          environment: 'node',
+          include: PURE_CORE_MODULES.map((folder) => `${folder}**/*.test.ts`),
+        },
+      },
+    ]);
+  });
+
+  it("keeps every other option of the project's own configuration, vitest.config.ts", () => {
+    expect({
+      ...strykerVitestConfig,
+      test: { ...strykerVitestConfig.test, projects: vitestConfig.test?.projects },
+    }).toStrictEqual(vitestConfig);
+  });
 });
 
 describe('the cache of the mutation workflow', () => {
   it.each([
-    'stryker.config.ts',
-    'vitest.config.ts',
-    'tsconfig.json',
-    'bun.lock',
+    ...STRYKER_SETUP,
     'data/fixtures/trace/spec-id-counts.json',
-    'data/fixtures/stats-source/season/game-log.json',
+    'data/fixtures/ai-exchange/extract-json/comment.json',
   ])('starts the CI run afresh after a change to %s, which incremental mode cannot see', (file) => {
     expect(cacheKeyGlobs().some((glob) => path.matchesGlob(file, glob))).toBe(true);
   });
