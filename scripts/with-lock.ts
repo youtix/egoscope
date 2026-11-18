@@ -26,33 +26,19 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, rmSync } from 'node:fs';
 import { Socket } from 'node:net';
-import { constants } from 'node:os';
 import path from 'node:path';
 import { setImmediate as nextTurn, setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
+import { catchSignals, endOf, runUnlocked } from './signal-relay';
+
+import type { Command, Relay } from './signal-relay';
 import type { ChildProcess, StdioOptions } from 'node:child_process';
 
 export type Holder = Readonly<{ pid: number; startedAt: number; command: string; cwd: string }>;
 
 type Env = Readonly<Record<string, string | undefined>>;
 type Attempt = Readonly<{ state: 'held' | 'busy' | 'unlockable'; code: number }>;
-/**
- * The termination signals that the wrapper catches during its whole run, and the
- * process they are passed on to.
- */
-type Relay = Readonly<{
-  /**
-   * 128 plus the number of the first signal caught, or undefined before any. Bun
-   * calls signal listeners only from its event loop, so a signal caught while
-   * synchronous code runs shows here only after the next turn of the loop.
-   */
-  stopStatus: () => number | undefined;
-  /** Aborts at the first signal, which cuts a wait for the lock short. */
-  stopped: AbortSignal;
-  /** Makes `child` the process that the signals caught from now on are passed on to. */
-  forwardTo: (child: ChildProcess) => void;
-}>;
 /** The lock that a run waits for, since when it waits, and the run's signals. */
 type Lock = Readonly<{ lockPath: string; waitStart: number; relay: Relay }>;
 
@@ -62,9 +48,8 @@ const CI_OFF_VALUES: ReadonlySet<string> = new Set(['', '0', 'false']);
 // `-w` is the short form of `--watch` for Vitest and tsc.
 const WATCH_FLAGS: ReadonlySet<string> = new Set(['--watch', '-w', '--ui', '--hot']);
 const VITEST_ONE_SHOT: ReadonlySet<string> = new Set(['run', 'list']);
-const FORWARDED_SIGNALS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
-// Each shell that becomes the command first waits for the wrapper's go-ahead, a line
-// on descriptor 3, and ends without one (see letRun).
+// The hold shell first waits for the wrapper's go-ahead, a line on descriptor 3, and
+// ends without one (see letRun).
 const GO_AHEAD = 'read -r go <&3 || exit 1';
 // The shell that runs the command under the lock. It opens the lock file on
 // descriptor 9 and tries once to lock it (flock exits with 1 when another run holds
@@ -81,8 +66,6 @@ const HOLD_SCRIPT = [
   'shift 3',
   'exec "$@"',
 ].join('\n');
-// The shell that runs the command without the lock: it becomes the command.
-const UNLOCKED_SCRIPT = [GO_AHEAD, 'exec 3>&-', 'exec "$@"'].join('\n');
 // Bun makes descriptor 3 a socket, which carries the go-ahead and the lock's reply.
 const SHELL_STDIO: StdioOptions = ['inherit', 'inherit', 'inherit', 'pipe'];
 const POLL_MS = 1000;
@@ -91,9 +74,16 @@ const POLLS_PER_REPORT = 30;
 const DEFAULT_LIMIT_SECONDS = 1800;
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
-const EXIT_SIGNAL_BASE = 128;
-const EXIT_NOT_FOUND = 127;
 const EXIT_USAGE = 2;
+
+/**
+ * The time in milliseconds, on a monotonic clock that no change of the system clock
+ * moves, so that none lengthens or cuts a wait short. `performance.now()` counts from
+ * the start of this process; adding `performance.timeOrigin`, the Unix time of that
+ * start, puts the times of all runs on one scale, which the holder record needs: a
+ * waiter tells from it how long the holder has held the lock.
+ */
+const monotonicNow = (): number => performance.timeOrigin + performance.now();
 
 /** Says whether a run with this environment takes the lock: never in CI, never twice. */
 export function shouldLock(env: Env): boolean {
@@ -198,36 +188,6 @@ function readHolder(infoPath: string): Holder | undefined {
   return holder !== undefined && isAlive(holder.pid) ? holder : undefined;
 }
 
-const exitCodeFor = (signal: NodeJS.Signals): number =>
-  EXIT_SIGNAL_BASE + constants.signals[signal];
-
-/**
- * Catches SIGINT, SIGTERM and SIGHUP before the wrapper starts any process, so
- * that none of them can end it unseen: a signal is passed on to the command once
- * the wrapper has let it start, and keeps it from starting before that.
- */
-function catchSignals(): Relay {
-  let caught: NodeJS.Signals | undefined;
-  let target: ChildProcess | undefined;
-  const stop = new AbortController();
-  const onSignal = (signal: NodeJS.Signals): void => {
-    caught ??= signal;
-    stop.abort();
-    // Once that process has ended, `kill` does nothing.
-    target?.kill(signal);
-  };
-  for (const signal of FORWARDED_SIGNALS) {
-    process.on(signal, onSignal);
-  }
-  return {
-    stopStatus: () => (caught === undefined ? undefined : exitCodeFor(caught)),
-    stopped: stop.signal,
-    forwardTo: (child) => {
-      target = child;
-    },
-  };
-}
-
 /**
  * Lets the shell `child` become the command, unless a termination signal has come,
  * and waits for it to end; resolves to its exit code, or to the run's status when a
@@ -237,15 +197,7 @@ function catchSignals(): Relay {
  * go-ahead; without it, the shell ends at once.
  */
 async function letRun(child: ChildProcess, program: string, relay: Relay): Promise<number> {
-  const ended = new Promise<number>((resolve) => {
-    child.on('error', (error) => {
-      console.error(`[lock] Cannot run ${program}: ${error.message}`);
-      resolve(EXIT_NOT_FOUND);
-    });
-    child.on('close', (exitCode, signal) => {
-      resolve(exitCode ?? (typeof signal === 'string' ? exitCodeFor(signal) : 1));
-    });
-  });
+  const ended = endOf(child, program);
   // Bun calls the listeners of the signals caught so far before this callback.
   await nextTurn();
   const stopStatus = relay.stopStatus();
@@ -258,15 +210,6 @@ async function letRun(child: ChildProcess, program: string, relay: Relay): Promi
     pipe?.destroy();
   }
   return stopStatus ?? (await ended);
-}
-
-/**
- * Runs the command without the lock; resolves to its exit code, or to the run's
- * status when a termination signal kept it from starting.
- */
-async function runUnlocked(command: readonly string[], relay: Relay): Promise<number> {
-  const child = spawn('sh', ['-c', UNLOCKED_SCRIPT, 'sh', ...command], { stdio: SHELL_STDIO });
-  return letRun(child, command[0] ?? 'the command', relay);
 }
 
 function lockFolder(env: Env): string | undefined {
@@ -287,7 +230,7 @@ function lockFolder(env: Env): string | undefined {
 async function attempt(command: readonly string[], lock: Lock): Promise<Attempt> {
   const infoPath = `${lock.lockPath}.json`;
   const record = JSON.stringify({
-    startedAt: Date.now(),
+    startedAt: monotonicNow(),
     command: command.join(' '),
     cwd: process.cwd(),
   });
@@ -300,7 +243,7 @@ async function attempt(command: readonly string[], lock: Lock): Promise<Attempt>
   let reply = '';
   pipe?.on('data', (chunk: Buffer) => {
     reply += chunk.toString();
-    const waited = Date.now() - lock.waitStart;
+    const waited = monotonicNow() - lock.waitStart;
     if (reply === 'held' && waited >= POLL_MS) {
       console.error(`[lock] Got the lock after waiting ${formatDuration(waited)}.`);
     }
@@ -347,7 +290,7 @@ function checkWait(
  * Undefined means that another run holds the lock, so the waiter waits.
  */
 async function settle(
-  command: readonly string[],
+  command: Command,
   { state, code }: Attempt,
   lock: Lock,
 ): Promise<number | undefined> {
@@ -365,9 +308,9 @@ async function settle(
   return undefined;
 }
 
-async function waitAndRun(argv: readonly string[], folder: string, relay: Relay): Promise<number> {
+async function waitAndRun(argv: Command, folder: string, relay: Relay): Promise<number> {
   const lockPath = path.join(folder, LOCK_NAME);
-  const waitStart = Date.now();
+  const waitStart = monotonicNow();
   const limitSeconds = Number(process.env['EGOSCOPE_LOCK_LIMIT_SECONDS'] ?? DEFAULT_LIMIT_SECONDS);
   const timing = { waitStart, limitMs: limitSeconds * MS_PER_SECOND };
   const lock = { lockPath, waitStart, relay };
@@ -376,7 +319,7 @@ async function waitAndRun(argv: readonly string[], folder: string, relay: Relay)
     if (settled !== undefined) {
       return settled;
     }
-    const verdict = checkWait(lockPath, { ...timing, now: Date.now() });
+    const verdict = checkWait(lockPath, { ...timing, now: monotonicNow() });
     if (verdict.giveUp || poll % POLLS_PER_REPORT === 0) {
       console.error(verdict.message);
     }
@@ -388,8 +331,11 @@ async function waitAndRun(argv: readonly string[], folder: string, relay: Relay)
   }
 }
 
+/** Says whether the command line names a program to run. */
+const isCommand = (argv: readonly string[]): argv is Command => argv.length > 0;
+
 async function main(argv: readonly string[], relay: Relay): Promise<number> {
-  if (argv.length === 0) {
+  if (!isCommand(argv)) {
     console.error('[lock] Usage: bun scripts/with-lock.ts <command> [arguments...]');
     return EXIT_USAGE;
   }
