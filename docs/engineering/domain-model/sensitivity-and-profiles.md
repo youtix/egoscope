@@ -240,7 +240,8 @@ measured game, or of its expected game while no measured game is established —
 instant when there is none; a waiting case whose expected game has started keeps its forecast
 versions, since SUI-09 freezes the last one before that start, and gets a version dated at the
 job's instant when the job changes its forecast (CL-SUI-03; tracking-and-validation.md section
-1.8); so no count or mean gap from before the withdrawal stays to be compared with the new one. Outside a
+1.8), unless it has no version, as a case that the operation's rebuild turned tracked at or
+after that start: that case gets none (CL-SUI-17), and CL-SUI-18 freezes « sans pronostic »; so no count or mean gap from before the withdrawal stays to be compared with the new one. Outside a
 withdrawal, versions are kept only while needed: the daily purge deletes every version of a pair or
 trend older than the last one effective before the creation of its earliest tracked case still
 waiting for its measured game, and, with no such case, every version but the latest.

@@ -182,7 +182,9 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
     expected game while no measured game is established; a waiting case whose expected game has
     started keeps its versions, since SUI-09 freezes the last one before that start, and gets a
     version dated at the job's instant when the job changes its forecast (CL-SUI-03;
-    tracking-and-validation.md section 1.8).
+    tracking-and-validation.md section 1.8), unless it has no version, as a case that the
+    operation's rebuild turned tracked at or after that start: that case gets none (CL-SUI-17),
+    and CL-SUI-18 freezes « sans pronostic ».
 13. The result screen gives the number of messages deleted and lists, from memory, the ones
     Telegram refused or could not be reached for, with their send date and time and whether each
     was a digest; that list is never stored (CL-DSN-13, CL-TEL-09).

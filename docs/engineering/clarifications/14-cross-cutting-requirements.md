@@ -65,12 +65,12 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
   - A restore targets either the current database, whose application data it replaces, or a new empty one (TRV-53). It needs the backup key (record 0018) and runs as one documented command.
   - It never overwrites the withdrawal ledger (CL-DSN-08) nor the account data (CL-TRV-05). When the target is a new database and the previous one is still reachable, as when the database service is replaced (TRV-77), the command first copies the ledger from the previous database.
   - After loading the data it re-applies the ledger, without changing the counter and without creating any fingerprint:
-    - a restored player whose identifier matches a deleted-player entry (CL-JOU-24) is deleted again, with the scope of JOU-24;
+    - a restored player whose identifier matches a deleted-player entry (CL-JOU-24) is deleted again, with the scope of JOU-24, with no new attempt to delete Telegram messages;
     - for each live fingerprint, the restored events of the same player and type are compared with its day: exactly one on that day is withdrawn again with the scope of DSN-27, with no new attempt to delete Telegram messages; when several fall on that day, or none does but some fall within the correspondence window (CL-DSN-06, CL-IMP-34), none is withdrawn and the restore summary lists them, each with a link, for the owner to check.
   - The counter keeps the larger of the ledger's value and the backup's.
   - Then a full recalculation (SEN-34) and the consistency check run. The summary (TRV-53, CA-TRV-16) shows the counts, the backup's date, the number of withdrawals and deletions re-applied (numbers only), the events to check, and these warnings: changes made after the backup's date — imports, corrections, dismissals, requalifications, settings — are lost; when the ledger could not be carried over, events withdrawn after that date may be back and must be withdrawn again; when the file is older than the fingerprint horizon (an old export), events withdrawn between the file's date and the start of the horizon may be back. Every draft is erased and every session closed.
 - **Why:** every withdrawal and deletion made since the backup still holds whenever the application can know it; a restored event is withdrawn automatically only when it is certainly the same one.
-- **Owner review:** yes — a restore withdraws and deletes again on its own, and asks the owner to check the ambiguous cases.
+- **Owner review:** yes — a restore withdraws and deletes again on its own, with no new attempt to delete Telegram messages, and asks the owner to check the ambiguous cases.
 
 ## CL-TRV-07 — Runs that crashed
 

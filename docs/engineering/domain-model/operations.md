@@ -584,10 +584,10 @@ result.
 3. It replaces the application data (every table the backup holds), keeping the target's ledger and
    account data; with no account, it initializes one from the configured initial password.
 4. It re-applies the ledger without changing the counter or creating a fingerprint: a restored
-   player matching a deleted-player entry is deleted again (JOU-24 scope); for each live
-   fingerprint, exactly one restored event of that player and type on its day is withdrawn again
-   (DSN-27 scope, no new Telegram deletion); several on that day, or none but some within the
-   window, are listed for the owner to check.
+   player matching a deleted-player entry is deleted again (JOU-24 scope, no new Telegram
+   deletion); for each live fingerprint, exactly one restored event of that player and type on its
+   day is withdrawn again (DSN-27 scope, no new Telegram deletion); several on that day, or none but
+   some within the window, are listed for the owner to check.
 5. The counter keeps the larger of the ledger's value and the backup's.
 6. Every draft is erased, every session closed with the reason `restored` and
    `accounts.all_sessions_ended_at` set (§1.10); a full recalculation runs, with the value-version
