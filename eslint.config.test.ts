@@ -125,13 +125,20 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
         "export const load = (): unknown => fetch('https://example.com');\n",
         'no-restricted-globals',
       ],
-      [
-        'asynchronous code',
-        'export async function load(): Promise<number> {\n  return 1;\n}\n',
-        'no-restricted-syntax',
-      ],
-    ])('keeps the statistics core from reading %s', async (_kind, code, rule) => {
+    ])('keeps both modules of the pure core from reading %s', async (_kind, code, rule) => {
       expect(await ruleIds('src/lib/stats-engine/probe.ts', code)).toContain(rule);
+      expect(await ruleIds('src/lib/ai-exchange/probe.ts', code)).toContain(rule);
+    });
+
+    it('keeps the statistics core synchronous, while src/lib/ai-exchange may run async code', async () => {
+      const code = 'export async function load(): Promise<number> {\n  return 1;\n}\n';
+
+      expect(await ruleIds('src/lib/stats-engine/probe.ts', code)).toContain(
+        'no-restricted-syntax',
+      );
+      expect(await ruleIds('src/lib/ai-exchange/probe.ts', code)).not.toContain(
+        'no-restricted-syntax',
+      );
     });
 
     it('lets the core tests import vitest, fast-check and fixtures, and nothing else', async () => {
