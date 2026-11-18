@@ -56,10 +56,13 @@ Row checks:
   `documentation_difficulty` are not null (TAX-01, TAX-12).
 - `status = 'rejected'` iff `rejection_reason IS NOT NULL`; `rejection_comment IS NULL OR rejection_reason IS NOT NULL`.
 - `status = 'withdrawn'` iff `withdrawal_reason_kind IS NOT NULL`;
-  `(withdrawal_reason_kind = 'merged_into') = (merged_into_type_id IS NOT NULL)`, checked at commit
-  (a deferred constraint trigger, since a restore fills `merged_into_type_id` and
-  `split_from_type_id` in its second pass, [operations.md](operations.md) section 5.1);
-  `(withdrawal_reason_kind = 'entered') = (withdrawal_reason IS NOT NULL)`.
+  `merged_into_type_id IS NULL OR withdrawal_reason_kind = 'merged_into'`, a plain row check that a
+  restore's first pass meets, since it loads `merged_into_type_id` and `split_from_type_id` empty
+  and fills them in its second pass ([operations.md](operations.md) section 5.1); PostgreSQL defers
+  no `CHECK` and the schema declares no trigger, so the converse, that a type withdrawn with
+  `merged_into` names its surviving type, is kept by the taxonomy service, which writes both columns
+  in the merge's statement, and verified by the restore's consistency check (operations.md section
+  2.5, step 6); `(withdrawal_reason_kind = 'entered') = (withdrawal_reason IS NOT NULL)`.
 - `(coverage_threshold_outlets IS NULL) = (coverage_threshold_days IS NULL)`.
 - `calendar_derivation IS NULL OR (origin = 'scoping' AND known_in_advance)`.
 - `no_fit_reason IS NULL OR origin = 'detection'`.

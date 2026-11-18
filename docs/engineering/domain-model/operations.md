@@ -592,7 +592,9 @@ result.
 6. Every draft is erased, every session closed with the reason `restored` and
    `accounts.all_sessions_ended_at` set (§1.10); a full recalculation runs, with the value-version
    rewrite and tracking's re-derivation that follow a withdrawal (sensitivity-and-profiles.md
-   section 1.5, CL-SEN-18), and the consistency check runs;
+   section 1.5, CL-SEN-18), and the consistency check runs, which among its checks verifies the
+   rules no row check can hold across the two passes of §5.1, such as every type withdrawn with
+   `merged_into` naming its surviving type (event-types.md section 1.1);
    the summary shows the counts, the backup's date, the numbers re-applied, the events to check and
    the warnings of CL-TRV-06.
 
@@ -671,10 +673,15 @@ and four self-references: `event_types.merged_into_type_id`, `event_types.split_
 `notification_messages.grouped_into_message_id` and `task_runs.parent_run_id`. These five columns,
 `backtest_requests.trigger_import_id` and the four self-references, are loaded empty in the first
 pass and filled in a second pass of the same transaction, once every row exists; the order ignores
-them. The row check that ties `event_types.merged_into_type_id` to the withdrawal reason
-`merged_into` is therefore checked at commit ([event-types.md](event-types.md) section 1.1). A
-foreign key that closes a new cycle, or a new self-reference, joins this list in the pull request
-that adds it.
+them. PostgreSQL defers no `CHECK` and the drizzle schema declares no trigger, so every row check
+on these columns only asks that the link be empty or match its row, which the first pass meets:
+`event_types.merged_into_type_id IS NULL OR withdrawal_reason_kind = 'merged_into'`
+([event-types.md](event-types.md) section 1.1), `trigger_import_id IS NULL OR trigger =
+'incomplete_import'`, `grouped_into_message_id IS NULL OR status = 'grouped'`; a rule that needs
+the link filled, such as a type withdrawn with `merged_into` naming its surviving type, is the
+consistency check's, after the second pass (§2.5 step 6). A foreign key that closes a new cycle, or
+a new self-reference, joins this list in the pull request that adds it, and its row checks keep
+that form.
 
 Excluded tables: `accounts`, `sessions`, `login_failures`, `drafts`, `withdrawal_fingerprints`,
 `deleted_player_entries`, `withdrawn_event_counter` (its value is in the manifest), and, in Lot 2,

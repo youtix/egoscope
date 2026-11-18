@@ -125,24 +125,35 @@ team membership, for absence counts and the calendar derivation alike (CL-STA-05
 observed row ends the old membership and starts the new one at `changed_at`. An entered row ends,
 at `changed_at`, the membership of the team he leaves and, unless it is a release, starts that of
 `new_team_id`; the first official game he plays after it then judges it (CL-JOU-03): for the team he
-left, the row is void and the walk skips it; for `new_team_id`, it is verified; for any other team,
+left, the row is void and the walk skips it, and the observed row that game records, back to that
+team from the current team the entry had set (JOU-13, CA-JOU-09), starts no new membership, since
+the walk finds him still in that team; for `new_team_id`, it is verified; for any other team,
 the observed row that game records follows it, and the membership it started ends unconfirmed, the
-games of `new_team_id` in between counting neither as played nor as missed. An observed row read
-from the player file between the entry and that game is applied first, and the game is compared
-with its `new_team_id`. The addition writes an entered row dated `added_at`, with
-`previous_team_id` null, for the team chosen; while it is his latest row and no game played since
-has judged it, a read of the source's current-season player file that gives the same team makes
-its `origin` `observed`, a change the source reports, so that membership starts at the addition with
-no first-game test (CL-STA-05). An entered row, and the game that makes it void or ends its
-membership unconfirmed, each request a full calendar derivation for the player, with the cause
-`team_history_changed`, in the transaction that records them (CL-TAX-19; events-and-cases.md 1.13).
+games of `new_team_id` in between counting neither as played nor as missed. An observed row whose
+new team is the team the walk already gives him at its `changed_at` changes no membership. An
+observed row read from the player file between the entry and that game is applied first, and the
+game is compared with its `new_team_id`. The addition writes an entered row dated `added_at`, with
+`previous_team_id` null, for the team chosen: his team before the addition is known only from his
+box scores, which may not be stored yet, so for that row "the team he leaves" is his membership at
+`added_at` as his box scores give it — the team of his last game played before it, none if he has
+played none — and the first game played after the addition is compared with that membership, never
+with `previous_team_id`. While it is his latest row and no game played since has judged it, a read
+of the source's current-season player file that gives the same team makes its `origin` `observed`,
+a change the source reports, so that membership starts at the addition with no first-game test
+(CL-STA-05); one that gives another team is applied first, as above. An entered row other than the
+addition's, and the game that makes an entered row void or ends its membership unconfirmed, each
+request a full calendar derivation for the player, with the cause `team_history_changed`, in the
+transaction that records them: the edit screen's, or the unit transaction of
+`games.processFetchQueue`, through the hook its caller passes (CL-TAX-19; events-and-cases.md 1.13;
+module map §4). The addition's row requests none of its own: the confirmation of his mapping and the storing of
+his history request his derivations (causes `mapping_changed` and `history_stored`, CL-TAX-19).
 
 | column             | type        | null | default  | constraint or reference                                                                                                                                                                               | class | spec IDs                                |
 | ------------------ | ----------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------- |
 | `id`               | integer     | no   | identity | primary key                                                                                                                                                                                           | —     | —                                       |
 | `player_id`        | uuid        | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                                                                                                                   | PI    | JOU-13                                  |
 | `changed_at`       | timestamptz | no   | —        | observed from a game: that game's scheduled start; observed from the source's player file: the read instant; entered: the entry instant; the team chosen at addition: `added_at`, whatever its origin | PI    | JOU-13, CL-JOU-03, CL-STA-05, CL-STA-27 |
-| `previous_team_id` | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`; null when he had no team, and on the row of the addition                                                                                                   | PI    | JOU-13                                  |
+| `previous_team_id` | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`; the current team the change replaced, null when he had none, and on the row of the addition, whose team left is his membership at `added_at` (above)       | PI    | JOU-13, CL-STA-05                       |
 | `new_team_id`      | integer     | yes  | —        | `REFERENCES teams(id) ON DELETE RESTRICT`; null for a release (without team)                                                                                                                          | PI    | JOU-13, STA-25, CL-JOU-20               |
 | `origin`           | text        | no   | —        | `CHECK (origin IN ('observed','entered'))`                                                                                                                                                            | PI    | JOU-13                                  |
 | `game_id`          | integer     | yes  | —        | `REFERENCES games(id) ON DELETE RESTRICT`; observed: the first game played with the new team, null when read from the player file; entered: the verifying game, null while unverified                 | PI    | JOU-13, CL-JOU-03                       |
@@ -185,13 +196,13 @@ The application never changes a status by itself (JOU-22). `withdrawn → paused
 
 ### 2.3 Entered team change (JOU-13, CL-JOU-03)
 
-| from       | to                             | trigger                                                                                                                            | guard | side effects                                                                                                                                                                   |
-| ---------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| (none)     | unverified                     | owner enters a team change, or adds the player                                                                                     | —     | row with origin `entered`, `changed_at` = entry instant (at addition, `added_at`, previous team null); current team set; for a change, a full derivation requested (CL-TAX-19) |
-| unverified | verified                       | first official game played after the entry, for that team                                                                          | —     | `game_id` set                                                                                                                                                                  |
-| unverified | unverified (void)              | first official game played after the entry, for the team he left                                                                   | —     | nothing recorded; the membership walk skips the row; a full derivation requested                                                                                               |
-| unverified | unverified (ended unconfirmed) | first official game played after the entry, for any other team                                                                     | —     | an observed change to that team is recorded, dated by that game; the entered team's games in between count for no team; a full derivation requested                            |
-| unverified | (observed)                     | the row of the addition, still his latest and judged by no game, when a read of the current-season player file gives the same team | —     | `origin` becomes `observed`: membership from the addition, no first-game test (CL-STA-05)                                                                                      |
+| from       | to                             | trigger                                                                                                                            | guard | side effects                                                                                                                                                                                                                                 |
+| ---------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none)     | unverified                     | owner enters a team change, or adds the player                                                                                     | —     | row with origin `entered`, `changed_at` = entry instant (at addition, `added_at`, previous team null); current team set; for a change, a full derivation requested (CL-TAX-19)                                                               |
+| unverified | verified                       | first official game played after the entry, for that team                                                                          | —     | `game_id` set                                                                                                                                                                                                                                |
+| unverified | unverified (void)              | first official game played after the entry, for the team he left — for the addition's row, his membership at `added_at` (§1.4)     | —     | an observed change back to that team is recorded, dated by that game, and the current team set to it (JOU-13, CA-JOU-09); the membership walk skips the void row, so that observed row starts no new membership; a full derivation requested |
+| unverified | unverified (ended unconfirmed) | first official game played after the entry, for any other team                                                                     | —     | an observed change to that team is recorded, dated by that game; the entered team's games in between count for no team; a full derivation requested                                                                                          |
+| unverified | (observed)                     | the row of the addition, still his latest and judged by no game, when a read of the current-season player file gives the same team | —     | `origin` becomes `observed`: membership from the addition, no first-game test (CL-STA-05)                                                                                                                                                    |
 
 ## 3. Invariants
 
@@ -234,9 +245,11 @@ compared per CL-IMP-22.
 - CL-TAX-19: `last_calendar_derivation_at`, the per-player instant of the previous regular run.
 - ADR 0020, CL-JOU-22: no seeded player.
 - CL-JOU-02, CL-STA-27: the current team follows only the most recent evidence.
-- CL-JOU-03, CL-STA-05: the entered change and its confirming game in one `game_id` column; a void
-  row and an unconfirmed end are read from the first game played after the row, never stored; the
-  team chosen at addition is the first row of the history.
+- CL-JOU-03, CL-STA-05: the entered change and its confirming game in one `game_id` column; that a
+  row is void or ended unconfirmed is read from the first game played after it, never stored as a
+  mark, while the observed change that game records, back to the team he left or to a third team,
+  is a row (JOU-13); the team chosen at addition is the first row of the history, judged against
+  his membership at the addition.
 - CL-JOU-04, CL-JOU-13: normalized names and the variants' unique index; an identity linked to one
   player only is the mapping's unique index ([games-and-statistics.md](games-and-statistics.md)
   1.13).

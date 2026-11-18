@@ -112,20 +112,28 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
 1. Guards: the owner confirmed after the screen of CL-DSN-19, which lists what disappears and the
    limits, the number of Telegram messages mentioning E included, and says when an import draft of
    the player will be discarded, with the limit of a device left offline.
-2. A first transaction, committed on its own (Lot 2, notifications): it locks the message rows
-   that name E, so that a send in progress either commits first, its message being then a sent one
-   that this step reads, or finds the message discarded; the unsent messages about E are abandoned,
-   so that nothing more can be sent, and the chat and message identifiers of the sent ones, digests
-   included, are read (notifications.md section 1.8).
+2. A first transaction, committed on its own (Lot 2, notifications): it locks the messages
+   concerned — those that name E, and those whose fact is E's case or a sheet or update entry the
+   alerts sub-step deletes, the entries up to the new production instant of a sheet it initializes
+   again included (CL-ALE-16) — so that a send in progress either commits first, its message being
+   then a sent one that this step reads, or finds the message discarded; the unsent messages
+   concerned are abandoned, so that none of them can be sent, and the chat and message identifiers
+   of the sent ones, digests included, are read (notifications.md section 1.8). A message composed
+   later from a fact about E still pending, and sent before step 5, makes step 5 start the
+   withdrawal again here (CL-TEL-09).
 3. Outside any transaction: the app asks Telegram once to delete each of those messages, whatever
    its age, and keeps the answers in memory.
 4. Upsert the fingerprint of E into `withdrawal_fingerprints` with `created_at = now()`.
 5. Lot 2 sub-steps, in this order, the module map's: notifications — erases the texts and
-   identifiers of every message about E, whatever Telegram answered in step 3; alerts — in the
-   sheet holding E, everything about it, or the whole sheet and its alert-history entry if E was its
-   only event, and every sheet or section a correction or a merge of E left without an event, each
-   remaining sheet taking the status of its remaining events with no entry (CL-ALE-16), with the
-   outbox facts of its sheets and update entries; tracking — its tracked-case data, or, when its case
+   identifiers of every message concerned, whatever Telegram answered in step 3, after checking
+   that step 2 read every sent one, the whole transaction rolling back and the withdrawal starting
+   again at step 2 otherwise (CL-TEL-09); alerts — in the sheet holding E, everything about it, or
+   the whole sheet and its alert-history entry if E was its only event, and every sheet or section
+   a correction or a merge of E left without an event, each remaining sheet taking the status of its
+   remaining events with no entry, and a sheet produced for E initialized again from its earliest
+   remaining event, its entries up to that event's joining deleted but those about another event a
+   correction or a merge took off it (CL-ALE-16), with the outbox facts of its sheets and update
+   entries; tracking — its tracked-case data, or, when its case
    keeps other events, the tracked case rebuilt from them (CL-SUI-17), and its regrouping exits, with
    the outbox facts of its tracked game results; detection — the classification results
    of its articles and their attachments, then, through collection's eraser, every article attached
@@ -187,7 +195,8 @@ outcomes of other sheets and sections (ALE-19), the tracked-game results transmi
 messages sent about other events (SUI-19, TEL-11 to TEL-13) — which never change (CL-SEN-18); in
 Lot 2, a sheet whose status changed at the withdrawal with no entry, or closed on a day when none
 of its cases changed, and the number of a sheet initialized again from its earliest remaining
-event (CL-ALE-16); backups until they
+event, with the snapshots and flags of its sections and the corrections of other events it keeps
+from before its new production instant (CL-ALE-16); backups until they
 rotate out; exports already downloaded; Telegram messages the bot could not delete; a device left
 offline until its next refresh; in Lot 2, an article still in a feed, collected and classified
 again for at most its maximum age while the fingerprint keeps it from becoming an event

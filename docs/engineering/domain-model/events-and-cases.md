@@ -501,8 +501,8 @@ former-team type counts, per stint with a former team, the first game between hi
 his last game played for it in that stint, when every season in between is covered (CL-JOU-18). "His
 team", at a past game and at his next game alike, is the membership of CL-STA-05 (CL-TAX-18): a team
 change read from the source's player file while current ends the old membership and starts the new
-one at its recorded instant; an entered one does so at its entry, unless his next game played makes
-it void or ends its membership unconfirmed (CL-JOU-03); the team chosen at addition starts his
+one at its recorded instant; an entered one does so at its entry, and the first game he plays after
+it can then make it void or end the entered membership unconfirmed (CL-JOU-03); the team chosen at addition starts his
 membership at the addition when the player file gives the same team, and is otherwise an entered
 change ([players.md](players.md) 1.4). The next game (STA-26) is his current team's, and it
 qualifies only when he belongs to that team at its scheduled start (CL-STA-25).
@@ -526,9 +526,10 @@ qualifies only when he belongs to that team at its scheduled start (CL-STA-25).
 
 Each trigger records a `calendar_derivation_requests` row (1.13) in the transaction of the change
 that calls for it, through `calendarEvents.requestDerivation` (module map section 1.7: the edit
-screen's action for an entered team change; the statistics update and fetch for a void entry, an
-unconfirmed end or a box-score correction of the team history), and the `calendar-derivation` task
-runs it. In Lot 1 as in Lot 2 an upcoming
+screen's action for an entered team change; module map section 4: the statistics update and fetch,
+through the hooks they pass to `games.processFetchQueue`, which calls them in the transaction of
+the unit that ingested the change, for a void entry, an unconfirmed end, a box-score correction of
+the team history or a stored history), and the `calendar-derivation` task runs it. In Lot 1 as in Lot 2 an upcoming
 event is created only for his next game not yet started, with a case of origin `tracked`
 (CL-VUE-13); in Lot 2 `game-tracking`,
 chained after the derivation, then creates its tracked-case rows and alert sheet (CL-SUI-14,

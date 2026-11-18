@@ -277,7 +277,7 @@ Conventions:
 | `getSeasonGames`     | `nba_schedule_{Y}.csv`                                                                                                          | 1 conditional                                                                                    |
 | `getSeasonBoxScores` | `player_box_{Y}.csv`                                                                                                            | 1 conditional                                                                                    |
 | `getSeasonPlayers`   | `player_box_{Y}.csv`                                                                                                            | The download of `getSeasonBoxScores` when both are asked in one call context, else 1 conditional |
-| `getPlayerRecords`   | `player_core_{Y}.csv` of the current season; an earlier season's file only for a requested player the current one does not list | 1, plus 1 per earlier season needed                                                              |
+| `getPlayerRecords`   | `player_core_{Y}.csv` of the current season; an earlier season's file only for a requested player the current one does not list | 1 conditional, plus 1 per earlier season needed                                                  |
 | `mapPlayers`         | `nba_crosswalk/nba_player_crosswalk_{Y}.csv`                                                                                    | 1                                                                                                |
 
 ### `getPublication`
@@ -338,12 +338,13 @@ Conventions:
 
 ### `getPlayerRecords` (`player_core_{Y}.csv`)
 
-| Port field             | Source field                                                        | Conversion                                                                                          |
-| ---------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Player id              | `athlete_id`                                                        | String                                                                                              |
-| Display name           | `display_name`                                                      | As written                                                                                          |
-| Current team           | `current_team_id` in the current season's file                      | String; empty, or a player the current season's file does not list, becomes null (no team, STA-26)  |
-| Day and month of birth | `date_of_birth`, written `YYYY-MM-DDT07:00Z` or `YYYY-MM-DDT08:00Z` | Month and day from the date part as written (midnight on the US Pacific coast); the year is dropped |
+| Port field             | Source field                                                        | Conversion                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Player id              | `athlete_id`                                                        | String                                                                                                         |
+| Display name           | `display_name`                                                      | As written                                                                                                     |
+| Current team           | `current_team_id` in the current season's file                      | String; empty, or a player the current season's file does not list, becomes null (no team, STA-26)             |
+| Day and month of birth | `date_of_birth`, written `YYYY-MM-DDT07:00Z` or `YYYY-MM-DDT08:00Z` | Month and day from the date part as written (midnight on the US Pacific coast); the year is dropped            |
+| Version                | `ETag` of the current season's `player_core_{Y}.csv`                | As is; a 304 answers `not_modified`; a read without a version, for a newly mapped player, always gets the file |
 
 ### `mapPlayers`
 
