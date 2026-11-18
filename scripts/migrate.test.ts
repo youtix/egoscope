@@ -47,7 +47,7 @@ describe('the deploy step', { timeout: 60_000 }, () => {
     );
   });
 
-  it('[TRV-76] fails the build when the migrations cannot be applied through the direct connection', () => {
+  it('[TRV-76] [TRV-64] fails the build when the migrations cannot be applied, and never names the database host', () => {
     const { status, output } = migrate({
       VERCEL_ENV: 'production',
       DATABASE_URL: POOLED_URL,
@@ -56,8 +56,9 @@ describe('the deploy step', { timeout: 60_000 }, () => {
 
     expect(status).toBe(1);
     expect(output).toContain(
-      'the migrations could not be applied, and the structure is unchanged: Error: connect ECONNREFUSED 127.0.0.1:2',
+      'the migrations could not be applied, and the structure is unchanged: ECONNREFUSED',
     );
+    expect(output).not.toContain('127.0.0.1');
   });
 
   it('[TRV-14] [TRV-64] refuses a connection string without sslmode=verify-full, and never prints it', () => {

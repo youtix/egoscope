@@ -17,6 +17,23 @@ async function closedPort(): Promise<number> {
 const urlOf = (port: number): string =>
   `postgresql://app@127.0.0.1:${String(port)}/egoscope?sslmode=verify-full`;
 
+/**
+ * The connection string of a local server in the place of Postgres that turns
+ * down the request for TLS, so that a client fails on it another way than on a
+ * closed port.
+ */
+async function serverWithoutTls(): Promise<string> {
+  const server = createServer((socket) => {
+    socket.once('data', () => socket.end('N'));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  onTestFinished(() => {
+    server.close();
+  });
+  const address = server.address();
+  return urlOf(typeof address === 'object' && address !== null ? address.port : 0);
+}
+
 // Where the shell's connection strings lead in these tests: a port where nothing listens.
 const SHELL_DATABASE_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full';
 // Where every copy of the db module keeps the databases that the process opened.
@@ -71,18 +88,30 @@ describe('migrateDatabase', { timeout: 60_000 }, () => {
   });
 
   it('[TRV-76] migrates through the direct connection string, never the pooled one', async () => {
-    const [pooled, direct] = await Promise.all([closedPort(), closedPort()]);
     vi.stubEnv('VERCEL_ENV', 'production');
-    vi.stubEnv('DATABASE_URL', urlOf(pooled));
-    vi.stubEnv('DATABASE_URL_UNPOOLED', urlOf(direct));
+    vi.stubEnv('DATABASE_URL', urlOf(await closedPort()));
+    vi.stubEnv('DATABASE_URL_UNPOOLED', await serverWithoutTls());
     const { migrateDatabase } = await import('./migrate-database');
 
     await expect(migrateDatabase()).resolves.toStrictEqual({
       ok: false,
       error: {
         kind: 'migration-failed',
-        reason: `Error: connect ECONNREFUSED 127.0.0.1:${String(direct)}`,
+        reason: 'Error: The server does not support SSL connections',
       },
+    });
+  });
+
+  it('[TRV-64] reports a connection that fails by its code, never by the host and port it names', async () => {
+    const url = urlOf(await closedPort());
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vi.stubEnv('DATABASE_URL', url);
+    vi.stubEnv('DATABASE_URL_UNPOOLED', url);
+    const { migrateDatabase } = await import('./migrate-database');
+
+    await expect(migrateDatabase()).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'migration-failed', reason: 'ECONNREFUSED' },
     });
   });
 
@@ -127,14 +156,14 @@ describe('migrateDatabase', { timeout: 60_000 }, () => {
     await expect(migrateDatabase()).resolves.toStrictEqual({ ok: true });
   });
 
-  it('[TRV-76] reports a migration that fails, with the reason Postgres gives', async () => {
+  it('[TRV-76] reports a migration that fails, with the SQLSTATE that Postgres gives', async () => {
     projectWith('SELECT * FROM "missing";');
     vi.stubEnv('NODE_ENV', 'test');
     const { migrateDatabase } = await import('./migrate-database');
 
     await expect(migrateDatabase()).resolves.toStrictEqual({
       ok: false,
-      error: { kind: 'migration-failed', reason: 'error: relation "missing" does not exist' },
+      error: { kind: 'migration-failed', reason: '42P01' },
     });
   });
 });
