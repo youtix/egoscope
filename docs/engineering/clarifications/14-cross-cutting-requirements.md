@@ -343,7 +343,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## CL-TRV-25 — Refusals recorded without the database
 
-- **Affects:** TRV-41, TRV-65, TRV-67, TEL-31, CA-TRV-21, CA-TRV-34; CL-TRV-21, CL-TEL-06 (file 11 ruling); record 0025
+- **Affects:** TRV-41, TRV-65, TRV-67, TEL-31, CA-TRV-21, CA-TRV-34; CL-TRV-21, CL-TEL-06 (file 11 ruling); records 0002 and 0025
 - **Problem:** a refused tick (TRV-65) and a stranger's Telegram update (TEL-31, CL-TRV-21) must be journaled, but neither may open the database, so that a stream of refused calls never wakes it (record 0025); each server instance therefore keeps them in memory and hands them to the next database pass through the Runtime Cache. A serverless instance can be recycled at any moment, a flood of calls would outgrow any buffer, and the journal's categories have none for a refused trigger.
 - **Ruling:**
   - An instance records each refused tick and each ignored Telegram update in memory, with its instant and its kind (for an update, the kind of conversation, CL-TRV-21). The request that records an attempt writes the instance's buffer to the Runtime Cache after its response when the instance's last write is a minute old or more, so an isolated attempt is written at once; otherwise the buffer waits for the next such request.

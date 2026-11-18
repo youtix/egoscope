@@ -135,9 +135,11 @@ that carries it is passed through `env.redact` before it goes anywhere (TRV-64; 
   The handler compares the header in constant time and rejects a mismatch with `401`; answers `200`
   quickly to every genuine update, since any other status makes Telegram retry; deduplicates on
   `update_id`, an update at or below the stored `last_update_id` being a redelivery that is ignored
-  while the last update handled is less than a week old — Telegram keeps an undelivered update at
-  most 24 hours — and, once it is older, the start of a new sequence that is handled and becomes the
-  stored one; in polling mode, `getUpdates` is called without an offset in that case, since an
+  while the last update handled is less than 24 hours old — Telegram keeps an undelivered update at
+  most 24 hours, so no redelivery comes later, and its week without updates is counted from an
+  update the application may have handled up to 24 hours after Telegram created it — and, once the
+  last update handled is 24 hours old or more, the start of a new sequence that is handled and becomes
+  the stored one; in polling mode, `getUpdates` is called without an offset in that case, since an
   offset above the new identifiers would confirm and drop them;
   accepts only `message.chat.type == "private"`; links the chat on a valid, unused, unexpired
   `/start <code>`; and counts everything else without replying and without opening the database,

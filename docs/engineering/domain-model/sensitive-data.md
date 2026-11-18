@@ -112,9 +112,11 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
 1. Guards: the owner confirmed after the screen of CL-DSN-19, which lists what disappears and the
    limits, the number of Telegram messages mentioning E included, and says when an import draft of
    the player will be discarded, with the limit of a device left offline.
-2. A first transaction, committed on its own (Lot 2, notifications): the unsent messages about E
-   are abandoned, so that nothing more can be sent, and the chat and message identifiers of the
-   sent ones, digests included, are read.
+2. A first transaction, committed on its own (Lot 2, notifications): it locks the message rows
+   that name E, so that a send in progress either commits first, its message being then a sent one
+   that this step reads, or finds the message discarded; the unsent messages about E are abandoned,
+   so that nothing more can be sent, and the chat and message identifiers of the sent ones, digests
+   included, are read (notifications.md section 1.8).
 3. Outside any transaction: the app asks Telegram once to delete each of those messages, whatever
    its age, and keeps the answers in memory.
 4. Upsert the fingerprint of E into `withdrawal_fingerprints` with `created_at = now()`.
@@ -128,7 +130,9 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
    the outbox facts of its tracked game results; detection — the classification results
    of its articles and their attachments, then, through collection's eraser, every article attached
    to E and to no other event, whatever its other roles, with the type occurrences copied from it,
-   with no dedup trace and no other record (DSN-34, CL-DSN-10). Each eraser deletes the
+   with no dedup trace and no other record (DSN-34, CL-DSN-10), and, through
+   `collection.eraseArticlesWithoutRole`, every other article that the detection step left with no
+   part and no other role (CL-COL-16). Each eraser deletes the
    outbox facts of its own objects by `lot2_subject_id` and nulls the journal's `lot2_object_kind`
    and `lot2_object_id` for what it erases.
 6. `import_event_outcomes` rows whose event is E, and `import_possible_duplicates` rows whose
@@ -145,16 +149,20 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
    exploration drafts are not concerned (CL-DSN-22, DSN-27, DSN-32; the request ids come from
    `backtest_requests`, and `drafts_import_key` finds each draft).
 7. `journal_technical_details` of journal entries that concerned only E; the entries' references
-   to E then become null and read "an item that no longer exists" (CL-TRV-10). An entry that names
-   an event names nothing else (operations.md section 1.2), so none keeps E's player, type, case,
-   request or import (TRV-41).
+   to E then become null and read "an item that no longer exists" (CL-TRV-10), and so does the Lot 2
+   object an entry names beside E, such as an alert sheet that keeps other events; an entry that
+   names E's case loses that reference when step 9 deletes the case. An entry that names an event or
+   a case names neither its player nor its type (operations.md section 1.2), so none keeps E's
+   player, type, request or import (TRV-41, DSN-29).
 8. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),
    `event_import_warnings`, `event_marks`, `event_status_changes`, `event_corrections` and
    `backtest_request_events`, the outbox facts and restore-report rows that name it.
-9. E's case if it holds no other event, with its criteria, flags, decisions and history; otherwise the case is rebuilt as if E had never been recorded (CL-SUI-17): its `origin` and `created_at` become those of its earliest-recorded remaining event, its `case_history_entries` recorded before that new `created_at` are deleted, and the rebuild writes no history row of its own (the job of step 12 records any change, cause `recalculation`). The case's own manual decisions (`case_manual_decisions`) stay, since they apply to its remaining events too; the decisions about E, tracking's, went in step 5, where tracking also rebuilt, created or deleted its tracked case.
+9. E's case if it holds no other event, with its criteria, flags, decisions and history; otherwise the case is rebuilt as if E had never been recorded (CL-SUI-17): its `origin` and `created_at` become those of its earliest-recorded remaining event, its `case_history_entries` recorded and its `case_review_flags` raised before that new `created_at` are deleted, and the rebuild writes no history row of its own (the job of step 12 records any change, cause `recalculation`, and raises again the flags that still apply). The case's own manual decisions (`case_manual_decisions`) stay, since they apply to its remaining events too; the decisions about E, tracking's, went in step 5, where tracking also rebuilt, created or deleted its tracked case.
 10. `withdrawn_event_counter.value + 1`.
 11. A journal entry "an event was withdrawn", with no player, type or date (CL-TRV-10).
-12. A full recalculation job with cause `recalculation`; a profile or trend it leaves with no event
+12. A full recalculation job with cause `recalculation` (after an erasure by requalification or
+    split, the job of the cases concerned with the cause `event_corrected_or_removed` instead, which
+    replaces no version: SEN-34, CL-SEN-17, CL-SUI-17); a profile or trend it leaves with no event
     is erased with its verdict history and its historical-view versions (SEN-48, CL-SEN-18); for
     every other historical-only profile and trend whose values it changes, the job replaces all
     their versions by one version holding the new values (sensitivity-and-profiles.md section 1.5),
@@ -171,14 +179,15 @@ requests were sent.
 
 What remains afterwards: the counter and, for the horizon, the fingerprint. Accepted residual
 limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); for a case rebuilt from
-its other events, its own decisions dated before its new creation instant and its history rows
-recorded since that instant while E was in it (CL-SUI-17); in Lot 2, the values in force before the
+its other events, its own decisions dated before its new creation instant and its history rows,
+review flags and category changes recorded since that instant while E was in it (CL-SUI-17); in Lot 2, the values in force before the
 withdrawal wherever a requirement froze them for another event of the same pair or type — the
 forecast frozen at a tip-off on another tracked case (SUI-09), the profile and trend snapshots and
 outcomes of other sheets and sections (ALE-19), the tracked-game results transmitted and the
 messages sent about other events (SUI-19, TEL-11 to TEL-13) — which never change (CL-SEN-18); in
 Lot 2, a sheet whose status changed at the withdrawal with no entry, or closed on a day when none
-of its cases changed, and the number of a sheet whose initial section went (CL-ALE-16); backups until they
+of its cases changed, and the number of a sheet initialized again from its earliest remaining
+event (CL-ALE-16); backups until they
 rotate out; exports already downloaded; Telegram messages the bot could not delete; a device left
 offline until its next refresh; in Lot 2, an article still in a feed, collected and classified
 again for at most its maximum age while the fingerprint keeps it from becoming an event

@@ -238,15 +238,28 @@ console stays the authority on the real figure and period.
 
 ## Replaceable by
 
-Any hosted Postgres reachable over TLS, at Neon or elsewhere. Procedure (TRV-77): download a full
-export; create the new database and keep the old project as it is; run the restore script into the
-empty new database (TRV-53) with the old database's direct connection string given as the previous
-database, so that it first copies the withdrawal ledger from it — the full export holds no ledger
-(CL-TRV-06, CL-DSN-08) — and only then loads the export; set `DATABASE_URL` and
-`DATABASE_URL_UNPOOLED` to the new database; run the installation check (TRV-47); and delete the
-old project only after that check passes. Without the old database the new one would start with an
-empty ledger, and a later restore of a backup made before a withdrawal or a player-data deletion
-would bring that event or that player back (DSN-28, DSN-29, JOU-24). Supabase's free plan was not
+Any hosted Postgres reachable over TLS, at Neon or elsewhere. Procedure (TRV-77):
+
+1. Stop using the application: from the export to the redeploy of step 5, whatever it writes — an
+   import, a correction, a withdrawal, the scheduled tasks' work — stays in the old database and is
+   lost, as the restore summary warns for any change made after the file's date (CL-TRV-06); so the
+   export is the last thing done in the old database.
+2. Download a full export.
+3. Create the new database and keep the old project as it is.
+4. Run the restore script into the empty new database (TRV-53) with the old database's direct
+   connection string given as the previous database, so that it first copies the withdrawal ledger
+   from it — the full export holds no ledger (CL-TRV-06, CL-DSN-08) — and only then loads the
+   export.
+5. Set `DATABASE_URL` and `DATABASE_URL_UNPOOLED` to the new database, then redeploy: a change to a
+   Vercel variable takes effect only at the next deployment ([accounts and keys](accounts-and-keys.md)).
+6. Sign in with `INITIAL_PASSWORD` and choose a new password: a restore never carries the account,
+   and initializes one in an empty database (operations.md §2.5 step 3, CL-TRV-05).
+7. Run the installation check (TRV-47) on the new deployment, which now reaches the new database.
+8. Delete the old project only after that check passes.
+
+Without the old database the new one would start with an empty ledger, and a later restore of a
+backup made before a withdrawal or a player-data deletion would bring that event or that player
+back (DSN-28, DSN-29, JOU-24). Supabase's free plan was not
 retained because free projects are paused after a week of inactivity
 ([Supabase pricing](https://supabase.com/pricing)).
 

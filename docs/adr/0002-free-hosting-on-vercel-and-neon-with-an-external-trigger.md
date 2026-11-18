@@ -22,7 +22,7 @@
 ## Consequences
 
 - The external trigger is a wake-up call at a fixed cadence and nothing more. The application keeps the schedule itself: from its own settings it decides which tasks are due, in the owner's time zone and across clock changes (TRV-27), detects missed runs (TRV-31) and never starts a task that is still running (TRV-28, TRV-29). Changing an hour in the settings ([0019](0019-two-daily-collection-and-detection-runs.md)) therefore never means reprogramming the trigger. The cadence must suit the configured hours and the retry delays (STA-36, TEL-35); technical design records it (TRV-25).
-- Every wake-up call without the secret is refused and logged (TRV-65, CA-TRV-21). The secret lives in the deployment configuration (TRV-37, TRV-64).
+- Every wake-up call without the secret is refused and logged (TRV-65, CA-TRV-21; see Amendments). The secret lives in the deployment configuration (TRV-37, TRV-64).
 - Long work — a career fetch (STA-41), collection followed by detection, a full recalculation (SEN-34), a backup — runs in portions that fit the platform's execution limit and records its progress, so the next wake-up resumes it without loss or duplicate (TRV-30, CA-TRV-09).
 - Vercel and Neon each get a service sheet (TRV-09) whose terms are checked on the day; a service that fails the check is replaced under [0011](0011-choosing-the-remaining-services.md).
 - TRV-75 steps 3 and 7 become: create the Vercel and Neon accounts, and the trigger account if the chosen trigger needs one; program the wake-up call with its secret.
@@ -38,3 +38,10 @@
 - [0024](0024-external-services.md): the services as chosen and verified on 2026-11-11, including the trigger's backstop caller.
 - [0025](0025-database-compute-budget-shapes-the-scheduler.md): how the database's compute budget shapes the scheduler.
 - [0026](0026-runtime-node-in-production-bun-for-tooling.md): the runtime outcome, Node.js in production.
+
+## Amendments
+
+### 2026-11-18 — Refused wake-up calls (CL-TRV-25)
+
+- A wake-up call without the secret is refused before anything else and opens no database connection, so that a stream of refused calls never wakes the database ([0025](0025-database-compute-budget-shapes-the-scheduler.md)). The server instance keeps each refusal in memory with its instant and kind and writes them to the Runtime Cache, an isolated refusal at once and a burst at most once a minute; the next database pass journals each one in the category `trigger_refused` (TRV-65, CA-TRV-21).
+- Accepted limits, pending the owner's review of CL-TRV-25: beyond 1,000 refusals pending in one instance only their count is journaled, and an instance the host recycles loses the refusals it recorded since its last write, at most a minute of them. No refused call runs a task or opens the database, which is what TRV-65 protects.

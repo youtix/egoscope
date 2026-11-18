@@ -9,7 +9,7 @@ The French functional specs in `docs/` stay the reference. Where a record change
 | Record                                                                   | Decision                                                                                                                                                             | Amended                            |
 | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | [0001](0001-build-both-lots-in-dependency-ordered-waves.md)              | Both lots built in one run: foundation, Lot 1 to a tagged milestone, then Lot 2                                                                                      | 2026-11-13                         |
-| [0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md) | Vercel Hobby and Neon, all free; TypeScript and Bun; scheduled work via an external trigger                                                                          |                                    |
+| [0002](0002-free-hosting-on-vercel-and-neon-with-an-external-trigger.md) | Vercel Hobby and Neon, all free; TypeScript and Bun; scheduled work via an external trigger                                                                          | 2026-11-18                         |
 | [0003](0003-public-repository-and-pull-request-workflow.md)              | Public repository, one pull request per task, merge on green CI and independent review                                                                               |                                    |
 | [0004](0004-quality-bar.md)                                              | Quality bar: strict typing, lint, coverage, property and mutation tests, traceability                                                                                |                                    |
 | [0005](0005-code-organization-rules.md)                                  | Data apart from code, one naming convention, shallow folders, one entry point                                                                                        |                                    |
@@ -61,7 +61,7 @@ The same section names the heaviest drafting hypotheses. H-12 (two lots) is conf
 ## Open to the owner's review
 
 - [0023](0023-statistics-source-sportsdataverse-releases.md): the provenance of the statistics releases, compiled by their publisher from ESPN's web API; the application itself calls no undocumented endpoint.
-- The rulings marked "Owner review: yes" in `docs/engineering/clarifications/README.md`, several of which amend records; that file's list "Rulings that amend a decision record or a spec hypothesis" names every ruling that amends one, today records 0001, 0010, 0012, 0013, 0015, 0017, 0018 and 0023, and the hypotheses it lists. The application is built as ruled meanwhile.
+- The rulings marked "Owner review: yes" in `docs/engineering/clarifications/README.md`, several of which amend records; that file's list "Rulings that amend a decision record or a spec hypothesis" names every ruling that amends one, today records 0001, 0002, 0010, 0012, 0013, 0015, 0017, 0018 and 0023, and the hypotheses it lists. The application is built as ruled meanwhile.
 
 ## Adding or changing a record
 

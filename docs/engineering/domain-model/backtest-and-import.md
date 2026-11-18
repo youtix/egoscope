@@ -36,7 +36,7 @@ A request to the owner to run a deep research for one player; at most one to do 
 | `cancellation_reason_text` | text        | yes  | —         | the owner's optional reason                                                                                                 | PI TX | BKT-14, DSN-10                    |
 | `prompt_text`              | text        | no   | —         | the research prompt as produced, every placeholder filled                                                                   | PI    | BKT-20, BKT-22                    |
 | `prompt_produced_at`       | timestamptz | no   | —         | —                                                                                                                           | PI    | BKT-20                            |
-| `last_copied_at`           | timestamptz | yes  | —         | set by a successful Copy or Share; also the "prompt copied" indication of IHM-39 (`promptCopiedAt`)                         | PI    | BKT-20, IHM-39, IHM-40, CL-BKT-12 |
+| `last_copied_at`           | timestamptz | yes  | —         | set by a successful Copy or Share; the "prompt copied" indication of IHM-39 is derived from it (glossary `lastCopiedAt`)    | PI    | BKT-20, IHM-39, IHM-40, CL-BKT-12 |
 | `row_version`              | integer     | no   | `1`       | incremented by every save                                                                                                   | —     | CL-IHM-18                         |
 
 Row checks: `(status = 'imported') = (imported_at IS NOT NULL)`;

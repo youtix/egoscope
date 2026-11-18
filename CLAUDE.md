@@ -26,7 +26,8 @@ These rules hold for every change. README.md has the overview, the stack and the
 
 The specs decide behavior; a ruling outranks a reading of a spec. The glossary owns terms, labels
 and the stored values it lists; the data model, tables, columns and the other stored values (showing
-one adds its glossary label); the module map, module names, routes, parameter keys and task keys.
+one adds its glossary label); the module map, module names, the names its modules export, routes,
+parameter keys and task keys.
 
 ## Layout and module rules
 

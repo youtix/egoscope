@@ -99,9 +99,14 @@ foreign key, so that no core table points at a Lot 2 table; a pair that resolves
 the same way. Row checks: `(lot2_object_kind IS NULL) = (lot2_object_id IS NULL)`; `player_event_id IS
 NULL OR (player_id, event_type_id, case_id, backtest_request_id, import_id) IS NULL` — an entry about an
 event names it by that reference alone, and the display reads its player, type, date, request and
-import through the event, so that the withdrawal's nulling of `player_event_id` leaves no mention of
-the event in the entries that concerned it (TRV-41, DSN-29). An entry never names an event otherwise;
-a withdrawal is written as `event_withdrawn` with no reference (CL-TRV-10).
+import through the event; `case_id IS NULL OR (player_id, event_type_id) IS NULL` — an entry about a
+case names it by that reference alone, and the display reads its player and type through the case.
+So the withdrawal's nulling of `player_event_id`, and the deletion of the withdrawn event's case,
+which nulls `case_id`, leave no mention of the event, its player or its type in the entries that
+concerned it; the same nulling empties the Lot 2 pair of an entry that names the event beside a
+Lot 2 object, an alert sheet for instance (TRV-41, DSN-29; sensitive-data.md section 2.1, step 7).
+An entry never names an event otherwise; a withdrawal is written as `event_withdrawn` with no
+reference (CL-TRV-10).
 
 Indexes: `journal_entries_occurred_idx (occurred_at)` — the journal screen and the export of a
 period (TRV-41, TRV-49); `journal_entries_category_idx (category, occurred_at)` — its filters;
@@ -650,14 +655,26 @@ archive layout the module map gives the export, backup and restore (one format f
 }
 ```
 
-| key                     | type    | rule                                                                                                                                                |
-| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format`                | string  | `egoscope-export`                                                                                                                                   |
-| `format_version`        | string  | `1.0`; a new column, table or value changes the version                                                                                             |
-| `exported_at`           | string  | ISO 8601 instant in UTC with milliseconds                                                                                                           |
-| `withdrawn_event_count` | integer | the counter's value (CL-DSN-08)                                                                                                                     |
-| `tables`                | array   | every exported table, in foreign-key order so that a restore inserts them in sequence: `name`, `file`, `rows` (integer), `sha256` (hex of the file) |
-| `backup_kind`           | string  | in a backup only: `weekly`, `manual` or `before_update`                                                                                             |
+| key                     | type    | rule                                                                                                           |
+| ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| `format`                | string  | `egoscope-export`                                                                                              |
+| `format_version`        | string  | `1.0`; a new column, table or value changes the version                                                        |
+| `exported_at`           | string  | ISO 8601 instant in UTC with milliseconds                                                                      |
+| `withdrawn_event_count` | integer | the counter's value (CL-DSN-08)                                                                                |
+| `tables`                | array   | every exported table, in the loading order below: `name`, `file`, `rows` (integer), `sha256` (hex of the file) |
+| `backup_kind`           | string  | in a backup only: `weekly`, `manual` or `before_update`                                                        |
+
+**Loading order.** The manifest lists the tables so that each one comes after every table it
+references, and a restore inserts them in that sequence, in one transaction. The foreign keys of
+both models form one cycle, `backtest_requests.trigger_import_id` with `imports.backtest_request_id`,
+and four self-references: `event_types.merged_into_type_id`, `event_types.split_from_type_id`,
+`notification_messages.grouped_into_message_id` and `task_runs.parent_run_id`. These five columns,
+`backtest_requests.trigger_import_id` and the four self-references, are loaded empty in the first
+pass and filled in a second pass of the same transaction, once every row exists; the order ignores
+them. The row check that ties `event_types.merged_into_type_id` to the withdrawal reason
+`merged_into` is therefore checked at commit ([event-types.md](event-types.md) section 1.1). A
+foreign key that closes a new cycle, or a new self-reference, joins this list in the pull request
+that adds it.
 
 Excluded tables: `accounts`, `sessions`, `login_failures`, `drafts`, `withdrawal_fingerprints`,
 `deleted_player_entries`, `withdrawn_event_counter` (its value is in the manifest), and, in Lot 2,

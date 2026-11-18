@@ -339,7 +339,10 @@ Situations shown to the owner without automatic exclusion (SEN-16, CL-SEN-11, CL
 | `acknowledged_at`  | timestamptz | yes  | —        | the owner has looked at it; the flag stays on the case, the to-do item goes           | EV    | SEN-16, IHM-20               |
 
 Unique: `case_review_flags_key (case_id, flag)`. A flag about another game than the case's is
-deleted by the next recalculation.
+deleted by the next recalculation. When a withdrawal, or an erasure by requalification or split,
+rebuilds the case from its remaining events, the flags raised before its new `created_at` are
+deleted in that transaction, as its history rows are (CL-SUI-17, section 1.11); the recalculation
+that follows raises again those that still apply.
 
 ### 1.10 `case_manual_decisions` — `ManualDecision`
 
@@ -371,12 +374,14 @@ Index: `case_manual_decisions_case_idx (case_id, decided_at)`.
 
 ### 1.11 `case_history_entries` — `CaseHistoryEntry`
 
-The append-only history of a case's status, measured game and gap (08 « Données manipulées »,
-« Cas limites »). A row is written only when one of these values changes. Its one deletion besides
-the case's own: when a withdrawal, or an erasure by requalification or split, rebuilds the case
-from its remaining events, the rows recorded before its new `created_at` are deleted in that
-transaction (CL-SUI-17); the rebuild writes no row, and the recalculation job that follows records
-any change with the cause `recalculation`.
+The history of a case's status, measured game and gap (08 « Données manipulées », « Cas
+limites »). A row is written only when one of these values changes, and is never updated. Its one
+deletion besides the case's own: when a withdrawal, or an erasure by requalification or split,
+rebuilds the case from its remaining events, the rows recorded before its new `created_at` are
+deleted in that transaction (CL-SUI-17); the rebuild writes no row, and the recalculation job that
+follows, the operation's own, records any change with its own cause: `recalculation` after a
+withdrawal (a full job, CL-SEN-18), `event_corrected_or_removed` after a requalification or a split
+(the job of the cases concerned, SEN-34 c, CL-SEN-17).
 
 | column             | type             | null | default  | constraint or reference                                         | class | spec IDs          |
 | ------------------ | ---------------- | ---- | -------- | --------------------------------------------------------------- | ----- | ----------------- |
@@ -495,10 +500,12 @@ and month of birth — 28 February in common years for a 29 February birthday (C
 former-team type counts, per stint with a former team, the first game between his team and it after
 his last game played for it in that stint, when every season in between is covered (CL-JOU-18). "His
 team", at a past game and at his next game alike, is the membership of CL-STA-05 (CL-TAX-18): a team
-change recorded while current, from the source's player file or entered, ends the old membership
-and starts the new one at its recorded instant, an entered change taken back moves nothing, and the
-team chosen at addition starts none. The next game (STA-26) is his current team's, and it qualifies
-only when he belongs to that team at its scheduled start (CL-STA-25).
+change read from the source's player file while current ends the old membership and starts the new
+one at its recorded instant; an entered one does so at its entry, unless his next game played makes
+it void or ends its membership unconfirmed (CL-JOU-03); the team chosen at addition starts his
+membership at the addition when the player file gives the same team, and is otherwise an entered
+change ([players.md](players.md) 1.4). The next game (STA-26) is his current team's, and it
+qualifies only when he belongs to that team at its scheduled start (CL-STA-25).
 
 - **Regular runs**, at the end of every statistics update and, in Lot 2, of every
   collection-and-detection pass: every qualifying game started since the player's previous run
@@ -509,14 +516,19 @@ only when he belongs to that team at its scheduled start (CL-STA-25).
 - **Full derivations**, over every game already started: at the validation, the reactivation and
   the substantive change of the type, for every eligible player; for one player, at a change of his
   birthday (birthday type), of his mapping, at a box-score correction that changes his team history
-  (former-team type), at a team change the owner enters, and when his first game after it is for
-  another team, which takes it back (both types; cause `team_history_changed`). They create the
-  missing events and delete those whose game no longer qualifies.
+  (former-team type), at a team change the owner enters, and when his first game after it makes the
+  entry void or ends its membership unconfirmed (both types; cause `team_history_changed`). They
+  create the missing events and delete those whose game no longer qualifies, started or not: after
+  a void entry or an unconfirmed end, the events the entry's membership gave. These deletions are
+  the exception to JOU-14 that register row JOU-14 records (CL-TAX-19).
 - **Every run**, regular or full, re-checks the upcoming events of the players it covers and deletes,
   before tip-off, one whose game no longer qualifies (CL-TAX-19).
 
 Each trigger records a `calendar_derivation_requests` row (1.13) in the transaction of the change
-that calls for it, and the `calendar-derivation` task runs it. In Lot 1 as in Lot 2 an upcoming
+that calls for it, through `calendarEvents.requestDerivation` (module map section 1.7: the edit
+screen's action for an entered team change; the statistics update and fetch for a void entry, an
+unconfirmed end or a box-score correction of the team history), and the `calendar-derivation` task
+runs it. In Lot 1 as in Lot 2 an upcoming
 event is created only for his next game not yet started, with a case of origin `tracked`
 (CL-VUE-13); in Lot 2 `game-tracking`,
 chained after the derivation, then creates its tracked-case rows and alert sheet (CL-SUI-14,
@@ -570,8 +582,11 @@ changed, that left awaiting their game, or whose gap, status, baseline or catego
 SUI-15, SUI-21, ALE-26, CL-ALE-12; module map section 1.10). The owner's composed actions
 (exclusion, reinstatement, dismissal, corrections, the lift of the dating mark) record their
 post-tip-off decision for tracking in their own transaction, through their composition caller
-(module map section 1.7). In Lot 2, a case that keeps an event not dismissed counts as usual, from
-those events (CL-VUE-03); a case all of whose detected events are dismissed, the last of them at or
+(module map section 1.7). In Lot 2, a case that keeps an event not dismissed is evaluated again
+from those events and counts as usual in profiles and trends (CL-VUE-03, CL-SEN-28); when
+dismissing or reinstating one of its events changes, at or after its measured game's scheduled
+start, whether a tracked case is measured, that composed action records it as a post-tip-off
+decision, an entry or an exit (CL-DET-09); a case all of whose detected events are dismissed, the last of them at or
 after its expected game's scheduled start, keeps being evaluated, outside every profile, trend,
 control and verdict, so that the validation table counts it apart (SUI-17); one whose last
 dismissal came earlier keeps the state and gap it had until a reinstatement (SEN-48, CL-SEN-05,
@@ -624,21 +639,21 @@ run, for each player and type:
 
 ## 4. Stored or derived
 
-| item                                                                        | stored or derived | recalculated when                                                                                       | spec IDs                             |
-| --------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Every case column but identity, origin and `created_at`                     | stored            | each recalculation job covering the case (SEN-34)                                                       | SEN-07 to SEN-17, CL-SEN-16          |
-| Triggered criteria, review flags                                            | stored            | same; acknowledgments kept while the flag's game is unchanged                                           | SEN-11, SEN-16                       |
-| Reference instant of a case and its origin                                  | stored            | same, from its events (CL-SEN-02)                                                                       | SEN-01, SEN-05                       |
-| Valid case                                                                  | derived           | `status = 'measured'`                                                                                   | SEN-07, CL-SEN-27                    |
-| Co-occurring mark and the other types                                       | derived           | cases of the same player and measured game, other types                                                 | SEN-06                               |
-| Uncertain-precedence mention                                                | derived           | `reference_instant_origin = 'uncertain_precedence_shift'`                                               | SEN-44                               |
-| Effective manual decision, "after tip-off"                                  | derived           | on read                                                                                                 | SEN-17, SUI-17, CL-SEN-12            |
-| Recording timing of a tracked case (Lot 2)                                  | derived           | `created_at` against the measured game's scheduled start                                                | SUI-06                               |
-| « Détecté après le coup d'envoi » and the position of a dismissal (Lot 2)   | derived           | the creation or dismissal instant against the measured game's scheduled start, else the expected game's | DET-33, DET-46, CL-DET-15, CL-DET-16 |
-| Grouped-event count of a case                                               | derived           | its events minus one                                                                                    | SEN-20, SEN-32                       |
-| Expected game of a detected event (Lot 2)                                   | derived           | first team game after the reference instant                                                             | SUI-03, ALE-15, CL-BKT-23            |
-| Reference article of a detected event (Lot 2)                               | held by Lot 2     | `article_attachments`, at every attachment change                                                       | DET-30, CL-DET-27                    |
-| Basis of a calendar-derived event (birthday, last game for the former team) | derived           | on read, from the player's birthday and box scores                                                      | CL-VUE-15                            |
+| item                                                                        | stored or derived | recalculated when                                                                                                                                                            | spec IDs                             |
+| --------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Every case column but identity, origin and `created_at`                     | stored            | each recalculation job covering the case (SEN-34)                                                                                                                            | SEN-07 to SEN-17, CL-SEN-16          |
+| Triggered criteria, review flags                                            | stored            | same; acknowledgments kept while the flag's game is unchanged                                                                                                                | SEN-11, SEN-16                       |
+| Reference instant of a case and its origin                                  | stored            | same, from its events (CL-SEN-02)                                                                                                                                            | SEN-01, SEN-05                       |
+| Valid case                                                                  | derived           | `status = 'measured'`                                                                                                                                                        | SEN-07, CL-SEN-27                    |
+| Co-occurring mark and the other types                                       | derived           | cases of the same player and measured game, other types                                                                                                                      | SEN-06                               |
+| Uncertain-precedence mention                                                | derived           | `reference_instant_origin = 'uncertain_precedence_shift'`                                                                                                                    | SEN-44                               |
+| Effective manual decision, "after tip-off"                                  | derived           | on read                                                                                                                                                                      | SEN-17, SUI-17, CL-SEN-12            |
+| Recording timing of a tracked case (Lot 2)                                  | derived           | `created_at` against the measured game's scheduled start                                                                                                                     | SUI-06                               |
+| « Détecté après le coup d'envoi » and the position of a dismissal (Lot 2)   | derived           | the creation or dismissal instant against the measured game's scheduled start, else the expected game's; with neither known, the mark is not set and a dismissal is "before" | DET-33, DET-46, CL-DET-15, CL-DET-16 |
+| Grouped-event count of a case                                               | derived           | its events minus one                                                                                                                                                         | SEN-20, SEN-32                       |
+| Expected game of a detected event (Lot 2)                                   | derived           | first team game after the reference instant, moved to the next one when it is postponed or he is known not to have played it (SUI-18)                                        | SUI-03, SUI-18, ALE-15, CL-BKT-23    |
+| Reference article of a detected event (Lot 2)                               | held by Lot 2     | `article_attachments`, at every attachment change                                                                                                                            | DET-30, CL-DET-27                    |
+| Basis of a calendar-derived event (birthday, last game for the former team) | derived           | on read, from the player's birthday and box scores                                                                                                                           | CL-VUE-15                            |
 
 ## 5. Exchange formats
 
