@@ -37,3 +37,8 @@ reason = "qs 6.15.1, moderate: array-limit bypass through bracket-key comma pars
 id = "GHSA-6pq8-jhm2-2vcw"
 ignoreUntil = 2027-02-13
 reason = "qs 6.15.1, moderate: qs.stringify with the comma array format throws on an array element whose own toString cannot be called. Development only and never called: @stryker-mutator/core 10.1.1, its latest release, needs typed-rest-client ~2.3.0, whose newest version in that range, 2.3.1, pins qs 6.15.1, and calls that client only in its dashboard reporter and in stryker init, neither of which stryker.config.ts uses. The fix exists only in typed-rest-client 3, which needs qs ^6.16.1."
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2027-02-18
+reason = "picomatch 2.3.2 and 4.0.7, high: denial of service through a single-branch repeated extglob pattern such as +(*), whose regular expression backtracks exponentially. Development only: ESLint and its plugins, markdownlint-cli2, knip, Vite and Vitest match this repository's own glob patterns with it; a pull request could at worst slow down its own jobs. No release fixes it yet: 4.0.7 is the latest picomatch. A fixed 2.3.x and 4.0.x release would fit the ^2.3.1, ^4.0.4 and ^4.0.7 ranges of the packages that use it."
