@@ -81,8 +81,18 @@ export type { GameScoreInput } from './performance/game-score';
 // --- profiles/ -------------------------------------------------------------------
 
 // profiles/tally.ts
+export { tallyProfile } from './profiles/tally';
+export type { ProfileCase, ProfileTally, TallyExitReason } from './profiles/tally';
 
 // profiles/verdict.ts
+export { profileVerdict, signalVerdict, verdictQuantities } from './profiles/verdict';
+export type {
+  ProfileVerdict,
+  Verdict,
+  VerdictDirection,
+  VerdictLevel,
+  VerdictQuantities,
+} from './profiles/verdict';
 
 // profiles/confidence.ts
 
