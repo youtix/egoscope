@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { pgSchema, text } from 'drizzle-orm/pg-core';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
@@ -32,6 +32,8 @@ const appliedMigrations = pgSchema('drizzle').table('__drizzle_migrations', {
 });
 
 const BREAKPOINT = '\n--> statement-breakpoint\n';
+// The tables of the db module itself; the tests of each schema file cover its own.
+const DB_MODULE_TABLES = ['installation', 'sequence_counters'];
 
 /** An empty PGlite database, stopped when the test ends. */
 async function emptyDatabase(): Promise<PgliteDatabase> {
@@ -73,7 +75,7 @@ async function publicTables(pglite: PgliteDatabase): Promise<readonly (string | 
 }
 
 describe('the migrations', { timeout: 60_000 }, () => {
-  it('[TRV-76] build every table and column of the schema from an empty database', async () => {
+  it('[TRV-76] build the tables and columns of the db module from an empty database', async () => {
     const pglite = await emptyDatabase();
 
     await pglite.migrate();
@@ -86,7 +88,7 @@ describe('the migrations', { timeout: 60_000 }, () => {
         default: columns.columnDefault,
       })
       .from(columns)
-      .where(eq(columns.tableSchema, 'public'))
+      .where(and(eq(columns.tableSchema, 'public'), inArray(columns.tableName, DB_MODULE_TABLES)))
       .orderBy(asc(columns.tableName), asc(columns.columnName));
 
     expect(built).toStrictEqual([
@@ -124,23 +126,26 @@ describe('the migrations', { timeout: 60_000 }, () => {
       )
       .orderBy(asc(tableConstraints.tableName));
 
-    expect(keys).toStrictEqual([
-      { table: 'installation', name: 'installation_pkey' },
-      { table: 'sequence_counters', name: 'sequence_counters_pkey' },
-    ]);
+    expect(keys.map((key) => key.table)).toStrictEqual(await publicTables(pglite));
+    expect(keys).toStrictEqual(
+      expect.arrayContaining([
+        { table: 'installation', name: 'installation_pkey' },
+        { table: 'sequence_counters', name: 'sequence_counters_pkey' },
+      ]),
+    );
   });
 
   it('[TRV-76] apply only what is pending: a second run changes nothing', async () => {
     const pglite = await emptyDatabase();
+    await pglite.migrate();
+    const applied = await pglite.db.select().from(appliedMigrations);
+    const tables = await publicTables(pglite);
 
     await pglite.migrate();
-    await pglite.migrate();
 
-    await expect(pglite.db.select().from(appliedMigrations)).resolves.toHaveLength(1);
-    await expect(publicTables(pglite)).resolves.toStrictEqual([
-      'installation',
-      'sequence_counters',
-    ]);
+    await expect(pglite.db.select().from(appliedMigrations)).resolves.toStrictEqual(applied);
+    await expect(publicTables(pglite)).resolves.toStrictEqual(tables);
+    expect(tables).toStrictEqual(expect.arrayContaining(DB_MODULE_TABLES));
   });
 
   it('[TRV-76] evolve a migrated database with the migrations that came after', async () => {

@@ -1,6 +1,9 @@
 /**
  * The drift check (`bun run db:check`), a job of CI and a step of the gate
- * (TRV-76). The migrations committed in drizzle/ must match the schema, so that
+ * (TRV-76). The journal of drizzle/ must list the migrations in the order they
+ * were generated, since Drizzle's migrator applies an entry only when its `when`
+ * is later than that of the last migration applied, and skips any other without a
+ * word; the migrations committed in drizzle/ must match the schema, so that
  * generating them again changes nothing; they must build the schema from an
  * empty database; and the database they build must be the one that the schema
  * alone builds, through the SQL that drizzle-kit generates from scratch, so that
@@ -23,6 +26,7 @@ import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
+import { z } from 'zod';
 
 import config from '../drizzle.config';
 
@@ -30,6 +34,13 @@ type Catalog =
   Readonly<{ ok: true; lines: readonly string[] }> | Readonly<{ ok: false; reason: string }>;
 
 const MIGRATIONS = 'drizzle';
+const JOURNAL = path.join(MIGRATIONS, 'meta', '_journal.json');
+// What the check reads of the journal that drizzle-kit writes, entry by entry.
+const JOURNAL_ENTRY = z.object({ idx: z.number(), when: z.number(), tag: z.string() });
+const JOURNAL_ENTRIES = z.object({ entries: z.array(JOURNAL_ENTRY) });
+// How a conflict in the journal is resolved after a rebase (CLAUDE.md, "Database").
+const GENERATE_AGAIN =
+  'Take drizzle/meta/ as origin/main has it, journal and snapshots (`git restore --source=origin/main --staged --worktree drizzle/meta`), delete only the .sql files of your own migrations, then run `bun run db:generate` again: never edit drizzle/meta by hand.';
 // What drizzle-kit says when the schema holds nothing that drizzle/ lacks. Its
 // exit code cannot tell: it exits with 0 on some failures.
 const NOTHING_TO_MIGRATE = 'No schema changes, nothing to migrate';
@@ -104,6 +115,35 @@ const CATALOG = String.raw`
   ) as catalog
   order by line collate "C"
 `;
+
+/** The value of the JSON `text`, or undefined when it is none, as with conflict markers left in it. */
+function jsonValue(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Says why the journal of drizzle/ would make Drizzle's migrator skip a migration:
+ * each entry must come after the one before it, by `idx` and by `when`, as when
+ * drizzle-kit generates the migrations one after the other.
+ */
+function journalProblem(): string | undefined {
+  const journal = JOURNAL_ENTRIES.safeParse(jsonValue(readFileSync(JOURNAL, 'utf8')));
+  if (!journal.success) {
+    return `${JOURNAL} is not a journal that drizzle-kit wrote. ${GENERATE_AGAIN}`;
+  }
+  const { entries } = journal.data;
+  for (const [index, entry] of entries.entries()) {
+    const previous = entries[index - 1];
+    if (previous !== undefined && (entry.idx <= previous.idx || entry.when <= previous.when)) {
+      return `the journal is out of order: ${entry.tag} (idx ${String(entry.idx)}, when ${String(entry.when)}) does not come after ${previous.tag} (idx ${String(previous.idx)}, when ${String(previous.when)}), and Drizzle's migrator would skip it without a word. ${GENERATE_AGAIN}`;
+    }
+  }
+  return undefined;
+}
 
 /** Every file under `folder`, by its path relative to `folder`, with its content. */
 function filesOf(folder: string): ReadonlyMap<string, string> {
@@ -225,7 +265,7 @@ async function buildProblem(): Promise<string | undefined> {
 }
 
 async function main(): Promise<number> {
-  const problem = (await driftProblem()) ?? (await buildProblem());
+  const problem = journalProblem() ?? (await driftProblem()) ?? (await buildProblem());
   if (problem !== undefined) {
     console.error(`✖ db:check: ${problem}`);
     return 1;

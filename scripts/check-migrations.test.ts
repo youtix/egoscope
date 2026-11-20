@@ -8,8 +8,10 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 const ROOT = path.join(import.meta.dirname, '..');
 const SCHEMA = path.join('src', 'lib', 'db', 'schema');
 const FIRST_MIGRATION = path.join('drizzle', '0000_installation_and_sequence_counters.sql');
+const JOURNAL = path.join('drizzle', 'meta', '_journal.json');
 
 type Outcome = Readonly<{ status: number | null; output: string }>;
+type JournalEntry = Readonly<{ idx: number; when: number; tag: string }>;
 
 /** A copy of the project's schema and migrations, which a test may change. */
 function projectCopy(): string {
@@ -26,6 +28,16 @@ function projectCopy(): string {
 /** Rewrites the file at `file` with `change`. */
 function edit(file: string, change: (content: string) => string): void {
   writeFileSync(file, change(readFileSync(file, 'utf8')));
+}
+
+/** Writes the journal of the project at `folder` with `entries`, laid out as drizzle-kit writes it. */
+function writeJournal(folder: string, entries: readonly JournalEntry[]): void {
+  const journal = {
+    version: '7',
+    dialect: 'postgresql',
+    entries: entries.map((entry) => ({ ...entry, version: '7', breakpoints: true })),
+  };
+  writeFileSync(path.join(folder, JOURNAL), JSON.stringify(journal, null, 2));
 }
 
 /** Runs the drift check as `bun run db:check` does, in the project at `folder`. */
@@ -52,6 +64,66 @@ describe('the drift check', { timeout: 120_000 }, () => {
     expect(status).toBe(0);
     expect(output).toContain(
       '✔ db:check: the migrations match the schema and build it from an empty database.',
+    );
+  });
+
+  it.each([
+    {
+      order:
+        "a later idx with an earlier when, as a rebase leaves a migration generated before main's",
+      entries: [
+        { idx: 0, when: 100, tag: '0000_first' },
+        { idx: 1, when: 300, tag: '0001_from_main' },
+        { idx: 2, when: 200, tag: '0002_from_the_branch' },
+      ],
+      problem:
+        '0002_from_the_branch (idx 2, when 200) does not come after 0001_from_main (idx 1, when 300)',
+    },
+    {
+      order:
+        'a later idx with the same when, which the migrator skips once the entry before it is applied',
+      entries: [
+        { idx: 0, when: 100, tag: '0000_first' },
+        { idx: 1, when: 200, tag: '0001_from_main' },
+        { idx: 2, when: 200, tag: '0002_from_the_branch' },
+      ],
+      problem:
+        '0002_from_the_branch (idx 2, when 200) does not come after 0001_from_main (idx 1, when 200)',
+    },
+    {
+      order: 'two entries of one idx, as a journal merged by hand keeps them',
+      entries: [
+        { idx: 0, when: 100, tag: '0000_first' },
+        { idx: 1, when: 200, tag: '0001_from_main' },
+        { idx: 1, when: 300, tag: '0001_from_the_branch' },
+      ],
+      problem:
+        '0001_from_the_branch (idx 1, when 300) does not come after 0001_from_main (idx 1, when 200)',
+    },
+  ])('[TRV-76] fails on a journal out of order: $order', ({ entries, problem }) => {
+    const folder = projectCopy();
+    writeJournal(folder, entries);
+
+    const { status, output } = check(folder);
+
+    expect(status).toBe(1);
+    expect(output).toContain(
+      `✖ db:check: the journal is out of order: ${problem}, and Drizzle's migrator would skip it without a word.`,
+    );
+  });
+
+  it('[TRV-76] fails on a journal left with the markers of a conflict, and says how to resolve it', () => {
+    const folder = projectCopy();
+    edit(
+      path.join(folder, JOURNAL),
+      (journal) => `<<<<<<< HEAD\n${journal}\n=======\n${journal}\n>>>>>>> feat/branch\n`,
+    );
+
+    const { status, output } = check(folder);
+
+    expect(status).toBe(1);
+    expect(output).toContain(
+      '✖ db:check: drizzle/meta/_journal.json is not a journal that drizzle-kit wrote. Take drizzle/meta/ as origin/main has it, journal and snapshots (`git restore --source=origin/main --staged --worktree drizzle/meta`), delete only the .sql files of your own migrations, then run `bun run db:generate` again: never edit drizzle/meta by hand.',
     );
   });
 
