@@ -125,8 +125,22 @@ export type { GameScoreInput } from './performance/game-score';
 // --- backtest/ -------------------------------------------------------------------
 
 // backtest/counting.ts
+export { countingPeriods, firstUncoveredOn } from './backtest/counting';
+export type { CoveredPeriod, TypeCoverage } from './backtest/counting';
 
 // backtest/extents.ts
+export { initialExtent, reduceExtent, supplementExtent, updateExtent } from './backtest/extents';
+export type {
+  BacktestRequestKind,
+  CoveredResearchType,
+  ExtentResult,
+  PlannedType,
+  PlanResult,
+  Reduction,
+  RequestedType,
+  RequestUpdate,
+  ResearchType,
+} from './backtest/extents';
 
 // backtest/retained-coverage.ts
 
