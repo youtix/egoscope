@@ -27,12 +27,25 @@ export { gameScore } from './performance/game-score';
 export type { GameScoreInput } from './performance/game-score';
 
 // performance/box-score.ts
+export { verifyBoxScore } from './performance/box-score';
+export type { BoxScoreCheck } from './performance/box-score';
+export type { BoxScoreLine } from './performance/box-score';
+export type { CheckedBoxScore } from './performance/box-score';
+export type { FailedCheck } from './performance/box-score';
+export type { MissingElement } from './performance/box-score';
 
 // performance/performance-index.ts
+export { performanceIndex } from './performance/performance-index';
 
 // performance/participation.ts
+export { participationOf } from './performance/participation';
+export type { Participation } from './performance/participation';
 
 // performance/playing-time.ts
+export { classifyGame } from './performance/playing-time';
+export { playingTimeThreshold } from './performance/playing-time';
+export type { GamePlayClassification } from './performance/playing-time';
+export type { PlayerGame } from './performance/playing-time';
 
 // --- baseline/ -------------------------------------------------------------------
 
