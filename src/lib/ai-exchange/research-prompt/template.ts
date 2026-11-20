@@ -123,7 +123,7 @@ export function periodText(startOn: string | null, endOn: string): string {
  * A dating rule with the "known in advance" mark of its sheet, which rule 2.5 reads
  * (TAX-01, TAX-33), in the words the starter sheets give that mark.
  */
-export function knownInAdvance(datingRule: string): string {
+export function withKnownInAdvanceMark(datingRule: string): string {
   return `known in advance: ${datingRule}`;
 }
 

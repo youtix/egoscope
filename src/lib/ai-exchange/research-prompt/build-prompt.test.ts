@@ -18,7 +18,8 @@ const DAY_MS = 86_400_000;
 // The golden request: Player A, invented, whose first NBA game is known, with four
 // research types and the English starter sheets of glossary section 5.1, given out of
 // alphabetical order, the media storm with its coverage threshold. prompt.json is the
-// template of glossary section 6.3 filled in by hand for it.
+// template of glossary section 6.3 filled in for it by plain substitution, apart from
+// the builder.
 const REQUEST: ResearchPromptInput = goldenRequest;
 const EXPECTED = goldenPrompt.prompt.join('\n');
 

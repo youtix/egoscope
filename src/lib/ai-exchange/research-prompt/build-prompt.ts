@@ -3,11 +3,11 @@
 // written once per requested type. The request operations only gather that data.
 import {
   coverageThresholdSentence,
-  knownInAdvance,
   NOT_PROVIDED,
   periodText,
   playerMarker,
   RESEARCH_PROMPT_TEMPLATE,
+  withKnownInAdvanceMark,
 } from './template';
 
 /**
@@ -136,7 +136,7 @@ function element(text: string | null): string {
 /** The dating rule with its "known in advance" mark, then its threshold (TAX-33, CL-TAX-14). */
 function datingRuleOf(sheet: PromptTypeSheet): string {
   const rule = element(sheet.datingRule);
-  const marked = sheet.knownInAdvance ? knownInAdvance(rule) : rule;
+  const marked = sheet.knownInAdvance ? withKnownInAdvanceMark(rule) : rule;
   const threshold = sheet.coverageThreshold;
   return threshold === null
     ? marked
