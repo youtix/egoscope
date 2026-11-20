@@ -179,8 +179,14 @@ and AA rules:
   the new document is checked in its turn. A document that the app leaves by itself before the
   test acts on it is not reported as unchecked. Only a violation, or a document that the test
   itself left unchecked, fails the test: a document on which no check began, whose departure
-  raw keyboard, mouse or touch input of the test began, at once or in a task that it queued,
-  as the submission of a form does.
+  raw keyboard, mouse or touch input of the test began. The input begins a departure that starts
+  while the browser itself dispatches an event of the input (a key going down or up, a button
+  pressed or released, a click, a touch beginning or ending) or the `beforeinput`, `input`,
+  `change` or `submit` event that it fires in response, whether a handler of the event leaves or
+  the browser does, as it follows a link; and the navigation that the browser then queues for a
+  form that the input submitted, itself or through such a handler. Any other departure is the
+  app's own, such as one that begins after a timer or a request, even one that a handler of the
+  input started, or one that a script of the test starts.
 - Playwright runs the checks of point 1 only while the body of the page has a box, which the root
   layout's `min-h-dvh` gives it: a check of a loaded page reports a body that has none.
 - A page that the test opens beside its `page`, such as a popup or the page of a second browser

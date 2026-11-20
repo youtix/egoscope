@@ -9,6 +9,9 @@ import { isDeepStrictEqual } from 'node:util';
 
 import { AxeBuilder } from '@axe-core/playwright';
 
+import { CHANGED, markChanges, MARKING } from './changes';
+import { STAMP, watchDepartures } from './departures';
+
 import type { JSHandle, Keyboard, Mouse, Page, Touchscreen } from '@playwright/test';
 
 // The rule set of WCAG 2.2 levels A and AA, as axe tags it.
@@ -16,14 +19,6 @@ const WCAG_22_AA = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 // The app serves its pages over HTTP. The blank page that a test starts on keeps
 // its address when a test writes a page of its own into it: neither is the app's.
 const APP_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:']);
-// The property of a document's window that marks the document, and no other, as
-// changed since the watch last checked it: unset until a check begins on the
-// document, a new one included, then false until the document changes again.
-const CHANGED = '__egoscopeAccessibilityChanged';
-// The events that change what a page shows while its DOM stays as it was: a form
-// control's value, the top layer as a popover or a dialog opens or closes (the
-// first of its two toggle events fires at once), and a move of the focus.
-const CHANGE_EVENTS = ['input', 'change', 'beforetoggle', 'toggle', 'focusin', 'focusout'];
 // The longest that a check waits for the animations of the page to end, so that
 // axe sees the state they lead to rather than a frame on the way there.
 const ANIMATIONS_MS = 1000;
@@ -56,9 +51,6 @@ export type Watches = Readonly<{
   /** Checks each page in the state the test ends it in, then returns the findings, page by page. */
   finish: () => Promise<readonly Finding[]>;
 }>;
-
-/** What the script that marks a document as changed needs: the mark, and the events it hears. */
-type Marking = Readonly<{ key: string; events: readonly string[] }>;
 
 /** What the watch runs a call of the test inside: a check or a note before it, or both sides of it. */
 type Around = <Result>(call: () => Promise<Result>) => Promise<Result>;
@@ -100,35 +92,6 @@ function report(findings: Finding[], finding: Finding): void {
   if (findings.every((known) => !isDeepStrictEqual(known, finding))) {
     findings.push(finding);
   }
-}
-
-/**
- * Marks the document, once a check has begun on it, as changed at each change to
- * its DOM, at each event that `events` names and at each new address of its own,
- * a new fragment included, until a check clears the mark. Runs in the page: in
- * every new document, before the document's own scripts, and in the document that
- * a page shows when its watch begins.
- */
-function markChanges({ key, events }: Marking): void {
-  const mark = (): void => {
-    if (Reflect.get(globalThis, key) === false) {
-      Reflect.set(globalThis, key, true);
-    }
-  };
-  new MutationObserver(mark).observe(document, {
-    attributes: true,
-    characterData: true,
-    childList: true,
-    subtree: true,
-  });
-  for (const type of events) {
-    document.addEventListener(type, mark, { capture: true });
-  }
-  globalThis.navigation.addEventListener('currententrychange', ({ from }) => {
-    if (from.url !== globalThis.location.href) {
-      mark();
-    }
-  });
 }
 
 /**
@@ -183,16 +146,24 @@ async function isGone(shown: JSHandle<Document>, { queued = false } = {}): Promi
 
 /**
  * The document of the app that `page` shows, with its address, when raw input
- * could leave it unchecked, since no check has begun on it.
+ * could leave it unchecked, since no check has begun on it; the document then
+ * holds `stamp`, which it names as it leaves.
  */
 async function uncheckedDocument(
   page: Page,
+  stamp: number,
 ): Promise<Readonly<{ shown: JSHandle<Document>; address: string }> | undefined> {
   const shown = await shownDocument(page);
   try {
     const url = await shown?.evaluate(
-      (read, key) => (Reflect.has(globalThis, key) ? undefined : read.URL),
-      CHANGED,
+      (read, { key, stampKey, given }) => {
+        const wasChecked = Reflect.has(globalThis, key);
+        if (!wasChecked) {
+          Reflect.set(globalThis, stampKey, given);
+        }
+        return wasChecked ? undefined : read.URL;
+      },
+      { key: CHANGED, stampKey: STAMP, given: stamp },
     );
     const address = url === undefined ? undefined : appAddress(url);
     if (shown !== undefined && address !== undefined) {
@@ -286,14 +257,19 @@ function within<Args extends readonly unknown[], Result>(
 /** The watch of one page: what changed since its last check, and its findings. */
 class PageWatch {
   readonly #page: Page;
+  // The stamps of the documents whose departure raw input of the test began.
+  readonly #leftByInput: ReadonlySet<number>;
   readonly #findings: Finding[] = [];
   // Whether the test emulated another viewport size or media since the last check.
   #emulated = false;
   // Whether the test has ended, after which nothing is checked any more.
   #finished = false;
+  // The last stamp given to a document before raw input of the test acted on it.
+  #stamps = 0;
 
-  constructor(page: Page) {
+  constructor(page: Page, leftByInput: ReadonlySet<number>) {
     this.#page = page;
+    this.#leftByInput = leftByInput;
   }
 
   /** Runs `emulation`, of another viewport size or media, which changes what the page shows. */
@@ -304,15 +280,21 @@ class PageWatch {
 
   /**
    * Runs `input`, raw input of the test on the page, and reports the document of
-   * the app that it leaves unchecked: one on which no check had begun, and which is
-   * gone once the input and the tasks that it queued have run, since the input
-   * began its departure. A departure that begins later, after a timer or a request,
-   * is the app's own.
+   * the app that it leaves unchecked: one on which no check had begun, which is gone
+   * once the input and the tasks that it queued have run, and which said as it left
+   * that the input began its departure (departures.ts). Any other departure, after
+   * a timer or a request say, is the app's own.
    */
   async rawInput<Result>(input: () => Promise<Result>): Promise<Result> {
-    const unchecked = await uncheckedDocument(this.#page);
+    this.#stamps += 1;
+    const stamp = this.#stamps;
+    const unchecked = await uncheckedDocument(this.#page, stamp);
     const result = await input();
-    if (unchecked !== undefined && (await isGone(unchecked.shown, { queued: true }))) {
+    if (
+      unchecked !== undefined &&
+      (await isGone(unchecked.shown, { queued: true })) &&
+      this.#leftByInput.has(stamp)
+    ) {
       report(this.#findings, { address: unchecked.address, error: LEFT_UNCHECKED });
     }
     return result;
@@ -397,12 +379,11 @@ function fitCalls(page: Page, watch: PageWatch): void {
  * test ends.
  */
 export async function watchAccessibility(page: Page): Promise<Watch> {
-  const watch = new PageWatch(page);
-  const marking: Marking = { key: CHANGED, events: CHANGE_EVENTS };
-  await page.addInitScript(markChanges, marking);
+  const watch = new PageWatch(page, await watchDepartures(page));
+  await page.addInitScript(markChanges, MARKING);
   try {
     // The document that the page shows already, a popup's for one, runs no init script.
-    await page.evaluate(markChanges, marking);
+    await page.evaluate(markChanges, MARKING);
   } catch {
     // The page closed or moved on meanwhile: its next document runs the init script.
   }

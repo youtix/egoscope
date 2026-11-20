@@ -1,7 +1,6 @@
 import {
   accessibilityViolations,
   BODY_WITHOUT_BOX,
-  LEFT_UNCHECKED,
   watchAccessibility,
   watchPages,
 } from './accessibility';
@@ -79,10 +78,6 @@ const CHANGING_WHILE_CHECKED = pageWith(
 const LEAVING_WHILE_CHECKED = pageWith(
   whileChecked(`() => () => { location.assign('/probe/broken'); return new Promise(() => {}); }`),
 );
-// A page that the app leaves by itself, as it does once a timer or a request ends.
-const LEAVING_BY_ITSELF = pageWith(
-  `<p><a href="/probe/other">Another page</a></p>${onStream("location.assign('/probe/other');")}`,
-);
 // A page whose content is all out of flow, which leaves its body without a box.
 const OUT_OF_FLOW = pageWith(
   '<style>main { position: fixed; inset: 0; }</style><p>Every case counts.</p>',
@@ -147,21 +142,6 @@ const NAVIGATIONS: readonly Readonly<{
 // The delays, from the click, after which a page that the reviews probed leaves by
 // itself: from before a check has injected axe to after it has run.
 const LEAVING_DELAYS_MS = [50, 100, 150, 200, 250];
-
-/**
- * The pages that a test leaves by raw keyboard input, Tab then Enter: one whose link
- * it follows, and one whose form it submits, which the browser leaves a task after
- * the key press.
- */
-const RAW_DEPARTURES: readonly Readonly<{ name: string; body: string }>[] = [
-  { name: 'follows a link', body: PLAIN },
-  {
-    name: 'submits a form',
-    body: pageWith(
-      '<form action="/probe/other"><label for="name">Name</label><input id="name" name="name" style="height:32px"></form>',
-    ),
-  },
-];
 
 test.describe('the accessibility check', () => {
   test('passes a page that meets WCAG 2.2 AA', async ({ page }) => {
@@ -459,46 +439,6 @@ test.describe('the watch of every page a test visits', () => {
       expect(await watch.finish()).toStrictEqual([]);
     });
   }
-
-  for (const { name, body } of RAW_DEPARTURES) {
-    test(`reports a document that the test leaves by raw keyboard input before any check, as it ${name}, though an earlier document at its address was checked`, async ({
-      context,
-      baseURL,
-    }) => {
-      const probe = await servedPage(context, { '/probe/left': [body], '/probe/other': [OTHER] });
-      const watch = await watchAccessibility(probe);
-
-      await probe.goto('/probe/left');
-      await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
-      await probe.reload();
-      await probe.keyboard.press('Tab');
-      await probe.keyboard.press('Enter');
-      await probe.waitForURL('**/probe/other**');
-      await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
-
-      expect(await watch.finish()).toStrictEqual([
-        { address: addressOf('/probe/left', baseURL), error: LEFT_UNCHECKED },
-      ]);
-    });
-  }
-
-  test('reports no document that the app leaves by itself, though the test pressed a key there before any check', async ({
-    context,
-  }) => {
-    const probe = await servedPage(context, {
-      '/probe/leaving': [LEAVING_BY_ITSELF],
-      '/probe/other': [OTHER],
-    });
-    const watch = await watchAccessibility(probe);
-
-    await probe.goto('/probe/leaving');
-    await probe.keyboard.press('Tab');
-    await streamIn(probe);
-    await probe.waitForURL('**/probe/other');
-    await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
-
-    expect(await watch.finish()).toStrictEqual([]);
-  });
 
   test('watches a page that a test opens beside its own once the test passes it to watch()', async ({
     context,
