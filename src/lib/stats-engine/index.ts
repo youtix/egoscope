@@ -98,8 +98,21 @@ export type { TeamGame } from './schedule/team-membership';
 export type { TeamStint } from './schedule/team-membership';
 
 // schedule/next-game.ts
+export { expectedGame } from './schedule/next-game';
+export { nextGame } from './schedule/next-game';
+export type { ExpectedGame } from './schedule/next-game';
+export type { GameVenue } from './schedule/next-game';
+export type { NextGame } from './schedule/next-game';
+export type { NextGameCandidate } from './schedule/next-game';
+export type { NextGameSchedule } from './schedule/next-game';
 
 // schedule/player-indicators.ts
+export { firstNbaGame } from './schedule/player-indicators';
+export { playerIndicators } from './schedule/player-indicators';
+export type { CareerSeasons } from './schedule/player-indicators';
+export type { FirstNbaGame } from './schedule/player-indicators';
+export type { IndicatorLine } from './schedule/player-indicators';
+export type { PlayerIndicators } from './schedule/player-indicators';
 
 // --- measured-game/ --------------------------------------------------------------
 
