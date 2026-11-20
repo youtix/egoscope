@@ -130,10 +130,21 @@ export type {
 } from './profiles/verdict';
 
 // profiles/confidence.ts
+export { doubtfulShare, profileConfidence } from './profiles/confidence';
+export type {
+  ConfidenceInputs,
+  ConfidenceStepDownReason,
+  ConfidenceValues,
+  ProfileConfidence,
+} from './profiles/confidence';
 
 // profiles/robustness.ts
+export { runRobustnessTest } from './profiles/robustness';
+export type { RobustnessTest, RobustnessTrial } from './profiles/robustness';
 
 // profiles/checks.ts
+export { profileChecks } from './profiles/checks';
+export type { ManuallyDecidedCase, ProfileChecks } from './profiles/checks';
 
 // profiles/general-trend.ts
 
