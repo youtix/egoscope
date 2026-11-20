@@ -331,7 +331,7 @@ function withPrecedence(
  * skipping and no window (CL-SEN-03). A historical event then has its precedence
  * classified, and shifted once when uncertain.
  */
-export function attachEvent(
+export function attachToMeasuredGame(
   event: AttachmentEvent,
   context: AttachmentContext,
   params: EngineParams,

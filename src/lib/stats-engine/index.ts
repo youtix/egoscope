@@ -104,7 +104,7 @@ export type { TeamStint } from './schedule/team-membership';
 // --- measured-game/ --------------------------------------------------------------
 
 // measured-game/attachment.ts
-export { attachEvent } from './measured-game/attachment';
+export { attachToMeasuredGame } from './measured-game/attachment';
 export type { Attachment } from './measured-game/attachment';
 export type { AttachmentContext } from './measured-game/attachment';
 export type { AttachmentEvent } from './measured-game/attachment';

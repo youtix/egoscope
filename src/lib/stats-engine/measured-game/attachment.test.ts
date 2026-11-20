@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { attachEvent } from './attachment';
+import { attachToMeasuredGame } from './attachment';
 
 import type { Participation } from '../performance/participation';
 import type { EngineParams } from '../types';
@@ -130,7 +130,7 @@ const attach = (
   event: AttachmentEvent,
   games: readonly AttachmentGame[],
   evaluation = LATER,
-): Attachment => attachEvent(event, { games, ...evaluation }, DEFAULTS);
+): Attachment => attachToMeasuredGame(event, { games, ...evaluation }, DEFAULTS);
 
 /** Where an attachment ends: its status, its reason, none once attached, and its game. */
 type End = readonly [Attachment['status'], string | null, number | null];
@@ -175,7 +175,7 @@ const PENDING = ['awaiting_game', 'statistics_pending'] as const;
 const NO_GAME = ['not_measurable', 'no_game_within_window'] as const;
 const UNAVAILABLE = ['not_measurable', 'box_score_unavailable'] as const;
 
-describe('attachEvent from a reference instant', () => {
+describe('attachToMeasuredGame from a reference instant', () => {
   const MORNING = fromInstant(easternAt('2020-01-14', '09:00'));
 
   it('[SEN-03] [CA-SEN-02] measures the next game he plays, never the game that started at 19:30 Eastern before the event became public at 22:10', () => {
@@ -245,12 +245,12 @@ describe('attachEvent from a reference instant', () => {
     const threeDays: EngineParams = { ...DEFAULTS, sensitivity };
     const context = { games: [gameOn(1, '2020-01-17')], ...LATER };
     const reference = easternAt('2020-01-14', '19:30');
+    const statusOf = (referenceAt: number, params: EngineParams): Attachment['status'] =>
+      attachToMeasuredGame(fromInstant(referenceAt), context, params).status;
 
-    expect(attachEvent(fromInstant(reference), context, threeDays).status).toBe('attached');
-    expect(attachEvent(fromInstant(reference - 1), context, threeDays).status).toBe(
-      'not_measurable',
-    );
-    expect(attachEvent(fromInstant(reference - 1), context, DEFAULTS).status).toBe('attached');
+    expect(statusOf(reference, threeDays)).toBe('attached');
+    expect(statusOf(reference - 1, threeDays)).toBe('not_measurable');
+    expect(statusOf(reference - 1, DEFAULTS)).toBe('attached');
   });
 
   it('[SEN-04] [CA-SEN-04] makes an event of 5 July whose next game is in October not measurable, "no game played within the window"', () => {
@@ -305,7 +305,7 @@ describe('attachEvent from a reference instant', () => {
   });
 });
 
-describe('attachEvent of an event known in advance', () => {
+describe('attachToMeasuredGame of an event known in advance', () => {
   const EVENT = knownOn('2020-02-25');
   const missed = [
     gameOn(1, '2020-02-25', { participation: 'not_played' }),
@@ -343,7 +343,7 @@ describe('attachEvent of an event known in advance', () => {
   });
 });
 
-describe('attachEvent of a calendar-derived event', () => {
+describe('attachToMeasuredGame of a calendar-derived event', () => {
   const later = gameOn(9, '2020-01-20');
 
   it('[CL-SEN-03] measures the derived game he played, with no reference instant', () => {
@@ -379,7 +379,7 @@ describe('attachEvent of a calendar-derived event', () => {
   });
 });
 
-describe('attachEvent of a historical event, with the precedence of its sources', () => {
+describe('attachToMeasuredGame of a historical event, with the precedence of its sources', () => {
   const REFERENCE = easternAt('2020-01-14', '12:00');
   const SHIFTED = endOfDayPacific('2020-01-15');
   const measured = gameOn(1, '2020-01-15');
@@ -517,7 +517,7 @@ function measuredAfterAbsences(
   return attachment.status === 'attached' ? next : undefined;
 }
 
-describe('attachEvent over any team games', () => {
+describe('attachToMeasuredGame over any team games', () => {
   it('[SEN-03] [SEN-04] [CL-SEN-05] measures only a game he played, after the reference instant and within its window, and never slides past another game', () => {
     fc.assert(
       fc.property(anySituation, ({ games, reference, now, sources }) => {
