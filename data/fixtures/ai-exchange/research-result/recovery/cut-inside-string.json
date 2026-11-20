@@ -60,7 +60,8 @@
       "truncationRecovered": true,
       "recoveredEventCount": 2,
       "retainedCoverageEmpty": false,
-      "lostLists": ["unverified_leads", "limitations"]
+      "lostLists": ["unverified_leads", "limitations"],
+      "eventsListComplete": false
     }
   }
 }

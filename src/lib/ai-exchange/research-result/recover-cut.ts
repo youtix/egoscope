@@ -4,20 +4,23 @@
 // scanner keeps what that partial text holds in full and decides whether the import can
 // offer to recover it. It checks nothing else: the reader checks the recovered result
 // like a whole one, so that every recovered event goes through every check.
-import { parseExchangeDate } from '../conventions';
+import { calendarDate, isSorted } from './dates';
 
 // The two lists of a result that its events list may come before (IMP-05).
 type ResultList = 'limitations' | 'unverified_leads';
 
 /**
  * A cut result that the import can offer to recover (IMP-05, CL-IMP-18). `value` holds
- * the members that the text writes in full before the cut, its `events` holding the
- * events closed before the cut, and its `covered_period` ending on the day before the
- * last recovered event's date. `lostLists` names the leads and limitations that the cut
- * lost, those not written before the events list, which `value` leaves out.
- * `retainedCoverageEmpty` says that the shortened end comes before the period's start:
- * the retained coverage is then empty, and the recovered events can still be saved.
- * `truncationRecovered` marks the result as recovered, which the import trace records.
+ * the members that the text writes in full before the cut. When the cut falls inside the
+ * events list, `eventsListComplete` is false, `value.events` holds the events closed
+ * before the cut and `value.covered_period` ends on the day before the last recovered
+ * event's date. When the events list is closed before the cut, no event can be missing:
+ * `eventsListComplete` is true and the covered period stays as written. `lostLists`
+ * names the leads and limitations that the text does not write in full, which `value`
+ * leaves out. `retainedCoverageEmpty` says that the shortened end comes before the
+ * period's start: the retained coverage is then empty, and the recovered events can
+ * still be saved. `truncationRecovered` marks the result as recovered, which the import
+ * trace records.
  */
 export type CutRecovery = Readonly<{
   value: Readonly<Record<string, unknown>>;
@@ -25,16 +28,18 @@ export type CutRecovery = Readonly<{
   recoveredEventCount: number;
   retainedCoverageEmpty: boolean;
   lostLists: readonly ResultList[];
+  eventsListComplete: boolean;
 }>;
 
 /**
  * Why the recovery of a cut result is not offered (IMP-05, CL-IMP-18):
  * - `header_incomplete`: the text holds no complete value of the request reference, the
  *   player, the covered types or the covered period;
- * - `no_complete_event`: no event is closed before the cut;
+ * - `no_complete_event`: the events list is not closed before the cut, and no event is;
  * - `events_not_sorted`: the complete events are not sorted by their date (CL-IMP-19);
- * - `no_dated_event`: no complete event has a calendar date, so the covered period has
- *   no day to end before.
+ * - `no_dated_event`: no complete event has a calendar date, or the last of these dates
+ *   is 0000-01-01, so the covered period has no day to end before that YYYY-MM-DD can
+ *   write.
  */
 export type RecoverCutError = Readonly<{
   kind: 'events_not_sorted' | 'header_incomplete' | 'no_complete_event' | 'no_dated_event';
@@ -49,22 +54,22 @@ const COVERED_PERIOD = 'covered_period';
 const PUBLIC_DATE = 'public_date';
 // The members that a result needs complete for its recovery (CL-IMP-18).
 const HEADER_KEYS = ['request_reference', 'player', 'covered_types', COVERED_PERIOD] as const;
-// The lists that the cut loses unless they come before the events list, in the format's order.
+// The lists that the cut loses unless the text writes them in full, in the format's order.
 const RESULT_LISTS: readonly ResultList[] = ['unverified_leads', 'limitations'];
 
 const PUNCTUATION = ',:[]{}';
 // The depth of the root object's members, and of the elements of a list that one holds.
 const MEMBER_DEPTH = 1;
 const ELEMENT_DEPTH = 2;
-// A date written YYYY-MM-DD is the start of a date and time written in ISO 8601.
-const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
 
 // A member of the root object: its key, and where its value starts, after the colon.
 type Member = Readonly<{ key: string; valueStart: number }>;
 
-function isResultList(key: string): boolean {
-  return RESULT_LISTS.some((list) => list === key);
-}
+// What a recovery says of the result besides its value.
+type RecoveryFacts = Pick<
+  CutRecovery,
+  'recoveredEventCount' | 'retainedCoverageEmpty' | 'eventsListComplete'
+>;
 
 /**
  * Reads the root object of a partial text one token at a time, without recursion, so
@@ -144,21 +149,26 @@ class MemberReader {
 
   /**
    * The members whose value the text holds in full, and the events list being written at
-   * the cut with its complete events; the leads and limitations only before the events.
+   * the cut with its complete events.
    */
   values(): Readonly<Record<string, unknown>> {
     const entries: [string, unknown][] = [];
-    let isAfterEvents = false;
     for (const [index, member] of this.#members.entries()) {
       const text = this.#valueText(index, member);
-      if (text !== undefined && !(isAfterEvents && isResultList(member.key))) {
-        const value: unknown = JSON.parse(text);
-        entries.push([member.key, value]);
+      if (text === undefined) {
+        continue;
       }
-      isAfterEvents ||= member.key === EVENTS;
+      const value: unknown = JSON.parse(text);
+      entries.push([member.key, value]);
     }
     // Defined, not assigned, keys: a `__proto__` key is a member like any other.
     return Object.fromEntries(entries);
+  }
+
+  /** Whether the text holds the events list in full, the last one when it writes several. */
+  isEventsListComplete(): boolean {
+    const events = this.#members.findLastIndex((member) => member.key === EVENTS);
+    return this.#valueEnds[events] !== undefined;
   }
 }
 
@@ -178,8 +188,8 @@ function isCutShort(token: string): boolean {
   }
 }
 
-// The members of the root object that the partial text holds in full (CL-IMP-18).
-function completeValues(partialText: string): Readonly<Record<string, unknown>> {
+// The members of the root object that the partial text holds in full (CL-IMP-18), read.
+function readMembers(partialText: string): MemberReader {
   // A token of the partial text, which holds no space between two tokens: a punctuation
   // mark, a string, or a number, true, false or null written bare. The sticky pattern
   // reads each token where the one before ends, and none inside a string that the cut
@@ -193,42 +203,26 @@ function completeValues(partialText: string): Readonly<Record<string, unknown>> 
     }
     reader.read(match[0], end);
   }
-  return reader.values();
+  return reader;
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/**
- * The calendar date of a date as written: its `YYYY-MM-DD` before any time (CL-BKT-15,
- * CL-IMP-09), when that names a day that exists; otherwise undefined.
- */
-function calendarDate(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-  const day = value.slice(0, ISO_DATE_LENGTH);
-  return parseExchangeDate(day).ok ? day : undefined;
-}
-
 function publicDay(event: unknown): string | undefined {
   return isRecord(event) ? calendarDate(event[PUBLIC_DATE]) : undefined;
 }
 
-// Whether calendar dates never decrease along the list (CL-BKT-15, CL-IMP-19).
-function isSorted(days: readonly string[]): boolean {
-  return days.every((day, index) => (days[index - 1] ?? day) <= day);
-}
-
-// The calendar day before `day`, a date written YYYY-MM-DD that exists.
-function dayBefore(day: string): string {
+// The calendar day before `day`, a date written YYYY-MM-DD that exists, or undefined when
+// YYYY-MM-DD cannot write it: the day before 0000-01-01.
+function dayBefore(day: string): string | undefined {
   const [year = NaN, month = NaN, date = NaN] = day.split('-').map(Number);
   const instant = new Date(0);
   // setUTCFullYear, unlike Date.UTC, reads the years 0 to 99 as written. Day 0 of a
   // month is the last day of the month before.
   instant.setUTCFullYear(year, month - 1, date - 1);
-  return instant.toISOString().slice(0, ISO_DATE_LENGTH);
+  return calendarDate(instant.toISOString());
 }
 
 // Whether the recovery shortens a declared end to `day`: one that comes later, or names
@@ -248,12 +242,11 @@ function hasDays(start: unknown, end: string): boolean {
 type ShortenedPeriod = Readonly<{ period: unknown; retainedCoverageEmpty: boolean }>;
 
 /**
- * The covered period of a recovered result (IMP-05, CL-IMP-18): it ends on the day before
- * the last recovered event's date, or keeps, as written, a declared end that comes no
- * later. A period that is no object stays as written, for the reader to refuse.
+ * The covered period of a recovered result (IMP-05, CL-IMP-18): it ends on `end`, the day
+ * before the last recovered event's date, or keeps, as written, a declared end that comes
+ * no later. A period that is no object stays as written, for the reader to refuse.
  */
-function shortenedPeriod(period: unknown, lastDay: string): ShortenedPeriod {
-  const end = dayBefore(lastDay);
+function shortenedPeriod(period: unknown, end: string): ShortenedPeriod {
   return isRecord(period) && isShortenedTo(period['end'], end)
     ? { period: { ...period, end }, retainedCoverageEmpty: !hasDays(period['start'], end) }
     : { period, retainedCoverageEmpty: false };
@@ -263,23 +256,36 @@ function refused(kind: RecoverCutError['kind']): RecoverCutResult {
   return { ok: false, error: { kind } };
 }
 
+function recovered(
+  value: Readonly<Record<string, unknown>>,
+  facts: RecoveryFacts,
+): RecoverCutResult {
+  const lostLists = RESULT_LISTS.filter((list) => !Object.hasOwn(value, list));
+  return { ok: true, recovery: { value, truncationRecovered: true, ...facts, lostLists } };
+}
+
 /**
- * Recovers the complete part of a cut research result (IMP-05, BKT-25, CL-IMP-18) from
- * the partial text that JSON isolation reports for it: the members written in full before
- * the cut, the events closed before it, the event being written at the cut dropped whole,
- * and the leads and limitations only when they come before the events list. A number
- * that ends the text may be cut short, and is dropped. The recovery is offered when the
- * request reference, the player, the covered types and the covered period are complete,
- * at least one event is, and the complete events are sorted by the date part of their
- * public date as written, `YYYY-MM-DD` (CL-BKT-15, CL-IMP-19): an event without such a
- * date takes no part in the order. The covered period then ends on the day before the
- * last of these dates, never after the end that the result declares.
+ * A result cut after its events list is closed (coordinator decision of 20 November):
+ * no event can be missing, so every member written in full is kept, wherever it is
+ * written, and the covered period stays as written, whether the events are sorted,
+ * dated or none at all, since those conditions only serve the shortening.
  */
-export function recoverCut(partialText: string): RecoverCutResult {
-  const value = completeValues(partialText);
-  if (HEADER_KEYS.some((key) => !Object.hasOwn(value, key))) {
-    return refused('header_incomplete');
-  }
+function afterEventsList(value: Readonly<Record<string, unknown>>): RecoverCutResult {
+  const events = value[EVENTS];
+  const recoveredEventCount = Array.isArray(events) ? events.length : 0;
+  return recovered(value, {
+    recoveredEventCount,
+    retainedCoverageEmpty: false,
+    eventsListComplete: true,
+  });
+}
+
+/**
+ * A result cut inside its events list (IMP-05, CL-IMP-18): the events closed before the
+ * cut, when there are some and they are sorted, and the covered period shortened to the
+ * day before the last of their dates.
+ */
+function insideEventsList(value: Readonly<Record<string, unknown>>): RecoverCutResult {
   const written = value[EVENTS];
   const events: readonly unknown[] = Array.isArray(written) ? written : [];
   if (events.length === 0) {
@@ -290,18 +296,37 @@ export function recoverCut(partialText: string): RecoverCutResult {
     return refused('events_not_sorted');
   }
   const lastDay = days.at(-1);
-  if (lastDay === undefined) {
+  const end = lastDay === undefined ? undefined : dayBefore(lastDay);
+  if (end === undefined) {
     return refused('no_dated_event');
   }
-  const { period, retainedCoverageEmpty } = shortenedPeriod(value[COVERED_PERIOD], lastDay);
-  return {
-    ok: true,
-    recovery: {
-      value: { ...value, [COVERED_PERIOD]: period },
-      truncationRecovered: true,
-      recoveredEventCount: events.length,
-      retainedCoverageEmpty,
-      lostLists: RESULT_LISTS.filter((list) => !Object.hasOwn(value, list)),
-    },
-  };
+  const { period, retainedCoverageEmpty } = shortenedPeriod(value[COVERED_PERIOD], end);
+  const recoveredEventCount = events.length;
+  return recovered(
+    { ...value, [COVERED_PERIOD]: period },
+    { recoveredEventCount, retainedCoverageEmpty, eventsListComplete: false },
+  );
+}
+
+/**
+ * Recovers the complete part of a cut research result (IMP-05, BKT-25, CL-IMP-18) from
+ * the partial text that JSON isolation reports for it: the members written in full before
+ * the cut and, of an events list being written at the cut, the events closed before it,
+ * the event being written at the cut dropped whole. A number that ends the text may be cut
+ * short, and is dropped. The recovery is offered when the request reference, the player,
+ * the covered types and the covered period are complete. When the cut falls inside the
+ * events list, it also needs at least one complete event, the complete events sorted by
+ * the date part of their public date as written, `YYYY-MM-DD` (CL-BKT-15, CL-IMP-19), an
+ * event without such a date taking no part in the order, and the covered period then ends
+ * on the day before the last of these dates, never after the end that the result declares.
+ * When the events list is closed before the cut, the covered period stays as written, as
+ * the coordinator decided on 20 November, ahead of the documents.
+ */
+export function recoverCut(partialText: string): RecoverCutResult {
+  const reader = readMembers(partialText);
+  const value = reader.values();
+  if (HEADER_KEYS.some((key) => !Object.hasOwn(value, key))) {
+    return refused('header_incomplete');
+  }
+  return reader.isEventsListComplete() ? afterEventsList(value) : insideEventsList(value);
 }

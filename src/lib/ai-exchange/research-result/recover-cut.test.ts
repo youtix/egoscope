@@ -80,7 +80,7 @@ const kept = (end: string, events: readonly unknown[]): Readonly<Record<string, 
   events,
 });
 
-/** The recovery of `value`, both lists lost unless `changes` says otherwise. */
+/** The recovery of `value` from a cut inside the events list, both lists lost unless `changes` says otherwise. */
 const recovery = (
   value: Readonly<Record<string, unknown>>,
   recoveredEventCount: number,
@@ -93,9 +93,22 @@ const recovery = (
     recoveredEventCount,
     retainedCoverageEmpty: false,
     lostLists: LISTS,
+    eventsListComplete: false,
     ...changes,
   },
 });
+
+/** The recovery of `value` from a cut after the closed events list, the lists in `lostLists` lost. */
+const afterList = (
+  value: Readonly<Record<string, unknown>>,
+  recoveredEventCount: number,
+  lostLists: CutRecovery['lostLists'] = LISTS,
+): RecoverCutResult =>
+  recovery(value, recoveredEventCount, { eventsListComplete: true, lostLists });
+
+/** The result with these events, cut inside its limitations, after the closed events list. */
+const cutInLimitations = (events: unknown): string =>
+  cutAfter(resultWith({ events }), '"limitations":["Local');
 
 const refused = (kind: RecoverCutError['kind']): RecoverCutResult => ({
   ok: false,
@@ -197,7 +210,6 @@ describe('recoverCut', () => {
   it.each([
     ['the cut falls inside the first event', cutAfter(WHOLE, '"description":"An opposing')],
     ['the cut falls right after the list opens', cutAfter(WHOLE, '"events":[')],
-    ['the list is empty', `${membersIn(HEADER_KEYS)},"events":[],"limitations":["Local`],
     [
       'the list has no value yet, after a list',
       `${membersIn(['request_reference', 'player', COVERED_PERIOD, 'covered_types'])},"events":`,
@@ -211,7 +223,7 @@ describe('recoverCut', () => {
     ['the second event is dated before the first', ['2021-03-02', '2021-01-14']],
     ['the third event is dated before the second', ['2021-01-14', '2021-03-02', '2021-02-01']],
   ])(
-    '[CL-IMP-19] [CL-BKT-15] refuses the recovery when the complete events are not sorted: %s',
+    '[IMP-05] [CL-IMP-18] [CL-IMP-19] [CL-BKT-15] refuses the recovery when the complete events are not sorted: %s',
     (_case, days) => {
       const events = days.map((day) => eventOn(day));
 
@@ -258,10 +270,44 @@ describe('recoverCut', () => {
     );
   });
 
-  it('[CL-IMP-18] loses the leads and limitations written after the events list, even complete ones', () => {
+  it('[IMP-05] [CL-IMP-18] keeps every member written in full and the covered period as written when the cut falls after the closed events list, which sets eventsListComplete', () => {
+    const lists = listed([...HEADER_KEYS, 'events', 'unverified_leads']);
+
     expect(recoverCut(cutAfter(WHOLE, '"limitations":["Local'))).toStrictEqual(
-      recovery(kept('2021-04-19', [FIRST, SECOND, THIRD]), 3),
+      afterList(lists, 3, ['limitations']),
     );
+    expect(recoverCut(cutAfter(WHOLE, '"unverified_leads":['))).toStrictEqual(
+      afterList(listed([...HEADER_KEYS, 'events']), 3),
+    );
+    expect(recoverCut(cutAfter(WHOLE, IN_THIRD_EVENT))).toStrictEqual(
+      recovery(kept('2021-03-01', [FIRST, SECOND]), 2, { eventsListComplete: false }),
+    );
+  });
+
+  it.each([
+    ['no event', [], 0],
+    ['unsorted events', [eventOn('2021-03-02'), eventOn('2021-01-14')], 2],
+    ['events without a calendar date', [eventOn('2021-02-30'), eventOn(null), 'A fact'], 3],
+    ['events written as an object, for the reader to refuse', { count: 2 }, 0],
+  ])(
+    '[IMP-05] [CL-IMP-18] recovers a result cut after its closed events list with %s, its covered period as written',
+    (_case, events, count) => {
+      const value = { ...listed([...HEADER_KEYS, 'unverified_leads']), events };
+
+      expect(recoverCut(cutInLimitations(events))).toStrictEqual(
+        afterList(value, count, ['limitations']),
+      );
+    },
+  );
+
+  it('[IMP-05] [CL-IMP-18] refuses the recovery when the last recovered date is 0000-01-01, whose day before YYYY-MM-DD cannot write', () => {
+    const period = { start: '0000-01-01', end: '9999-12-31' };
+    const cut = (day: string): string =>
+      cutAfterEvents([eventOn(day)], { [COVERED_PERIOD]: period });
+    const value = { ...header({ ...period, end: '0000-01-01' }), events: [eventOn('0000-01-02')] };
+
+    expect(recoverCut(cut('0000-01-02'))).toStrictEqual(recovery(value, 1));
+    expect(recoverCut(cut('0000-01-01'))).toStrictEqual(refused('no_dated_event'));
   });
 
   it.each([
@@ -395,9 +441,9 @@ describe('recoverCut', () => {
     '[CL-IMP-18] keeps the value that ends the text only when the cut cannot have shortened it: %s',
     (_case, last, members) => {
       const text = `${membersIn([...HEADER_KEYS, 'events'])},${last}`;
-      const value = { ...kept('2021-04-19', [FIRST, SECOND, THIRD]), ...members };
+      const value = { ...listed([...HEADER_KEYS, 'events']), ...members };
 
-      expect(recoverCut(text)).toStrictEqual(recovery(value, 3));
+      expect(recoverCut(text)).toStrictEqual(afterList(value, 3));
     },
   );
 });
