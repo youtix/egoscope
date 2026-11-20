@@ -1,4 +1,4 @@
-import { asc, getTableName, inArray, is } from 'drizzle-orm';
+import { and, asc, eq, getTableName, inArray, is, sql } from 'drizzle-orm';
 import {
   date,
   getTableConfig,
@@ -15,6 +15,15 @@ import * as schema from '.';
 import { createTestDatabase } from '../test-database';
 
 type Column = Readonly<{ table: string; name: string; type: string }>;
+// A column as the catalog describes it; an identity column has no default but its generation.
+type BuiltColumn = Readonly<{
+  table: string;
+  name: string;
+  type: string;
+  nullable: string;
+  default: string | null;
+  identity: string | null;
+}>;
 
 // Every table of the schema, whichever task or lot added it, among its other exports.
 const EXPORTS: readonly unknown[] = Object.values(schema);
@@ -28,6 +37,19 @@ const pgIndexes = pgSchema('pg_catalog').table('pg_indexes', {
   tableName: text('tablename'),
   indexName: text('indexname'),
   definition: text('indexdef'),
+});
+
+// The view of the catalog that describes every column: its place in its table, the
+// name of its type, whether it takes a null, and its default or its identity.
+const catalogColumns = pgSchema('information_schema').table('columns', {
+  tableSchema: text('table_schema').notNull(),
+  tableName: text('table_name').notNull(),
+  columnName: text('column_name').notNull(),
+  ordinalPosition: integer('ordinal_position').notNull(),
+  udtName: text('udt_name').notNull(),
+  isNullable: text('is_nullable').notNull(),
+  columnDefault: text('column_default'),
+  identityGeneration: text('identity_generation'),
 });
 
 // The machinery tables of operations.md, installation and sequence_counters aside.
@@ -103,6 +125,158 @@ const MACHINERY_INDEXES = [
   'CREATE INDEX task_runs_task_started_idx ON public.task_runs USING btree (task_key, started_at)',
   'CREATE UNIQUE INDEX ui_state_pkey ON public.ui_state USING btree (id)',
 ];
+
+// Their columns, table by table and each table's in the order of operations.md, with the
+// type, the null and the default that the model gives each, in the words of SQL: a column
+// without NOT NULL takes a null, and the model's `identity` is GENERATED ALWAYS AS IDENTITY.
+const MACHINERY_COLUMNS = [
+  'accounts.id smallint NOT NULL DEFAULT 1',
+  'accounts.password_hash text NOT NULL',
+  'accounts.password_status text NOT NULL',
+  'accounts.initial_password_fingerprint text NOT NULL',
+  'accounts.password_changed_at timestamp with time zone NOT NULL DEFAULT now()',
+  'accounts.login_locked_until timestamp with time zone',
+  'accounts.all_sessions_ended_at timestamp with time zone',
+  'accounts.all_sessions_end_reason text',
+  'backups.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'backups.kind text NOT NULL',
+  'backups.status text NOT NULL',
+  'backups.started_at timestamp with time zone NOT NULL DEFAULT now()',
+  'backups.finished_at timestamp with time zone',
+  'backups.object_name text',
+  'backups.size_bytes bigint',
+  'backups.failure_cause text',
+  'backups.deleted_at timestamp with time zone',
+  'backups.deletion_failed_at timestamp with time zone',
+  'database_activity_minutes.minute_at timestamp with time zone NOT NULL',
+  'database_activity_minutes.instance_id text NOT NULL',
+  'database_size_samples.sampled_on date NOT NULL',
+  'database_size_samples.size_bytes bigint NOT NULL',
+  'drafts.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'drafts.kind text NOT NULL',
+  'drafts.backtest_request_id integer',
+  'drafts.exploration_event_type_id text',
+  'drafts.text text NOT NULL',
+  'drafts.updated_at timestamp with time zone NOT NULL DEFAULT now()',
+  'drafts.origin_device text NOT NULL',
+  'export_downloads.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'export_downloads.kind text NOT NULL',
+  'export_downloads.downloaded_at timestamp with time zone NOT NULL DEFAULT now()',
+  'incidents.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'incidents.kind text NOT NULL',
+  "incidents.cause_key text NOT NULL DEFAULT ''::text",
+  'incidents.service_role text',
+  "incidents.status text NOT NULL DEFAULT 'open'::text",
+  'incidents.opened_at timestamp with time zone NOT NULL DEFAULT now()',
+  'incidents.closed_at timestamp with time zone',
+  'incidents.hidden_at timestamp with time zone',
+  "incidents.quota_causes text[] NOT NULL DEFAULT '{}'::text[]",
+  "incidents.details jsonb NOT NULL DEFAULT '{}'::jsonb",
+  'journal_entries.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'journal_entries.occurred_at timestamp with time zone NOT NULL DEFAULT now()',
+  'journal_entries.category text NOT NULL',
+  'journal_entries.level text NOT NULL',
+  'journal_entries.message_key text NOT NULL',
+  "journal_entries.message_params jsonb NOT NULL DEFAULT '{}'::jsonb",
+  'journal_entries.player_id uuid',
+  'journal_entries.player_event_id integer',
+  'journal_entries.event_type_id text',
+  'journal_entries.backtest_request_id integer',
+  'journal_entries.import_id integer',
+  'journal_entries.case_id integer',
+  'journal_entries.incident_id integer',
+  'journal_entries.task_run_id integer',
+  'journal_entries.lot2_object_kind text',
+  'journal_entries.lot2_object_id integer',
+  'journal_technical_details.journal_entry_id integer NOT NULL',
+  'journal_technical_details.details jsonb NOT NULL',
+  'login_failures.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'login_failures.occurred_at timestamp with time zone NOT NULL DEFAULT now()',
+  'outbox_facts.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'outbox_facts.kind text NOT NULL',
+  'outbox_facts.backtest_request_id integer',
+  'outbox_facts.deadline_game_id integer',
+  'outbox_facts.player_event_id integer',
+  'outbox_facts.event_type_id text',
+  'outbox_facts.incident_id integer',
+  'outbox_facts.lot2_subject_id integer',
+  'outbox_facts.pass_id uuid',
+  'outbox_facts.created_at timestamp with time zone NOT NULL DEFAULT now()',
+  'outbox_facts.consumed_at timestamp with time zone',
+  'parameter_changes.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'parameter_changes.parameter_key text NOT NULL',
+  'parameter_changes.changed_at timestamp with time zone NOT NULL DEFAULT now()',
+  'parameter_changes.old_value jsonb NOT NULL',
+  'parameter_changes.new_value jsonb NOT NULL',
+  'parameter_changes.affects_calculations boolean NOT NULL',
+  'parameter_changes.journal_entry_id integer',
+  'parameter_overrides.parameter_key text NOT NULL',
+  'parameter_overrides.value jsonb NOT NULL',
+  'parameter_overrides.changed_at timestamp with time zone NOT NULL DEFAULT now()',
+  'parameter_overrides.row_version integer NOT NULL DEFAULT 1',
+  'parameter_snapshots.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'parameter_snapshots.captured_at timestamp with time zone NOT NULL DEFAULT now()',
+  'parameter_snapshots.values jsonb NOT NULL',
+  'parameter_snapshots.values_hash text NOT NULL',
+  'quota_usage.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'quota_usage.limit_key text NOT NULL',
+  'quota_usage.period_start_at timestamp with time zone NOT NULL',
+  'quota_usage.used bigint NOT NULL DEFAULT 0',
+  'quota_usage.warning_given_at timestamp with time zone',
+  'quota_usage.reached_at timestamp with time zone',
+  'quota_usage.resets_at timestamp with time zone',
+  'restore_report_events.restore_report_id integer NOT NULL',
+  'restore_report_events.player_event_id integer NOT NULL',
+  'restore_reports.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'restore_reports.restored_at timestamp with time zone NOT NULL DEFAULT now()',
+  'restore_reports.backup_created_at timestamp with time zone NOT NULL',
+  'restore_reports.source_kind text NOT NULL',
+  'restore_reports.table_counts jsonb NOT NULL',
+  'restore_reports.players_deleted_again integer NOT NULL',
+  'restore_reports.events_withdrawn_again integer NOT NULL',
+  'restore_reports.ledger_carried_over boolean NOT NULL',
+  'restore_reports.older_than_horizon boolean NOT NULL',
+  'restore_reports.consistency_check_passed boolean NOT NULL',
+  'scheduler_lease.id smallint NOT NULL',
+  'scheduler_lease.pass_id uuid',
+  'scheduler_lease.expires_at timestamp with time zone',
+  'sessions.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'sessions.token_hash bytea NOT NULL',
+  'sessions.device text NOT NULL',
+  'sessions.opened_at timestamp with time zone NOT NULL DEFAULT now()',
+  'sessions.last_used_at timestamp with time zone NOT NULL DEFAULT now()',
+  'sessions.expires_at timestamp with time zone NOT NULL',
+  'sessions.ended_at timestamp with time zone',
+  'sessions.end_reason text',
+  'task_runs.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
+  'task_runs.task_key text NOT NULL',
+  'task_runs.trigger text NOT NULL',
+  'task_runs.due_at timestamp with time zone NOT NULL',
+  'task_runs.started_at timestamp with time zone',
+  'task_runs.progress_at timestamp with time zone',
+  'task_runs.finished_at timestamp with time zone',
+  'task_runs.result text',
+  'task_runs.parent_run_id integer',
+  'task_runs.pass_id uuid',
+  'task_runs.competition_day_on date',
+  'task_runs.probe_count smallint',
+  'task_runs.last_refresh_seen_at timestamp with time zone',
+  'task_runs.cursor text',
+  "task_runs.summary jsonb NOT NULL DEFAULT '{}'::jsonb",
+  'ui_state.id smallint NOT NULL DEFAULT 1',
+  'ui_state.onboarding_guide_hidden boolean NOT NULL DEFAULT false',
+  'ui_state.first_profile_viewed_at timestamp with time zone',
+  'ui_state.in_progress_banner_hidden_at timestamp with time zone',
+  'ui_state.row_version integer NOT NULL DEFAULT 1',
+];
+
+/** `column` in the words of SQL, as MACHINERY_COLUMNS writes the model's columns. */
+function definitionOf(column: BuiltColumn): string {
+  const nullable = column.nullable === 'NO' ? ' NOT NULL' : '';
+  const value = column.default === null ? '' : ` DEFAULT ${column.default}`;
+  const identity = column.identity === null ? '' : ` GENERATED ${column.identity} AS IDENTITY`;
+  return `${column.table}.${column.name} ${column.type}${nullable}${value}${identity}`;
+}
 
 /** Every column of `tables`, with its table and its SQL type. */
 function columnsOf(tables: readonly PgTable[]): Column[] {
@@ -237,6 +411,36 @@ describe('the schema', () => {
         .orderBy(asc(pgIndexes.indexName));
 
       expect(indexes.map((index) => index.definition)).toStrictEqual(MACHINERY_INDEXES);
+    },
+  );
+
+  it(
+    'builds the columns that the data model gives the machinery tables, each with its type, its null and its default',
+    { timeout: 60_000 },
+    async () => {
+      const database = await createTestDatabase();
+      onTestFinished(database.close);
+
+      const built = await database.db
+        .select({
+          table: catalogColumns.tableName,
+          name: catalogColumns.columnName,
+          // The name SQL gives the type: text[] for the array that the view calls ARRAY.
+          type: sql<string>`${catalogColumns.udtName}::regtype::text`,
+          nullable: catalogColumns.isNullable,
+          default: catalogColumns.columnDefault,
+          identity: catalogColumns.identityGeneration,
+        })
+        .from(catalogColumns)
+        .where(
+          and(
+            eq(catalogColumns.tableSchema, 'public'),
+            inArray(catalogColumns.tableName, MACHINERY_TABLES),
+          ),
+        )
+        .orderBy(asc(catalogColumns.tableName), asc(catalogColumns.ordinalPosition));
+
+      expect(built.map((column) => definitionOf(column))).toStrictEqual(MACHINERY_COLUMNS);
     },
   );
 });

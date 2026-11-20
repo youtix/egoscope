@@ -37,7 +37,7 @@ describe('the account tables', { timeout: 60_000 }, () => {
     return database.close;
   }, 60_000);
 
-  it('keeps the single account in one row, id 1, on its initial password', async () => {
+  it('keeps the single account in one row, id 1, on its initial password until one is chosen', async () => {
     await db.insert(accounts).values(ACCOUNT);
 
     const second = db.insert(accounts).values({ ...ACCOUNT, id: 2 });
@@ -58,7 +58,26 @@ describe('the account tables', { timeout: 60_000 }, () => {
     ]);
     await expect(second).rejects.toMatchObject(violationOf('accounts_id_check'));
     await expect(status).rejects.toMatchObject(violationOf('accounts_password_status_check'));
+
+    await db.update(accounts).set({ passwordStatus: 'chosen' }).where(eq(accounts.id, 1));
+
+    await expect(
+      db.select({ status: accounts.passwordStatus }).from(accounts),
+    ).resolves.toStrictEqual([{ status: 'chosen' }]);
   });
+
+  it.each(['logged_out', 'password_changed', 'reset', 'restored'] as const)(
+    '[CL-TRV-05] records an ending of every session at once for the reason %s',
+    async (reason) => {
+      await db
+        .insert(accounts)
+        .values({ ...ACCOUNT, allSessionsEndedAt: ENDED_AT, allSessionsEndReason: reason });
+
+      await expect(
+        db.select({ reason: accounts.allSessionsEndReason }).from(accounts),
+      ).resolves.toStrictEqual([{ reason }]);
+    },
+  );
 
   it('[CL-TRV-05] records the last ending of every session with its reason, which is never an expiry', async () => {
     await db
@@ -133,10 +152,12 @@ describe('the account tables', { timeout: 60_000 }, () => {
       .insert(sessions)
       .values({ ...SESSION, endedAt: ENDED_AT, endReason: sql`'kicked'` });
     const reasonless = db.insert(sessions).values({ ...SESSION, endedAt: ENDED_AT });
+    const unended = db.insert(sessions).values({ ...SESSION, endReason: 'logged_out' });
 
     expect(stored.map((row) => row.reason)).toStrictEqual(reasons);
     await expect(unknown).rejects.toMatchObject(violationOf('sessions_end_reason_check'));
     await expect(reasonless).rejects.toMatchObject(violationOf('sessions_ended_check'));
+    await expect(unended).rejects.toMatchObject(violationOf('sessions_ended_check'));
   });
 
   it('records each refused login at its instant', async () => {

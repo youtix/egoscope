@@ -80,6 +80,17 @@ describe('the drift check', { timeout: 120_000 }, () => {
         '0002_from_the_branch (idx 2, when 200) does not come after 0001_from_main (idx 1, when 300)',
     },
     {
+      order:
+        'a later idx with the same when, which the migrator skips once the entry before it is applied',
+      entries: [
+        { idx: 0, when: 100, tag: '0000_first' },
+        { idx: 1, when: 200, tag: '0001_from_main' },
+        { idx: 2, when: 200, tag: '0002_from_the_branch' },
+      ],
+      problem:
+        '0002_from_the_branch (idx 2, when 200) does not come after 0001_from_main (idx 1, when 200)',
+    },
+    {
       order: 'two entries of one idx, as a journal merged by hand keeps them',
       entries: [
         { idx: 0, when: 100, tag: '0000_first' },
@@ -112,7 +123,7 @@ describe('the drift check', { timeout: 120_000 }, () => {
 
     expect(status).toBe(1);
     expect(output).toContain(
-      '✖ db:check: drizzle/meta/_journal.json is not a journal that drizzle-kit wrote. Keep drizzle/meta/_journal.json as origin/main has it, delete your own migration and its snapshot, then run `bun run db:generate` again: never edit drizzle/meta by hand.',
+      '✖ db:check: drizzle/meta/_journal.json is not a journal that drizzle-kit wrote. Take drizzle/meta/ as origin/main has it, journal and snapshots (`git restore --source=origin/main --staged --worktree drizzle/meta`), delete only the .sql files of your own migrations, then run `bun run db:generate` again: never edit drizzle/meta by hand.',
     );
   });
 

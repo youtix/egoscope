@@ -149,15 +149,25 @@ describe('the scheduler tables', { timeout: 60_000 }, () => {
       .insert(taskRuns)
       .values({ taskKey: 'purge', ...RUNNING, competitionDayOn: '2026-11-17' });
     const probes = db.insert(taskRuns).values({ taskKey: 'purge', ...RUNNING, probeCount: 2 });
+    const refresh = db
+      .insert(taskRuns)
+      .values({ taskKey: 'purge', ...RUNNING, lastRefreshSeenAt: DUE_AT });
     const late = db
       .insert(taskRuns)
       .values({ taskKey: 'purge', ...RUNNING, finishedAt: FINISHED_AT, result: 'source_late' });
 
     await expect(
-      db.select({ day: taskRuns.competitionDayOn, probes: taskRuns.probeCount }).from(taskRuns),
-    ).resolves.toStrictEqual([{ day: '2026-11-17', probes: 2 }]);
+      db
+        .select({
+          day: taskRuns.competitionDayOn,
+          probes: taskRuns.probeCount,
+          refresh: taskRuns.lastRefreshSeenAt,
+        })
+        .from(taskRuns),
+    ).resolves.toStrictEqual([{ day: '2026-11-17', probes: 2, refresh: DUE_AT }]);
     await expect(day).rejects.toMatchObject(violationOf('task_runs_statistics_update_check'));
     await expect(probes).rejects.toMatchObject(violationOf('task_runs_statistics_update_check'));
+    await expect(refresh).rejects.toMatchObject(violationOf('task_runs_statistics_update_check'));
     await expect(late).rejects.toMatchObject(violationOf('task_runs_source_late_check'));
   });
 
@@ -198,8 +208,13 @@ describe('the scheduler tables', { timeout: 60_000 }, () => {
       .update(schedulerLease)
       .set({ passId: PASS_ID })
       .where(eq(schedulerLease.id, 1));
+    const expiryAlone = db
+      .update(schedulerLease)
+      .set({ expiresAt: FINISHED_AT })
+      .where(eq(schedulerLease.id, 1));
     await expect(second).rejects.toMatchObject(violationOf('scheduler_lease_id_check'));
     await expect(passAlone).rejects.toMatchObject(violationOf('scheduler_lease_holder_check'));
+    await expect(expiryAlone).rejects.toMatchObject(violationOf('scheduler_lease_holder_check'));
 
     await db
       .update(schedulerLease)

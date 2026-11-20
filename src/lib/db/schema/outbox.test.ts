@@ -72,8 +72,22 @@ describe('the outbox table', { timeout: 60_000 }, () => {
     await expect(unknown).rejects.toMatchObject(violationOf('outbox_facts_kind_check'));
   });
 
+  // Each fact breaks one clause of the row check alone, by a subject that its kind
+  // lacks or by one that it has, so that every clause is proven both ways.
   it.each([
     { fact: 'a request to do without its request', subjects: { kind: 'backtest_request_to_do' } },
+    {
+      fact: 'a tracked result that names a request beside its Lot 2 subject',
+      subjects: { kind: 'tracked_result_ready', lot2SubjectId: 21, backtestRequestId: 4 },
+    },
+    {
+      fact: 'a deadline changed without its new deadline game',
+      subjects: {
+        kind: 'backtest_request_deadline_changed',
+        backtestRequestId: 4,
+        playerEventId: 12,
+      },
+    },
     {
       fact: 'a request to do that names a game',
       subjects: { kind: 'backtest_request_to_do', backtestRequestId: 4, deadlineGameId: 51 },
@@ -87,13 +101,26 @@ describe('the outbox table', { timeout: 60_000 }, () => {
       },
     },
     {
-      fact: 'a type proposal that names an incident',
-      subjects: { kind: 'type_proposal_new', eventTypeId: 'media-storm', incidentId: 1 },
+      fact: 'a request to do that names an event',
+      subjects: { kind: 'backtest_request_to_do', backtestRequestId: 4, playerEventId: 12 },
+    },
+    { fact: 'a type proposal without its type', subjects: { kind: 'type_proposal_new' } },
+    {
+      fact: 'an incident fact that names a type',
+      subjects: { kind: 'incident_opened', incidentId: 1, eventTypeId: 'media-storm' },
     },
     { fact: 'an incident fact without its incident', subjects: { kind: 'incident_closed' } },
     {
-      fact: 'a tracked result that names a request instead of its Lot 2 subject',
-      subjects: { kind: 'tracked_result_ready', backtestRequestId: 4 },
+      fact: 'a type proposal that names an incident',
+      subjects: { kind: 'type_proposal_new', eventTypeId: 'media-storm', incidentId: 1 },
+    },
+    {
+      fact: 'an alert sheet produced without its sheet',
+      subjects: { kind: 'alert_sheet_produced' },
+    },
+    {
+      fact: 'an incident fact that names a Lot 2 subject',
+      subjects: { kind: 'incident_opened', incidentId: 1, lot2SubjectId: 3 },
     },
   ] as const)('refuses $fact', async ({ subjects }) => {
     const fact = db.insert(outboxFacts).values(subjects);

@@ -132,8 +132,8 @@ describe('the backup tables', { timeout: 60_000 }, () => {
     await expect(unknown).rejects.toMatchObject(violationOf('export_downloads_kind_check'));
   });
 
-  it('[CL-TRV-06] keeps the summary of a restore and the events it left to check, which go with it', async () => {
-    await db.insert(restoreReports).values(REPORT);
+  it('[CL-TRV-06] keeps the summary of a restore, of a backup or a full export, and the events it left to check, which go with it', async () => {
+    await db.insert(restoreReports).values([REPORT, { ...REPORT, sourceKind: 'full_export' }]);
     await db.insert(restoreReportEvents).values([
       { restoreReportId: 1, playerEventId: 12 },
       { restoreReportId: 1, playerEventId: 13 },
@@ -147,11 +147,14 @@ describe('the backup tables', { timeout: 60_000 }, () => {
       },
     });
     await expect(unknown).rejects.toMatchObject(violationOf('restore_reports_source_kind_check'));
-    const summary = await db.select().from(restoreReports);
+    const summary = await db.select().from(restoreReports).orderBy(restoreReports.id);
 
     await db.delete(restoreReports).where(eq(restoreReports.id, 1));
 
-    expect(summary).toStrictEqual([{ id: 1, restoredAt: ANY_INSTANT, ...REPORT }]);
+    expect(summary).toStrictEqual([
+      { id: 1, restoredAt: ANY_INSTANT, ...REPORT },
+      { id: 2, restoredAt: ANY_INSTANT, ...REPORT, sourceKind: 'full_export' },
+    ]);
     await expect(db.select().from(restoreReportEvents)).resolves.toStrictEqual([]);
   });
 });

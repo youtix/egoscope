@@ -40,7 +40,7 @@ const JOURNAL_ENTRY = z.object({ idx: z.number(), when: z.number(), tag: z.strin
 const JOURNAL_ENTRIES = z.object({ entries: z.array(JOURNAL_ENTRY) });
 // How a conflict in the journal is resolved after a rebase (CLAUDE.md, "Database").
 const GENERATE_AGAIN =
-  'Keep drizzle/meta/_journal.json as origin/main has it, delete your own migration and its snapshot, then run `bun run db:generate` again: never edit drizzle/meta by hand.';
+  'Take drizzle/meta/ as origin/main has it, journal and snapshots (`git restore --source=origin/main --staged --worktree drizzle/meta`), delete only the .sql files of your own migrations, then run `bun run db:generate` again: never edit drizzle/meta by hand.';
 // What drizzle-kit says when the schema holds nothing that drizzle/ lacks. Its
 // exit code cannot tell: it exits with 0 on some failures.
 const NOTHING_TO_MIGRATE = 'No schema changes, nothing to migrate';

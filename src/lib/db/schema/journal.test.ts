@@ -95,10 +95,17 @@ describe('the journal tables', { timeout: 60_000 }, () => {
   });
 
   it('[CL-TRV-10] names a Lot 2 object by its kind and its identifier together', async () => {
+    const kinds = ['press_source', 'article', 'alert_sheet', 'notification_message'] as const;
     await db
       .insert(journalEntries)
-      .values({ ...REFUSED_TRIGGER, lot2ObjectKind: 'alert_sheet', lot2ObjectId: 7 });
+      .values(
+        kinds.map((lot2ObjectKind) => ({ ...REFUSED_TRIGGER, lot2ObjectKind, lot2ObjectId: 7 })),
+      );
 
+    const stored = await db
+      .select({ kind: journalEntries.lot2ObjectKind })
+      .from(journalEntries)
+      .orderBy(journalEntries.id);
     const kindAlone = db
       .insert(journalEntries)
       .values({ ...REFUSED_TRIGGER, lot2ObjectKind: 'article' });
@@ -107,6 +114,7 @@ describe('the journal tables', { timeout: 60_000 }, () => {
       .insert(journalEntries)
       .values({ ...REFUSED_TRIGGER, lot2ObjectKind: sql`'telegram_link'`, lot2ObjectId: 7 });
 
+    expect(stored.map((row) => row.kind)).toStrictEqual(kinds);
     await expect(kindAlone).rejects.toMatchObject(violationOf('journal_entries_lot2_object_check'));
     await expect(idAlone).rejects.toMatchObject(violationOf('journal_entries_lot2_object_check'));
     await expect(unknown).rejects.toMatchObject(

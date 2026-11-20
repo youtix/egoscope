@@ -217,8 +217,10 @@ touches it and its prefix, its letters before the first hyphen, is that of an ID
 - Drizzle's migrator applies a migration only when its `when` in `drizzle/meta/_journal.json` is
   later than that of the last one applied, and skips any other without a word: `bun run db:check`
   refuses a journal whose `idx` and `when` do not both increase. A conflict in `drizzle/meta/`
-  after a rebase is resolved by generating the migration again, never by hand: keep the journal as
-  `origin/main` has it, delete your own migration and its snapshot, then run `bun run db:generate`.
+  after a rebase is resolved by generating the migration again, never by hand: take
+  `drizzle/meta/` as `origin/main` has it, journal and snapshots
+  (`git restore --source=origin/main --staged --worktree drizzle/meta`), delete only the `.sql`
+  files of your own migrations, then run `bun run db:generate`.
 - A test gets a database of its own from `createTestDatabase()`: in memory, every migration
   applied. Close it when the test ends, `onTestFinished(database.close)`, since an open one holds
   about 200 MB.
