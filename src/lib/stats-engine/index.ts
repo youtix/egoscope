@@ -43,10 +43,27 @@ export type { GameScoreInput } from './performance/game-score';
 // --- schedule/ -------------------------------------------------------------------
 
 // schedule/team-record.ts
+export { teamRecord } from './schedule/team-record';
+export type {
+  GamePhase,
+  GameStatus,
+  ScheduleGame,
+  TeamWinLossRecord,
+} from './schedule/team-record';
 
 // schedule/series.ts
+export { rebuildSeries } from './schedule/series';
+export type { RebuiltSeries, SeriesGame, SeriesGamePosition, SeriesRound } from './schedule/series';
 
 // schedule/phase-state.ts
+export { phaseState } from './schedule/phase-state';
+export type {
+  PhaseGame,
+  PhaseOf,
+  PhaseSeries,
+  PhaseState,
+  SeasonSchedule,
+} from './schedule/phase-state';
 
 // schedule/seasons.ts
 
