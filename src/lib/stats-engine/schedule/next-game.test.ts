@@ -201,6 +201,16 @@ const FINALS_TIED = scheduleOf(
 );
 // A game of the next season, between two other teams.
 const NEXT_SEASON_GAMES = [toPlay(401, '2026-10-21', [5, 6])];
+// Or the stored playoffs stop at X and team 3 one game each in the first round, no Finals
+// listed.
+const CUT_SHORT = scheduleOf(
+  [
+    ...REGULAR_SEASON,
+    inPlayoffs(won(211, '2026-04-18', [X, 3])),
+    inPlayoffs(won(212, '2026-04-20', [3, X])),
+  ],
+  [seriesOf([X, 3], 'first_round')],
+);
 // X swept team 3, then won the first game of its second-round series against team 5,
 // whose next game is not in the schedule yet.
 const STILL_IN = scheduleOf(
@@ -265,6 +275,26 @@ describe('nextGame without a game to play', () => {
       reason: 'schedule_not_published',
     });
   });
+
+  it.each([
+    ['X, still in its series', X, 'schedule_not_published'],
+    ['team 7, never in the postseason', 7, 'team_eliminated'],
+  ])(
+    '[STA-26] [CL-STA-18] [CL-STA-20] reads playoffs stopped short, no Finals listed, as under way while no game of the next season is stored, and as over once one is: %s',
+    (_, teamId, reason) => {
+      const player = { teamId, lastGamePlayedOn: '2026-04-20' };
+      const withNextSeason = { ...CUT_SHORT, nextSeasonGames: NEXT_SEASON_GAMES };
+
+      expect(nextGame(player, CUT_SHORT, utc('2026-05-01', 12))).toStrictEqual({
+        ...NO_GAME,
+        reason,
+      });
+      expect(nextGame(player, withNextSeason, utc('2026-08-01', 12))).toStrictEqual({
+        ...NO_GAME,
+        reason: 'schedule_not_published',
+      });
+    },
+  );
 
   it.each([
     ['still in the playoffs, its next game not stored yet', STILL_IN, '2026-05-05'],

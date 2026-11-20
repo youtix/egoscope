@@ -95,6 +95,38 @@ function scheduleOf(
 const FINISHED: PhaseState = { finished: true, lastGameConsolidated: true };
 const RUNNING: PhaseState = { finished: false, lastGameConsolidated: false };
 const IN_WINDOW: PhaseState = { finished: true, lastGameConsolidated: false };
+// Finished, the team having no postseason game to be its last game.
+const WITHOUT_GAME: PhaseState = { finished: true, lastGameConsolidated: false };
+
+// A season whose stored playoffs hold no game, or stop at a first-round series that teams
+// 1 and 7 won one game each, its Finals never listed, with the state of the postseason of
+// each of `teams` once a game of a later season is stored (`past`), and while none is
+// (`latest`). Teams 11 and 12 played the regular season only.
+type StoppedCase = Readonly<{
+  playoffs: string;
+  parts: readonly Part[];
+  teams: readonly number[];
+  past: readonly PhaseState[];
+  latest: readonly (PhaseState | null)[];
+}>;
+
+const STOPPED_CASES: readonly StoppedCase[] = [
+  {
+    playoffs: 'no playoff game stored',
+    parts: [],
+    teams: [11, 12],
+    past: [WITHOUT_GAME, WITHOUT_GAME],
+    latest: [null, null],
+  },
+  {
+    playoffs: 'a first-round series stopped at one game each',
+    parts: [played([1, 7], 'ab', { day: 4, round: 'first_round' })],
+    teams: [1, 7, 11],
+    past: [FINISHED, FINISHED, WITHOUT_GAME],
+    latest: [RUNNING, RUNNING, null],
+  },
+];
+const REGULAR_SEASON_GAME = gameOf(40, 0, { homeTeamId: 11, awayTeamId: 12 });
 
 // The play-in and the first round are over, and the second round under way: team 1 leads
 // team 7 two games to one. Team 8 lost the 7-8 game, won the 8th-seed game and was swept
@@ -166,7 +198,7 @@ const FINALS_CASES: readonly FinalsCase[] = [
     winners: 'aab',
     others: [toPlay(9, 30)],
     isLastConsolidated: true,
-    past: RUNNING,
+    past: FINISHED,
     latest: RUNNING,
   },
   {
@@ -174,7 +206,7 @@ const FINALS_CASES: readonly FinalsCase[] = [
     winners: 'aab',
     others: [toPlay(9, 30, { status: 'in_progress' })],
     isLastConsolidated: true,
-    past: RUNNING,
+    past: FINISHED,
     latest: RUNNING,
   },
   {
@@ -352,9 +384,27 @@ describe('phaseState of the postseason', () => {
   });
 
   it.each(FINALS_CASES)(
-    '[STA-20] [CL-STA-02] [CL-STA-18] finishes for every team once the Finals are over, won or with no game left to play once a game of a later season is stored: Finals $finals',
+    '[STA-20] [CL-STA-02] [CL-STA-18] finishes for every team, the Finals over, once a game of a later season is stored, whatever its stored Finals games say: Finals $finals',
     (finalsCase) => {
       expect(finalsStates(finalsCase, true)).toStrictEqual([finalsCase.past, finalsCase.past]);
+    },
+  );
+
+  it.each(STOPPED_CASES)(
+    '[STA-20] [CL-STA-02] [CL-STA-18] finishes the postseason for every team of a season once a game of a later season is stored, its Finals never listed: $playoffs',
+    ({ parts, teams, past }) => {
+      const schedule = scheduleOf(parts, [REGULAR_SEASON_GAME], true);
+
+      expect(teams.map((teamId) => postseasonOf(schedule, teamId))).toStrictEqual(past);
+    },
+  );
+
+  it.each(STOPPED_CASES)(
+    '[STA-20] [CL-STA-02] [CL-STA-18] [CL-STA-20] leaves the same games as they are while no game of a later season is stored: $playoffs',
+    ({ parts, teams, latest }) => {
+      const schedule = scheduleOf(parts, [REGULAR_SEASON_GAME]);
+
+      expect(teams.map((teamId) => postseasonOf(schedule, teamId))).toStrictEqual(latest);
     },
   );
 
