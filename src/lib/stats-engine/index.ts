@@ -85,7 +85,12 @@ export { tallyProfile } from './profiles/tally';
 export type { ProfileCase, ProfileTally, TallyExitReason } from './profiles/tally';
 
 // profiles/verdict.ts
-export { profileVerdict, signalVerdict, verdictQuantities } from './profiles/verdict';
+export {
+  compareCasesInFixedOrder,
+  profileVerdict,
+  signalVerdict,
+  verdictQuantities,
+} from './profiles/verdict';
 export type {
   ProfileVerdict,
   Verdict,

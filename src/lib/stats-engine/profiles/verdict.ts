@@ -134,8 +134,13 @@ export function signalVerdict(quantities: VerdictQuantities | null, params: Engi
   return level === null || direction === null ? INCONCLUSIVE : { level, direction };
 }
 
-/** Orders cases by their measured game's scheduled start, then by identifier (CL-STA-09). */
-function inFixedOrder(left: OrderedCase, right: OrderedCase): number {
+/**
+ * Orders two cases for sorting, in the fixed order of the sums over cases (CL-STA-09,
+ * SEN-36): negative when `left` comes first, by its measured game's scheduled start,
+ * then by case identifier, so that the same cases always give the same bits. The
+ * robustness test breaks its ties in this order too (CL-SEN-14).
+ */
+export function compareCasesInFixedOrder(left: OrderedCase, right: OrderedCase): number {
   const byStart = left.measuredGameScheduledStartAt - right.measuredGameScheduledStartAt;
   return byStart === 0 ? left.caseId - right.caseId : byStart;
 }
@@ -155,7 +160,7 @@ export function profileVerdict(
 ): ProfileVerdict {
   const gaps = cases
     .filter((caseItem) => caseItem.status === 'measured')
-    .toSorted(inFixedOrder)
+    .toSorted(compareCasesInFixedOrder)
     .map((caseItem) => caseItem.normalizedGap);
   const quantities = verdictQuantities(gaps);
   return {

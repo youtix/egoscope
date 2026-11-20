@@ -1,7 +1,12 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { profileVerdict, signalVerdict, verdictQuantities } from './verdict';
+import {
+  compareCasesInFixedOrder,
+  profileVerdict,
+  signalVerdict,
+  verdictQuantities,
+} from './verdict';
 
 import type { EngineParams } from '../types';
 import type { ProfileCase } from './tally';
@@ -97,8 +102,11 @@ function opposite(verdict: Verdict): Verdict {
 
 /**
  * What opposite gaps give: the same spread around the opposite mean gap. Negation is
- * exact in floating point, so the values match to the bit; `0 - x` keeps a zero mean
- * gap positive, as a sum of opposite gaps that starts from zero gives it.
+ * exact in floating point, so the values match to the bit, but for the sign of a zero:
+ * gaps that cancel out sum to +0 both ways, while a mean gap or a ratio that underflows
+ * to zero keeps the sign of the gaps. `0 - x` writes every zero +0, and
+ * `withPositiveZeros` writes the other side alike: a mean gap of zero has no direction
+ * (SEN-24).
  */
 function mirrorOf(quantities: VerdictQuantities | null): VerdictQuantities | null {
   return quantities === null
@@ -109,6 +117,17 @@ function mirrorOf(quantities: VerdictQuantities | null): VerdictQuantities | nul
         signalToNoise: 0 - quantities.signalToNoise,
         rangeLow: 0 - quantities.rangeHigh,
         rangeHigh: 0 - quantities.rangeLow,
+      };
+}
+
+/** The same quantities with a mean gap or a ratio of −0 written +0, which `0 + x` does. */
+function withPositiveZeros(quantities: VerdictQuantities | null): VerdictQuantities | null {
+  return quantities === null
+    ? null
+    : {
+        ...quantities,
+        meanGap: 0 + quantities.meanGap,
+        signalToNoise: 0 + quantities.signalToNoise,
       };
 }
 
@@ -132,6 +151,19 @@ const MIRRORED_EXAMPLE_CASES = validCases(WORKED_EXAMPLE_GAPS.map((gap) => -gap)
 
 const anyGap = fc.double({ min: -5, max: 5, noNaN: true });
 const anyGaps = fc.array(anyGap, { minLength: 1, maxLength: 30 });
+// From 5 to 12 gaps, in hundredths, around a shift of up to ±1.5 that they share, each
+// with its own spread of up to ±1, so that their verdicts reach every level in both
+// directions. The shift is drawn evenly: fast-check's bias would draw it close to zero,
+// where every verdict is inconclusive, far more often.
+const anySignalGaps = fc
+  .tuple(
+    fc.noBias(fc.integer({ min: -150, max: 150 })),
+    fc.array(fc.integer({ min: -100, max: 100 }), { minLength: 5, maxLength: 12 }),
+  )
+  .map(([shift, spreads]) => spreads.map((spread) => (shift + spread) / 100));
+// The rarest of those verdicts, possible in either direction, comes in about one run in
+// nine: 300 runs all miss one of them with a chance below 1e-15.
+const SIGNAL_RUNS = 300;
 // Valid cases with distinct identifiers, several of them on one day.
 const anyValidCases = fc
   .uniqueArray(fc.tuple(fc.nat({ max: 1000 }), anyGap, fc.nat({ max: 5 })), {
@@ -223,6 +255,18 @@ describe('signalVerdict', () => {
     );
   });
 
+  it('[SEN-24] [H-04] is probable, decrease, when the ratio and the mean gap exactly reach the probable thresholds in absolute value', () => {
+    // Nine gaps of −1: a noise of 1 ÷ 3 and a ratio of exactly −3.
+    const quantities = verdictQuantities(repeated(-1, 9));
+    const probable = { level: 'probable', direction: 'decrease' };
+
+    expect(quantities?.signalToNoise).toBe(-3);
+    expect(signalVerdict(quantities, DEFAULTS)).toStrictEqual(probable);
+    expect(signalVerdict(quantities, withThresholds({ probableMeanGap: 1 }))).toStrictEqual(
+      probable,
+    );
+  });
+
   it('[SEN-23] is possible, not probable, when the ratio reaches the probable threshold but the mean gap does not', () => {
     const quantities = verdictQuantities(repeated(1, 9));
 
@@ -237,6 +281,18 @@ describe('signalVerdict', () => {
     const quantities = verdictQuantities(repeated(0.5, 16));
     const possible = { level: 'possible', direction: 'increase' };
 
+    expect(signalVerdict(quantities, DEFAULTS)).toStrictEqual(possible);
+    expect(signalVerdict(quantities, withThresholds({ possibleMeanGap: 0.5 }))).toStrictEqual(
+      possible,
+    );
+  });
+
+  it('[SEN-24] [H-04] is possible, decrease, when the ratio and the mean gap exactly reach the possible thresholds in absolute value', () => {
+    // Sixteen gaps of −0.5: a noise of 1 ÷ 4 and a ratio of exactly −2.
+    const quantities = verdictQuantities(repeated(-0.5, 16));
+    const possible = { level: 'possible', direction: 'decrease' };
+
+    expect(quantities?.signalToNoise).toBe(-2);
     expect(signalVerdict(quantities, DEFAULTS)).toStrictEqual(possible);
     expect(signalVerdict(quantities, withThresholds({ possibleMeanGap: 0.5 }))).toStrictEqual(
       possible,
@@ -267,6 +323,17 @@ describe('signalVerdict', () => {
 
     expect(quantities?.meanGap).toBe(0);
     expect(signalVerdict(quantities, noThresholds)).toStrictEqual(INCONCLUSIVE);
+  });
+});
+
+describe('compareCasesInFixedOrder', () => {
+  it('[SEN-20] [CL-STA-09] orders cases by the scheduled start of their measured game, then by identifier', () => {
+    // Case 4's game starts first, then those of cases 1 and 3 together, then case 2's.
+    const cases = [valid(3, 0.1, 2), valid(4, 0.2, 1), valid(1, 0.3, 2), valid(2, 0.4, 3)];
+
+    expect(cases.toSorted(compareCasesInFixedOrder).map(({ caseId }) => caseId)).toStrictEqual([
+      4, 1, 3, 2,
+    ]);
   });
 });
 
@@ -320,18 +387,22 @@ describe('profileVerdict', () => {
         const original = profileVerdict(validCases(gaps), DEFAULTS);
         const mirroredCases = validCases(gaps.map((gap) => -gap));
 
-        expect(profileVerdict(mirroredCases, DEFAULTS).quantities).toStrictEqual(
+        expect(withPositiveZeros(profileVerdict(mirroredCases, DEFAULTS).quantities)).toStrictEqual(
           mirrorOf(original.quantities),
         );
       }),
+      // Two subnormal gaps whose mean gap underflows to +0, and the mirrored one to −0.
+      { examples: [[[-7.4e-323, 8e-323]]] },
     );
   });
 
   it('[SEN-24] [H-04] gives opposite gaps the same level, the opposite direction and the opposite counts', () => {
+    const verdicts: Verdict[] = [];
     fc.assert(
-      fc.property(anyGaps, (gaps) => {
+      fc.property(anySignalGaps, (gaps) => {
         const original = profileVerdict(validCases(gaps), DEFAULTS);
         const mirroredCases = validCases(gaps.map((gap) => -gap));
+        verdicts.push(original.verdict);
 
         expect(profileVerdict(mirroredCases, DEFAULTS)).toMatchObject({
           aboveZeroCount: original.belowZeroCount,
@@ -339,6 +410,18 @@ describe('profileVerdict', () => {
           verdict: opposite(original.verdict),
         });
       }),
+      { numRuns: SIGNAL_RUNS },
+    );
+
+    // The runs reached every level, in both directions, so the property held on each.
+    expect(verdicts).toStrictEqual(
+      expect.arrayContaining([
+        INCONCLUSIVE,
+        { level: 'possible', direction: 'increase' },
+        { level: 'possible', direction: 'decrease' },
+        { level: 'probable', direction: 'increase' },
+        { level: 'probable', direction: 'decrease' },
+      ]),
     );
   });
 
@@ -379,6 +462,35 @@ describe('profileVerdict', () => {
 
     expect(profileVerdict(cases, DEFAULTS).verdict).toStrictEqual({
       level: 'possible',
+      direction: 'increase',
+    });
+  });
+
+  it('[SEN-23] [H-03] counts only the valid cases towards the valid-case threshold', () => {
+    // Four valid gaps of 1.5, a ratio of exactly 3, among seven cases: an excluded, a
+    // not-measurable and an awaiting case take the total past the threshold, not n.
+    const cases: ProfileCase[] = [
+      ...validCases(repeated(1.5, 4)),
+      { ...valid(5, 2), status: 'excluded', triggeredCriteria: ['playing_time_too_low'] },
+      {
+        caseId: 6,
+        events: [{ researchConfidence: 'high' }],
+        isCoOccurring: false,
+        status: 'not_measurable',
+        statusReason: 'no_game_within_window',
+      },
+      {
+        caseId: 7,
+        events: [{ researchConfidence: null }],
+        isCoOccurring: false,
+        status: 'awaiting_game',
+        statusReason: 'statistics_pending',
+      },
+    ];
+
+    expect(profileVerdict(cases, DEFAULTS).verdict).toStrictEqual(INCONCLUSIVE);
+    expect(profileVerdict(cases, withThresholds({ minValidCases: 4 })).verdict).toStrictEqual({
+      level: 'probable',
       direction: 'increase',
     });
   });
