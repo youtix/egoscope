@@ -25,20 +25,64 @@ const camelCase = (term: string): string =>
     .map((word, index) => (index === 0 ? word : `${word.charAt(0).toUpperCase()}${word.slice(1)}`))
     .join('');
 
+/** A term in sentence case, as a label writes it: "Historical case" for "historical case". */
+const sentenceCase = (term: string): string => `${term.charAt(0).toUpperCase()}${term.slice(1)}`;
+
 const between = (start: string, end: string): string =>
   GLOSSARY_TEXT.slice(GLOSSARY_TEXT.indexOf(start), GLOSSARY_TEXT.indexOf(end));
 
+/** The rows of the table of glossary section 7.7. */
+const SECTION_7_7 = tableRows(between('### 7.7', '## 8.'));
+/** The rows of the domain tables of glossary section 3. */
+const SECTION_3 = tableRows(between('## 3.', '## 4.'));
+
 /** The definitions of glossary section 7.7, by English term in camelCase. */
 const SECTION_DEFINITIONS: ReadonlyMap<string, string> = new Map(
-  tableRows(between('### 7.7', '## 8.')).map((cells) => [
-    camelCase(cells[2] ?? ''),
-    cells[3] ?? '',
-  ]),
+  SECTION_7_7.map((cells) => [camelCase(cells[2] ?? ''), cells[3] ?? '']),
 );
 
 /** The Meaning column of the domain tables of glossary section 3, a note for engineers. */
-const MEANINGS: readonly string[] = tableRows(between('## 3.', '## 4.')).map(
-  (cells) => cells[5] ?? '',
+const MEANINGS: readonly string[] = SECTION_3.map((cells) => cells[5] ?? '');
+
+/** The rows of section 3, each with the English terms it names and its UI label. */
+const TERM_ROWS = SECTION_3.map((cells) => ({
+  terms: (cells[2] ?? '').split(', '),
+  uiLabel: cells[4] ?? '',
+}));
+
+// The four terms whose label the rule at the top of glossary.ts does not take from the
+// rows that name them in section 3. The historical case and the dismissal keep their
+// name, since their rows label a case origin, "Historical", and an action and a status,
+// "Dismiss; Dismissed". The two status terms take the label of the row of their state
+// set, which names them by a shorter term.
+const OWN_NAMES: ReadonlySet<string> = new Set(['historical case', 'dismissal']);
+const STATUS_ROWS: ReadonlyMap<string, string> = new Map([
+  ['alert sheet status', 'sheet status'],
+  ['season baseline status', 'baseline status'],
+]);
+
+/**
+ * The label of a term of section 7.7 by the rule at the top of glossary.ts: the UI
+ * label of the rows of section 3 that name the term, and, when they give more than one,
+ * the label that names the term itself ("Tracked case", not the case origin "Tracked").
+ */
+function sectionLabel(term: string): string | undefined {
+  if (OWN_NAMES.has(term)) {
+    return sentenceCase(term);
+  }
+  const rowTerm = STATUS_ROWS.get(term) ?? term;
+  const uiLabels = new Set(
+    TERM_ROWS.filter((row) => row.terms.includes(rowTerm)).map((row) => row.uiLabel),
+  );
+  if (uiLabels.size === 1) {
+    return [...uiLabels][0];
+  }
+  return uiLabels.has(sentenceCase(term)) ? sentenceCase(term) : undefined;
+}
+
+/** The label of every term of glossary section 7.7 by that rule, by English term in camelCase. */
+const SECTION_LABELS: ReadonlyMap<string, string | undefined> = new Map(
+  SECTION_7_7.map((cells) => [camelCase(cells[2] ?? ''), sectionLabel(cells[2] ?? '')]),
 );
 
 describe('one-sentence definitions', () => {
@@ -64,6 +108,12 @@ describe('one-sentence definitions', () => {
       'The moment an event is taken to have become public, from which its measured game is searched; a date without a time is moved, for caution, to the end of that day, except for an event known in advance.',
     );
     expect(text).not.toMatch(/Los Angeles|Pacific|Eastern|Paris|UTC|zone/u);
+  });
+
+  it('[VUE-08] [IHM-15] labels every term of glossary section 7.7 with the UI label of the rows that name it in section 3', () => {
+    const labels = new Map(Object.entries(GLOSSARY).map(([term, entry]) => [term, entry.label]));
+
+    expect(labels).toStrictEqual(SECTION_LABELS);
   });
 
   it('[IHM-15] gives a term the label that screens show it under, with its definition', () => {

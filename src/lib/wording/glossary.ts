@@ -11,7 +11,9 @@
 // of section 3.11, not the case origin "Tracked"; "Sheet version" of section 3.3, not
 // the "Version" of a type's version list. Two terms have no label of their own there
 // and keep their name: the historical case, whose "Historical" is a case origin, and
-// the dismissal, whose "Dismiss" and "Dismissed" are an action and a status.
+// the dismissal, whose "Dismiss" and "Dismissed" are an action and a status. The two
+// status terms take the label of the row of their state set, which names them by a
+// shorter term: "Status", of the sheet status and of the baseline status.
 
 /** The label of a term that screens show, and its one-sentence definition (IHM-15). */
 export type GlossaryEntry = Readonly<{ label: string; text: string }>;
