@@ -32,6 +32,10 @@ export type CountedAttempts = Readonly<{
 
 type Beyond = CountedAttempts['beyond'][number];
 
+// The entries one insert writes: fifteen columns each stay far below the 65,535
+// parameters of a statement.
+const INSERT_BATCH_SIZE = 1000;
+
 /** The entry of one attempt, with its own instant: a refused trigger, or a stranger's update. */
 function attemptEntry({ kind, at }: CountedAttempts['attempts'][number]): JournalEntryInput {
   return kind === 'refused_trigger'
@@ -88,20 +92,20 @@ function countEntries(beyond: readonly Beyond[]): readonly JournalEntryInput[] {
  * and kind, a refused trigger in the category `trigger_refused` and a stranger's
  * Telegram update in `telegram_message`, and one count entry per category for the
  * attempts beyond an instance's 1,000, with their count by kind and the first and the
- * last instant (TRV-65, TEL-31, CL-TRV-21, CL-TRV-25). One insert writes them all.
+ * last instant (TRV-65, TEL-31, CL-TRV-21, CL-TRV-25). Each insert writes up to 1,000
+ * of them, within the parameters a statement may carry, however many instances flushed.
  * Returns the number of entries written.
  */
 export async function recordCountedAttempts(
   tx: Transaction,
   counted: CountedAttempts,
 ): Promise<number> {
-  const entries = [
+  const rows = [
     ...counted.attempts.map((attempt) => attemptEntry(attempt)),
     ...countEntries(counted.beyond),
-  ];
-  if (entries.length === 0) {
-    return 0;
+  ].map((entry) => entryRow(entry));
+  for (let start = 0; start < rows.length; start += INSERT_BATCH_SIZE) {
+    await tx.insert(journalEntries).values(rows.slice(start, start + INSERT_BATCH_SIZE));
   }
-  await tx.insert(journalEntries).values(entries.map((entry) => entryRow(entry)));
-  return entries.length;
+  return rows.length;
 }

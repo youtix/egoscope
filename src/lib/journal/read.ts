@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, lt, or } from 'drizzle-orm';
 
 import { journalEntries, journalTechnicalDetails } from '@/lib/db';
 import { formatInstant, toEpochMs } from '@/lib/time';
@@ -59,9 +59,12 @@ type Reader = Database | Transaction;
 type Reading = Readonly<{
   where: SQL | undefined;
   order: readonly SQL[];
-  limit?: number;
+  limit: number;
   withTechnicalDetails: boolean;
 }>;
+
+// The entries that the export reads at a time, so that a long period is never held whole.
+const EXPORT_BATCH_SIZE = 500;
 
 /** The entries that come after `cursor` in the journal's order, newest first. */
 function olderThan(cursor: JournalCursor): SQL | undefined {
@@ -69,6 +72,15 @@ function olderThan(cursor: JournalCursor): SQL | undefined {
   return or(
     lt(journalEntries.occurredAt, at),
     and(eq(journalEntries.occurredAt, at), lt(journalEntries.id, cursor.id)),
+  );
+}
+
+/** The entries that come after `cursor` in the export's order, oldest first. */
+function newerThan(cursor: JournalCursor): SQL | undefined {
+  const at = new Date(cursor.occurredAt);
+  return or(
+    gt(journalEntries.occurredAt, at),
+    and(eq(journalEntries.occurredAt, at), gt(journalEntries.id, cursor.id)),
   );
 }
 
@@ -97,7 +109,7 @@ async function readEntries(
   timeZone: string,
   reading: Reading,
 ): Promise<readonly JournalEntryView[]> {
-  const query = db
+  const rows = await db
     .select({ entry: journalEntries, details: journalTechnicalDetails.details })
     .from(journalEntries)
     .leftJoin(
@@ -106,8 +118,7 @@ async function readEntries(
     )
     .where(reading.where)
     .orderBy(...reading.order)
-    .$dynamic();
-  const rows = await (reading.limit === undefined ? query : query.limit(reading.limit));
+    .limit(reading.limit);
   return rows.map(({ entry, details }) => ({
     ...renderEntry(entry, timeZone),
     id: entry.id,
@@ -167,21 +178,34 @@ function block(entry: JournalEntryView, timeZone: string): string {
 
 /**
  * The activity journal of `period` as readable text, for the person who helps the owner
- * diagnose a problem (TRV-49): one block per entry, oldest first, with its instant in the
- * owner's zone, its level, its category and its text built at display (CL-TRV-10), then,
- * when asked for, its allowlisted technical details, indented (TRV-44, operations.md
- * section 5.4).
+ * diagnose a problem (TRV-49): a title, then one block per entry, oldest first, with its
+ * instant in the owner's zone, its level, its category and its text built at display
+ * (CL-TRV-10), then, when asked for, its allowlisted technical details, indented (TRV-44,
+ * operations.md section 5.4). The text comes in parts, the entries read a batch at a
+ * time, so that the export streams a long period without holding it whole.
+ * @yields {string} The title, then each entry's block, after a blank line.
  */
-export async function exportText(
+export async function* exportText(
   db: Reader,
   request: Readonly<{ timeZone: string; period: JournalPeriod; withTechnicalDetails?: boolean }>,
-): Promise<string> {
+): AsyncGenerator<string, void, undefined> {
   const { timeZone, period } = request;
-  const entries = await readEntries(db, timeZone, {
-    where: within(period),
-    order: [asc(journalEntries.occurredAt), asc(journalEntries.id)],
-    withTechnicalDetails: request.withTechnicalDetails === true,
-  });
-  const title = `Activity journal from ${formatInstant(period.from, timeZone, 'full')} to ${formatInstant(period.to, timeZone, 'full')}`;
-  return [title, ...entries.map((entry) => block(entry, timeZone))].join('\n\n').concat('\n');
+  yield `Activity journal from ${formatInstant(period.from, timeZone, 'full')} to ${formatInstant(period.to, timeZone, 'full')}\n`;
+  let after: JournalCursor | undefined;
+  for (;;) {
+    const batch = await readEntries(db, timeZone, {
+      where: and(within(period), after === undefined ? undefined : newerThan(after)),
+      order: [asc(journalEntries.occurredAt), asc(journalEntries.id)],
+      limit: EXPORT_BATCH_SIZE,
+      withTechnicalDetails: request.withTechnicalDetails === true,
+    });
+    for (const entry of batch) {
+      yield `\n${block(entry, timeZone)}\n`;
+    }
+    const last = batch.at(-1);
+    if (last === undefined || batch.length < EXPORT_BATCH_SIZE) {
+      return;
+    }
+    after = { occurredAt: last.occurredAt, id: last.id };
+  }
 }
