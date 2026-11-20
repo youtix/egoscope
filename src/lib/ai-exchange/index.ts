@@ -63,6 +63,16 @@ export type {
 } from './exploration/prompt';
 
 // exploration/response.ts
+export { parseExplorationResponse } from './exploration/response';
+export type {
+  ExplorationResponse,
+  ExplorationResponseError,
+  ExplorationResponseResult,
+  ExplorationWarning,
+  IllustrationSource,
+  ProposedType,
+  ProposedTypeElement,
+} from './exploration/response';
 
 // --- classification/ -------------------------------------------------------------
 

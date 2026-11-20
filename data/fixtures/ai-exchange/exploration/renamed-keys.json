@@ -1,0 +1,11 @@
+{
+  "pasted": [
+    "{",
+    "  \"format\": \"egoscope-exploration\",",
+    "  \"formatVersion\": \"1.0\",",
+    "  \"proposed_types\": [",
+    "    { \"name\": \"Trade request made public\", \"definition\": \"A public report that the player asked his team to trade him.\", \"inclusionCriteria\": \"A dated press article reports that the player or his agent asked the team for a trade.\", \"criteres_exclusion\": \"Rumors that name no request by the player or his agent; trades that the team starts.\", \"dating_rule\": \"The publication date of the first article that reports the request.\", \"knownInAdvance\": false, \"illustrationSources\": [] }",
+    "  ]",
+    "}"
+  ]
+}

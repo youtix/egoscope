@@ -1,0 +1,11 @@
+{
+  "pasted": [
+    "{",
+    "  \"format\": \"egoscope-exploration\",",
+    "  \"format_version\": \"1.0\",",
+    "  \"proposed_types\": [",
+    "    { \"name\": \"Trade request made public\", \"definition\": null, \"inclusion_criteria\": \"\", \"exclusion_criteria\": \"   \", \"dating_rule\": \"The publication date of the first article that reports the request.\", \"known_in_advance\": null, \"generic_example\": null, \"documentation_difficulty\": \"\", \"possible_overlaps\": null, \"illustration_sources\": null }",
+    "  ]",
+    "}"
+  ]
+}
