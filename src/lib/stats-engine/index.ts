@@ -98,8 +98,23 @@ export type {
 // --- profiles/ -------------------------------------------------------------------
 
 // profiles/tally.ts
+export { tallyProfile } from './profiles/tally';
+export type { ProfileCase, ProfileTally, TallyExitReason } from './profiles/tally';
 
 // profiles/verdict.ts
+export {
+  compareCasesInFixedOrder,
+  profileVerdict,
+  signalVerdict,
+  verdictQuantities,
+} from './profiles/verdict';
+export type {
+  ProfileVerdict,
+  Verdict,
+  VerdictDirection,
+  VerdictLevel,
+  VerdictQuantities,
+} from './profiles/verdict';
 
 // profiles/confidence.ts
 
