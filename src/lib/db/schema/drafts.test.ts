@@ -1,15 +1,18 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createTestDatabase } from '../test-database';
+import { insertParents, PARENTS } from '../test-parents';
+import { backtestRequests } from './backtests';
 import { drafts } from './drafts';
+import { eventTypes } from './taxonomy';
 
 import type { Database } from '../types';
 
-// A pasted research result of backtest request 7, typed on a laptop.
+// A pasted research result of the parent backtest request, typed on a laptop.
 const IMPORT_DRAFT = {
   kind: 'research_result',
-  backtestRequestId: 7,
+  backtestRequestId: PARENTS.requestId,
   text: '{"format_version": "1.0", "events": []}',
   originDevice: 'Laptop, Firefox',
 } as const;
@@ -18,6 +21,16 @@ const EXPLORATION_DRAFT = {
   kind: 'exploration_response',
   text: '{"proposals": []}',
   originDevice: 'Phone, Safari',
+} as const;
+// A request to do for the other player.
+const OTHER_REQUEST = {
+  reference: 'REQ-2026-0002',
+  playerId: PARENTS.otherPlayerId,
+  kind: 'initial',
+  trigger: 'manual_action',
+  createdOn: '2026-11-02',
+  promptText: 'Research the public events of the player.',
+  promptProducedAt: sql`now()`,
 } as const;
 // Any instant: a default of now() reads the database's clock, which no test sets.
 const ANY_INSTANT: unknown = expect.any(Date);
@@ -38,6 +51,7 @@ describe('the drafts table', { timeout: 60_000 }, () => {
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
+    await insertParents(db);
     return database.close;
   }, 60_000);
 
@@ -56,7 +70,9 @@ describe('the drafts table', { timeout: 60_000 }, () => {
 
   it('[CL-DSN-17] ties an import draft to its request, and an exploration draft to its proposal only', async () => {
     const requestless = db.insert(drafts).values({ ...IMPORT_DRAFT, backtestRequestId: null });
-    const exploring = db.insert(drafts).values({ ...EXPLORATION_DRAFT, backtestRequestId: 7 });
+    const exploring = db
+      .insert(drafts)
+      .values({ ...EXPLORATION_DRAFT, backtestRequestId: PARENTS.requestId });
     const targeted = db
       .insert(drafts)
       .values({ ...IMPORT_DRAFT, explorationEventTypeId: 'media-storm' });
@@ -69,7 +85,8 @@ describe('the drafts table', { timeout: 60_000 }, () => {
   });
 
   it('[CL-DSN-17] keeps at most one import draft per request', async () => {
-    await db.insert(drafts).values([IMPORT_DRAFT, { ...IMPORT_DRAFT, backtestRequestId: 8 }]);
+    await db.insert(backtestRequests).values(OTHER_REQUEST);
+    await db.insert(drafts).values([IMPORT_DRAFT, { ...IMPORT_DRAFT, backtestRequestId: 2 }]);
 
     const second = db.insert(drafts).values({ ...IMPORT_DRAFT, originDevice: 'Phone, Safari' });
 
@@ -92,5 +109,25 @@ describe('the drafts table', { timeout: 60_000 }, () => {
 
     await expect(general).rejects.toMatchObject(duplicateOf('drafts_exploration_key'));
     await expect(targeted).rejects.toMatchObject(duplicateOf('drafts_exploration_key'));
+  });
+
+  it('[CL-DSN-17] deletes a draft with its request or with its proposal', async () => {
+    await db
+      .insert(eventTypes)
+      .values({ id: 'player-conflict', origin: 'exploration', name: 'Conflict between players' });
+    await db
+      .insert(drafts)
+      .values([
+        IMPORT_DRAFT,
+        { ...EXPLORATION_DRAFT, explorationEventTypeId: 'player-conflict' },
+        EXPLORATION_DRAFT,
+      ]);
+
+    await db.delete(backtestRequests).where(eq(backtestRequests.id, PARENTS.requestId));
+    await db.delete(eventTypes).where(eq(eventTypes.id, 'player-conflict'));
+
+    await expect(
+      db.select({ kind: drafts.kind, type: drafts.explorationEventTypeId }).from(drafts),
+    ).resolves.toStrictEqual([{ kind: 'exploration_response', type: null }]);
   });
 });

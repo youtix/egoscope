@@ -45,10 +45,11 @@ const SERIES_ROUNDS = [
 ] as const;
 /**
  * The condition that `column` holds a season label, written `2024-25` in data as on
- * screens (STA-48, CL-STA-28).
+ * screens, whose second year follows the first: `1999-00` is one, `2024-23` is not
+ * (STA-48, CL-STA-28). The years are read only once the form is checked.
  */
 export function seasonLabel(column: PgColumn): SQL {
-  return sql`${column} ~ '^[0-9]{4}-[0-9]{2}$'`;
+  return sql`CASE WHEN ${column} !~ '^[0-9]{4}-[0-9]{2}$' THEN false ELSE right(${column}, 2)::integer = (left(${column}, 4)::integer + 1) % 100 END`;
 }
 
 /**

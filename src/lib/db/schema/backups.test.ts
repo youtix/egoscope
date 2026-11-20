@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { toEpochMs } from '@/lib/time';
 
 import { createTestDatabase } from '../test-database';
+import { DETECTED_EVENT, insertParents, PARENTS } from '../test-parents';
 import { backups, exportDownloads, restoreReportEvents, restoreReports } from './backups';
+import { events } from './events';
 
 import type { Database } from '../types';
 
@@ -27,6 +29,8 @@ const REPORT = {
   olderThanHorizon: false,
   consistencyCheckPassed: true,
 } as const;
+// The second event the restore left to check.
+const SECOND_EVENT_ID = 2;
 // Any instant: a default of now() reads the database's clock, which no test sets.
 const ANY_INSTANT: unknown = expect.any(Date);
 
@@ -41,6 +45,8 @@ describe('the backup tables', { timeout: 60_000 }, () => {
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
+    await insertParents(db);
+    await db.insert(events).values(DETECTED_EVENT);
     return database.close;
   }, 60_000);
 
@@ -135,10 +141,12 @@ describe('the backup tables', { timeout: 60_000 }, () => {
   it('[CL-TRV-06] keeps the summary of a restore, of a backup or a full export, and the events it left to check, which go with it', async () => {
     await db.insert(restoreReports).values([REPORT, { ...REPORT, sourceKind: 'full_export' }]);
     await db.insert(restoreReportEvents).values([
-      { restoreReportId: 1, playerEventId: 12 },
-      { restoreReportId: 1, playerEventId: 13 },
+      { restoreReportId: 1, playerEventId: PARENTS.eventId },
+      { restoreReportId: 1, playerEventId: SECOND_EVENT_ID },
     ]);
-    const twice = db.insert(restoreReportEvents).values({ restoreReportId: 1, playerEventId: 12 });
+    const twice = db
+      .insert(restoreReportEvents)
+      .values({ restoreReportId: 1, playerEventId: PARENTS.eventId });
     const unknown = db.insert(restoreReports).values({ ...REPORT, sourceKind: sql`'snapshot'` });
     await expect(twice).rejects.toMatchObject({
       cause: {
@@ -156,5 +164,19 @@ describe('the backup tables', { timeout: 60_000 }, () => {
       { id: 2, restoredAt: ANY_INSTANT, ...REPORT, sourceKind: 'full_export' },
     ]);
     await expect(db.select().from(restoreReportEvents)).resolves.toStrictEqual([]);
+  });
+
+  it('[CL-TRV-06] [DSN-27] drops an event left to check when its event is withdrawn', async () => {
+    await db.insert(restoreReports).values(REPORT);
+    await db.insert(restoreReportEvents).values([
+      { restoreReportId: 1, playerEventId: PARENTS.eventId },
+      { restoreReportId: 1, playerEventId: SECOND_EVENT_ID },
+    ]);
+
+    await db.delete(events).where(eq(events.id, PARENTS.eventId));
+
+    await expect(
+      db.select({ eventId: restoreReportEvents.playerEventId }).from(restoreReportEvents),
+    ).resolves.toStrictEqual([{ eventId: SECOND_EVENT_ID }]);
   });
 });

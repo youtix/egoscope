@@ -53,3 +53,38 @@ export {
   typeSheetChanges,
   typeSheetVersions,
 } from './taxonomy-sheets';
+
+// The events, backtest, import and sensitivity tables (events-and-cases.md,
+// backtest-and-import.md, sensitivity-and-profiles.md, sensitive-data.md).
+export { events } from './events';
+export {
+  eventCorrections,
+  eventImportWarnings,
+  eventMarks,
+  eventSources,
+  eventStatusChanges,
+} from './events-children';
+export {
+  deletedPlayerEntries,
+  tallyExits,
+  withdrawalFingerprints,
+  withdrawnEventCounter,
+} from './events-ledger';
+export {
+  backtestCoveragePeriods,
+  backtestRequests,
+  backtestRequestTypes,
+  imports,
+} from './backtests';
+export { backtestRequestEvents } from './backtests-events';
+export { importEventOutcomes, importPossibleDuplicates } from './imports';
+export { cases } from './sensitivity';
+export {
+  caseHistoryEntries,
+  caseManualDecisions,
+  caseReviewFlags,
+  caseTriggeredCriteria,
+} from './sensitivity-case-children';
+export { generalTrends, recalculationJobs, sensitivityProfiles } from './sensitivity-profiles';
+export { profileValueVersions, verdictHistoryEntries } from './sensitivity-history';
+export { calendarDerivationRequests } from './calendar-events';

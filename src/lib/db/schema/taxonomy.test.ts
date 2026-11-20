@@ -191,6 +191,12 @@ describe('the event-type tables', { timeout: 60_000 }, () => {
 
   it.each([
     ['a blank name', { name: ' ' }, 'name'],
+    ['a name of tabs and line breaks', { name: '\t\r\n' }, 'name'],
+    [
+      'a name of non-breaking and ideographic spaces',
+      { name: String.fromCodePoint(0xa0, 0x30_00) },
+      'name',
+    ],
     [
       'a threshold of 1 outlet',
       { ...THRESHOLD, coverageThresholdOutlets: 1 },
@@ -284,7 +290,9 @@ describe('the event-type tables', { timeout: 60_000 }, () => {
     ['validated with a withdrawal reason', { ...SPLIT, status: 'validated' }, 'withdrawn'],
     ['merged for an entered reason', { ...ENTERED, ...REASON, ...MERGED }, 'merged_into'],
     ['merged by a split', { ...SPLIT, ...MERGED }, 'merged_into'],
+    ['merged while not withdrawn', MERGED, 'merged_into'],
     ['withdrawn for a reason without its text', ENTERED, 'entered_reason'],
+    ['with a withdrawal reason while not withdrawn', REASON, 'entered_reason'],
     [
       'merged with a text',
       { ...SPLIT, withdrawalReasonKind: 'merged_into', ...REASON },

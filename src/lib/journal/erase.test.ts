@@ -1,7 +1,16 @@
 import { asc } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDatabase, incidents, journalEntries, journalTechnicalDetails } from '@/lib/db';
+import {
+  createTestDatabase,
+  DETECTED_EVENT,
+  events,
+  incidents,
+  insertParents,
+  journalEntries,
+  journalTechnicalDetails,
+  PARENTS,
+} from '@/lib/db';
 
 import { eraseDetailsAbout } from './erase';
 import { list } from './read';
@@ -12,10 +21,11 @@ import type { JournalEntryInput } from './record';
 import type { Database } from '@/lib/db';
 
 const PARIS = 'Europe/Paris';
-const PLAYER_ID = '5b0d2f8e-3c41-4f6a-9d7e-2a1c8b9e4f60';
-const OTHER_PLAYER_ID = '0f6c1d2e-8a9b-4c3d-9e1f-7a6b5c4d3e2f';
-const ERASED_EVENT = 21;
-const OTHER_EVENT = 22;
+const PLAYER_ID = PARENTS.playerId;
+const OTHER_PLAYER_ID = PARENTS.otherPlayerId;
+// The parent event, and a second event of the same player.
+const ERASED_EVENT = PARENTS.eventId;
+const OTHER_EVENT = 2;
 // An alert sheet that holds both events.
 const SHEET = 5;
 const DETAILS = { service: 'stats_source', httpStatus: 503 } as const;
@@ -27,6 +37,8 @@ describe('eraseDetailsAbout', { timeout: 60_000 }, () => {
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
+    await insertParents(db);
+    await db.insert(events).values(DETECTED_EVENT);
     const [incident] = await db
       .insert(incidents)
       .values({ kind: 'stats_source_unavailable' })

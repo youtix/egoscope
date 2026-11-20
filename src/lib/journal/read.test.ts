@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDatabase } from '@/lib/db';
+import { createTestDatabase, insertParents, PARENTS } from '@/lib/db';
 import { toEpochMs } from '@/lib/time';
 
 import { recordCountedAttempts } from './attempts';
@@ -12,7 +12,7 @@ import type { JournalEntryInput } from './record';
 import type { Database } from '@/lib/db';
 
 const PARIS = 'Europe/Paris';
-const PLAYER_ID = '5b0d2f8e-3c41-4f6a-9d7e-2a1c8b9e4f60';
+const PLAYER_ID = PARENTS.playerId;
 const at = (day: number, hour: number) => toEpochMs(Date.UTC(2026, 10, day, hour));
 const DAY_18 = { from: at(18, 0), to: at(19, 0) };
 // More entries than the export reads at a time, 500.
@@ -53,6 +53,7 @@ describe('reading the journal', { timeout: 60_000 }, () => {
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
+    await insertParents(db);
     const entries: readonly JournalEntryInput[] = [
       { messageKey: 'player_added', playerId: PLAYER_ID, occurredAt: at(17, 9) },
       { messageKey: 'trigger_refused', occurredAt: at(18, 3) },

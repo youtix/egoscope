@@ -4,9 +4,15 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { toEpochMs } from '@/lib/time';
 
 import { createTestDatabase } from '../test-database';
+import { insertParents, PARENTS } from '../test-parents';
+import { backtestRequests, imports } from './backtests';
+import { events } from './events';
 import { incidents } from './incidents';
 import { journalEntries, journalTechnicalDetails } from './journal';
+import { followedPlayers } from './players';
 import { taskRuns } from './scheduler';
+import { cases } from './sensitivity';
+import { eventTypes } from './taxonomy';
 
 import type { Database } from '../types';
 
@@ -16,8 +22,6 @@ const REFUSED_TRIGGER = {
   level: 'warning',
   messageKey: 'trigger_refused',
 } as const;
-// A followed player's identifier, a random UUID (CL-JOU-09).
-const PLAYER_ID = '5b0d2f8e-3c41-4f6a-9d7e-2a1c8b9e4f60';
 // The run of the purge that an entry names.
 const PURGE_DUE_AT = new Date(toEpochMs(Date.UTC(2026, 10, 18, 3)));
 // Any instant: a default of now() reads the database's clock, which no test sets.
@@ -34,6 +38,7 @@ describe('the journal tables', { timeout: 60_000 }, () => {
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
+    await insertParents(db);
     return database.close;
   }, 60_000);
 
@@ -122,18 +127,20 @@ describe('the journal tables', { timeout: 60_000 }, () => {
     );
   });
 
-  it.each([
-    { reference: 'its player', names: { playerId: PLAYER_ID } },
-    { reference: 'its type', names: { eventTypeId: 'birthday' } },
-    { reference: 'its case', names: { caseId: 3 } },
-    { reference: 'its request', names: { backtestRequestId: 4 } },
-    { reference: 'its import', names: { importId: 5 } },
-  ])(
+  // The other references an entry can hold beside an event or a case.
+  const REFERENCES = [
+    { reference: 'its player', names: { playerId: PARENTS.playerId } },
+    { reference: 'its type', names: { eventTypeId: 'media-storm' } },
+    { reference: 'a request', names: { backtestRequestId: PARENTS.requestId } },
+    { reference: 'an import', names: { importId: PARENTS.importId } },
+  ] as const;
+
+  it.each([...REFERENCES, { reference: 'its case', names: { caseId: PARENTS.caseId } }])(
     '[CL-TRV-10] names an event by that reference alone, never with $reference',
     async ({ names }) => {
       const entry = db
         .insert(journalEntries)
-        .values({ ...REFUSED_TRIGGER, playerEventId: 12, ...names });
+        .values({ ...REFUSED_TRIGGER, playerEventId: PARENTS.eventId, ...names });
 
       await expect(entry).rejects.toMatchObject(
         violationOf('journal_entries_event_reference_check'),
@@ -141,25 +148,70 @@ describe('the journal tables', { timeout: 60_000 }, () => {
     },
   );
 
-  it('[CL-TRV-10] names a case without its player or its type, which the display reads through it', async () => {
+  it('[CL-TRV-10] names a case alone, the display reading its player and its type through it', async () => {
     await db.insert(journalEntries).values([
-      { ...REFUSED_TRIGGER, playerEventId: 12, lot2ObjectKind: 'alert_sheet', lot2ObjectId: 3 },
-      { ...REFUSED_TRIGGER, caseId: 3, backtestRequestId: 4, importId: 5 },
+      {
+        ...REFUSED_TRIGGER,
+        playerEventId: PARENTS.eventId,
+        lot2ObjectKind: 'alert_sheet',
+        lot2ObjectId: 3,
+      },
+      {
+        ...REFUSED_TRIGGER,
+        caseId: PARENTS.caseId,
+        lot2ObjectKind: 'alert_sheet',
+        lot2ObjectId: 3,
+      },
+      { ...REFUSED_TRIGGER, backtestRequestId: PARENTS.requestId, importId: PARENTS.importId },
     ]);
 
-    const withPlayer = db
-      .insert(journalEntries)
-      .values({ ...REFUSED_TRIGGER, caseId: 3, playerId: PLAYER_ID });
-    const withType = db
-      .insert(journalEntries)
-      .values({ ...REFUSED_TRIGGER, caseId: 3, eventTypeId: 'birthday' });
+    await expect(db.$count(journalEntries)).resolves.toBe(3);
+  });
 
-    await expect(withPlayer).rejects.toMatchObject(
-      violationOf('journal_entries_case_reference_check'),
-    );
-    await expect(withType).rejects.toMatchObject(
-      violationOf('journal_entries_case_reference_check'),
-    );
+  it.each(REFERENCES)(
+    '[CL-TRV-10] names a case without $reference beside it',
+    async ({ names }) => {
+      const entry = db
+        .insert(journalEntries)
+        .values({ ...REFUSED_TRIGGER, caseId: PARENTS.caseId, ...names });
+
+      await expect(entry).rejects.toMatchObject(
+        violationOf('journal_entries_case_reference_check'),
+      );
+    },
+  );
+
+  it('[CL-TRV-10] [DSN-27] lets go of an erased event, case, request, import or player at once, and keeps its type', async () => {
+    await db
+      .insert(eventTypes)
+      .values({ id: 'player-conflict', origin: 'scoping', name: 'Conflict between players' });
+    await db
+      .insert(journalEntries)
+      .values([
+        { ...REFUSED_TRIGGER, playerEventId: PARENTS.eventId },
+        { ...REFUSED_TRIGGER, caseId: PARENTS.caseId },
+        { ...REFUSED_TRIGGER, eventTypeId: 'player-conflict' },
+        ...REFERENCES.map(({ names }) => ({ ...REFUSED_TRIGGER, ...names })),
+      ]);
+    const typeDeleted = db.delete(eventTypes).where(eq(eventTypes.id, 'player-conflict'));
+
+    await db.delete(events).where(eq(events.id, PARENTS.eventId));
+    await db.delete(cases).where(eq(cases.id, PARENTS.caseId));
+    await db.delete(imports).where(eq(imports.id, PARENTS.importId));
+    await db.delete(backtestRequests).where(eq(backtestRequests.id, PARENTS.requestId));
+    await db.delete(followedPlayers).where(eq(followedPlayers.id, PARENTS.playerId));
+
+    await expect(typeDeleted).rejects.toMatchObject({
+      cause: { code: '23001', constraint: 'journal_entries_event_type_id_event_types_id_fk' },
+    });
+    await expect(
+      db
+        .select({
+          named: sql<number>`num_nonnulls(${journalEntries.playerEventId}, ${journalEntries.caseId}, ${journalEntries.playerId}, ${journalEntries.backtestRequestId}, ${journalEntries.importId})`,
+        })
+        .from(journalEntries)
+        .orderBy(journalEntries.id),
+    ).resolves.toStrictEqual(Array.from({ length: 7 }, () => ({ named: 0 })));
   });
 
   it('keeps an entry when its incident or its task run goes, and drops its technical details with it', async () => {

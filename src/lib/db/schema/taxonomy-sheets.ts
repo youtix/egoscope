@@ -29,7 +29,7 @@ const SUBSTANTIVE_CHANGE_SCOPES = ['broadens', 'narrows', 'both'] as const;
 // TypeSheetChangeKind (TAX-21, TAX-22, CL-TAX-06, CL-TAX-17).
 const TYPE_SHEET_CHANGE_KINDS = ['formal', 'substantive', 'criterion_switch'] as const;
 // DatePrecision (COL-20).
-const DATE_PRECISIONS = ['exact', 'approximate', 'none'] as const;
+export const DATE_PRECISIONS = ['exact', 'approximate', 'none'] as const;
 
 /**
  * The dated full content of a sheet at each version, which every event qualified
@@ -123,19 +123,29 @@ export const typeSheetChanges = pgTable(
  * on the proposal's page only and erased once the proposal is decided (TAX-03,
  * CL-TAX-16).
  */
-export const typeIllustrationSources = pgTable('type_illustration_sources', {
-  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-  eventTypeId: text('event_type_id')
-    .notNull()
-    .references(() => eventTypes.id, { onDelete: 'cascade' }),
-  position: smallint('position').notNull(),
-  url: text('url').notNull(),
-  outlet: text('outlet'),
-  title: text('title'),
-  publicationDateOn: date('publication_date_on').notNull(),
-  publicationAt: timestamptz('publication_at'),
-  publicationOffsetMinutes: smallint('publication_offset_minutes'),
-});
+export const typeIllustrationSources = pgTable(
+  'type_illustration_sources',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    eventTypeId: text('event_type_id')
+      .notNull()
+      .references(() => eventTypes.id, { onDelete: 'cascade' }),
+    position: smallint('position').notNull(),
+    url: text('url').notNull(),
+    outlet: text('outlet'),
+    title: text('title'),
+    publicationDateOn: date('publication_date_on').notNull(),
+    publicationAt: timestamptz('publication_at'),
+    publicationOffsetMinutes: smallint('publication_offset_minutes'),
+  },
+  // A dated time keeps the offset it was written with, as a source of an event does (CL-IMP-09).
+  (table) => [
+    check(
+      'type_illustration_sources_publication_check',
+      sql`(${table.publicationAt} IS NULL) = (${table.publicationOffsetMinutes} IS NULL)`,
+    ),
+  ],
+);
 
 /**
  * Lot 2: a fact detection attaches to a pending proposal, a rejected or a withdrawn

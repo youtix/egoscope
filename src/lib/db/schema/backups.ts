@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { oneOf, timestamptz } from './builders';
+import { events } from './events';
 
 // BackupKind (TRV-50, TRV-55, CL-TRV-04).
 const BACKUP_KINDS = ['weekly', 'manual', 'before_update'] as const;
@@ -112,8 +113,10 @@ export const restoreReportEvents = pgTable(
     restoreReportId: integer('restore_report_id')
       .notNull()
       .references(() => restoreReports.id, { onDelete: 'cascade' }),
-    // The deferred foreign key to events comes with that table: ON DELETE CASCADE.
-    playerEventId: integer('player_event_id').notNull(),
+    // A withdrawal of the event removes its row.
+    playerEventId: integer('player_event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
   },
   (table) => [primaryKey({ columns: [table.restoreReportId, table.playerEventId] })],
 );

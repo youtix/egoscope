@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDatabase, journalEntries, journalTechnicalDetails } from '@/lib/db';
+import {
+  createTestDatabase,
+  insertParents,
+  journalEntries,
+  journalTechnicalDetails,
+  PARENTS,
+} from '@/lib/db';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { record } from './record';
@@ -10,7 +16,9 @@ import type { Database } from '@/lib/db';
 
 const RECORDED_AT = toEpochMs(Date.UTC(2026, 10, 20, 8, 15));
 const LOCKED_UNTIL = toEpochMs(Date.UTC(2026, 10, 20, 8, 30));
-const PLAYER_ID = '5b0d2f8e-3c41-4f6a-9d7e-2a1c8b9e4f60';
+// A followed player and his event, which the entries name.
+const PLAYER_ID = PARENTS.playerId;
+const EVENT_ID = PARENTS.eventId;
 // What an entry names when it names nothing.
 const NO_REFERENCE = {
   playerId: null,
@@ -31,6 +39,7 @@ describe('record', { timeout: 60_000 }, () => {
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
+    await insertParents(db);
     const restoreClock = installFakeClock(fixedClock(RECORDED_AT));
     return async () => {
       restoreClock();
@@ -80,7 +89,7 @@ describe('record', { timeout: 60_000 }, () => {
     await write({
       messageKey: 'telegram_message_failed',
       notificationMessageId: 7,
-      playerEventId: 21,
+      playerEventId: EVENT_ID,
       params: { category: 'alerts' },
     });
 
@@ -89,7 +98,7 @@ describe('record', { timeout: 60_000 }, () => {
         category: 'telegram_message',
         level: 'warning',
         ...NO_REFERENCE,
-        playerEventId: 21,
+        playerEventId: EVENT_ID,
         lot2ObjectKind: 'notification_message',
         lot2ObjectId: 7,
       },
