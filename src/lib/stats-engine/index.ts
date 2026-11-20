@@ -86,7 +86,10 @@ export type {
 
 // schedule/seasons.ts
 export { seasonOfDate } from './schedule/seasons';
+export { seasonSpan } from './schedule/seasons';
+export type { SeasonOfDateResult } from './schedule/seasons';
 export type { SeasonSpan } from './schedule/seasons';
+export type { SeasonSpanInput } from './schedule/seasons';
 
 // schedule/team-membership.ts
 export { teamGames } from './schedule/team-membership';

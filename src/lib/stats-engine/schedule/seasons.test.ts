@@ -1,18 +1,27 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { seasonOfDate } from './seasons';
+import { seasonOfDate, seasonSpan } from './seasons';
 
-import type { SeasonSpan } from './seasons';
+import type { SeasonOfDateResult, SeasonSpan, SeasonSpanInput } from './seasons';
+
+const filed = (season: string): SeasonOfDateResult => ({ ok: true, season });
+
+const notRead = (ending: string, starting: string): SeasonOfDateResult => ({
+  ok: false,
+  error: { kind: 'season_not_read', candidates: [ending, starting] },
+});
 
 // Stored seasons, framed by their first regular-season game and their last playoff
-// game: the 1998-99 lockout season started in February, the 2019-20 Finals ended in
-// October and the 2020-21 season started in December.
+// game: the 1998-99 and 2011-12 lockout seasons started in February and on Christmas
+// Day, the 2019-20 Finals ended in October and the 2020-21 season started in December.
 const STORED: readonly SeasonSpan[] = [
   { season: '1997-98', firstGameOn: '1997-10-31', lastGameOn: '1998-06-14' },
   { season: '1998-99', firstGameOn: '1999-02-05', lastGameOn: '1999-06-25' },
   { season: '1999-00', firstGameOn: '1999-11-02', lastGameOn: '2000-06-19' },
   { season: '2000-01', firstGameOn: '2000-10-31', lastGameOn: '2001-06-15' },
+  { season: '2010-11', firstGameOn: '2010-10-26', lastGameOn: '2011-06-12' },
+  { season: '2011-12', firstGameOn: '2011-12-25', lastGameOn: '2012-06-21' },
   { season: '2019-20', firstGameOn: '2019-10-22', lastGameOn: '2020-10-11' },
   { season: '2020-21', firstGameOn: '2020-12-22', lastGameOn: '2021-07-20' },
   { season: '2021-22', firstGameOn: '2021-10-19', lastGameOn: '2022-06-16' },
@@ -28,6 +37,17 @@ const ENDED: readonly SeasonSpan[] = [
   { season: '2025-26', firstGameOn: '2025-10-21', lastGameOn: '2026-06-19' },
 ];
 
+// 2016-17 alone, before the season before it is read.
+const ONLY_2016_17: readonly SeasonSpan[] = [
+  { season: '2016-17', firstGameOn: '2016-10-25', lastGameOn: '2017-06-12' },
+];
+
+// A season whose end was never found, then the next one.
+const END_NOT_FOUND: readonly SeasonSpan[] = [
+  { season: '2020-21', firstGameOn: '2020-12-22', lastGameOn: null },
+  { season: '2021-22', firstGameOn: '2021-10-19', lastGameOn: '2022-06-16' },
+];
+
 // The first seasons the source covers, newest first: no season before them is ever stored.
 const FIRST_COVERED: readonly SeasonSpan[] = [
   { season: '1994-95', firstGameOn: '1994-11-04', lastGameOn: '1995-06-14' },
@@ -38,10 +58,30 @@ const withoutSeason = (season: string): readonly SeasonSpan[] =>
   STORED.filter((span) => span.season !== season);
 
 describe('seasonOfDate', () => {
-  it('[STA-48] [CA-STA-17] [CL-STA-28] files 12 August 2021, between the 2020-21 Finals and the first game of 2021-22, under 2021-22, its schedule stored or not', () => {
-    expect(seasonOfDate('2021-08-12', STORED)).toBe('2021-22');
-    expect(seasonOfDate('2021-08-12', withoutSeason('2021-22'))).toBe('2021-22');
+  it('[STA-48] [CA-STA-17] [CL-STA-28] files 12 August 2021, between the 2020-21 Finals and the first game of 2021-22, under 2021-22, its schedule stored or not, and the last Finals game under 2020-21', () => {
+    const without2021 = withoutSeason('2021-22');
+
+    expect(seasonOfDate('2021-08-12', STORED)).toStrictEqual(filed('2021-22'));
+    expect(seasonOfDate('2021-08-12', without2021)).toStrictEqual(filed('2021-22'));
+    expect(seasonOfDate('2021-07-20', without2021)).toStrictEqual(filed('2020-21'));
   });
+
+  it('[STA-48] [CL-STA-28] cannot tell the season of a date while neither season it can belong to is stored, and names both, the one that ends in its year first', () => {
+    expect(seasonOfDate('2021-08-12', [])).toStrictEqual(notRead('2020-21', '2021-22'));
+    expect(seasonOfDate('2016-11-15', [])).toStrictEqual(notRead('2015-16', '2016-17'));
+  });
+
+  it.each([
+    ['a day of its first year', '2016-11-15', filed('2016-17')],
+    ['its first game', '2016-10-25', filed('2016-17')],
+    ['the day before', '2016-10-24', notRead('2015-16', '2016-17')],
+    ['the summer before', '2016-08-01', notRead('2015-16', '2016-17')],
+  ])(
+    "[STA-48] [CL-STA-28] files a date under the season that starts in its year from that season's first game on, and cannot tell it before while the season before is not stored: %s",
+    (_, date, expected) => {
+      expect(seasonOfDate(date, ONLY_2016_17)).toStrictEqual(expected);
+    },
+  );
 
   it.each([
     ['the first regular-season game of 2020-21', '2020-12-22', '2020-21'],
@@ -54,19 +94,22 @@ describe('seasonOfDate', () => {
   ])(
     '[STA-48] [H-STA-17] files a date from the first regular-season game of a season to its last playoff game under that season, and an offseason date under the next: %s',
     (_, date, season) => {
-      expect(seasonOfDate(date, STORED)).toBe(season);
+      expect(seasonOfDate(date, STORED)).toStrictEqual(filed(season));
     },
   );
 
   it.each([
-    ['a fall day before the lockout season', '1998-10-01', '1998-99'],
+    ['a fall day before the 1998-99 lockout season', '1998-10-01', '1998-99'],
     ['a winter day before it', '1999-01-20', '1998-99'],
     ['its first game', '1999-02-05', '1998-99'],
     ['the summer after it', '1999-08-01', '1999-00'],
+    ['a fall day before the 2011-12 lockout season', '2011-11-01', '2011-12'],
+    ['the day before its first game', '2011-12-24', '2011-12'],
+    ['that first game, on Christmas Day', '2011-12-25', '2011-12'],
   ])(
-    '[STA-48] [H-STA-17] files the offseason before a season that starts late in the winter under that season: %s',
+    '[STA-48] [H-STA-17] files the offseason before a season that starts late under that season: %s',
     (_, date, season) => {
-      expect(seasonOfDate(date, STORED)).toBe(season);
+      expect(seasonOfDate(date, STORED)).toStrictEqual(filed(season));
     },
   );
 
@@ -75,17 +118,17 @@ describe('seasonOfDate', () => {
     const listedIn1999Files = ['1999-02-05', '1999-03-15', '1999-05-05', '1999-11-02'];
 
     expect(listedIn1999Files.map((day) => seasonOfDate(day, STORED))).toStrictEqual([
-      '1998-99',
-      '1998-99',
-      '1998-99',
-      '1999-00',
+      filed('1998-99'),
+      filed('1998-99'),
+      filed('1998-99'),
+      filed('1999-00'),
     ]);
   });
 
   it('[STA-48] [CL-STA-28] writes a season by its first year and the last two digits of the second, across a century', () => {
-    expect(seasonOfDate('2000-01-15', STORED)).toBe('1999-00');
-    expect(seasonOfDate('2000-11-15', STORED)).toBe('2000-01');
-    expect(seasonOfDate('2009-03-01', [])).toBe('2008-09');
+    expect(seasonOfDate('2000-01-15', STORED)).toStrictEqual(filed('1999-00'));
+    expect(seasonOfDate('2000-11-15', STORED)).toStrictEqual(filed('2000-01'));
+    expect(seasonOfDate('2000-03-01', [])).toStrictEqual(notRead('1999-00', '2000-01'));
   });
 
   it.each([
@@ -96,32 +139,45 @@ describe('seasonOfDate', () => {
   ])(
     '[STA-48] [CL-STA-21] files under a season in progress every date from the end of the season before: %s',
     (_, date, season) => {
-      expect(seasonOfDate(date, IN_PROGRESS)).toBe(season);
+      expect(seasonOfDate(date, IN_PROGRESS)).toStrictEqual(filed(season));
+    },
+  );
+
+  it.each([
+    ['a day of its second year', '2021-08-12', '2020-21'],
+    ['the day before the first game of 2021-22', '2021-10-18', '2020-21'],
+    ['that first game', '2021-10-19', '2021-22'],
+    ['a later day of 2021', '2021-12-01', '2021-22'],
+  ])(
+    '[STA-48] [CL-STA-28] never files under a season whose end was never found a date from the first game of the next stored season on: %s',
+    (_, date, season) => {
+      expect(seasonOfDate(date, END_NOT_FOUND)).toStrictEqual(filed(season));
     },
   );
 
   it('[STA-48] [CL-STA-30] files the days after the Finals under the coming season before its schedule is stored', () => {
-    expect(seasonOfDate('2026-06-19', ENDED)).toBe('2025-26');
-    expect(seasonOfDate('2026-06-20', ENDED)).toBe('2026-27');
-    expect(seasonOfDate('2026-10-01', ENDED)).toBe('2026-27');
+    expect(seasonOfDate('2026-06-19', ENDED)).toStrictEqual(filed('2025-26'));
+    expect(seasonOfDate('2026-06-20', ENDED)).toStrictEqual(filed('2026-27'));
+    expect(seasonOfDate('2026-10-01', ENDED)).toStrictEqual(filed('2026-27'));
   });
 
   it.each([
-    ['a spring day of 1990', '1990-03-01', '1989-90'],
-    ['the day before the first covered game', '1993-11-04', '1992-93'],
-    ['the first covered game', '1993-11-05', '1993-94'],
-    ['a later day of that year', '1993-12-25', '1993-94'],
-    ['a day of the next year', '1994-03-01', '1993-94'],
+    ['a spring day of 1990', '1990-03-01', notRead('1989-90', '1990-91')],
+    ['the day before the first covered game', '1993-11-04', notRead('1992-93', '1993-94')],
+    ['the first covered game', '1993-11-05', filed('1993-94')],
+    ['a later day of that year', '1993-12-25', filed('1993-94')],
+    ['a day of the next year', '1994-03-01', filed('1993-94')],
   ])(
-    '[STA-48] [CL-STA-22] files a date whose year ends no stored season under the season that starts in that year from its first game on, otherwise under the one that ends in it: %s',
-    (_, date, season) => {
-      expect(seasonOfDate(date, FIRST_COVERED)).toBe(season);
+    '[STA-48] [CL-STA-22] [CL-STA-28] cannot tell the season of a day before the first game of the first season the source covers, and files the days from that game on: %s',
+    (_, date, expected) => {
+      expect(seasonOfDate(date, FIRST_COVERED)).toStrictEqual(expected);
     },
   );
 });
 
 const FIRST_YEAR = 1993;
 const LAST_YEAR = 2030;
+const MAX_SEASONS = LAST_YEAR - FIRST_YEAR;
 
 /** The name of the season whose first year is `year`, as the data model writes it. */
 const nameOf = (year: number): string => `${String(year)}-${String(year + 1).slice(-2)}`;
@@ -147,7 +203,7 @@ const anyEnd = fc.record({
 });
 const anySeasons: fc.Arbitrary<SeasonSpan[]> = fc
   .tuple(
-    fc.array(fc.tuple(anyStart, anyEnd), { minLength: 1, maxLength: LAST_YEAR - FIRST_YEAR }),
+    fc.array(fc.tuple(anyStart, anyEnd), { minLength: 1, maxLength: MAX_SEASONS }),
     fc.boolean(),
   )
   .map(([bounds, isLastInProgress]) =>
@@ -164,27 +220,155 @@ const anySeasons: fc.Arbitrary<SeasonSpan[]> = fc
     }),
   );
 
+// Such seasons and a day of a year in which one of them ends.
+const anyStoredDay = fc
+  .record({
+    seasons: anySeasons,
+    yearOffset: fc.integer({ min: 1, max: MAX_SEASONS }),
+    month: fc.integer({ min: 1, max: 12 }),
+    day: fc.integer({ min: 1, max: 28 }),
+  })
+  .map(({ seasons, yearOffset, month, day }) => ({
+    seasons,
+    date: dayOf(FIRST_YEAR + Math.min(yearOffset, seasons.length), month, day),
+  }));
+
+// Whether each stored season is removed, by its rank.
+const anyRemoval = fc.array(fc.boolean(), { minLength: MAX_SEASONS, maxLength: MAX_SEASONS });
+
 /** The oracle: the first season whose last game is not past, or else the next season. */
 function expectedSeason(date: string, seasons: readonly SeasonSpan[]): string {
   const holding = seasons.find((span) => span.lastGameOn === null || date <= span.lastGameOn);
   return holding?.season ?? nameOf(FIRST_YEAR + seasons.length);
 }
 
-describe('seasonOfDate over seasons stored one after the other', () => {
-  it('[STA-48] [H-STA-17] [CL-STA-28] files every date under the first season whose last game is not past, or after the last one under the next', () => {
-    const anyDay = fc.record({
-      seasons: anySeasons,
-      yearOffset: fc.integer({ min: 1, max: LAST_YEAR - FIRST_YEAR }),
-      month: fc.integer({ min: 1, max: 12 }),
-      day: fc.integer({ min: 1, max: 28 }),
-    });
-    fc.assert(
-      fc.property(anyDay, ({ seasons, yearOffset, month, day }) => {
-        // A year from the second year of the first season to that of the last.
-        const date = dayOf(FIRST_YEAR + Math.min(yearOffset, seasons.length), month, day);
+/**
+ * The spans that tell the season of `date` on their own: that of the season that ends
+ * in its year, and that of the season that starts in it once its first game is past.
+ */
+function decidingSpans(date: string, seasons: readonly SeasonSpan[]): readonly SeasonSpan[] {
+  const year = Number(date.slice(0, 4));
+  return seasons.filter(
+    (span) =>
+      span.season === nameOf(year - 1) ||
+      (span.season === nameOf(year) && date >= span.firstGameOn),
+  );
+}
 
-        expect(seasonOfDate(date, seasons)).toBe(expectedSeason(date, seasons));
+describe('seasonOfDate over seasons stored one after the other', () => {
+  it('[STA-48] [H-STA-17] [CL-STA-28] files every date of the years they end in under the first season whose last game is not past, or after the last one under the next', () => {
+    fc.assert(
+      fc.property(anyStoredDay, ({ seasons, date }) => {
+        expect(seasonOfDate(date, seasons)).toStrictEqual(filed(expectedSeason(date, seasons)));
       }),
     );
+  });
+
+  it('[STA-48] [CL-STA-28] gives season_not_read for a date once the spans that decide it are removed, never another season', () => {
+    fc.assert(
+      fc.property(anyStoredDay, anyRemoval, ({ seasons, date }, removal) => {
+        const kept = seasons.filter((_, rank) => removal[rank] !== true);
+        const year = Number(date.slice(0, 4));
+        const isDecided = decidingSpans(date, kept).length > 0;
+        const expected = isDecided
+          ? filed(expectedSeason(date, seasons))
+          : notRead(nameOf(year - 1), nameOf(year));
+
+        expect(seasonOfDate(date, kept)).toStrictEqual(expected);
+      }),
+    );
+  });
+});
+
+/** What the games module reads of 2020-21: its Finals over, won on 20 July 2021. */
+const FINALS_OVER: SeasonSpanInput = {
+  season: '2020-21',
+  firstRegularSeasonGameOn: '2020-12-22',
+  lastPlayoffGameOn: '2021-07-20',
+  // A seventh game still listed after the deciding win.
+  lastGameOn: '2021-07-22',
+  isFinalsOver: true,
+  hasLaterSeasonGame: false,
+};
+
+/** What it reads of 2025-26 in progress: its Finals tied two games to two after game 4. */
+const FINALS_UNDER_WAY: SeasonSpanInput = {
+  season: '2025-26',
+  firstRegularSeasonGameOn: '2025-10-21',
+  lastPlayoffGameOn: '2026-06-12',
+  lastGameOn: '2026-06-12',
+  isFinalsOver: false,
+  hasLaterSeasonGame: false,
+};
+
+/** What it reads of a past season whose Finals the source left unfinished. */
+const FINALS_UNFINISHED: SeasonSpanInput = {
+  season: '2002-03',
+  firstRegularSeasonGameOn: '2002-10-29',
+  lastPlayoffGameOn: '2003-06-11',
+  // A fifth Finals game still listed as scheduled.
+  lastGameOn: '2003-06-13',
+  isFinalsOver: false,
+  hasLaterSeasonGame: false,
+};
+
+describe('seasonSpan', () => {
+  it('[STA-48] [CL-STA-30] closes a season whose Finals are over on its last playoff game, whether a later season has a game or not', () => {
+    const expected = { season: '2020-21', firstGameOn: '2020-12-22', lastGameOn: '2021-07-20' };
+
+    expect(seasonSpan(FINALS_OVER)).toStrictEqual(expected);
+    expect(seasonSpan({ ...FINALS_OVER, hasLaterSeasonGame: true })).toStrictEqual(expected);
+  });
+
+  it.each([
+    ['its Finals under way', FINALS_UNDER_WAY],
+    [
+      'its regular season under way',
+      { ...FINALS_UNDER_WAY, lastPlayoffGameOn: null, lastGameOn: '2026-04-12' },
+    ],
+  ])(
+    '[STA-48] [CL-STA-18] [CL-STA-20] leaves open the latest season while its Finals are not over: %s',
+    (_, input) => {
+      expect(seasonSpan(input)).toStrictEqual({
+        season: '2025-26',
+        firstGameOn: '2025-10-21',
+        lastGameOn: null,
+      });
+    },
+  );
+
+  it('[STA-48] [CL-STA-18] closes a past season whose stored Finals are unfinished on its last game once a later season has a game', () => {
+    expect(seasonSpan(FINALS_UNFINISHED)).toStrictEqual({
+      season: '2002-03',
+      firstGameOn: '2002-10-29',
+      lastGameOn: null,
+    });
+    expect(seasonSpan({ ...FINALS_UNFINISHED, hasLaterSeasonGame: true })).toStrictEqual({
+      season: '2002-03',
+      firstGameOn: '2002-10-29',
+      lastGameOn: '2003-06-13',
+    });
+  });
+
+  it('[STA-48] closes a past season whose playoffs the source does not list on its last regular-season game', () => {
+    const input = {
+      ...FINALS_UNFINISHED,
+      lastPlayoffGameOn: null,
+      lastGameOn: '2003-04-16',
+      hasLaterSeasonGame: true,
+    };
+
+    expect(seasonSpan(input)?.lastGameOn).toBe('2003-04-16');
+  });
+
+  it('[STA-48] gives no span to a season without a regular-season game', () => {
+    expect(seasonSpan({ ...FINALS_OVER, firstRegularSeasonGameOn: null })).toBeNull();
+    expect(
+      seasonSpan({
+        ...FINALS_UNFINISHED,
+        firstRegularSeasonGameOn: null,
+        hasLaterSeasonGame: true,
+      }),
+    ).toBeNull();
   });
 });

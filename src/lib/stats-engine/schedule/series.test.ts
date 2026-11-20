@@ -10,6 +10,11 @@ const DAY = 86_400_000;
 // 2023-04-15T00:00:00Z: day 0 of the games below.
 const DAY_ZERO = 1_681_516_800_000;
 
+// Whether a game of a later season is stored, as it is for a past season and not for the
+// latest one (`!IS_PAST`): a past season's series end as its stored games say, while
+// those of the latest season end on wins only.
+const IS_PAST = true;
+
 type Teams = readonly [number, number];
 
 type GameSpec = Partial<SeriesGame> &
@@ -102,7 +107,7 @@ const facts = (rebuilt: readonly RebuiltSeries[]): unknown[] =>
   ]);
 
 const roundOf = (games: readonly SeriesGame[]): SeriesRound | null | undefined =>
-  rebuildSeries('2022-23', games)[0]?.round;
+  rebuildSeries('2022-23', games, IS_PAST)[0]?.round;
 
 // A sixteen-team bracket, round by round, the winner of each series first: team 9 beats
 // team 8, of the lower identifier, and goes on.
@@ -165,11 +170,10 @@ const bracketFacts = (firstRoundWins: number): unknown[] =>
 
 /** The facts of the bracket rebuilt in `season`, its first round won `firstRound`. */
 const bracketIn = (season: string, firstRound: string): unknown[] =>
-  facts(rebuildSeries(season, bracket(firstRound)));
+  facts(rebuildSeries(season, bracket(firstRound), IS_PAST));
 
-// Series that cannot be rebuilt, and why.
+// Series that cannot be rebuilt, in a past season as in the latest one, and why.
 const UNREBUILDABLE: readonly (readonly [string, string, readonly SeriesGame[]])[] = [
-  ['a game of it is missing: it ends 3-2 with no game left', '2002-03', series([1, 8], 'aabab')],
   [
     'the source numbers a game otherwise',
     '2022-23',
@@ -186,6 +190,16 @@ const UNREBUILDABLE: readonly (readonly [string, string, readonly SeriesGame[]])
     'a game still to play comes before a final one',
     '2022-23',
     changed(series([1, 8], 'aaaa'), 2, { status: 'scheduled', finalScore: null }),
+  ],
+];
+
+// Series that no team has won, with no game left to play: a game of them is missing, or
+// the source has not listed the next one yet.
+const NOT_WON: readonly (readonly [string, readonly SeriesGame[]])[] = [
+  ['a first round at three games to two', series([1, 8], 'aabab')],
+  [
+    'Finals tied two games to two, their fifth game not listed',
+    series([1, 7], 'abab', { from: 51, label: 'finals', isNumbered: true }),
   ],
 ];
 
@@ -246,7 +260,7 @@ describe('rebuildSeries', () => {
       ...series([8, 10], 'a', { from: 3, phase: 'play_in', label: 'play_in_8th_seed', day: 2 }),
     ];
 
-    expect(rebuildSeries('2022-23', playIn)).toStrictEqual([
+    expect(rebuildSeries('2022-23', playIn, IS_PAST)).toStrictEqual([
       {
         phase: 'play_in',
         teamAId: 7,
@@ -281,7 +295,7 @@ describe('rebuildSeries', () => {
     // Team 1 is at home in games 1, 3 and 5; it wins games 1, 3, 4 and 6.
     const games = series([1, 8], 'abaaba', { from: 11, label: 'first_round', isNumbered: true });
 
-    expect(rebuildSeries('2022-23', games.toReversed())).toStrictEqual([
+    expect(rebuildSeries('2022-23', games.toReversed(), IS_PAST)).toStrictEqual([
       {
         phase: 'playoffs',
         teamAId: 1,
@@ -306,10 +320,10 @@ describe('rebuildSeries', () => {
   });
 
   it('[CL-STA-18] finds by the order the rounds that the labels of a labeled season give (T19)', () => {
-    const labeled = rebuildSeries('2022-23', bracket('abaaa', true));
+    const labeled = rebuildSeries('2022-23', bracket('abaaa', true), IS_PAST);
 
     expect(facts(labeled)).toStrictEqual(bracketFacts(4));
-    expect(rebuildSeries('2022-23', bracket('abaaa'))).toStrictEqual(labeled);
+    expect(rebuildSeries('2022-23', bracket('abaaa'), IS_PAST)).toStrictEqual(labeled);
   });
 
   it('[STA-07] [CL-STA-18] plays a best of five in the first round up to 2001-02 and a best of seven from 2002-03, every later round a best of seven', () => {
@@ -321,7 +335,7 @@ describe('rebuildSeries', () => {
   });
 
   it('[STA-07] [CL-STA-18] flags in a best-of-five first round the games a team one win short of three can end', () => {
-    const [firstRound] = rebuildSeries('2001-02', series([1, 8], 'ababa', { from: 21 }));
+    const [firstRound] = rebuildSeries('2001-02', series([1, 8], 'ababa', { from: 21 }), IS_PAST);
 
     expect(firstRound?.games).toStrictEqual([
       at(21, 1, [0, 0, false]),
@@ -340,7 +354,7 @@ describe('rebuildSeries', () => {
       gameOf({ id: 37, day: 7, teams: [8, 1], status: 'postponed' }),
       gameOf({ id: 38, day: 9, teams: [1, 8], status: 'canceled' }),
     ];
-    const [underWay] = rebuildSeries('2022-23', games);
+    const [underWay] = rebuildSeries('2022-23', games, IS_PAST);
 
     expect(underWay?.isRebuilt).toBe(true);
     expect(underWay?.games).toStrictEqual([
@@ -360,26 +374,94 @@ describe('rebuildSeries', () => {
       ...series([1, 8], 'aaaa', { from: 41 }),
       gameOf({ id: 45, day: 8, teams: [1, 8] }),
     ];
-    const [swept] = rebuildSeries('2022-23', games);
+    const [swept] = rebuildSeries('2022-23', games, IS_PAST);
 
     expect(swept?.isRebuilt).toBe(true);
     expect(swept?.games.map((position) => position.gameNumber)).toStrictEqual([1, 2, 3, 4, null]);
   });
 
   it.each(UNREBUILDABLE)(
-    '[STA-07] [CL-STA-18] cannot rebuild a series when %s, and leaves every game of it unknown',
+    '[STA-07] [CL-STA-18] cannot rebuild a series when %s, whether a game of a later season is stored or not, and leaves every game of it unknown',
     (_, season, games) => {
-      const [rebuilt] = rebuildSeries(season, games);
+      const rebuilt = [IS_PAST, !IS_PAST].map((hasLaterSeasonGame) =>
+        rebuildSeries(season, games, hasLaterSeasonGame).at(0),
+      );
+      const expected = { isRebuilt: false, games: games.map((game) => unknown(game.id)) };
+
+      expect(rebuilt).toMatchObject([expected, expected]);
+    },
+  );
+
+  it.each(NOT_WON)(
+    '[STA-07] [CL-STA-18] cannot rebuild a series of a past season that no team won, a game of it missing, and leaves every game of it unknown: %s',
+    (_, games) => {
+      const [rebuilt] = rebuildSeries('2025-26', games, IS_PAST);
 
       expect(rebuilt?.isRebuilt).toBe(false);
       expect(rebuilt?.games).toStrictEqual(games.map((game) => unknown(game.id)));
     },
   );
 
+  it.each(NOT_WON)(
+    '[STA-05] [CL-STA-18] [CL-STA-20] keeps under way a series of the latest season that no team has won yet, its next game not listed, and numbers its games: %s',
+    (_, games) => {
+      const [rebuilt] = rebuildSeries('2025-26', games, !IS_PAST);
+
+      expect(rebuilt?.isRebuilt).toBe(true);
+      expect(rebuilt?.games.map((position) => position.gameNumber)).toStrictEqual(
+        games.map((_game, index) => index + 1),
+      );
+    },
+  );
+
+  it("[STA-05] [STA-07] [CL-STA-18] [CL-STA-20] places every game of the latest season's Finals tied two games to two, their fifth game not listed yet", () => {
+    const finals = series([1, 7], 'abab', { from: 51, label: 'finals', isNumbered: true });
+
+    expect(rebuildSeries('2025-26', finals, !IS_PAST)).toStrictEqual([
+      {
+        phase: 'playoffs',
+        teamAId: 1,
+        teamBId: 7,
+        round: 'finals',
+        winsNeeded: 4,
+        isRebuilt: true,
+        games: [
+          at(51, 1, [0, 0, false]),
+          at(52, 2, [0, 1, false]),
+          at(53, 3, [1, 1, false]),
+          at(54, 4, [1, 2, false]),
+        ],
+      },
+    ]);
+  });
+
+  it('[STA-07] [CL-STA-18] [CL-STA-20] ends a series won four games to one alike whether a game of a later season is stored or not, a game listed after it unplaced', () => {
+    const won = [
+      ...series([1, 7], 'aabaa', { from: 61, label: 'finals' }),
+      gameOf({ id: 66, day: 10, teams: [7, 1] }),
+    ];
+    const [latest] = rebuildSeries('2025-26', won, !IS_PAST);
+
+    expect(latest?.isRebuilt).toBe(true);
+    expect(latest?.games.map((position) => position.gameNumber)).toStrictEqual([
+      1,
+      2,
+      3,
+      4,
+      5,
+      null,
+    ]);
+    expect(rebuildSeries('2025-26', won, IS_PAST)).toStrictEqual([latest]);
+  });
+
   it('[STA-07] [CL-STA-18] leaves unknown the flag of a play-in game that no label places, as in the 2019-20 seeding play-in', () => {
-    const [seeding] = rebuildSeries('2019-20', series([8, 9], 'a', { phase: 'play_in' }));
+    const [seeding] = rebuildSeries('2019-20', series([8, 9], 'a', { phase: 'play_in' }), IS_PAST);
     // Had the ninth seed won the first game, a second one would have followed it.
-    const [twoGames] = rebuildSeries('2019-20', series([8, 9], 'ba', { phase: 'play_in' }));
+    const [twoGames] = rebuildSeries(
+      '2019-20',
+      series([8, 9], 'ba', { phase: 'play_in' }),
+      IS_PAST,
+    );
 
     expect(seeding).toStrictEqual({
       phase: 'play_in',
@@ -406,7 +488,7 @@ describe('rebuildSeries', () => {
         phase: 'regular_season' as const,
       })),
     ];
-    const pairs = rebuildSeries('2022-23', games).map((each) => [
+    const pairs = rebuildSeries('2022-23', games, IS_PAST).map((each) => [
       each.phase,
       each.teamAId,
       each.teamBId,
@@ -433,7 +515,7 @@ describe('rebuildSeries', () => {
       ...series([2, 7], 'aaaa', { from: 10, day: 4 }),
     ];
 
-    expect(rebuildSeries('2020-21', games).map((each) => each.round)).toStrictEqual([
+    expect(rebuildSeries('2020-21', games, IS_PAST).map((each) => each.round)).toStrictEqual([
       'play_in_7_vs_8',
       'first_round',
     ]);
@@ -443,7 +525,7 @@ describe('rebuildSeries', () => {
     // The first-round series of team 3 is missing from the schedule.
     const games = [...series([1, 2], 'aaa'), ...series([1, 3], 'aaaa', { from: 10, day: 10 })];
 
-    expect(facts(rebuildSeries('2001-02', games))).toStrictEqual([
+    expect(facts(rebuildSeries('2001-02', games, IS_PAST))).toStrictEqual([
       [1, 2, 'first_round', 3, true],
       [1, 3, null, 4, true],
     ]);
@@ -456,7 +538,9 @@ describe('rebuildSeries', () => {
       ...series([2, opponent + 4], 'a', { from: 2000 + 10 * index, day: 2 * index }),
     ]);
     const final = series([1, 2], 'a', { from: 3000, day: 10 });
-    const rounds = rebuildSeries('2022-23', [...earlier, ...final]).map((each) => each.round);
+    const rounds = rebuildSeries('2022-23', [...earlier, ...final], IS_PAST).map(
+      (each) => each.round,
+    );
 
     expect(rounds.at(-1)).toBeNull();
     expect(rounds.slice(0, 2)).toStrictEqual(['first_round', 'first_round']);
@@ -464,8 +548,8 @@ describe('rebuildSeries', () => {
 
   it('[STA-05] [STA-07] [CL-STA-18] never gives a rebuilt series wins before that reach its wins needed, and numbers its games one by one', () => {
     fc.assert(
-      fc.property(anySeason, anyPostseason, (season, games) => {
-        const rebuilt = rebuildSeries(season, games);
+      fc.property(anySeason, anyPostseason, fc.boolean(), (season, games, hasLaterSeasonGame) => {
+        const rebuilt = rebuildSeries(season, games, hasLaterSeasonGame);
         const numbered = numberedPositions(rebuilt);
         const ofUnrebuilt = rebuilt.filter((each) => !each.isRebuilt).flatMap((each) => each.games);
 
@@ -480,11 +564,11 @@ describe('rebuildSeries', () => {
 
   it('[CL-STA-09] rebuilds the same series whatever the order of the games', () => {
     const games = bracket('abaaa');
-    const expected = rebuildSeries('2022-23', games);
+    const expected = rebuildSeries('2022-23', games, IS_PAST);
 
     fc.assert(
       fc.property(fc.shuffledSubarray(games, { minLength: games.length }), (shuffled) => {
-        expect(rebuildSeries('2022-23', shuffled)).toStrictEqual(expected);
+        expect(rebuildSeries('2022-23', shuffled, IS_PAST)).toStrictEqual(expected);
       }),
     );
   });

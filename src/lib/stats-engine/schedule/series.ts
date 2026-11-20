@@ -217,11 +217,13 @@ function isConsistent(place: Placed, winsNeeded: number): boolean {
  * has the wins needed, the next game to play; and whether the series could be rebuilt:
  * every final game has a result and comes before any game still to play, the source's
  * numbers agree, no game follows the deciding win, and a series without a winner still
- * has a game to play (CL-STA-18).
+ * has a game to play or, while no game of a later season is stored, may still be listed
+ * one (CL-STA-18, CL-STA-20).
  */
 function placeGames(
   pairing: Pairing,
   winsNeeded: number,
+  hasLaterSeasonGame: boolean,
 ): Readonly<{ placed: readonly Placed[]; isRebuilt: boolean }> {
   const sequence = pairing.games.filter((game) => isCounted(game));
   const played = sequence.filter((game) => game.status === 'final');
@@ -240,7 +242,7 @@ function placeGames(
       awayWins: winsBefore(game.awayTeamId, index),
     }));
   const isRebuilt =
-    (isDecided || placed.length > played.length) &&
+    (isDecided || placed.length > played.length || !hasLaterSeasonGame) &&
     sequence.slice(0, played.length).every((game) => game.status === 'final') &&
     !winners.includes(null) &&
     placed.every((place) => isConsistent(place, winsNeeded));
@@ -277,13 +279,12 @@ function positionOf(
       };
 }
 
-function rebuild(season: string, pairing: Pairing, round: SeriesRound | null): RebuiltSeries {
-  const series = {
-    phase: pairing.phase,
-    round,
-    winsNeeded: winsNeededFor(season, pairing.phase, round),
-  };
-  const { placed, isRebuilt } = placeGames(pairing, series.winsNeeded);
+function rebuild(
+  pairing: Pairing,
+  series: SeriesFacts,
+  hasLaterSeasonGame: boolean,
+): RebuiltSeries {
+  const { placed, isRebuilt } = placeGames(pairing, series.winsNeeded, hasLaterSeasonGame);
   const places = new Map<GameId, Placed>(
     isRebuilt ? placed.map((place) => [place.game.id, place] as const) : [],
   );
@@ -291,7 +292,7 @@ function rebuild(season: string, pairing: Pairing, round: SeriesRound | null): R
     phase: series.phase,
     teamAId: pairing.teamAId,
     teamBId: pairing.teamBId,
-    round,
+    round: series.round,
     winsNeeded: series.winsNeeded,
     isRebuilt,
     games: pairing.games.map((game) => positionOf(game.id, places.get(game.id), series)),
@@ -300,25 +301,36 @@ function rebuild(season: string, pairing: Pairing, round: SeriesRound | null): R
 
 /**
  * Rebuilds the play-in and playoff series of `season`, written `2024-25`, from its
- * games (STA-05, STA-07, CL-STA-18). A series is the games of one pair of teams in one
- * phase; a placeholder whose teams are still to be determined belongs to none. Its round
- * is the label its games carry, or else, for a playoff series, the number of playoff
- * series each team played before it, the first being the first round; a play-in round
- * comes from its label only. Its final games are numbered in date order with the wins of
- * each team before each, the next game to play after them too, and the source's numbers
- * are checked wherever it gives them. The wins needed come from the round-length table:
- * three in the first round up to 2001-02, four otherwise, one in the play-in. A playoff
- * game is an elimination game when a team's wins before it are one short of the wins
- * needed; a 9-10 or 8th-seed play-in game eliminates its loser, a 7-8 game does not. A
- * series with a game missing, numbers that disagree or no team reaching the wins needed
- * once no game is left to play cannot be rebuilt, and its games' positions are unknown.
+ * games (STA-05, STA-07, CL-STA-18, CL-STA-20). A series is the games of one pair of
+ * teams in one phase; a placeholder whose teams are still to be determined belongs to
+ * none. Its round is the label its games carry, or else, for a playoff series, the number
+ * of playoff series each team played before it, the first being the first round; a
+ * play-in round comes from its label only. Its final games are numbered in date order
+ * with the wins of each team before each, the next game to play after them too, and the
+ * source's numbers are checked wherever it gives them. The wins needed come from the
+ * round-length table: three in the first round up to 2001-02, four otherwise, one in the
+ * play-in. A playoff game is an elimination game when a team's wins before it are one
+ * short of the wins needed; a 9-10 or 8th-seed play-in game eliminates its loser, a 7-8
+ * game does not. A series whose numbers disagree cannot be rebuilt, and its games'
+ * positions are unknown. `hasLaterSeasonGame` tells whether a game of a later season is
+ * stored: from then on, a series that no team won once no game is left to play, as when
+ * a game of it is missing, cannot be rebuilt either; until then the season may be in
+ * progress and a series ends on wins only, such a series under way, since the source may
+ * list a game only once it is scheduled.
  */
 export function rebuildSeries(
   season: string,
   games: readonly SeriesGame[],
+  hasLaterSeasonGame: boolean,
 ): readonly RebuiltSeries[] {
   const pairings = pairingsOf(games);
-  return pairings.map((pairing, index) =>
-    rebuild(season, pairing, roundOf(pairing, pairings.slice(0, index))),
-  );
+  return pairings.map((pairing, index) => {
+    const round = roundOf(pairing, pairings.slice(0, index));
+    const series = {
+      phase: pairing.phase,
+      round,
+      winsNeeded: winsNeededFor(season, pairing.phase, round),
+    };
+    return rebuild(pairing, series, hasLaterSeasonGame);
+  });
 }
