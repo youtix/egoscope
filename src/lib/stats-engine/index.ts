@@ -79,8 +79,17 @@ export type {
 } from './schedule/phase-state';
 
 // schedule/seasons.ts
+export { seasonOfDate } from './schedule/seasons';
+export type { SeasonSpan } from './schedule/seasons';
 
 // schedule/team-membership.ts
+export { teamGames } from './schedule/team-membership';
+export { teamMembership } from './schedule/team-membership';
+export type { LinesGame } from './schedule/team-membership';
+export type { PlayerLine } from './schedule/team-membership';
+export type { PlayerTeamChange } from './schedule/team-membership';
+export type { TeamGame } from './schedule/team-membership';
+export type { TeamStint } from './schedule/team-membership';
 
 // schedule/next-game.ts
 
