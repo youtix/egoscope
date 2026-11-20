@@ -52,6 +52,15 @@ export type {
 // --- exploration/ ----------------------------------------------------------------
 
 // exploration/prompt.ts
+export { buildExplorationPrompt } from './exploration/prompt';
+export type {
+  ExplorationArticleReference,
+  ExplorationPromptInput,
+  ExplorationRejectedType,
+  ExplorationTarget,
+  ExplorationTypeEntry,
+  TypeRejectionReason,
+} from './exploration/prompt';
 
 // exploration/response.ts
 
