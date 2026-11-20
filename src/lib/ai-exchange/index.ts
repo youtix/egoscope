@@ -36,10 +36,28 @@ export type {
 // recover-cut.ts and text-signals.ts stay internal to the part.
 
 // research-result/format.ts
+export type {
+  ContextIndications,
+  GameStakes,
+  InjuryReturn,
+  ResearchConfidence,
+  ResearchEvent,
+  ResearchResult,
+  ResearchSource,
+  UnverifiedLead,
+} from './research-result/format';
 
 // research-result/dates.ts
+export type { DateReading, DateReadingError, DateWarning } from './research-result/dates';
 
 // research-result/read-result.ts
+export { readResult } from './research-result/read-result';
+export type {
+  ReadResultError,
+  ReadResultOutcome,
+  ReadResultWarning,
+  TruncationRecovery,
+} from './research-result/read-result';
 
 // research-result/check-events.ts
 

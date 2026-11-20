@@ -1,0 +1,86 @@
+{
+  "format": "egoscope-backtest",
+  "format_version": "1.0",
+  "request_reference": "REQ-2026-0007",
+  "player": { "id": "8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f", "name": "Player A" },
+  "covered_types": ["record-approach", "player-conflict", "public-humiliation", "racist-abuse"],
+  "covered_period": { "start": "2019-10-23", "end": "2026-11-11" },
+  "events": [
+    {
+      "event_type": "public-humiliation",
+      "public_date": "2021-01-14T23:10-05:00",
+      "description": "After a game against team Y, an opposing player publicly mocks player A at a press conference; a specialist site reports it the same evening.",
+      "sources": [
+        {
+          "url": "https://www.site-basket.example/news/2021/01/14/rival-mocks-player-a",
+          "outlet": "A specialist basketball site (fictitious)",
+          "title": "Rival mocks Player A in post-game press conference",
+          "publication_date": "2021-01-14T23:40-05:00"
+        },
+        {
+          "url": "https://www.media-national.example/basket/2021/01/15/le-joueur-a-raille",
+          "outlet": "A national outlet (fictitious)",
+          "title": "Player A taunted by an opponent",
+          "publication_date": "2021-01-15"
+        }
+      ],
+      "context": {
+        "injury_return": "no",
+        "game_stakes": "normal"
+      },
+      "confidence": "high"
+    },
+    {
+      "event_type": "player-conflict",
+      "public_date": "2023-04-26",
+      "description": "Verbal altercation between player A and a team X teammate during a timeout; a regional daily reports it the same evening.",
+      "sources": [
+        {
+          "url": "https://www.quotidien-regional.example/sports/2023/04/26/tension-sur-le-banc-de-l-equipe-x",
+          "outlet": "A regional daily (fictitious)",
+          "title": "Tension on the team X bench",
+          "publication_date": "2023-04-26"
+        }
+      ],
+      "context": {
+        "injury_return": "no",
+        "game_stakes": "high",
+        "detail": "Next game: Game 7 of a playoff series."
+      },
+      "confidence": "medium",
+      "unverified_note": "Only one source found; publication time unknown."
+    },
+    {
+      "event_type": "record-approach",
+      "public_date": "2025-12-02",
+      "description": "A national outlet notes that player A can become, as early as his next game, the youngest team X player to pass a historic franchise milestone.",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2025/12/02/le-joueur-a-aux-portes-d-un-record",
+          "outlet": "A national outlet (fictitious)",
+          "title": "Player A on the verge of a team X record",
+          "publication_date": "2025-12-02"
+        }
+      ],
+      "context": {
+        "injury_return": "yes",
+        "game_stakes": "normal",
+        "detail": "First game after several games missed."
+      },
+      "confidence": "low",
+      "unverified_note": "The topic may have come up a few days earlier: the public date remains uncertain."
+    }
+  ],
+  "unverified_leads": [
+    {
+      "event_type": "racist-abuse",
+      "approximate_period": "2020-21 season",
+      "description": "A later article mentions hostile remarks aimed at player A during a road trip, without giving the date.",
+      "reason": "No source published before the game concerned was found."
+    }
+  ],
+  "limitations": [
+    "2019-20 season: few accessible articles, as player A had little media coverage then.",
+    "Subscriber-only articles not consulted: some facts may have escaped the research."
+  ]
+}

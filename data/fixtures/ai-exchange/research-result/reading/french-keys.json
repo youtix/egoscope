@@ -1,0 +1,11 @@
+{
+  "format": "egoscope-backtest",
+  "version_format": "1.0",
+  "reference_demande": "REQ-2026-0007",
+  "joueur": { "identifiant": "8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f", "nom": "Player A" },
+  "types_couverts": ["public-humiliation"],
+  "periode_couverte": { "debut": "2019-10-23", "fin": "2026-11-11" },
+  "evenements": [],
+  "pistes_non_verifiees": [],
+  "limites": []
+}

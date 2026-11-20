@@ -9,6 +9,7 @@ import {
   RESEARCH_PROMPT_TEMPLATE,
   withKnownInAdvanceMark,
 } from './template';
+import { FORMAT_VERSION } from '../research-result/format';
 
 /**
  * The period of a request or of one of its types, both days included (BKT-08, BKT-09):
@@ -91,9 +92,6 @@ type TypePlaceholder =
   | 'TYPE_EXCLUSION'
   | 'TYPE_DATING_RULE'
   | 'TYPE_EXAMPLE';
-
-// The version of the return format that the prompt asks for (BKT-24).
-const FORMAT_VERSION = '1.0';
 
 // A placeholder of the template, {{NAME}}.
 const PLACEHOLDER = /\{\{(?<name>[A-Z_]+)\}\}/gu;
