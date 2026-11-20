@@ -127,6 +127,47 @@ describe('the fetch tables', { timeout: 60_000 }, () => {
     ]);
   });
 
+  it('queues a unit of each kind of the model, the season units with their season and the others without', async () => {
+    const units = [
+      { kind: 'publication_probe', season: null },
+      { kind: 'season_games', season: '2024-25' },
+      { kind: 'season_box_scores', season: '2024-25' },
+      { kind: 'season_players', season: '2023-24' },
+      { kind: 'player_records', season: null },
+    ] as const;
+    await db.insert(fetchQueueItems).values(units.map((unit) => ({ ...UNIT, ...unit })));
+
+    const stored = await db
+      .select({ kind: fetchQueueItems.kind, season: fetchQueueItems.season })
+      .from(fetchQueueItems)
+      .orderBy(fetchQueueItems.id);
+
+    expect(stored).toStrictEqual(units);
+  });
+
+  it('[CL-STA-15] keeps a unit waiting after an outage or a quota answer, until its next attempt', async () => {
+    // An hour after the outage, and the reset that the quota answer gives.
+    const retryAt = new Date(toEpochMs(Date.UTC(2025, 0, 15, 10)));
+    const resetAt = new Date(toEpochMs(Date.UTC(2025, 0, 16)));
+    const waits = [
+      { kind: 'season_games', attempts: 1, nextAttemptAt: retryAt, waitReason: 'outage' },
+      { kind: 'season_box_scores', attempts: 0, nextAttemptAt: resetAt, waitReason: 'quota' },
+    ] as const;
+    await db.insert(fetchQueueItems).values(waits.map((wait) => ({ ...UNIT, ...wait })));
+
+    const stored = await db
+      .select({
+        kind: fetchQueueItems.kind,
+        attempts: fetchQueueItems.attempts,
+        nextAttemptAt: fetchQueueItems.nextAttemptAt,
+        waitReason: fetchQueueItems.waitReason,
+      })
+      .from(fetchQueueItems)
+      .orderBy(fetchQueueItems.id);
+
+    expect(stored).toStrictEqual(waits);
+  });
+
   it('keeps one pending unit per scope, so that a new need raises its priority instead of adding a unit', async () => {
     const scope = [
       fetchQueueItems.statsSource,
@@ -198,6 +239,7 @@ describe('the fetch tables', { timeout: 60_000 }, () => {
     { unit: 'a priority below the fifth', change: { priority: 6 }, check: 'priority' },
     { unit: 'another wait', change: { waitReason: sql`'maintenance'` }, check: 'wait_reason' },
     { unit: 'another kind', change: { kind: sql`'teams'`, season: null }, check: 'kind' },
+    { unit: 'another source', change: { statsSource: sql`'nba_stats'` }, check: 'stats_source' },
   ])('refuses a unit of work with $unit than the model allows', async ({ change, check }) => {
     const insert = db.insert(fetchQueueItems).values({ ...UNIT, ...change });
 
@@ -231,6 +273,33 @@ describe('the fetch tables', { timeout: 60_000 }, () => {
       { resource: 'publication', version: 'v2' },
       { resource: 'season_box_scores', version: 'etag-2' },
     ]);
+  });
+
+  it('[CL-STA-23] records the last answer to each resource of the model, and refuses an answer of another source', async () => {
+    // A season's files under their season, a past one's directory and the current
+    // season's player file among them.
+    const reads = [
+      { resource: 'publication', season: null },
+      { resource: 'season_games', season: '2024-25' },
+      { resource: 'season_box_scores', season: '2024-25' },
+      { resource: 'season_players', season: '2023-24' },
+      { resource: 'player_records', season: '2024-25' },
+    ] as const;
+    await db.insert(statsSourceVersions).values(reads.map((read) => ({ ...ANSWER, ...read })));
+
+    const nbaStats = db
+      .insert(statsSourceVersions)
+      .values({ ...ANSWER, statsSource: sql`'nba_stats'` });
+
+    await expect(
+      db
+        .select({ resource: statsSourceVersions.resource, season: statsSourceVersions.season })
+        .from(statsSourceVersions)
+        .orderBy(statsSourceVersions.id),
+    ).resolves.toStrictEqual(reads);
+    await expect(nbaStats).rejects.toMatchObject(
+      violationOf('stats_source_versions_stats_source_check'),
+    );
   });
 
   // Each answer breaks one clause: only the publication is read for no season.

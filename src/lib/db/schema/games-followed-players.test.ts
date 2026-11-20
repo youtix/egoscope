@@ -226,15 +226,16 @@ describe('the tables of the followed players statistics', { timeout: 60_000 }, (
     await expect(describeForeignKeys(db, TABLES)).resolves.toStrictEqual(FOREIGN_KEYS);
   });
 
+  // A line that lacks a count of the Game Score is incomplete (STA-10).
   it('[CL-STA-06] keeps a count that the source does not give as null, never as zero', async () => {
-    await db.insert(boxScores).values({ ...LINE, playerId, hasRoundedMinutes: true });
+    const incomplete = { ...LINE, status: 'incomplete', hasRoundedMinutes: true } as const;
+    await db.insert(boxScores).values({ ...incomplete, playerId });
 
     await expect(db.select().from(boxScores)).resolves.toStrictEqual([
       {
         id: 1,
         playerId,
-        ...LINE,
-        hasRoundedMinutes: true,
+        ...incomplete,
         seconds: null,
         ...NO_ELEMENT,
         points: 21,
@@ -423,6 +424,22 @@ describe('the tables of the followed players statistics', { timeout: 60_000 }, (
     ]);
     await expect(second).rejects.toMatchObject(
       duplicateOf('stats_source_mappings_player_source_key'),
+    );
+  });
+
+  it('refuses a mapping of another status or another source than the model lists', async () => {
+    const confirmed = db
+      .insert(statsSourceMappings)
+      .values({ playerId, ...SOURCE, status: sql`'confirmed'` });
+    const source = db
+      .insert(statsSourceMappings)
+      .values({ playerId, statsSource: sql`'nba_stats'` });
+
+    await expect(confirmed).rejects.toMatchObject(
+      violationOf('stats_source_mappings_status_check'),
+    );
+    await expect(source).rejects.toMatchObject(
+      violationOf('stats_source_mappings_stats_source_check'),
     );
   });
 

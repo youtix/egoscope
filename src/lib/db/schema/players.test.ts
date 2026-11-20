@@ -265,6 +265,10 @@ describe('the players tables', { timeout: 60_000 }, () => {
 
   it('[CL-JOU-16] gives a birthday its origin, which the model lists, and an origin only to a birthday', async () => {
     const birthday = { birthdayMonth: 3, birthdayDay: 14 } as const;
+    await db.insert(followedPlayers).values([
+      { ...PLAYER, ...birthday, birthdayOrigin: 'stats_source' },
+      { ...PLAYER, ...birthday, ...BY_OWNER },
+    ]);
 
     const withoutOrigin = db.insert(followedPlayers).values({ ...PLAYER, ...birthday });
     const originAlone = db.insert(followedPlayers).values({ ...PLAYER, ...BY_OWNER });
@@ -281,6 +285,12 @@ describe('the players tables', { timeout: 60_000 }, () => {
     await expect(guessed).rejects.toMatchObject(
       violationOf('followed_players_birthday_origin_check'),
     );
+    await expect(
+      db
+        .select({ origin: followedPlayers.birthdayOrigin })
+        .from(followedPlayers)
+        .orderBy(followedPlayers.birthdayOrigin),
+    ).resolves.toStrictEqual([{ origin: 'owner' }, { origin: 'stats_source' }]);
   });
 
   it('[CL-JOU-13] keeps a name variant once per player after normalization, and lets another player share it', async () => {

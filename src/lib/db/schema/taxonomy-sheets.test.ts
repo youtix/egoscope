@@ -185,6 +185,39 @@ describe('the tables that hang off an event type', { timeout: 60_000 }, () => {
     ).resolves.toStrictEqual([{ content: CONTENT }, { content: CONTENT }, { content: CONTENT }]);
   });
 
+  it('[CL-TAX-06] qualifies a substantive version, and its history entry, as broadening, narrowing or both', async () => {
+    await db.insert(eventTypes).values(VALIDATED);
+    const scopes = ['broadens', 'narrows', 'both'] as const;
+    await db.insert(typeSheetVersions).values(
+      scopes.map((substantiveScope, index) => ({
+        ...VERSION,
+        versionNumber: index + 2,
+        kind: 'substantive_change' as const,
+        substantiveScope,
+      })),
+    );
+    await db.insert(typeSheetChanges).values(
+      scopes.map((substantiveScope, index) => ({
+        ...CHANGE,
+        ...SUBSTANTIVE,
+        substantiveScope,
+        resultingVersionNumber: index + 2,
+      })),
+    );
+
+    const versions = await db
+      .select({ scope: typeSheetVersions.substantiveScope })
+      .from(typeSheetVersions)
+      .orderBy(typeSheetVersions.id);
+    const changes = await db
+      .select({ scope: typeSheetChanges.substantiveScope })
+      .from(typeSheetChanges)
+      .orderBy(typeSheetChanges.id);
+
+    expect(versions).toStrictEqual(scopes.map((scope) => ({ scope })));
+    expect(changes).toStrictEqual(versions);
+  });
+
   // Each version breaks one clause of one check of type_sheet_versions.
   it.each([
     [

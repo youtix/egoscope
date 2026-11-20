@@ -418,6 +418,34 @@ describe('the league tables', { timeout: 60_000 }, () => {
     await expect(alone).rejects.toMatchObject(violationOf('series_team_order_check'));
   });
 
+  it('[CL-STA-18] stores a series of each round of the model, and one whose round is unknown', async () => {
+    await seedLeague(db);
+    await db.insert(teams).values({ abbreviation: 'SLH', name: 'Saltmarsh Herons' });
+    const playIn = { ...PAIRING, phase: 'play_in', winsNeeded: 1 } as const;
+    await db.insert(series).values([
+      { ...PAIRING, round: 'conference_semifinals', teamAId: 1, teamBId: 3 },
+      { ...PAIRING, round: 'conference_finals', teamAId: 1, teamBId: 4 },
+      { ...PAIRING, round: 'finals', teamAId: 2, teamBId: 3 },
+      { ...PAIRING, teamAId: 2, teamBId: 4 },
+      { ...playIn, round: 'play_in_7_vs_8', teamAId: 1, teamBId: 2 },
+      { ...playIn, round: 'play_in_9_vs_10', teamAId: 3, teamBId: 4 },
+      { ...playIn, round: 'play_in_8th_seed', teamAId: 1, teamBId: 3 },
+    ]);
+
+    const rounds = await db.select({ round: series.round }).from(series).orderBy(series.id);
+
+    expect(rounds.map(({ round }) => round)).toStrictEqual([
+      'first_round',
+      'conference_semifinals',
+      'conference_finals',
+      'finals',
+      null,
+      'play_in_7_vs_8',
+      'play_in_9_vs_10',
+      'play_in_8th_seed',
+    ]);
+  });
+
   it.each([
     { series: 'of the regular season', change: { phase: sql`'regular_season'` }, check: 'phase' },
     {
@@ -436,7 +464,7 @@ describe('the league tables', { timeout: 60_000 }, () => {
 
   it('[CL-STA-22] records a season as pending until its games are read, then the phases with lines', async () => {
     const read = {
-      phasesWithLines: ['regular_season', 'playoffs'],
+      phasesWithLines: ['regular_season', 'play_in', 'playoffs'],
       gamesWithoutLines: 3,
     } satisfies Partial<typeof seasons.$inferInsert>;
     await db.insert(seasons).values([
@@ -527,5 +555,23 @@ describe('the league tables', { timeout: 60_000 }, () => {
       violationOf('team_source_refs_stats_source_check'),
     );
     await expect(sameAbbreviation).rejects.toMatchObject(duplicateOf('teams_abbreviation_key'));
+  });
+
+  it('[CL-STA-23] refuses a season, a game or a directory entry of another source than the model lists', async () => {
+    await seedLeague(db);
+    const nbaStats = { statsSource: sql`'nba_stats'` } as const;
+    const entry = { ...SEASON, sourcePlayerRef: '4433221', displayName: 'Rafe Lindqvist' } as const;
+
+    const season = db.insert(seasons).values({ ...SEASON, ...nbaStats, season: '2025-26' });
+    const game = db.insert(games).values({ ...GAME, ...nbaStats });
+    const directory = db
+      .insert(playerDirectoryEntries)
+      .values({ ...entry, ...nbaStats, searchNames: ['rafe lindqvist'], fetchedAt: FETCHED_AT });
+
+    await expect(season).rejects.toMatchObject(violationOf('seasons_stats_source_check'));
+    await expect(game).rejects.toMatchObject(violationOf('games_stats_source_check'));
+    await expect(directory).rejects.toMatchObject(
+      violationOf('player_directory_entries_stats_source_check'),
+    );
   });
 });

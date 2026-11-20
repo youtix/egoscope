@@ -363,6 +363,25 @@ describe('the event-type tables', { timeout: 60_000 }, () => {
     },
   );
 
+  it('refuses a type status change from or to a status that the glossary does not list', async () => {
+    await db.insert(eventTypes).values(PROPOSAL);
+    const type = { eventTypeId: PROPOSAL.id } as const;
+
+    const from = db
+      .insert(eventTypeStatusChanges)
+      .values({ ...type, fromStatus: OUTSIDE, toStatus: 'validated' });
+    const to = db
+      .insert(eventTypeStatusChanges)
+      .values({ ...type, fromStatus: 'proposed', toStatus: OUTSIDE });
+
+    await expect(from).rejects.toMatchObject(
+      violationOf('event_type_status_changes_from_status_check'),
+    );
+    await expect(to).rejects.toMatchObject(
+      violationOf('event_type_status_changes_to_status_check'),
+    );
+  });
+
   it('gives a type born of a split the origin of its parent, and a birth from none to validated', async () => {
     const child = { ...VALIDATED, id: 'online-storm', splitFromTypeId: 'media-storm' } as const;
     await db.insert(eventTypes).values([SPLIT, child]);
