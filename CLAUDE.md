@@ -160,13 +160,15 @@ and AA rules:
 1. before every action and every web-first assertion on a locator, and before each of their
    retries, when the document changed since its last check;
 2. before every navigation that the test itself starts on the page (`goto`, `reload`, `goBack`,
-   `goForward`) and before `close`, when it changed since its last check;
+   `goForward`) and before `close`, of the page or of its browser context, when it changed since
+   its last check;
 3. when the test ends, whatever changed.
 
-- A change is one of these signals: a new document or a new address; a DOM mutation of any kind
-  (child list, attributes, character data); an `input` or `change` event; the top layer opening
-  or closing (the toggle events of a popover or of a dialog); a new viewport size; new emulated
-  media (color scheme, reduced motion, forced colors); a move of the focus.
+- A change is one of these signals: a new document or a new address, a new fragment included; a
+  DOM mutation of any kind (child list, attributes, character data); an `input` or `change`
+  event; the top layer opening or closing (the toggle events of a popover or of a dialog); a new
+  viewport size; new emulated media (color scheme, reduced motion, forced colors); a move of the
+  focus.
 - Each check first lets the page's animations end, for a second at most, and clears the mark of
   a change before axe runs, so that a change made during the check is not lost.
 - The watch does not see a state that shows by CSS alone with none of these signals, such as a
@@ -176,7 +178,11 @@ and AA rules:
 - A check that a new document interrupts is dropped: the state that it was reading is gone, and
   the new document is checked in its turn. A document that the app leaves by itself before the
   test acts on it is not reported as unchecked. Only a violation, or a document that the test
-  itself left unchecked (by raw keyboard, mouse or touch input), fails the test.
+  itself left unchecked, fails the test: a document on which no check began, whose departure
+  raw keyboard, mouse or touch input of the test began, at once or in a task that it queued,
+  as the submission of a form does.
+- Playwright runs the checks of point 1 only while the body of the page has a box, which the root
+  layout's `min-h-dvh` gives it: a check of a loaded page reports a body that has none.
 - A page that the test opens beside its `page`, such as a popup or the page of a second browser
   context for another device, is watched once the test passes it to
   `await accessibility.watch(otherPage)`.

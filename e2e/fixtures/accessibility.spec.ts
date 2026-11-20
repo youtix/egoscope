@@ -1,5 +1,6 @@
 import {
   accessibilityViolations,
+  BODY_WITHOUT_BOX,
   LEFT_UNCHECKED,
   watchAccessibility,
   watchPages,
@@ -78,8 +79,14 @@ const CHANGING_WHILE_CHECKED = pageWith(
 const LEAVING_WHILE_CHECKED = pageWith(
   whileChecked(`() => () => { location.assign('/probe/broken'); return new Promise(() => {}); }`),
 );
-// A page that the app leaves at once, as a redirect does.
-const REDIRECTING = pageWith(`<script>location.replace('/probe/other');</script>`);
+// A page that the app leaves by itself, as it does once a timer or a request ends.
+const LEAVING_BY_ITSELF = pageWith(
+  `<p><a href="/probe/other">Another page</a></p>${onStream("location.assign('/probe/other');")}`,
+);
+// A page whose content is all out of flow, which leaves its body without a box.
+const OUT_OF_FLOW = pageWith(
+  '<style>main { position: fixed; inset: 0; }</style><p>Every case counts.</p>',
+);
 // A page whose link opens another page beside it, which shows an image without a
 // text alternative once it has loaded.
 const OPENING = pageWith('<p><a href="/probe/opened" target="_blank">Open a page beside</a></p>');
@@ -89,9 +96,9 @@ const OPENED = pageWith(
 );
 
 /**
- * The navigations that a test starts, each with the steps that bring a test to
- * the page whose button shows an image without a text alternative, and from
- * which the navigation then leaves.
+ * The navigations that a test starts, and the closes of the page and of its
+ * browser context, each with the steps that bring a test to the page whose button
+ * shows an image without a text alternative, and from which the call then leaves.
  */
 const NAVIGATIONS: readonly Readonly<{
   name: string;
@@ -130,11 +137,31 @@ const NAVIGATIONS: readonly Readonly<{
     arrive: async (page) => page.goto('/probe/revealing'),
     leave: async (page) => page.close(),
   },
+  {
+    name: 'context().close',
+    arrive: async (page) => page.goto('/probe/revealing'),
+    leave: async (page) => page.context().close(),
+  },
 ];
 
 // The delays, from the click, after which a page that the reviews probed leaves by
 // itself: from before a check has injected axe to after it has run.
 const LEAVING_DELAYS_MS = [50, 100, 150, 200, 250];
+
+/**
+ * The pages that a test leaves by raw keyboard input, Tab then Enter: one whose link
+ * it follows, and one whose form it submits, which the browser leaves a task after
+ * the key press.
+ */
+const RAW_DEPARTURES: readonly Readonly<{ name: string; body: string }>[] = [
+  { name: 'follows a link', body: PLAIN },
+  {
+    name: 'submits a form',
+    body: pageWith(
+      '<form action="/probe/other"><label for="name">Name</label><input id="name" name="name" style="height:32px"></form>',
+    ),
+  },
+];
 
 test.describe('the accessibility check', () => {
   test('passes a page that meets WCAG 2.2 AA', async ({ page }) => {
@@ -433,34 +460,40 @@ test.describe('the watch of every page a test visits', () => {
     });
   }
 
-  test('reports a page that the test leaves by raw keyboard input before any check', async ({
-    context,
-    baseURL,
-  }) => {
-    const probe = await servedPage(context, { '/probe/plain': [PLAIN], '/probe/other': [OTHER] });
-    const watch = await watchAccessibility(probe);
+  for (const { name, body } of RAW_DEPARTURES) {
+    test(`reports a document that the test leaves by raw keyboard input before any check, as it ${name}, though an earlier document at its address was checked`, async ({
+      context,
+      baseURL,
+    }) => {
+      const probe = await servedPage(context, { '/probe/left': [body], '/probe/other': [OTHER] });
+      const watch = await watchAccessibility(probe);
 
-    await probe.goto('/probe/plain');
-    await probe.keyboard.press('Tab');
-    await probe.keyboard.press('Enter');
-    await probe.waitForURL('**/probe/other');
-    await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
+      await probe.goto('/probe/left');
+      await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
+      await probe.reload();
+      await probe.keyboard.press('Tab');
+      await probe.keyboard.press('Enter');
+      await probe.waitForURL('**/probe/other**');
+      await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
-    expect(await watch.finish()).toStrictEqual([
-      { address: addressOf('/probe/plain', baseURL), error: LEFT_UNCHECKED },
-    ]);
-  });
+      expect(await watch.finish()).toStrictEqual([
+        { address: addressOf('/probe/left', baseURL), error: LEFT_UNCHECKED },
+      ]);
+    });
+  }
 
-  test('reports no page that the app leaves by itself before the test acts on it', async ({
+  test('reports no document that the app leaves by itself, though the test pressed a key there before any check', async ({
     context,
   }) => {
     const probe = await servedPage(context, {
-      '/probe/redirecting': [REDIRECTING],
+      '/probe/leaving': [LEAVING_BY_ITSELF],
       '/probe/other': [OTHER],
     });
     const watch = await watchAccessibility(probe);
 
-    await probe.goto('/probe/redirecting');
+    await probe.goto('/probe/leaving');
+    await probe.keyboard.press('Tab');
+    await streamIn(probe);
     await probe.waitForURL('**/probe/other');
     await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
@@ -490,6 +523,21 @@ test.describe('the watch of every page a test visits', () => {
 
     expect(rulesOf(await watches.finish())).toStrictEqual([
       { address: addressOf('/probe/opened', baseURL), rules: ['image-alt'] },
+    ]);
+  });
+
+  test('reports a page whose body has no box, which hides the page from the checks before the steps of a test', async ({
+    context,
+    baseURL,
+  }) => {
+    const probe = await servedPage(context, { '/probe/fixed': [OUT_OF_FLOW] });
+    const watch = await watchAccessibility(probe);
+
+    await probe.goto('/probe/fixed');
+    await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
+
+    expect(await watch.finish()).toStrictEqual([
+      { address: addressOf('/probe/fixed', baseURL), error: BODY_WITHOUT_BOX },
     ]);
   });
 
