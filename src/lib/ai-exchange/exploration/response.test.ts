@@ -152,6 +152,7 @@ const TRADE_REQUEST = named('Trade request made public', {
   missingElements: [],
 });
 
+// Its illustration sources are written as an empty list, which the format leaves out.
 const ALL_STAR_SNUB = named('Left off the all-star roster', {
   definition: 'The official all-star rosters leave out a player whom the press expected on them.',
   inclusionCriteria:
@@ -159,8 +160,12 @@ const ALL_STAR_SNUB = named('Left off the all-star roster', {
   datingRule: 'The date of the official roster announcement.',
   knownInAdvance: true,
   documentationDifficulty: 'medium',
-  illustrationSources: [],
-  missingElements: ['exclusion_criteria', 'generic_example', 'possible_overlaps'],
+  missingElements: [
+    'exclusion_criteria',
+    'generic_example',
+    'possible_overlaps',
+    'illustration_sources',
+  ],
 });
 
 describe('parseExplorationResponse: the shape of the response', () => {
@@ -216,25 +221,23 @@ describe('parseExplorationResponse: the shape of the response', () => {
     ['documentation_difficulty', '"difficult"'],
     ['documentation_difficulty', '2'],
     ['possible_overlaps', '"Media storm."'],
+    ['possible_overlaps', '[]'],
+    ['possible_overlaps', '[null, 3, " ", {"type": "Media storm"}]'],
     ['illustration_sources', '{"url": "https://www.national-outlet.example/a"}'],
+    ['illustration_sources', '[]'],
   ])('[TAX-17] [CL-TAX-04] reports the element %s written %s as missing', (key, value) => {
     const text = respond(`{"name": "A", "${key}": ${value}}`);
 
     expect(parse(text)).toStrictEqual(read([key === 'name' ? unnamed() : named('A')]));
   });
 
-  it('[TAX-17] keeps the texts of the possible overlaps as written, an empty list meaning no overlap', () => {
+  it('[TAX-17] keeps the texts of the possible overlaps as written, and only them', () => {
     const overlaps = '[" Storm. ", "", "  ", 3, null, ["Feud."], "Humiliation."]';
-    const text = respond(
-      `{"name": "A", "possible_overlaps": ${overlaps}}, {"name": "B", "possible_overlaps": []}`,
-    );
+    const text = respond(`{"name": "A", "possible_overlaps": ${overlaps}}`);
     const missingElements = allBut('possible_overlaps');
 
     expect(parse(text)).toStrictEqual(
-      read([
-        named('A', { possibleOverlaps: [' Storm. ', 'Humiliation.'], missingElements }),
-        named('B', { possibleOverlaps: [], missingElements }),
-      ]),
+      read([named('A', { possibleOverlaps: [' Storm. ', 'Humiliation.'], missingElements })]),
     );
   });
 
@@ -319,8 +322,14 @@ describe('parseExplorationResponse: the quirks of research AIs (CL-IMP-06)', () 
     ['a comma after the last element of a type', answer(trailingComma), 'around proposed type 2'],
     ['a comment between two types', answer(comment), 'around proposed type 2'],
     ['a missing comma', '{"format": "a" "proposed_types": []}', 'around the field format'],
-    ['a fault in an unknown list', '{"notes": [1 2]}', 'around the field notes'],
+    ['a missing colon', '{"format_version" "1.0"}', 'around the field format_version'],
+    ['a fault in an unknown list', '{"notes": [1 2]}', 'around an unknown field'],
     ['a comma after the list', '{"proposed_types": [],}', 'around the field proposed_types'],
+    [
+      'a fault before the format of a research result, which is then never read',
+      '{"covered_types": ["media-storm"] [2], "format": "egoscope-backtest"}',
+      'around an unknown field',
+    ],
   ])('[TAX-17] [CL-IMP-06] repairs nothing: %s is a located syntax error', (_, text, place) => {
     expect(parse(text)).toStrictEqual(syntaxError(place));
   });
@@ -434,9 +443,39 @@ describe('parseExplorationResponse: the format and its version', () => {
     'This text is not an exploration response.',
   );
 
-  it('[TAX-17] [CL-TAX-04] refuses a research result pasted by mistake: "This text is not an exploration response."', () => {
+  it('[TAX-17] [CA-TAX-17] [CL-TAX-04] refuses a research result pasted by mistake: "This text is not an exploration response."', () => {
     expect(parse(answer(researchResult))).toStrictEqual(NOT_AN_EXPLORATION_RESPONSE);
   });
+
+  // The research result of the fixture, and the same with a citation marker between tokens.
+  const RESULT = answer(researchResult);
+  const BROKEN_RESULT = RESULT.replace('["media-storm"]', '["media-storm"] [2]');
+
+  it.each([
+    ['cut before its events', RESULT.slice(0, RESULT.indexOf('"events"'))],
+    ['with a citation marker after its covered types', BROKEN_RESULT],
+    ['twice, for two requests', `${RESULT}\n${RESULT.replaceAll('0007', '0008')}`],
+  ])(
+    '[TAX-17] [CA-TAX-17] refuses a research result %s: "This text is not an exploration response."',
+    (_, text) => {
+      expect(parse(text)).toStrictEqual(NOT_AN_EXPLORATION_RESPONSE);
+    },
+  );
+
+  it.each([
+    ['a citation marker between tokens', answer(markerBetweenTokens), 'syntax_error'],
+    ['a cut', answer(cutAnswer), 'cut_not_recoverable'],
+    ['a second, different response', answer(twoResponses), 'several_results'],
+  ] as const)(
+    '[TAX-17] [CL-IMP-06] keeps the refusal of an exploration response with %s, next to a research result that can be read or not',
+    (_, response, kind) => {
+      const alone = parse(response);
+
+      expect(alone).toMatchObject({ ok: false, error: { kind } });
+      expect(parse(`${RESULT}\n${response}`)).toStrictEqual(alone);
+      expect(parse(`${BROKEN_RESULT}\n${response}`)).toStrictEqual(alone);
+    },
+  );
 
   it.each([
     '{"format": "egoscope_exploration", "proposed_types": []}',
@@ -517,53 +556,14 @@ describe('parseExplorationResponse: the format and its version', () => {
 });
 
 describe('parseExplorationResponse: the size bound', () => {
-  const empty = respond('');
-  /** The empty response, then spaces up to `bytes` bytes, the last character `last`. */
-  const textOf = (bytes: number, last: string, lastBytes: number): string =>
-    `${empty}${' '.repeat(bytes - empty.length - lastBytes)}${last}`;
+  // pasted-text-size.test.ts gives the rules of the size and of its message.
+  it('[TAX-17] [CL-IMP-27] reads a response of the size bound set, and refuses one byte more before reading it', () => {
+    const empty = respond('');
+    const atLimit = `${empty}${' '.repeat(500_000 - empty.length)}`;
 
-  it.each([
-    ['the last one-byte character, U+007F', 1, '\u{7F}'],
-    ['the first two-byte character, U+0080', 2, '\u{80}'],
-    ['the first three-byte character, U+0800', 3, '\u{800}'],
-    ['a lone surrogate, written as U+FFFD', 3, '\u{D800}'],
-    ['an emoji outside the first plane', 4, '😀'],
-  ])(
-    '[TAX-17] [CL-IMP-27] gives %s a UTF-8 length of %i: a text of the size bound is read, one byte more is refused',
-    (_, lastBytes, last) => {
-      const atLimit = textOf(500_000, last, lastBytes);
-
-      expect(parse(atLimit, 0.5)).toStrictEqual(read([]));
-      expect(parse(` ${atLimit}`, 0.5)).toStrictEqual(
-        refused('text_too_large', 'The pasted text is 0.51 MB, over the 0.5 MB limit.'),
-      );
-    },
-  );
-
-  it.each([
-    [2_345_678, 2, 'The pasted text is 2.35 MB, over the 2 MB limit.'],
-    [2_345_678, 1.5, 'The pasted text is 2.35 MB, over the 1.5 MB limit.'],
-    [3_000_000, 2.5, 'The pasted text is 3 MB, over the 2.5 MB limit.'],
-  ])(
-    '[TAX-17] [CL-IMP-27] gives the size of %i bytes in MB to the hundredth above, and the limit of %s MB as set',
-    (bytes, limit, message) => {
-      const text = textOf(bytes, 'a', 1);
-
-      expect(parse(text, limit)).toStrictEqual(refused('text_too_large', message));
-    },
-  );
-
-  it('[TAX-17] [CL-IMP-27] refuses exactly the texts whose UTF-8 encoding is longer than the bound', () => {
-    // A bound of 20 bytes.
-    const bound = 20 / 1_000_000;
-
-    fc.assert(
-      fc.property(fc.string({ unit: 'binary', maxLength: 30 }), (text) => {
-        const isOver = new TextEncoder().encode(text).length > 20;
-        const result = parse(text, bound);
-
-        expect(!result.ok && result.error.kind === 'text_too_large').toBe(isOver);
-      }),
+    expect(parse(atLimit, 0.5)).toStrictEqual(read([]));
+    expect(parse(` ${atLimit}`, 0.5)).toStrictEqual(
+      refused('text_too_large', 'The pasted text is 0.51 MB, over the 0.5 MB limit.'),
     );
   });
 });

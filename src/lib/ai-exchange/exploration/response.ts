@@ -3,14 +3,16 @@
 // UTF-8 bytes (IMP-02, CL-IMP-27), then extractJson isolates its JSON object, this format
 // preferred among several (IMP-04). A text that holds no single readable response is
 // refused whole, with a plain message that says what is wrong and how to fix it; a cut
-// response is never recovered, unlike a research result (CL-IMP-18). Otherwise each
-// element of each proposed type is read in its form or reported missing, unknown fields
-// are ignored and flagged once (IMP-16), and a possible citation marker in a text that a
-// proposal would store is flagged, never rewritten (CL-IMP-07). Nothing else is repaired,
-// and every text stays as written. The source checks of IMP-14 on the illustration
-// sources are the taxonomy's (taxonomy/exploration.ts).
+// response is never recovered, unlike a research result (CL-IMP-18), and a research
+// result is no exploration response, whether it can be read or not (CA-TAX-17).
+// Otherwise each element of each proposed type is read in its form or reported missing,
+// unknown fields are ignored and flagged once (IMP-16), and a possible citation marker
+// in a text that a proposal would store is flagged, never rewritten (CL-IMP-07). Nothing
+// else is repaired, and every text stays as written. The source checks of IMP-14 on the
+// illustration sources are the taxonomy's (taxonomy/exploration.ts).
 import { canonicalValue, isAbsent } from '../conventions';
 import { extractJson } from '../extract-json';
+import { checkPastedTextSize } from './pasted-text-size';
 import { hasPossibleCitationMarker } from '../research-result/text-signals';
 
 import type { ExtractJsonError, JsonPath } from '../extract-json';
@@ -69,11 +71,11 @@ export type IllustrationSource = Readonly<{
  * missing: left out, null, an empty text or a value of another form (CL-IMP-06). Texts
  * stay as written; the documentation difficulty is the glossary's value (CL-IMP-22);
  * `knownInAdvance` is the "known in advance" mark only, never "derived from the calendar"
- * (CL-TAX-20); a list keeps its texts or its sources, possibly none. An item without a
- * name cannot become a proposal. `missingElements` lists the missing elements in the
- * order of the format, and `citationMarkers` the texts of the sheet that hold a possible
- * citation marker (CL-IMP-07); the possible overlaps, which are never stored, are not
- * looked at.
+ * (CL-TAX-20); a list keeps its texts or its sources, and is missing when it keeps none,
+ * since the format leaves out an element without content. An item without a name cannot
+ * become a proposal. `missingElements` lists the missing elements in the order of the
+ * format, and `citationMarkers` the texts of the sheet that hold a possible citation
+ * marker (CL-IMP-07); the possible overlaps, which are never stored, are not looked at.
  */
 export type ProposedType = (
   | Readonly<{ canBecomeProposal: true; name: string }>
@@ -148,11 +150,14 @@ type Header = Readonly<{ format: Deviation | undefined; version: VersionDeviatio
 
 // The name and the version of the format (TAX-17, CL-TAX-04), and the version written 1,
 // as a text or a number, which reads as 1.0 with a warning (CL-IMP-06); JSON reads the
-// number 1.0 as 1.
+// number 1.0 as 1. The research result's format (BKT-24) is the other format of Egoscope,
+// which extractJson knows too.
 const EXPLORATION_FORMAT = 'egoscope-exploration';
 const FORMAT_VERSION = '1.0';
 const SHORT_VERSION = '1';
 const SHORT_VERSION_NUMBER = 1;
+const BACKTEST_FORMAT = 'egoscope-backtest';
+type EgoscopeFormat = typeof BACKTEST_FORMAT | typeof EXPLORATION_FORMAT;
 
 // The keys of the format at the root and in a source (glossary section 6.2): any other
 // is an unknown field. The outlet and the title are the texts of a source that a
@@ -160,14 +165,6 @@ const SHORT_VERSION_NUMBER = 1;
 const RESPONSE_KEYS: readonly string[] = ['format', 'format_version', 'proposed_types'];
 const SOURCE_KEYS: readonly string[] = ['url', 'outlet', 'title', 'publication_date'];
 const SOURCE_TEXTS: readonly ('outlet' | 'title')[] = ['outlet', 'title'];
-
-// A megabyte is 1,000,000 bytes of UTF-8 (CL-IMP-27). A size is written in MB to the
-// hundredth above, so that a text over the limit never reads as one at the limit.
-const BYTES_PER_MEGABYTE = 1_000_000;
-const HUNDREDTHS = 100;
-// encodeURIComponent writes each byte of a character's UTF-8 encoding that is no
-// unreserved ASCII character as %XX: three characters, two more than the byte.
-const EXTRA_CHARACTERS_PER_ESCAPE = 2;
 
 // The plain messages, worded like the import's (glossary section 7.3, CL-IMP-02): the
 // place, what is wrong, how to fix it. The refusal of another format is the glossary's
@@ -196,26 +193,10 @@ const UNKNOWN_FIELDS: ExplorationWarning = {
   message: 'Unknown fields ignored',
 };
 
-function refused(
-  kind: ExplorationResponseError['kind'],
-  message: string,
-): ExplorationResponseResult {
+type RefusalKind = ExplorationResponseError['kind'];
+
+function refused(kind: RefusalKind, message: string): ExplorationResponseResult {
   return { ok: false, error: { kind, message } };
-}
-
-/**
- * The size of a text in UTF-8, in bytes. A lone surrogate, which encodeURIComponent
- * refuses, counts as the replacement character U+FFFD that an encoder writes instead.
- */
-function utf8Size(text: string): number {
-  const encoded = encodeURIComponent(text.toWellFormed());
-  const escapes = encoded.split('%').length - 1;
-  return encoded.length - escapes * EXTRA_CHARACTERS_PER_ESCAPE;
-}
-
-/** A size in bytes, in MB to the hundredth above. */
-function megabytes(bytes: number): string {
-  return String(Math.ceil((bytes * HUNDREDTHS) / BYTES_PER_MEGABYTE) / HUNDREDTHS);
 }
 
 /** The 1-based position of the proposed type that a place lies in, if it lies in one. */
@@ -227,7 +208,8 @@ function proposedTypeAt(path: JsonPath): number | undefined {
 /**
  * Where a syntax error lies, roughly (IMP-04): in a proposed type, by its position; at
  * the start of the response, before its first key; or around the field of the root that
- * the reading last entered.
+ * the reading last entered, named when the format defines it. Any other key is the AI's
+ * own text, which a message never quotes (CL-IMP-02).
  */
 function syntaxErrorPlace(path: JsonPath): string {
   const position = proposedTypeAt(path);
@@ -235,7 +217,11 @@ function syntaxErrorPlace(path: JsonPath): string {
     return `around proposed type ${String(position)}`;
   }
   const [key] = path;
-  return key === undefined ? 'at the start of the response' : `around the field ${String(key)}`;
+  if (key === undefined) {
+    return 'at the start of the response';
+  }
+  const field = String(key);
+  return RESPONSE_KEYS.includes(field) ? `around the field ${field}` : 'around an unknown field';
 }
 
 function cutMessage(path: JsonPath): string {
@@ -244,8 +230,32 @@ function cutMessage(path: JsonPath): string {
   return `The text stops before the end of the response${cutOff}. ${CUT_FIX}`;
 }
 
-/** Why no single object could be read, as the refusal of the response. */
-function extractionRefusal(error: ExtractJsonError): ExplorationResponseResult {
+/**
+ * Says whether the text holds an object that names this format in its own `format`
+ * member, read as extractJson reads it: before the object's fault or its cut, compared as
+ * CL-IMP-22 says. The errors of extractJson do not say which format the objects that it
+ * could not read name, so extractJson is asked rather than redone: an object in this
+ * format, put before the text, changes how no object of the text is read, and extractJson
+ * keeps it with the objects that name the format (IMP-04), so that it gives it back alone
+ * when there are none. A copy of it among them would count as the same object, but this
+ * is asked only of a text whose reading failed among them, if any, and copies never make
+ * a reading fail.
+ */
+function hasObjectInFormat(text: string, format: EgoscopeFormat): boolean {
+  return !extractJson(`${JSON.stringify({ format })}\n${text}`, format).ok;
+}
+
+/**
+ * Why no single object could be read, as the refusal of the response. When an object of
+ * the text names the research result's format and none the exploration format, which
+ * extractJson would have kept instead, the text is a research result, cut, broken or
+ * pasted twice, and so no exploration response (TAX-17, CA-TAX-17). A format written
+ * after a fault or a cut is never read, so such an object keeps the refusal of its fault.
+ */
+function extractionRefusal(text: string, error: ExtractJsonError): ExplorationResponseResult {
+  if (!hasObjectInFormat(text, EXPLORATION_FORMAT) && hasObjectInFormat(text, BACKTEST_FORMAT)) {
+    return refused('not_an_exploration_response', NOT_AN_EXPLORATION_RESPONSE);
+  }
   switch (error.kind) {
     case 'no_result_found': {
       return refused('no_result_found', NO_RESPONSE_FOUND);
@@ -272,6 +282,15 @@ function fieldsOf(value: unknown): Fields {
 /** The elements of a value that JSON read, when it is a list; undefined otherwise. */
 function listOf(value: unknown): readonly unknown[] | undefined {
   return Array.isArray(value) ? value : undefined;
+}
+
+/**
+ * A list read for an optional element, undefined when it holds nothing: the format leaves
+ * out an element without content (CL-TAX-04), so an empty one is missing, like an empty
+ * text (CL-IMP-06).
+ */
+function contentOf<T>(list: readonly T[] | undefined): readonly T[] | undefined {
+  return list === undefined || list.length === 0 ? undefined : list;
 }
 
 /** Says whether a value is a text with content, which null or an empty text is not (CL-IMP-06). */
@@ -306,6 +325,8 @@ function readProposedType(value: unknown): ProposedType {
   const texts = SHEET_TEXTS.map((key): SheetTextRead => [key, textOf(fields.get(key))]);
   const text = new Map(texts);
   const known = fields.get('known_in_advance');
+  const overlaps = listOf(fields.get('possible_overlaps'))?.filter((element) => isText(element));
+  const sources = listOf(fields.get('illustration_sources'))?.map((item) => sourceOf(item));
   const elements = {
     definition: text.get('definition'),
     inclusionCriteria: text.get('inclusion_criteria'),
@@ -314,8 +335,8 @@ function readProposedType(value: unknown): ProposedType {
     knownInAdvance: typeof known === 'boolean' ? known : undefined,
     genericExample: text.get('generic_example'),
     documentationDifficulty: canonicalValue(fields.get('documentation_difficulty'), DIFFICULTIES),
-    possibleOverlaps: listOf(fields.get('possible_overlaps'))?.filter((element) => isText(element)),
-    illustrationSources: listOf(fields.get('illustration_sources'))?.map((item) => sourceOf(item)),
+    possibleOverlaps: contentOf(overlaps),
+    illustrationSources: contentOf(sources),
   };
   // Each element as read, by its key: the texts of the sheet, then the others.
   const read = new Map<ProposedTypeElement, unknown>([
@@ -422,26 +443,24 @@ function readResponse(root: Fields): ExplorationResponseResult {
  * refused whole, with a plain message, when the text holds no object or several different
  * ones; when the JSON breaks its syntax, located around its proposed type; when the text
  * is cut, with the advice to ask for fewer types; for any other format, egoscope-backtest
- * included ("This text is not an exploration response.", CA-TAX-17); for an unknown
- * version, with the advice to generate the prompt again; and without its list of proposed
- * types. A missing format or version, the list being there, reads as 1.0 with a warning,
- * and so does the version written 1 (CL-IMP-06); closed values are compared trimmed,
- * without case or accents (CL-IMP-22). Each proposed type is read with its missing
- * elements and its citation markers (CL-IMP-07); unknown fields are ignored and flagged
- * once (IMP-16).
+ * included, a research result that cannot be read too ("This text is not an exploration
+ * response.", CA-TAX-17); for an unknown version, with the advice to generate the prompt
+ * again; and without its list of proposed types. A missing format or version, the list
+ * being there, reads as 1.0 with a warning, and so does the version written 1
+ * (CL-IMP-06); closed values are compared trimmed, without case or accents (CL-IMP-22).
+ * Each proposed type is read with its missing elements and its citation markers
+ * (CL-IMP-07); unknown fields are ignored and flagged once (IMP-16).
  */
 export function parseExplorationResponse(
   pastedText: string,
   params: Readonly<{ maxPastedTextMegabytes: number }>,
 ): ExplorationResponseResult {
-  const size = utf8Size(pastedText);
-  const limit = params.maxPastedTextMegabytes;
-  if (size > limit * BYTES_PER_MEGABYTE) {
-    const message = `The pasted text is ${megabytes(size)} MB, over the ${String(limit)} MB limit.`;
-    return refused('text_too_large', message);
+  const size = checkPastedTextSize(pastedText, params.maxPastedTextMegabytes);
+  if (!size.ok) {
+    return size;
   }
   const extracted = extractJson(pastedText, EXPLORATION_FORMAT);
   return extracted.ok
     ? readResponse(fieldsOf(extracted.value))
-    : extractionRefusal(extracted.error);
+    : extractionRefusal(pastedText, extracted.error);
 }
