@@ -1,10 +1,46 @@
 import { z } from 'zod';
 
 import { incidents } from '@/lib/db';
+import { readServerEnv } from '@/lib/env';
 import { toEpochMs } from '@/lib/time';
+
+import type { Secret } from '@/lib/env';
 
 // The longest error message kept from a service's error object (CL-DSN-11).
 const MAX_ERROR_MESSAGE_LENGTH = 300;
+
+/** Says whether a value of the configuration is a secret: the one kind of value that reveals one. */
+const isSecretValue = (value: unknown): value is Secret =>
+  value instanceof Object && 'reveal' in value;
+
+/**
+ * The secrets of the deployment configuration (TRV-64), longest first, so that a secret
+ * that holds another goes whole. None while the configuration is invalid: nothing then
+ * reached a service or the database with one.
+ */
+function configuredSecrets(): readonly Secret[] {
+  const configuration = readServerEnv();
+  const values: readonly unknown[] = configuration.ok ? Object.values(configuration.env) : [];
+  return values
+    .filter((value) => isSecretValue(value))
+    .toSorted((left, right) => right.reveal().length - left.reveal().length);
+}
+
+/**
+ * `text` with every secret of the configuration replaced by its mask, "[secret]", so
+ * that the details never hold a password, a key or a token (TRV-44, TRV-64): each value
+ * that the configuration holds as a `Secret`, until F-env's `redact` takes this place.
+ */
+function withoutSecrets(text: string): string {
+  let kept = text;
+  for (const secret of configuredSecrets()) {
+    kept = kept.replaceAll(secret.reveal(), () => secret.toString());
+  }
+  return kept;
+}
+
+// A text of the details, which no secret of the configuration ever reaches (TRV-44).
+const detailText = z.string().transform((text) => withoutSecrets(text));
 
 /**
  * The technical details of an entry, stored apart and hidden unless asked for, for
@@ -14,11 +50,13 @@ const MAX_ERROR_MESSAGE_LENGTH = 300;
  * returned, at most 300 characters and never from a successful response, request
  * identifiers, sizes and counts, and a structured response's validation outcome. Never
  * a request or response body, a feed item, an article's title, link or excerpt, a model
- * output, a prompt or anything of DSN-18 (DSN-11).
+ * output, a prompt or anything of DSN-18 (DSN-11), and never a secret of the
+ * configuration, which every text of them loses before it is kept, an error message
+ * before its cut (TRV-44).
  */
 const technicalDetailsSchema = z.object({
   service: z.enum(incidents.serviceRole.enumValues).optional(),
-  operation: z.string().optional(),
+  operation: detailText.optional(),
   at: z
     .number()
     .int()
@@ -26,30 +64,29 @@ const technicalDetailsSchema = z.object({
     .optional(),
   durationMs: z.number().nonnegative().optional(),
   httpStatus: z.number().int().optional(),
-  errorCode: z.string().optional(),
-  errorMessage: z
-    .string()
+  errorCode: detailText.optional(),
+  errorMessage: detailText
     .transform((message) => message.slice(0, MAX_ERROR_MESSAGE_LENGTH))
     .optional(),
-  requestIds: z.array(z.string()).readonly().optional(),
+  requestIds: z.array(detailText).readonly().optional(),
   bytes: z.number().int().nonnegative().optional(),
   items: z.number().int().nonnegative().optional(),
   tokens: z.number().int().nonnegative().optional(),
   validation: z
-    .object({ field: z.string(), position: z.number().int().nonnegative().optional() })
+    .object({ field: detailText, position: z.number().int().nonnegative().optional() })
     .optional(),
 });
 
 /** The technical details of an entry, as its writer gives them (TRV-44, CL-DSN-11). */
 export type TechnicalDetails = Readonly<z.input<typeof technicalDetailsSchema>>;
 
-/** The technical details as the journal keeps and shows them: an error message cut at 300 characters. */
+/** The technical details as the journal keeps and shows them: no secret, an error message cut at 300 characters. */
 export type StoredTechnicalDetails = Readonly<z.output<typeof technicalDetailsSchema>>;
 
 /**
  * The details that the journal keeps of `details`: the allowlisted keys only, whatever
- * else a caller's object carries, and an error message cut at 300 characters
- * (TRV-44, DSN-11, CL-DSN-11).
+ * else a caller's object carries, every secret of the configuration masked in their
+ * texts, then an error message cut at 300 characters (TRV-44, TRV-64, DSN-11, CL-DSN-11).
  */
 export function keptDetails(details: TechnicalDetails): StoredTechnicalDetails {
   return technicalDetailsSchema.parse(details);
