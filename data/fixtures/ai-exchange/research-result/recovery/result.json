@@ -1,0 +1,64 @@
+{
+  "format": "egoscope-backtest",
+  "format_version": "1.0",
+  "request_reference": "REQ-2026-0007",
+  "player": { "id": "8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f", "name": "Player A" },
+  "covered_types": ["public-humiliation", "media-storm"],
+  "covered_period": { "start": "2020-12-22", "end": "2021-05-16" },
+  "events": [
+    {
+      "event_type": "public-humiliation",
+      "public_date": "2021-01-14",
+      "description": "An opposing head coach mocked the player's defense in a televised interview.",
+      "sources": [
+        {
+          "url": "https://www.national-outlet.example/basketball/2021/01/14/coach-remarks",
+          "outlet": "National Outlet",
+          "title": "Opposing coach takes aim at the forward's defense",
+          "publication_date": "2021-01-14T18:30-05:00"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": "high"
+    },
+    {
+      "event_type": "media-storm",
+      "public_date": "2021-03-02",
+      "description": "Several outlets questioned the player's commitment after a tense media session.",
+      "sources": [
+        {
+          "url": "https://www.city-daily.example/sports/2021/03/02/media-session",
+          "outlet": "City Daily",
+          "title": "Tense media session puts the forward under scrutiny",
+          "publication_date": "2021-03-02"
+        }
+      ],
+      "context": { "injury_return": "unknown", "game_stakes": "high" },
+      "confidence": "medium"
+    },
+    {
+      "event_type": "public-humiliation",
+      "public_date": "2021-04-20T21:05-04:00",
+      "description": "A rival guard mocked the player's shooting slump during a postgame press conference.",
+      "sources": [
+        {
+          "url": "https://www.league-wire.example/2021/04/20/postgame-remarks",
+          "outlet": "League Wire",
+          "title": "Rival guard needles the forward after the win",
+          "publication_date": "2021-04-20T23:40-04:00"
+        }
+      ],
+      "context": { "injury_return": "yes", "game_stakes": "high" },
+      "confidence": "medium"
+    }
+  ],
+  "unverified_leads": [
+    {
+      "event_type": "media-storm",
+      "approximate_period": "2020-21 season",
+      "description": "A podcast reportedly discussed the player's attitude in practice.",
+      "reason": "No dated press article could be found."
+    }
+  ],
+  "limitations": ["Local outlets were not searched before 2021."]
+}
