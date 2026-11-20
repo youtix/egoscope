@@ -40,6 +40,8 @@ const UNSORTED = 'events_not_sorted';
 // The types of the request that the example answers, from 2019-10-23 to 2026-11-11.
 const REQUESTED = ['player-conflict', 'public-humiliation', 'racist-abuse', 'record-approach'];
 const PLAYER_ID = '8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f';
+// A place inside the description of the example's third event, written compact.
+const IN_THIRD_EVENT = '"description":"A national outlet notes';
 
 const [HUMILIATION, CONFLICT, RECORD] = example.events;
 const [SNEER, TAUNT] = HUMILIATION?.sources ?? [];
@@ -62,17 +64,22 @@ const eastern = (text: string, at: number): DateReading => ({
 
 const MISSING_DATE: DateReading = { ok: false, error: { kind: 'missing' } };
 const NO_CONTEXT = { injuryReturn: undefined, gameStakes: undefined, detail: undefined };
+const NO_TEXT = { url: undefined, outlet: undefined, title: undefined };
 
-/** A source of the example as read: its texts as written, and its publication date. */
-const sourceOf = (raw: typeof SNEER, publicationDate: DateReading): ResearchSource => ({
-  url: raw?.url,
-  outlet: raw?.outlet,
-  title: raw?.title,
-  publicationDate,
-});
-
-const SNEER_READ = sourceOf(SNEER, eastern('2021-01-14T23:40-05:00', Date.UTC(2021, 0, 15, 4, 40)));
-const TAUNT_READ = sourceOf(TAUNT, day('2021-01-15'));
+// The example as read, every text written out as the example writes it (CL-BKT-02), so
+// that a text that the example leaves out or changes fails the tests.
+const SNEER_READ: ResearchSource = {
+  url: 'https://www.site-basket.example/news/2021/01/14/rival-mocks-player-a',
+  outlet: 'A specialist basketball site (fictitious)',
+  title: 'Rival mocks Player A in post-game press conference',
+  publicationDate: eastern('2021-01-14T23:40-05:00', Date.UTC(2021, 0, 15, 4, 40)),
+};
+const TAUNT_READ: ResearchSource = {
+  url: 'https://www.media-national.example/basket/2021/01/15/le-joueur-a-raille',
+  outlet: 'A national outlet (fictitious)',
+  title: 'Player A taunted by an opponent',
+  publicationDate: day('2021-01-15'),
+};
 const CONFLICT_CONTEXT: ContextIndications = {
   injuryReturn: 'no',
   gameStakes: 'high',
@@ -82,7 +89,8 @@ const CONFLICT_CONTEXT: ContextIndications = {
 const HUMILIATION_READ: ResearchEvent = {
   eventType: 'public-humiliation',
   publicDate: eastern('2021-01-14T23:10-05:00', Date.UTC(2021, 0, 15, 4, 10)),
-  description: HUMILIATION?.description,
+  description:
+    'After a game against team Y, an opposing player publicly mocks player A at a press conference; a specialist site reports it the same evening.',
   sources: [SNEER_READ, TAUNT_READ],
   context: { injuryReturn: 'no', gameStakes: 'normal', detail: undefined },
   researchConfidence: 'high',
@@ -92,8 +100,16 @@ const HUMILIATION_READ: ResearchEvent = {
 const CONFLICT_READ: ResearchEvent = {
   eventType: 'player-conflict',
   publicDate: day('2023-04-26'),
-  description: CONFLICT?.description,
-  sources: [sourceOf(CONFLICT?.sources[0], day('2023-04-26'))],
+  description:
+    'Verbal altercation between player A and a team X teammate during a timeout; a regional daily reports it the same evening.',
+  sources: [
+    {
+      url: 'https://www.quotidien-regional.example/sports/2023/04/26/tension-sur-le-banc-de-l-equipe-x',
+      outlet: 'A regional daily (fictitious)',
+      title: 'Tension on the team X bench',
+      publicationDate: day('2023-04-26'),
+    },
+  ],
   context: CONFLICT_CONTEXT,
   researchConfidence: 'medium',
   unverifiedNote: 'Only one source found; publication time unknown.',
@@ -102,17 +118,31 @@ const CONFLICT_READ: ResearchEvent = {
 const RECORD_READ: ResearchEvent = {
   eventType: 'record-approach',
   publicDate: day('2025-12-02'),
-  description: RECORD?.description,
-  sources: [sourceOf(RECORD?.sources[0], day('2025-12-02'))],
-  context: { injuryReturn: 'yes', gameStakes: 'normal', detail: RECORD?.context.detail },
+  description:
+    'A national outlet notes that player A can become, as early as his next game, the youngest team X player to pass a historic franchise milestone.',
+  sources: [
+    {
+      url: 'https://www.media-national.example/basket/2025/12/02/le-joueur-a-aux-portes-d-un-record',
+      outlet: 'A national outlet (fictitious)',
+      title: 'Player A on the verge of a team X record',
+      publicationDate: day('2025-12-02'),
+    },
+  ],
+  context: {
+    injuryReturn: 'yes',
+    gameStakes: 'normal',
+    detail: 'First game after several games missed.',
+  },
   researchConfidence: 'low',
-  unverifiedNote: RECORD?.unverified_note,
+  unverifiedNote:
+    'The topic may have come up a few days earlier: the public date remains uncertain.',
 };
 
 const LEAD_READ: UnverifiedLead = {
   eventType: 'racist-abuse',
   approximatePeriod: '2020-21 season',
-  description: LEAD?.description,
+  description:
+    'A later article mentions hostile remarks aimed at player A during a road trip, without giving the date.',
   reason: 'No source published before the game concerned was found.',
 };
 
@@ -125,7 +155,10 @@ const EXAMPLE_RESULT: ResearchResult = {
   coveredPeriod: { startOn: '2019-10-23', endOn: '2026-11-11' },
   events: [HUMILIATION_READ, CONFLICT_READ, RECORD_READ],
   unverifiedLeads: [LEAD_READ],
-  declaredLimitations: example.limitations,
+  declaredLimitations: [
+    '2019-20 season: few accessible articles, as player A had little media coverage then.',
+    'Subscriber-only articles not consulted: some facts may have escaped the research.',
+  ],
 };
 
 const NO_LIST: Partial<ResearchResult> = { unverifiedLeads: [], declaredLimitations: [] };
@@ -168,17 +201,22 @@ const accepted = (
   recovery?: TruncationRecovery,
 ): ReadResultOutcome => ({ ok: true, result, resultWarnings, recovery });
 
-/** The outcome that refuses the whole result with these blocking errors, in their order. */
+/**
+ * The outcome that refuses the whole result with these blocking errors, in their order,
+ * and what the recovery says of a cut answer that it allowed.
+ */
 const refused = (
   kinds: readonly string[],
   resultWarnings: readonly ReadResultWarning[] = [],
-): unknown => ({ ok: false, errors: kinds.map((kind) => ({ kind })), resultWarnings });
+  recovery?: TruncationRecovery,
+): unknown => ({ ok: false, errors: kinds.map((kind) => ({ kind })), resultWarnings, recovery });
 
 /** The outcome that refuses the whole result with one error at a place of the text. */
 const refusedAt = (kind: string, path: readonly (number | string)[]): unknown => ({
   ok: false,
   errors: [{ kind, path }],
   resultWarnings: [],
+  recovery: undefined,
 });
 
 /** What the recovery says of a result cut inside its events list, but for `changes`. */
@@ -401,12 +439,15 @@ describe('readResult', () => {
     const result = resultWith({
       reference: undefined,
       events: [
-        { ...humiliation, sources: [sneer, TAUNT_READ, sourceOf(undefined, MISSING_DATE)] },
+        {
+          ...humiliation,
+          sources: [sneer, TAUNT_READ, { ...NO_TEXT, publicationDate: MISSING_DATE }],
+        },
         { ...conflict, unverifiedNote: undefined },
         { ...RECORD_READ, context: NO_CONTEXT, researchConfidence: undefined },
       ],
       unverifiedLeads: [{ ...LEAD_READ, approximatePeriod: undefined, eventType: undefined }],
-      declaredLimitations: [...example.limitations, undefined, undefined],
+      declaredLimitations: [...EXAMPLE_RESULT.declaredLimitations, undefined, undefined],
     });
 
     expect(read(pasted(changes))).toStrictEqual(accepted(result));
@@ -455,13 +496,26 @@ describe('readResult', () => {
   });
 
   it('[IMP-05] [CL-IMP-18] refuses a cut answer that the recovery does not allow as cut, at the place of the cut', () => {
-    const unsorted = pasted({ events: [CONFLICT, HUMILIATION, RECORD] });
-    const cut = cutAfter(unsorted, '"description":"A national outlet notes');
+    const cut = cutAfter(pasted({ events: [CONFLICT, HUMILIATION, RECORD] }), IN_THIRD_EVENT);
     const inHeader = cutInsideHeader.pasted.join('\n');
 
     expect(read(inHeader)).toStrictEqual(refusedAt('cut_not_recoverable', [COVERED_PERIOD, 'end']));
     expect(read(cut)).toStrictEqual(refusedAt('cut_not_recoverable', ['events', 2, 'description']));
   });
+
+  it.each([
+    ['covered types that name no requested type', { [COVERED_TYPES]: ['media-storm'] }, TYPES],
+    ['an unknown version', { [FORMAT_VERSION]: '2.0' }, 'unknown_version'],
+  ])(
+    '[IMP-05] [CL-IMP-18] [CL-IMP-04] refuses a cut answer that the recovery allows, with %s, as a whole one, and keeps what the recovery says of the cut, which the correction message needs',
+    (_case, changes, kind) => {
+      const cut = cutAfter(pasted(changes), IN_THIRD_EVENT);
+      const cutInThirdEvent = recovery({ recoveredEventCount: 2 });
+
+      expect(read(cut)).toStrictEqual(refused([kind], [], cutInThirdEvent));
+      expect(read(pasted(changes))).toStrictEqual(refused([kind]));
+    },
+  );
 
   it('[IMP-05] [CL-IMP-18] reads a result cut after its closed events list with its covered period as written, unsorted events with their warning, and no missing-list warning for a list that the cut lost', () => {
     const marker = '"limitations":["2019-20';
@@ -502,7 +556,7 @@ describe('readResult', () => {
       researchConfidence: undefined,
     };
     const events = [noEvent, ...EXAMPLE_RESULT.events];
-    const declaredLimitations = [undefined, ...example.limitations];
+    const declaredLimitations = [undefined, ...EXAMPLE_RESULT.declaredLimitations];
     const warning: ReadResultWarning = { kind: 'unknown_fields', detail: 1 };
 
     expect(read(text)).toStrictEqual(

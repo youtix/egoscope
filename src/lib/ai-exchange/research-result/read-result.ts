@@ -28,10 +28,12 @@ import type {
 import type { CutRecovery } from './recover-cut';
 
 /**
- * What the recovery of a cut result says of it (IMP-05, CL-IMP-18), for the preview's
- * notice and the import trace: how many events it recovered, whether the cut fell after
- * the events list, which lists the cut lost, and whether the shortened covered period
- * ends before it starts.
+ * What the recovery of a cut result says of it (IMP-05, CL-IMP-18): how many events it
+ * recovered, whether the cut fell after the events list, which lists the cut lost, and
+ * whether the shortened covered period ends before it starts. A result read takes it to
+ * the preview's notice and the import trace; a result refused once recovered keeps it for
+ * the correction message, whose paragraph for a cut answer names the event being written
+ * at the cut (IMP-21, CL-IMP-04).
  */
 export type TruncationRecovery = Omit<CutRecovery, 'value'>;
 
@@ -74,10 +76,12 @@ export type ReadResultWarning =
   | Readonly<{ kind: 'unknown_fields' | 'events_not_sorted'; detail: number }>;
 
 /**
- * A research result read in format 1.0 with its whole-result warnings and, when it was
- * recovered from a cut answer, what the recovery says of it; or the blocking errors that
- * refuse it, every one that its covered types, its covered period and its events give
- * (IMP-09), with the warnings found until then.
+ * A research result read in format 1.0 with its whole-result warnings; or the blocking
+ * errors that refuse it, every one that its covered types, its covered period and its
+ * events give (IMP-09), with the warnings found until then. Either one, when the result
+ * was recovered from a cut answer, carries what the recovery says of it: a refused one
+ * too, since an IMP-06 or IMP-09 error alone does not say that the answer was cut, and
+ * the correction message then asks for the rest (IMP-21, CL-IMP-04).
  */
 export type ReadResultOutcome =
   | Readonly<{
@@ -90,6 +94,7 @@ export type ReadResultOutcome =
       ok: false;
       errors: readonly ReadResultError[];
       resultWarnings: readonly ReadResultWarning[];
+      recovery: TruncationRecovery | undefined;
     }>;
 
 type Members = Readonly<Record<string, unknown>>;
@@ -302,8 +307,16 @@ function unknownFieldsWarning(unknownFieldCount: number): readonly ReadResultWar
   return unknownFieldCount > 0 ? [{ kind: 'unknown_fields', detail: unknownFieldCount }] : [];
 }
 
-function refused(errors: readonly ReadResultError[]): ReadResultOutcome {
-  return { ok: false, errors, resultWarnings: NO_WARNINGS };
+/**
+ * The outcome that refuses the whole result, with the warnings found until then and what
+ * the recovery says of a cut answer that it allowed.
+ */
+function refused(
+  errors: readonly ReadResultError[],
+  recovery?: TruncationRecovery,
+  resultWarnings: readonly ReadResultWarning[] = NO_WARNINGS,
+): ReadResultOutcome {
+  return { ok: false, errors, resultWarnings, recovery };
 }
 
 function readPlayer(value: unknown): ResearchResult['player'] {
@@ -321,7 +334,7 @@ function readObject(
   const root = membersOf(stripped.value);
   const version = identify(root);
   if (!version.ok) {
-    return refused([version.error]);
+    return refused([version.error], recovery);
   }
   const coveredTypes = readCoveredTypes(root['covered_types'], requestedTypes);
   const coveredPeriod = readCoveredPeriod(
@@ -338,11 +351,8 @@ function readObject(
     ...unknownFieldsWarning(stripped.unknownFieldCount),
   ];
   if (!coveredTypes.ok || !coveredPeriod.ok || !events.ok) {
-    return {
-      ok: false,
-      errors: checked.flatMap((member) => (member.ok ? [] : [member.error])),
-      resultWarnings,
-    };
+    const errors = checked.flatMap((member) => (member.ok ? [] : [member.error]));
+    return refused(errors, recovery, resultWarnings);
   }
   return {
     ok: true,
@@ -367,17 +377,18 @@ function readObject(
  * text (IMP-04), a result kept over an exploration response pasted with it, and a cut
  * answer goes to the recovery of IMP-05, which, when it allows, gives the result read like
  * a whole one, every recovered event included, its covered period as the recovery leaves
- * it (CL-IMP-18). The result names format egoscope-backtest and version 1.0; a missing
- * format or version assumes 1.0 with a warning when the structure is recognized
- * (CL-IMP-06), and version 1 does with a warning. Its covered types, which must hold one
- * of `requestedTypes`, the request's types, count each once (CL-IMP-23); its covered
- * period keeps the calendar dates of its bounds (CL-IMP-08); its events are a list, maybe
- * empty (BKT-23), whose order the warning of CL-IMP-19 checks; missing leads and
- * limitations read as empty with a warning. Identifiers, enumerated values, the format and
- * its version compare trimmed, without case or accents (CL-IMP-22); a key that the format
- * does not define is dropped, and counted in one warning (IMP-16); `null` or a blank text
- * is a missing field (CL-IMP-06). The reference and the player come back as written, for
- * the import to tie to the request (IMP-07).
+ * it (CL-IMP-18); read or refused, it keeps what the recovery says of the cut, which the
+ * correction message needs (IMP-21, CL-IMP-04). The result names format egoscope-backtest
+ * and version 1.0; a missing format or version assumes 1.0 with a warning when the
+ * structure is recognized (CL-IMP-06), and version 1 does with a warning. Its covered
+ * types, which must hold one of `requestedTypes`, the request's types, count each once
+ * (CL-IMP-23); its covered period keeps the calendar dates of its bounds (CL-IMP-08); its
+ * events are a list, maybe empty (BKT-23), whose order the warning of CL-IMP-19 checks;
+ * missing leads and limitations read as empty with a warning. Identifiers, enumerated
+ * values, the format and its version compare trimmed, without case or accents
+ * (CL-IMP-22); a key that the format does not define is dropped, and counted in one
+ * warning (IMP-16); `null` or a blank text is a missing field (CL-IMP-06). The reference
+ * and the player come back as written, for the import to tie to the request (IMP-07).
  */
 export function readResult(
   pastedText: string,
