@@ -4,8 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { firstNbaGame, indicatorsOf } from './player-indicators';
 import { teamMembership } from './team-membership';
 
-import type { CareerSeasons, IndicatorLine } from './player-indicators';
-import type { SeasonSpan } from './seasons';
+import type {
+  CareerSeasons,
+  IndicatorLine,
+  IndicatorsResult,
+  PlayerIndicators,
+} from './player-indicators';
+import type { SeasonNotRead, SeasonSpan } from './seasons';
 import type { LinesGame, PlayerTeamChange } from './team-membership';
 import type { BoxScoreLine } from '../performance/box-score';
 
@@ -118,10 +123,29 @@ type Player = Readonly<{ lines: readonly IndicatorLine[]; history?: readonly Pla
 type Stored = Readonly<{ games?: readonly LinesGame[]; seasons: readonly SeasonSpan[] }>;
 
 /** His indicators on `todayOn`, his membership read from his lines and his team history. */
-function indicatorsFromHistory({ lines, history = [] }: Player, stored: Stored, todayOn: string) {
+function resultFromHistory(
+  { lines, history = [] }: Player,
+  stored: Stored,
+  todayOn: string,
+): IndicatorsResult {
   const stints = teamMembership(lines, history);
   return indicatorsOf({ stints, lines }, { games: [], ...stored }, todayOn);
 }
+
+/** The same indicators, the stored spans telling every season they need. */
+function indicatorsFromHistory(player: Player, stored: Stored, todayOn: string): PlayerIndicators {
+  const result = resultFromHistory(player, stored, todayOn);
+  if (!result.ok) {
+    throw new Error(`No season read between ${result.error.candidates.join(' and ')}.`);
+  }
+  return result.indicators;
+}
+
+/** The answer `season_not_read`, with the season that ends in the year of the day first. */
+const notRead = (ending: string, starting: string): SeasonNotRead => ({
+  ok: false,
+  error: { kind: 'season_not_read', candidates: [ending, starting] },
+});
 
 const observed = (on: string, newTeamId: number | null): PlayerTeamChange => ({
   id: Number(on.slice(2).replaceAll('-', '')),
@@ -201,10 +225,40 @@ describe('indicatorsOf: games played and average minutes', () => {
       indicatorSeason: '2026-27',
       gamesPlayedThisSeason: 0,
     });
-    expect(indicatorsFromHistory({ lines: [] }, { seasons: [] }, '2026-01-20')).toMatchObject({
-      indicatorSeason: '2025-26',
+    // 1998-99, alone stored, began late, on 5 February 1999.
+    const lateStart = { season: '1998-99', firstGameOn: '1999-02-05', lastGameOn: '1999-06-25' };
+    expect(
+      indicatorsFromHistory({ lines: [] }, { seasons: [lateStart] }, '1999-01-20'),
+    ).toMatchObject({
+      indicatorSeason: '1998-99',
       averageMinutesThisSeason: null,
     });
+  });
+
+  it.each([
+    ['nothing stored', [], '2026-01-20'],
+    [
+      'only 2024-25 stored, which he played in, the season in progress left out',
+      [LAST],
+      '2026-01-15',
+    ],
+  ])(
+    '[STA-46] [STA-48] [CL-STA-28] gives season_not_read, never an older season, while the stored spans cannot tell the season of the day: %s',
+    (_, seasons, todayOn) => {
+      const lines = [lineIn(X, '2025-03-01')];
+
+      expect(resultFromHistory({ lines }, { seasons }, todayOn)).toStrictEqual(
+        notRead('2025-26', '2026-27'),
+      );
+    },
+  );
+
+  it('[STA-46] [STA-48] [CL-STA-28] gives season_not_read when the stored spans cannot tell the season of a game he played', () => {
+    const lines = [lineIn(X, '2026-01-02'), lineIn(X, '2025-03-01')];
+
+    expect(resultFromHistory({ lines }, { seasons: [IN_PROGRESS] }, '2026-01-15')).toStrictEqual(
+      notRead('2024-25', '2025-26'),
+    );
   });
 });
 
@@ -411,7 +465,10 @@ describe('firstNbaGame', () => {
   ])(
     '[STA-47] [CL-STA-04] [CL-STA-12] gives the US date of the earliest official game he played once the earliest season listing him is stored: %s',
     (_, stored) => {
-      expect(firstNbaGame(CAREER, careerOf(stored), CAREER_SPANS)).toStrictEqual(DEBUT);
+      expect(firstNbaGame(CAREER, careerOf(stored), CAREER_SPANS)).toStrictEqual({
+        ok: true,
+        firstNbaGame: DEBUT,
+      });
     },
   );
 
@@ -434,7 +491,10 @@ describe('firstNbaGame', () => {
     ],
     ['no game played yet', [lineIn(X, '2020-12-23', NOT_PLAYED)], { '2020-21': true }],
   ])('[STA-47] [CL-STA-12] answers "date unknown" for %s', (_, lines, stored) => {
-    expect(firstNbaGame(lines, careerOf(stored), CAREER_SPANS)).toBeNull();
+    expect(firstNbaGame(lines, careerOf(stored), CAREER_SPANS)).toStrictEqual({
+      ok: true,
+      firstNbaGame: null,
+    });
   });
 
   it('[STA-47] [CL-STA-12] gives the earliest game he played after a first season he sat out, once every season up to it is stored', () => {
@@ -442,8 +502,16 @@ describe('firstNbaGame', () => {
     const stored = { '2018-19': true, '2019-20': true, '2020-21': true };
 
     expect(firstNbaGame(lines, careerOf(stored), CAREER_SPANS)).toStrictEqual({
-      firstNbaGameId: gameOf(X, '2020-12-23').id,
-      firstNbaGameOn: '2020-12-23',
+      ok: true,
+      firstNbaGame: { firstNbaGameId: gameOf(X, '2020-12-23').id, firstNbaGameOn: '2020-12-23' },
     });
+  });
+
+  it('[STA-47] [STA-48] [CL-STA-28] gives season_not_read when the stored spans cannot tell the season of the first game he played', () => {
+    const lines = [lineIn(X, '2016-11-15')];
+
+    expect(firstNbaGame(lines, careerOf({ '2016-17': true }), CAREER_SPANS)).toStrictEqual(
+      notRead('2015-16', '2016-17'),
+    );
   });
 });

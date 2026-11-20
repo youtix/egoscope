@@ -23,16 +23,21 @@ export type SeasonSpan = Readonly<{
 }>;
 
 /**
- * The season of a date (STA-48), or `season_not_read` when the stored spans cannot tell
- * it (CL-STA-28): its `candidates` are the season that ends in the date's year, then the
- * season that starts in it.
+ * The answer `season_not_read`, when the stored spans cannot tell the season of a date
+ * (STA-48, CL-STA-28): its `candidates` are the season that ends in the date's year, then
+ * the season that starts in it. A rule that cannot go on without that season gives it as
+ * its own answer.
  */
-export type SeasonOfDateResult =
-  | Readonly<{ ok: true; season: string }>
-  | Readonly<{
-      ok: false;
-      error: Readonly<{ kind: 'season_not_read'; candidates: readonly [string, string] }>;
-    }>;
+export type SeasonNotRead = Readonly<{
+  ok: false;
+  error: Readonly<{ kind: 'season_not_read'; candidates: readonly [string, string] }>;
+}>;
+
+/**
+ * The season of a date (STA-48), or `season_not_read` when the stored spans cannot tell
+ * it (CL-STA-28).
+ */
+export type SeasonOfDateResult = Readonly<{ ok: true; season: string }> | SeasonNotRead;
 
 /**
  * What the games module reads of a season whose schedule is stored to build its span

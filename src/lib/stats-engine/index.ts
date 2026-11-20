@@ -87,6 +87,7 @@ export type {
 // schedule/seasons.ts
 export { seasonOfDate } from './schedule/seasons';
 export { seasonSpan } from './schedule/seasons';
+export type { SeasonNotRead } from './schedule/seasons';
 export type { SeasonOfDateResult } from './schedule/seasons';
 export type { SeasonSpan } from './schedule/seasons';
 export type { SeasonSpanInput } from './schedule/seasons';
@@ -114,7 +115,9 @@ export { firstNbaGame } from './schedule/player-indicators';
 export { indicatorsOf } from './schedule/player-indicators';
 export type { CareerSeasons } from './schedule/player-indicators';
 export type { FirstNbaGame } from './schedule/player-indicators';
+export type { FirstNbaGameResult } from './schedule/player-indicators';
 export type { IndicatorLine } from './schedule/player-indicators';
+export type { IndicatorsResult } from './schedule/player-indicators';
 export type { PlayerIndicators } from './schedule/player-indicators';
 
 // --- measured-game/ --------------------------------------------------------------
@@ -297,6 +300,7 @@ export { formerTeamGames } from './calendar/calendar-games';
 export { gamesToDerive } from './calendar/calendar-games';
 export type { Birthday } from './calendar/calendar-games';
 export type { CalendarGame } from './calendar/calendar-games';
+export type { CalendarGamesResult } from './calendar/calendar-games';
 export type { CalendarPlayer } from './calendar/calendar-games';
 export type { CalendarSchedule } from './calendar/calendar-games';
 export type { DerivationRun } from './calendar/calendar-games';

@@ -12,7 +12,7 @@ import { verifyBoxScore } from '../performance/box-score';
 import { participationOf } from '../performance/participation';
 
 import type { GameId, IsoDate } from '../types';
-import type { SeasonSpan } from './seasons';
+import type { SeasonNotRead, SeasonOfDateResult, SeasonSpan } from './seasons';
 import type { LinesGame, PlayerLine, TeamStint } from './team-membership';
 
 /**
@@ -40,8 +40,21 @@ export type PlayerIndicators = Readonly<{
   consecutiveTeamGamesMissed: number;
 }>;
 
+/**
+ * The indicators of the player page, or `season_not_read` when the stored spans cannot
+ * tell the season of a day they need (STA-46, STA-48, CL-STA-28).
+ */
+export type IndicatorsResult = Readonly<{ ok: true; indicators: PlayerIndicators }> | SeasonNotRead;
+
 /** His first NBA game, by id and US date, as player_indicators stores it (STA-47). */
 export type FirstNbaGame = Readonly<{ firstNbaGameId: GameId; firstNbaGameOn: IsoDate }>;
+
+/**
+ * His first NBA game, null for "date unknown" (STA-47), or `season_not_read` when the
+ * stored spans cannot tell the season of the first game he played (STA-48, CL-STA-28).
+ */
+export type FirstNbaGameResult =
+  Readonly<{ ok: true; firstNbaGame: FirstNbaGame | null }> | SeasonNotRead;
 
 /**
  * What is stored of the seasons of his career (STA-41, STA-47, CL-STA-12): each season
@@ -75,14 +88,39 @@ function playedInOrder(lines: readonly IndicatorLine[]): readonly IndicatorLine[
  * The season the indicators cover on `todayOn` (STA-48, CL-STA-21, CL-JOU-15): of the
  * stored `seasons`, the latest that has begun, none of the others having begun after it,
  * so the season in progress or, between seasons, the one that ended last; while none has
- * begun, the season of `todayOn` itself.
+ * begun, the season of `todayOn` itself. Either is known only once `seasons` tell the
+ * season of `todayOn`, and otherwise the answer is `season_not_read`: a season left out
+ * may be the one in progress.
  */
-function indicatorSeasonOf(seasons: readonly SeasonSpan[], todayOn: IsoDate): string {
+function indicatorSeasonOf(seasons: readonly SeasonSpan[], todayOn: IsoDate): SeasonOfDateResult {
+  const today = seasonOfDate(todayOn, seasons);
   const begun = seasons.filter(({ firstGameOn }) => firstGameOn <= todayOn);
   const latest = begun.find((span) =>
     begun.every(({ firstGameOn }) => firstGameOn <= span.firstGameOn),
   );
-  return latest?.season ?? seasonOfDate(todayOn, seasons);
+  return latest !== undefined && today.ok ? { ok: true, season: latest.season } : today;
+}
+
+/**
+ * Those of `played` that `seasons` file under `season`, by their US date (STA-48), or
+ * `season_not_read` for the first of them whose season `seasons` cannot tell.
+ */
+function linesOfSeason(
+  played: readonly IndicatorLine[],
+  season: string,
+  seasons: readonly SeasonSpan[],
+): Readonly<{ ok: true; lines: readonly IndicatorLine[] }> | SeasonNotRead {
+  const lines: IndicatorLine[] = [];
+  for (const line of played) {
+    const filed = seasonOfDate(line.gameDayOn, seasons);
+    if (!filed.ok) {
+      return filed;
+    }
+    if (filed.season === season) {
+      lines.push(line);
+    }
+  }
+  return { ok: true, lines };
 }
 
 /**
@@ -118,29 +156,42 @@ function averageMinutes(lines: readonly IndicatorLine[]): number | null {
  * final team games, of `games` under his `stints`, after the start of that game, or since
  * his membership began when he has played none: across seasons and trades, those of
  * unknown participation included, and none while he belongs to no team (JOU-22 reads it).
+ * The answer is `season_not_read` when `seasons` cannot tell the season of `todayOn` or
+ * of a game he played (CL-STA-28). So that it does not occur, `schedule.seasons` holds
+ * the span of every stored season, never only those his lines fall in: without the
+ * season in progress, for a player who has not played in it, the indicators would cover
+ * an older season.
  */
 export function indicatorsOf(
   player: Readonly<{ stints: readonly TeamStint[]; lines: readonly IndicatorLine[] }>,
   schedule: Readonly<{ games: readonly LinesGame[]; seasons: readonly SeasonSpan[] }>,
   todayOn: IsoDate,
-): PlayerIndicators {
+): IndicatorsResult {
   const { seasons } = schedule;
-  const played = playedInOrder(player.lines);
-  const last = played.at(-1);
   const indicatorSeason = indicatorSeasonOf(seasons, todayOn);
-  const ofSeason = played.filter(
-    ({ gameDayOn }) => seasonOfDate(gameDayOn, seasons) === indicatorSeason,
-  );
+  if (!indicatorSeason.ok) {
+    return indicatorSeason;
+  }
+  const played = playedInOrder(player.lines);
+  const ofSeason = linesOfSeason(played, indicatorSeason.season, seasons);
+  if (!ofSeason.ok) {
+    return ofSeason;
+  }
+  const last = played.at(-1);
   const since = teamGames(player, schedule.games, last?.scheduledStartAt ?? -Infinity);
   return {
-    indicatorSeason,
-    gamesPlayedThisSeason: ofSeason.length,
-    averageMinutesThisSeason: averageMinutes(ofSeason),
-    lastGamePlayedId: last?.gameId ?? null,
-    lastGamePlayedOn: last?.gameDayOn ?? null,
-    // He played none of the team games after his last game played: each final one is a
-    // game missed, whether his team's lines say so or are missing (CL-STA-04).
-    consecutiveTeamGamesMissed: since.filter(({ participation }) => participation !== null).length,
+    ok: true,
+    indicators: {
+      indicatorSeason: indicatorSeason.season,
+      gamesPlayedThisSeason: ofSeason.lines.length,
+      averageMinutesThisSeason: averageMinutes(ofSeason.lines),
+      lastGamePlayedId: last?.gameId ?? null,
+      lastGamePlayedOn: last?.gameDayOn ?? null,
+      // He played none of the team games after his last game played: each final one is a
+      // game missed, whether his team's lines say so or are missing (CL-STA-04).
+      consecutiveTeamGamesMissed: since.filter(({ participation }) => participation !== null)
+        .length,
+    },
   };
 }
 
@@ -150,21 +201,32 @@ export function indicatorsOf(
  * every season that lists him, from the earliest to the season of that game, are stored,
  * so that it never comes from later seasons while an earlier one is missing; and never
  * when the first season the source covers lists him, since his career may start before
- * it. Null, the "date unknown" of STA-47, otherwise and while he has played no game.
+ * it. Null, the "date unknown" of STA-47, otherwise and while he has played no game. The
+ * answer is `season_not_read` when `seasons` cannot tell the season of that game
+ * (CL-STA-28): so that it does not occur, `seasons` holds the span of every season his
+ * `lines` fall in.
  */
 export function firstNbaGame(
   lines: readonly IndicatorLine[],
   career: CareerSeasons,
   seasons: readonly SeasonSpan[],
-): FirstNbaGame | null {
+): FirstNbaGameResult {
   const [first] = playedInOrder(lines);
   const { listedSeasons, firstCoveredSeason } = career;
   if (first === undefined || listedSeasons.some(({ season }) => season === firstCoveredSeason)) {
-    return null;
+    return { ok: true, firstNbaGame: null };
   }
   const seasonOfFirst = seasonOfDate(first.gameDayOn, seasons);
+  if (!seasonOfFirst.ok) {
+    return seasonOfFirst;
+  }
   const isKnown = listedSeasons.every(
-    ({ season, areBoxScoresStored }) => areBoxScoresStored || season > seasonOfFirst,
+    ({ season, areBoxScoresStored }) => areBoxScoresStored || season > seasonOfFirst.season,
   );
-  return isKnown ? { firstNbaGameId: first.gameId, firstNbaGameOn: first.gameDayOn } : null;
+  return {
+    ok: true,
+    firstNbaGame: isKnown
+      ? { firstNbaGameId: first.gameId, firstNbaGameOn: first.gameDayOn }
+      : null,
+  };
 }

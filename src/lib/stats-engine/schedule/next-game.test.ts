@@ -189,6 +189,18 @@ const FINALS_OVER = scheduleOf(
   [...REGULAR_SEASON, ...FIRST_ROUND, ...sweep(241, [5, 3], FINALS_DAYS)],
   [...FIRST_ROUND_SERIES, seriesOf([3, 5], 'finals')],
 );
+// Or they are tied two games to two, their fifth game not listed.
+const FINALS_TIED = scheduleOf(
+  [
+    ...REGULAR_SEASON,
+    ...FIRST_ROUND,
+    ...sweep(241, [5, 3], FINALS_DAYS.slice(0, 2)),
+    ...sweep(243, [3, 5], FINALS_DAYS.slice(2)),
+  ],
+  [...FIRST_ROUND_SERIES, seriesOf([3, 5], 'finals')],
+);
+// A game of the next season, between two other teams.
+const NEXT_SEASON_GAMES = [toPlay(401, '2026-10-21', [5, 6])];
 // X swept team 3, then won the first game of its second-round series against team 5,
 // whose next game is not in the schedule yet.
 const STILL_IN = scheduleOf(
@@ -238,6 +250,19 @@ describe('nextGame without a game to play', () => {
     expect(nextGame(PLAYER, FINALS_OVER, utc('2026-07-01', 12))).toStrictEqual({
       ...NO_GAME,
       reason: 'offseason',
+    });
+  });
+
+  it('[STA-26] [CL-STA-18] [CL-STA-20] reads Finals tied two games to two, their fifth game not listed, as under way while no game of the next season is stored, and as over once one is', () => {
+    const withNextSeason = { ...FINALS_TIED, nextSeasonGames: NEXT_SEASON_GAMES };
+
+    expect(nextGame(PLAYER, FINALS_TIED, utc('2026-06-15', 12))).toStrictEqual({
+      ...NO_GAME,
+      reason: 'team_eliminated',
+    });
+    expect(nextGame(PLAYER, withNextSeason, utc('2026-08-01', 12))).toStrictEqual({
+      ...NO_GAME,
+      reason: 'schedule_not_published',
     });
   });
 
