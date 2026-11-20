@@ -184,9 +184,10 @@ and AA rules:
   pressed or released, a click, a touch beginning or ending) or the `beforeinput`, `input`,
   `change` or `submit` event that it fires in response, whether a handler of the event leaves or
   the browser does, as it follows a link; and the navigation that the browser then queues for a
-  form that the input submitted, itself or through such a handler. Any other departure is the
-  app's own, such as one that begins after a timer or a request, even one that a handler of the
-  input started, or one that a script of the test starts.
+  submission of a form that the input made, itself or through such a handler (`requestSubmit()`,
+  `submit()` or a click of a submit button). Any other departure is the app's own, such as one
+  that begins after a timer or a request, even one that a handler of the input started or one of
+  a form that the input submitted before, or one that a script of the test starts.
 - Playwright runs the checks of point 1 only while the body of the page has a box, which the root
   layout's `min-h-dvh` gives it: a check of a loaded page reports a body that has none.
 - A page that the test opens beside its `page`, such as a popup or the page of a second browser

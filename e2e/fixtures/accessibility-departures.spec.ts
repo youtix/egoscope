@@ -62,31 +62,63 @@ const INPUT_EVENTS: readonly Readonly<{ type: string; input: (page: Page) => Pro
   { type: 'touchend', input: async (page) => page.touchscreen.tap(FIELD_POINT.x, FIELD_POINT.y) },
 ];
 
-// A form that the browser submits to the other page, with the button `submitter`.
-const formWith = (submitter: string): string =>
-  `<form action="/probe/other"><label for="name">Name</label><input id="name" name="name" style="height:32px">${submitter}</form>`;
+// A form that the browser submits to the other page, with the button `submitter`
+// and the attributes `attributes`, a handler among them.
+const formWith = (submitter: string, attributes = ''): string =>
+  `<form action="/probe/other"${attributes}><label for="name">Name</label><input id="name" name="name" style="height:32px">${submitter}</form>`;
+
+/** A button, the first element that takes the focus, whose handler runs `onclick`. */
+const sendButton = (onclick: string): string =>
+  `<button type="button" style="min-width:44px;min-height:44px" onclick="${onclick}">Send</button>`;
 
 /**
- * The pages that a test leaves by raw keyboard input, Tab then Enter, which the
- * browser itself leaves in response: one whose link it follows; one whose form it
- * submits, which the browser leaves a task after the key press; and two whose
- * first button has a handler that submits a form, as the form itself or through
- * its submit button, which the browser leaves a task later.
+ * The pages that a test leaves by raw keyboard input, Tab then Enter unless `keys`
+ * say otherwise, which the browser itself leaves in response: one whose link it
+ * follows; one whose form it submits, which the browser leaves a task after the key
+ * press; and those whose form a handler of the input submits, which the browser
+ * leaves a task later: through the form's `requestSubmit()` or `submit()`, which
+ * fires no submit event, even when a handler of the form stops its formdata event,
+ * or through its submit button.
  */
-const RAW_DEPARTURES: readonly Readonly<{ name: string; body: string }>[] = [
+const RAW_DEPARTURES: readonly Readonly<{
+  name: string;
+  body: string;
+  keys?: readonly string[];
+}>[] = [
   { name: 'follows a link', body: PLAIN },
   { name: 'submits a form', body: pageWith(formWith('')) },
   {
     name: 'presses a button whose handler submits a form',
     body: pageWith(
-      `<button type="button" style="min-width:44px;min-height:44px" onclick="document.querySelector('form').requestSubmit()">Send</button>${formWith('')}`,
+      `${sendButton("document.querySelector('form').requestSubmit()")}${formWith('')}`,
+    ),
+  },
+  {
+    name: 'presses a button whose handler submits a form by its submit method, which fires no submit event',
+    body: pageWith(`${sendButton("document.querySelector('form').submit()")}${formWith('')}`),
+  },
+  {
+    name: 'presses a button whose handler submits a form by its submit method, whose formdata event a handler of the form stops',
+    body: pageWith(
+      `${sendButton("document.querySelector('form').submit()")}${formWith('')}<script>document.querySelector('form').addEventListener('formdata', (event) => event.stopPropagation());</script>`,
     ),
   },
   {
     name: 'presses a button whose handler clicks the submit button of a form',
     body: pageWith(
-      `<button type="button" style="min-width:44px;min-height:44px" onclick="document.querySelector('#submit').click()">Send</button>${formWith('<button id="submit" style="min-width:44px;min-height:44px">Submit</button>')}`,
+      `${sendButton("document.querySelector('#submit').click()")}${formWith('<button id="submit" style="min-width:44px;min-height:44px">Submit</button>')}`,
     ),
+  },
+  {
+    name: 'submits a form whose submit handler cancels the submission, then submits the form by its submit method',
+    body: pageWith(formWith('', ' onsubmit="event.preventDefault(); this.submit();"')),
+  },
+  {
+    name: 'changes the value of a list whose change handler submits its form by its submit method',
+    body: pageWith(
+      '<form action="/probe/other"><label for="sort">Sort by</label><select id="sort" name="sort" style="height:32px" onchange="this.form.submit()"><option>Name</option><option>Date</option></select></form>',
+    ),
+    keys: ['Tab', 'ArrowDown'],
   },
 ];
 
@@ -160,6 +192,13 @@ const APP_DEPARTURES: readonly Readonly<{
     input: pressing('Tab'),
   },
   {
+    name: 'once it submits again, after a timer that a key press started, a form whose submission by an earlier key press it canceled',
+    body: pageWith(
+      `${sendButton("document.querySelector('form').requestSubmit()")}${formWith('')}<script>const form = document.querySelector('form'); let canceled = false; form.addEventListener('submit', (event) => { if (!canceled) { canceled = true; event.preventDefault(); } }); document.addEventListener('keydown', (event) => { if (event.key === 'a') { setTimeout(() => form.requestSubmit(), 0); } });</script>`,
+    ),
+    input: pressing('Tab', 'Enter', 'a'),
+  },
+  {
     name: 'once a request that a key press of the test began is answered',
     body: pageWith(
       `<form>${FIELD}</form><script>document.querySelector('form').addEventListener('submit', async (event) => { event.preventDefault(); await fetch('/probe/session', { method: 'POST' }); location.assign('/probe/other'); });</script>`,
@@ -168,6 +207,20 @@ const APP_DEPARTURES: readonly Readonly<{
       await page.keyboard.press('Tab');
       await page.keyboard.type('Ada');
       await page.keyboard.press('Enter');
+    },
+  },
+  {
+    name: 'once it submits, after sending its data by a request, a form whose submission by a key press it canceled, while the key is still down',
+    body: pageWith(
+      `${sendButton("document.querySelector('form').requestSubmit()")}${formWith('')}<script>const form = document.querySelector('form'); form.addEventListener('submit', async (event) => { event.preventDefault(); await fetch('/probe/session', { method: 'POST', body: new FormData(form) }); form.submit(); });</script>`,
+    ),
+    input: async (page) => {
+      await page.keyboard.press('Tab');
+      // The key stays down until the app has left, so that the departure begins
+      // while the raw input of the test runs.
+      const held = page.keyboard.press('Enter', { delay: HELD_MS });
+      await page.waitForURL('**/probe/other**');
+      await held;
     },
   },
   {
@@ -206,7 +259,7 @@ test.describe('the departures that the watch reports', () => {
     });
   }
 
-  for (const { name, body } of RAW_DEPARTURES) {
+  for (const { name, body, keys = ['Tab', 'Enter'] } of RAW_DEPARTURES) {
     test(`reports a document that the test leaves by raw keyboard input before any check, as it ${name}, though an earlier document at its address was checked`, async ({
       context,
       baseURL,
@@ -217,8 +270,7 @@ test.describe('the departures that the watch reports', () => {
       await probe.goto('/probe/left');
       await expect(probe.getByRole('heading', { name: 'Probe' })).toBeVisible();
       await probe.reload();
-      await probe.keyboard.press('Tab');
-      await probe.keyboard.press('Enter');
+      await pressing(...keys)(probe);
       await probe.waitForURL('**/probe/other**');
       await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
@@ -240,7 +292,7 @@ test.describe('the departures that the watch reports', () => {
 
       await probe.goto('/probe/leaving');
       await input(probe);
-      await probe.waitForURL('**/probe/other');
+      await probe.waitForURL('**/probe/other**');
       await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
 
       expect(await watch.finish()).toStrictEqual([]);

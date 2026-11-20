@@ -45,10 +45,11 @@ type Telling = Readonly<{ stamp: string; binding: string; events: readonly strin
  * of it begins that raw input of the test began: one that begins while the
  * browser itself dispatches one of `events`, in a handler of the event; one that
  * the browser begins in response to the input, which it marks as the user's, as it
- * follows a link at once or submits a form a task later; or that of a form that a
- * handler of the input submitted, a task later. A move within the document and a
- * download leave it in place. Runs in the page: in every new document, before its
- * own scripts, and in the one that the page shows when its watch begins.
+ * follows a link at once or submits a form a task later; or the navigation that the
+ * browser queues, a task later, for a submission of a form that a handler of the
+ * input made. A move within the document and a download leave it in place. Runs in
+ * the page: in every new document, before its own scripts, and in the one that the
+ * page shows when its watch begins.
  */
 function tellDepartures({ stamp, binding, events }: Telling): void {
   // The events that the browser may still be dispatching (each new one drops those
@@ -56,18 +57,25 @@ function tellDepartures({ stamp, binding, events }: Telling): void {
   // script ran.
   let dispatched: readonly Event[] = [];
   const byBrowser = new WeakSet<Event>();
-  // The forms, and their submitters, that a handler of the input submitted.
-  const submitted = new WeakSet<EventTarget>();
+  // The forms whose last submission a handler of the input made. Each submission
+  // that goes on to navigate fires formdata at its form before the browser queues
+  // its navigation, whoever makes it: through `requestSubmit()` or a submit button,
+  // once no handler canceled its submit event, or through `submit()`, which fires
+  // none. So a later submission of the form by the app, after a timer or a request,
+  // unmarks the form before its own navigation is queued. `new FormData(form)`
+  // fires formdata too, and the form's next submission overrides it likewise.
+  const submittedByInput = new WeakSet<HTMLFormElement>();
   const isInputDispatched = (): boolean =>
     dispatched.some((event) => event.eventPhase !== Event.NONE && byBrowser.has(event));
-  const note = (event: Event): void => {
-    if (event instanceof SubmitEvent && isInputDispatched()) {
-      for (const target of [event.target, event.submitter]) {
-        if (target !== null) {
-          submitted.add(target);
-        }
-      }
+  // The form that a navigation from `source` submits: the form itself, or the form
+  // of its submit button.
+  const formOf = (source: Element | null): HTMLFormElement | null => {
+    if (source instanceof HTMLButtonElement || source instanceof HTMLInputElement) {
+      return source.form;
     }
+    return source instanceof HTMLFormElement ? source : null;
+  };
+  const note = (event: Event): void => {
     dispatched = [...dispatched.filter((known) => known.eventPhase !== Event.NONE), event];
     // This listener is the event's first. Its microtask runs before the next
     // listener only when no script is on the stack below the event, which is the
@@ -81,11 +89,26 @@ function tellDepartures({ stamp, binding, events }: Telling): void {
   for (const type of events) {
     addEventListener(type, note, { capture: true, passive: true });
   }
+  // Heard first too, where no handler of the page can stop the event.
+  addEventListener(
+    'formdata',
+    ({ target }) => {
+      if (!(target instanceof HTMLFormElement)) {
+        return;
+      }
+      if (isInputDispatched()) {
+        submittedByInput.add(target);
+      } else {
+        submittedByInput.delete(target);
+      }
+    },
+    { capture: true },
+  );
   navigation.addEventListener('navigate', (event) => {
     const isDeparture = !event.destination.sameDocument && event.downloadRequest === null;
-    const source = event.sourceElement;
+    const form = formOf(event.sourceElement);
     const isByInput =
-      event.userInitiated || isInputDispatched() || (source !== null && submitted.has(source));
+      event.userInitiated || isInputDispatched() || (form !== null && submittedByInput.has(form));
     const tell: unknown = Reflect.get(globalThis, binding);
     if (isDeparture && isByInput && typeof tell === 'function') {
       Reflect.apply(tell, globalThis, [Reflect.get(globalThis, stamp)]);
