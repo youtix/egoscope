@@ -118,6 +118,11 @@ const FOCUS_MOVES: readonly Readonly<{
 const TYPED_INTO = pageWith(
   `<style>img { display: none; } input:not(:placeholder-shown) ~ img { display: inline; }</style><label for="name">Name</label><input id="name" placeholder="A name" style="height:32px">${IMAGE_WITHOUT_ALT}`,
 );
+// Once the too short value of its field is committed, by CSS alone, as Tailwind's
+// `user-invalid:` variant shows a hint: a text below the AA contrast ratio.
+const COMMITTED = pageWith(
+  '<style>#hint { display: none; color: #bbb; background: #fff; } #name:user-invalid ~ #hint { display: block; }</style><label for="name">Name</label><input id="name" required minlength="5" style="height:32px"><p id="hint">Five letters at least.</p>',
+);
 // A menu in the top layer, which its button opens without a change to any attribute,
 // and which shows an image without a text alternative.
 const MENU = pageWith(
@@ -190,6 +195,30 @@ test.describe('the changes that the watch sees', () => {
 
     expect(rulesOf(await watch.finish())).toStrictEqual([
       { address: addressOf('/probe/typed', baseURL), rules: ['image-alt'] },
+    ]);
+  });
+
+  test('checks a page again once the value of a field is committed, which fires change alone', async ({
+    context,
+    baseURL,
+  }) => {
+    const probe = await servedPage(context, {
+      '/probe/committed': [COMMITTED],
+      '/probe/other': [OTHER],
+    });
+    const watch = await watchAccessibility(probe);
+    const field = probe.getByLabel('Name');
+
+    await probe.goto('/probe/committed');
+    // The text is typed first, so that Enter then commits it alone.
+    await field.fill('abc');
+    await expect(field).toHaveValue('abc');
+    await field.press('Enter');
+    await probe.goto('/probe/other');
+    await expect(probe.getByRole('heading', { name: 'Another page' })).toBeVisible();
+
+    expect(rulesOf(await watch.finish())).toStrictEqual([
+      { address: addressOf('/probe/committed', baseURL), rules: ['color-contrast'] },
     ]);
   });
 
