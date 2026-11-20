@@ -94,7 +94,7 @@ that a player's deletion goes through it.
 where a Lot 2 step always runs first — the Lot 2 erasers, in the order of
 [sensitive-data.md](sensitive-data.md) section 2.1, for the references to detected and
 calendar-derived events, to followed players and to backtest requests — and `SET NULL` or `CASCADE`
-where nothing a requirement keeps is lost: a classification fact's designated or matched event and
+where nothing a requirement keeps is lost: a classification fact's designated, matched or superseded-into event and
 a tracked case's decision about a historical event (`SET NULL`), references to cases, exposure
 counts, task runs and incidents (`CASCADE` or `SET NULL`). So no Lot 1 operation is ever blocked by
 a Lot 2 row (CL-TRV-24), the manual deletion and the replacement at import of a historical event

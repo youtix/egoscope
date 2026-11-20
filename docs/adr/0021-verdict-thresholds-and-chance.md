@@ -15,7 +15,7 @@ The default thresholds are editable settings — signal-to-noise 2 with mean gap
 ## Consequences
 
 - SEN-23, H-SEN-10, H-03 and the false-signal part of H-SEN-14 bind as written.
-- SEN-41: the expected false signals are the number of evaluated pairs times the two-sided tail of the normal distribution beyond each threshold (4.6% at 2, 0.27% at 3), recomputed when the owner changes a threshold. `08 AC-19` (50 pairs give about 2.3 and 0.1) is a test.
+- SEN-41: the expected false signals are the number of evaluated pairs times the two-sided tail of the normal distribution beyond each threshold (4.6% at 2, 0.27% at 3), recomputed when the owner changes a threshold. CA-SEN-19 (50 pairs give about 2.3 and 0.1) is a test.
 - A threshold change is traced, recalculates every profile and shows its date (TRV-35, SEN-34, SEN-37, IHM-51). The validation board never changes a threshold (SUI-29).
 
 ## Alternatives considered

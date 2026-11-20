@@ -79,7 +79,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
   - Before confirmation, the withdrawal screen states how many messages already sent mention the event, as a number only, and that Telegram may refuse to delete older ones.
   - On confirmation, in this order, which lets a stopped withdrawal resume:
     1. a first committed step abandons the messages about the event not yet sent, so that none of them can be sent, and reads the identifiers of the sent messages whose facts include the event — single message, digest or catch-up;
-    2. outside any database transaction, since no outside call runs inside one, the app asks Telegram once to delete each of them in the chat it was sent to, whatever its age and even in a chat no longer linked;
+    2. outside any database transaction, since no outside call runs inside one but a message's own send, the app asks Telegram once to delete each of them in the chat it was sent to, whatever its age and even in a chat no longer linked;
     3. the erasure's transaction then erases the event's data, the abandoned messages and the text and identifiers of every sent one, whatever Telegram answered, and their activity-journal entries lose their mention of the event (TRV-41);
     4. the result screen is built from memory.
   - The messages about the event also include those whose fact is an update entry that the erasure deletes from a sheet it initializes again (CL-ALE-16), which trace the sheet's production for the event.

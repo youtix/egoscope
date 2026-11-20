@@ -205,17 +205,17 @@ tracking reads to build forecast versions and freeze the last one before tip-off
 CL-SEN-19, CL-SUI-03). The glossary's `ProfileSnapshot` is the alert sheet's frozen copy, hence
 another name.
 
-| column                   | type             | null | default  | constraint or reference                                                                      | class | spec IDs          |
-| ------------------------ | ---------------- | ---- | -------- | -------------------------------------------------------------------------------------------- | ----- | ----------------- |
-| `id`                     | integer          | no   | identity | primary key                                                                                  | EV    | —                 |
-| `sensitivity_profile_id` | integer          | yes  | —        | `REFERENCES sensitivity_profiles(id) ON DELETE CASCADE`; a profile of view `historical_only` | EV    | SUI-08, CL-SEN-19 |
-| `general_trend_id`       | integer          | yes  | —        | `REFERENCES general_trends(id) ON DELETE CASCADE`; a trend of view `historical_only`         | EV    | SUI-09, CL-SEN-19 |
-| `effective_at`           | timestamptz      | no   | —        | the instant the job wrote these values, the row's `computed_at` (CL-SEN-16)                  | EV    | SUI-08, CL-SUI-03 |
-| `valid_count`            | integer          | no   | —        | —                                                                                            | EV    | SUI-08            |
-| `mean_gap`               | double precision | yes  | —        | null when no valid case                                                                      | EV    | SUI-08            |
-| `verdict_level`          | text             | no   | —        | values of `verdict_level`                                                                    | EV    | SUI-08            |
-| `verdict_direction`      | text             | yes  | —        | values of `verdict_direction`                                                                | EV    | SUI-08            |
-| `profile_confidence`     | text             | no   | —        | values of `profile_confidence`                                                               | EV    | SUI-08            |
+| column                   | type             | null | default  | constraint or reference                                                                                                                                                                         | class | spec IDs          |
+| ------------------------ | ---------------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------- |
+| `id`                     | integer          | no   | identity | primary key                                                                                                                                                                                     | EV    | —                 |
+| `sensitivity_profile_id` | integer          | yes  | —        | `REFERENCES sensitivity_profiles(id) ON DELETE CASCADE`; a profile of view `historical_only`                                                                                                    | EV    | SUI-08, CL-SEN-19 |
+| `general_trend_id`       | integer          | yes  | —        | `REFERENCES general_trends(id) ON DELETE CASCADE`; a trend of view `historical_only`                                                                                                            | EV    | SUI-09, CL-SEN-19 |
+| `effective_at`           | timestamptz      | no   | —        | the instant the job wrote these values, the row's `computed_at` (CL-SEN-16), except the single version that replaces all the others, effective as the Deletion paragraph below says (CL-SEN-18) | EV    | SUI-08, CL-SUI-03 |
+| `valid_count`            | integer          | no   | —        | —                                                                                                                                                                                               | EV    | SUI-08            |
+| `mean_gap`               | double precision | yes  | —        | null when no valid case                                                                                                                                                                         | EV    | SUI-08            |
+| `verdict_level`          | text             | no   | —        | values of `verdict_level`                                                                                                                                                                       | EV    | SUI-08            |
+| `verdict_direction`      | text             | yes  | —        | values of `verdict_direction`                                                                                                                                                                   | EV    | SUI-08            |
+| `profile_confidence`     | text             | no   | —        | values of `profile_confidence`                                                                                                                                                                  | EV    | SUI-08            |
 
 Row checks: exactly one of `sensitivity_profile_id` and `general_trend_id` is not null;
 `(verdict_level = 'inconclusive') = (verdict_direction IS NULL)`. The referenced row's view is
@@ -236,12 +236,12 @@ re-application of the withdrawal ledger (CL-TRV-06; operations.md section 2.5) r
 versions of every historical-only profile and trend whose values it changes by one version
 holding the new values, effective at the creation of the earliest tracked case of that pair (for a
 trend, of that type) whose measured game has not started — before the scheduled start of its
-measured game, or of its expected game while no measured game is established —, or at the job's
+measured game, or of its expected game while no measured game is established, or at any time while no game is known —, or at the job's
 instant when there is none; a waiting case whose expected game has started keeps its forecast
 versions, since SUI-09 freezes the last one before that start, and gets a version dated at the
 job's instant when the job changes its forecast (CL-SUI-03; tracking-and-validation.md section
-1.8), unless it has no version, as a case that the operation's rebuild turned tracked at or
-after that start: that case gets none (CL-SUI-17), and CL-SUI-18 freezes « sans pronostic »; so no count or mean gap from before the withdrawal stays to be compared with the new one. Outside a
+1.8), unless it has no version, such as a case that the operation's rebuild turned tracked at or
+after that start: that case gets none (CL-SUI-17), and CL-SUI-18 freezes « sans pronostic »; so no count or mean gap from before the withdrawal stays in the history of the historical-only view to be compared with the new one. Outside a
 withdrawal, versions are kept only while needed: the daily purge deletes every version of a pair or
 trend older than the last one effective before the creation of its earliest tracked case still
 waiting for its measured game, and, with no such case, every version but the latest.

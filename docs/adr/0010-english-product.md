@@ -14,7 +14,7 @@ H-11 makes the interface French, while collection and classification handle Engl
 - error messages and the correction message for the research AI in French (IMP-20, IMP-21), and a statistics heuristic based on French words (IMP-13);
 - type sheets in French and type identifiers modeled on the French ones of the annex (TAX-01, TAX-02), an exploration prompt that requires an answer in French (TAX-16) in a format that follows the French conventions of 05 (TAX-17);
 - a French research prompt whose rule 2.6 asks for descriptions in French (BKT-21), a result format with French field names and values (BKT-24, H-BKT-07, H-BKT-08), free texts in French (H-BKT-05);
-- acceptance criteria that expect French strings (CA-TRV-13, CA-TRV-36, CA-TRV-40, CA-COL-06, `12 AC-8`, `12 AC-15`).
+- acceptance criteria that expect French strings (CA-TRV-13, CA-TRV-36, CA-TRV-40, CA-COL-06, CA-IHM-08, CA-IHM-15).
 
 The press half of H-11 is separate: sources are in English or French (COL-05, COL-17, TRV-17), the language model understands both (TRV-16), and name matching handles both (JOU-09, DET-03).
 

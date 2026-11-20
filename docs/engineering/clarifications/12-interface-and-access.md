@@ -39,7 +39,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:**
   - The full form is used where one instant is the subject of a block: an alert sheet's expected game and production, a request's deadline, an event's reference date, a case's game.
   - The short form is used in lists, tables and summaries, on screens that state once, at the top, the zone in use ("Times in Paris time").
-  - The zone's name is the owner's zone as "\<city> time" (Paris time, New York time); the glossary gives the exact names.
+  - The zone's name is the one the time module's `formatZoneName` gives the owner's zone: "\<city> time" (Paris time, New York time) or, for a zone without a city, a name such as "UTC-05:00 time"; the glossary gives the exact names.
   - A date without a time shows neither time nor zone ("Wed 18 Nov 2026"); durations and relative times ("in 3 h 20", "12 min ago") show no zone.
   - Telegram messages, which have no screen statement, name the zone after every clock time (CL-TEL-03).
 - **Why:** this names the zone everywhere, as ADR 0010 and TRV-24 require, while keeping the one-column phone layout of IHM-01 readable.

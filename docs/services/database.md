@@ -238,7 +238,7 @@ console stays the authority on the real figure and period.
 
 ## Replaceable by
 
-Any hosted Postgres reachable over TLS, at Neon or elsewhere. Procedure (TRV-77):
+Any hosted Postgres reachable over TLS whose certificate verifies under `sslmode=verify-full`, the mode the application connects with (module map §2.1, `db`), at Neon or elsewhere. Procedure (TRV-77):
 
 1. Stop using the application: from the export to the redeploy of step 5, whatever it writes — an
    import, a correction, a withdrawal, the scheduled tasks' work — stays in the old database and is

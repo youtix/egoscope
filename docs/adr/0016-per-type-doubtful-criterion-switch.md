@@ -17,7 +17,7 @@ An event-type sheet can switch off one doubtful-case criterion, for example the 
 
 - The type sheet (TAX-01) gains an optional field naming at most one of the automatic criteria SEN-12 to SEN-15, or SEN-06 when its parameter is on. It is empty by default, in the seed drafts too.
 - When set, that criterion is not applied to the type's cases. Every other criterion, the manual decisions (SEN-17) and the controls (SEN-27) still apply.
-- The warning belongs to the profile warnings (SEN-46): it shows on the type's profiles and general trend wherever they appear, including the alert-sheet reserves (ALE-16) and the reserves of the Telegram alert (TEL-11), and it stays as long as the switch is on.
+- The warning belongs to the profile warnings (SEN-46): it shows on the type's profiles and general trend wherever they appear, including the alert-sheet caveats (ALE-16) and the caveats of the Telegram alert (TEL-11), and it stays as long as the switch is on.
 - Changing the switch is recorded in the sheet history (TAX-21). It creates no new sheet version, since the facts that belong to the type do not change (TAX-22). It triggers a full recalculation (SEN-34) whose verdict changes carry the cause « changement de paramètre » (SEN-37), and it counts as a change that affects calculations for TRV-35 and IHM-51.
 
 ## Alternatives considered
