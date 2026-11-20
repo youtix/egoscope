@@ -135,6 +135,23 @@ describe('playingTimeThreshold and classifyGame', () => {
     ]);
   });
 
+  // Both thresholds are whole numbers: rounding 46 ÷ 100, 850 ÷ 23 and their product one
+  // by one would land just above 17, and likewise above 16.
+  it.each([
+    { share: 46, others: [...repeat(38, 19), ...repeat(37, 3)], minutes: 17, average: '850 ÷ 23' },
+    { share: 34, others: repeat(48, 33), minutes: 16, average: '1,600 ÷ 34' },
+  ])(
+    '[STA-14] [CL-STA-06] make a game usable at a threshold of exactly its whole minutes, $minutes minutes, $share % of an average of $average',
+    ({ share, others, minutes }) => {
+      const params = { ...PARAMS, games: { ...PARAMS.games, minutesAverageShare: share } };
+      const measured = game(others.length, complete(minutes));
+      const threshold = playingTimeThreshold([...season(others), measured], params);
+
+      expect(threshold).toBeCloseTo(minutes, 9);
+      expect(classifyGame(measured, threshold)).toBe('usable');
+    },
+  );
+
   it('[STA-15] [CL-STA-07] keep the measured game in the average, the one threshold of every game', () => {
     const measured = game(3, complete(16));
     // 31 minutes on average with the measured game; 36 without it, which would make 18.
@@ -208,12 +225,14 @@ describe('playingTimeThreshold and classifyGame', () => {
   });
 
   it('[CL-STA-09] add up the minutes of games with the same start by game id', () => {
-    const inOrder = [game(0, FIRST), game(1, SECOND), { ...game(1, THIRD), gameId: 3 }];
-    const shuffled = [game(0, FIRST), { ...game(1, THIRD), gameId: 3 }, game(1, SECOND)];
-    const threshold = playingTimeThreshold(inOrder, PARAMS);
+    // The second and the third games start together, given in the other order: the lower
+    // id comes first, as it would if it started earlier, and the bits are those of three
+    // games apart. The higher id first would add first, third, second, which ends in
+    // other bits.
+    const tied = [game(0, FIRST), { ...game(1, THIRD), gameId: 3 }, game(1, SECOND)];
+    const apart = [game(0, FIRST), game(1, SECOND), game(2, THIRD)];
 
-    expect(threshold).toBeCloseTo(HALF_MEAN, 9);
-    expect(playingTimeThreshold(shuffled, PARAMS)).toBe(threshold);
+    expect(playingTimeThreshold(tied, PARAMS)).toBe(playingTimeThreshold(apart, PARAMS));
   });
 });
 
@@ -242,7 +261,52 @@ const anyParams = fc
   })
   .map((games) => ({ ...PARAMS, games: { ...PARAMS.games, ...games } }));
 
+// A whole-minutes season whose last game plays exactly `share` percent of the season's
+// average: share × (rest + minutes) = 100 × games × minutes, so the other games add up to
+// minutes × (100 × games − share) ÷ share whole minutes, spread as evenly as they allow,
+// from 1 to 48 each.
+const anyExactSeason = fc
+  .record({
+    share: fc.integer({ min: 1, max: 100 }),
+    games: fc.integer({ min: 2, max: 82 }),
+    minutes: fc.integer({ min: 1, max: 48 }),
+  })
+  .map((drawn) => ({
+    ...drawn,
+    rest: (drawn.minutes * (100 * drawn.games - drawn.share)) / drawn.share,
+  }))
+  .filter(
+    ({ games, rest }) =>
+      Number.isSafeInteger(rest) && rest >= games - 1 && rest <= 48 * (games - 1),
+  )
+  .map(({ share, games, minutes, rest }) => {
+    const low = Math.floor(rest / (games - 1));
+    const higher = rest % (games - 1);
+    const others = Array.from({ length: games - 1 }, (_, index) =>
+      index < higher ? low + 1 : low,
+    );
+    return { share, minutes, others };
+  });
+
 describe('playingTimeThreshold and classifyGame, for any season', () => {
+  it('[STA-14] [CL-STA-06] make a game usable at a threshold of exactly its whole minutes, and not a minute below, for any share', () => {
+    fc.assert(
+      fc.property(anyExactSeason, ({ share, minutes, others }) => {
+        // Without a floor, the share of the average alone makes the threshold.
+        const params = {
+          ...PARAMS,
+          games: { ...PARAMS.games, minutesFloor: 0, minutesAverageShare: share },
+        };
+        const measured = game(others.length, complete(minutes));
+        const shorter = game(others.length, complete(minutes - 1), 'playoffs');
+        const threshold = playingTimeThreshold([...season(others), measured], params);
+
+        expect(classifyGame(measured, threshold)).toBe('usable');
+        expect(classifyGame(shorter, threshold)).toBe('played_not_usable');
+      }),
+    );
+  });
+
   it('[STA-14] never put the threshold below the floor', () => {
     fc.assert(
       fc.property(anyGames, anyParams, (games, params) => {

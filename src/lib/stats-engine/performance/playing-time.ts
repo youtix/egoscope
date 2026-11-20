@@ -45,7 +45,10 @@ function inFixedOrder(left: PlayerGame, right: PlayerGame): number {
  * zero and a box score that is not suspect, incomplete ones included; the floor alone
  * without such a game. `games` are his team games of that season, the measured game
  * among them, since one threshold serves every game of the season. Whole minutes count
- * as they are, and the minutes add up by scheduled start, then game id.
+ * as they are, and the minutes add up by scheduled start, then game id. The share
+ * multiplies their sum before the one division, so whole minutes and a whole share give
+ * the exact quotient rounded once: a threshold of exactly 17 minutes is 17, and a game
+ * of 17 whole minutes reaches it.
  */
 export function playingTimeThreshold(games: readonly PlayerGame[], params: EngineParams): number {
   const { minutesFloor, minutesAverageShare } = params.games;
@@ -60,7 +63,7 @@ export function playingTimeThreshold(games: readonly PlayerGame[], params: Engin
   for (const value of minutes) {
     sum += value;
   }
-  return Math.max(minutesFloor, (minutesAverageShare / PERCENT) * (sum / minutes.length));
+  return Math.max(minutesFloor, (minutesAverageShare * sum) / (PERCENT * minutes.length));
 }
 
 /**
