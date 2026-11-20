@@ -136,7 +136,7 @@ const anyProfileCase = fc
     isCoOccurring,
     ...outcome,
   }));
-const anyCases = fc.array(anyProfileCase, { maxLength: 12 });
+const anyCases = fc.array(anyProfileCase, { maxLength: 12, size: 'max' });
 const anyExits = fc.array(fc.constantFrom(...EXIT_REASONS), { maxLength: 8 });
 
 const sumOf = (values: Readonly<Record<string, number>>): number =>

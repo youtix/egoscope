@@ -1,6 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
+
 import { profileChecks } from './checks';
 import { profileVerdict, verdictQuantities } from './verdict';
 
@@ -9,45 +11,15 @@ import type { ManuallyDecidedCase, ProfileChecks } from './checks';
 import type { ProfileCase } from './tally';
 import type { Verdict } from './verdict';
 
-// The registry's defaults.
+// The registry's defaults. JSON gives the baseline phase as a string, which the comparison
+// narrows to a BaselinePhase (types.test.ts).
 const DEFAULTS: EngineParams = {
+  ...engineParams,
   games: {
-    minutesFloor: 15,
-    minutesAverageShare: 50,
-    minBaselineGames: 10,
-    postseasonBaseline: 'postseason',
-    partialBaselineShare: 20,
-    dailyUpdateDelayHours: 3,
-    correctionWindowDays: 7,
-    boxScoreUnavailableAfterDays: 30,
-    retryFirstDelayHours: 1,
-    retryIntervalHours: 4,
-    incidentAfterHours: 12,
-    quotaReserveShare: 10,
+    ...engineParams.games,
+    postseasonBaseline:
+      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
   },
-  sensitivity: {
-    maxAttachmentDays: 10,
-    coOccurringCasesDoubtful: false,
-    injuryReturnMinGamesMissed: 4,
-    injuryReturnFirstGames: 2,
-    allPlayoffGamesUnusualStakes: false,
-    opponentWinShareLow: 25,
-    opponentWinShareHigh: 75,
-    opponentMinGames: 10,
-    minValidCases: 5,
-    possibleSignalToNoise: 2,
-    possibleMeanGap: 0.25,
-    probableSignalToNoise: 3,
-    probableMeanGap: 0.4,
-    confidenceMediumFromCases: 8,
-    confidenceHighFromCases: 15,
-    confidenceDispersionDrop: 1.5,
-    confidenceDoubtfulShareDrop: 30,
-    trendMinPlayers: 3,
-    trendMaxTopShare: 50,
-    countsBelowCases: 20,
-  },
-  tracking: { categoryThreshold: 0.25, minTrackedCasesForAssessment: 10 },
 };
 
 // The worked example's values compare at their printed precision, and those it gives as
@@ -114,6 +86,15 @@ function decided(
   return caseIds.map((caseId) => ({ caseId, statusWithoutDecision }));
 }
 
+/** The checks of these cases and manual decisions, under a profile's verdict rule. */
+function checksOf(
+  cases: readonly ProfileCase[],
+  manuallyDecidedCases: readonly ManuallyDecidedCase[],
+  params: EngineParams,
+): ProfileChecks {
+  return profileChecks({ cases, manuallyDecidedCases }, params);
+}
+
 /** The same cases with gaps of the opposite sign. */
 function mirrored(cases: readonly ProfileCase[]): ProfileCase[] {
   return cases.map((caseItem) =>
@@ -169,7 +150,7 @@ const anyCases = fc
       fc.nat({ max: 5 }),
       fc.constantFrom('measured', 'excluded', 'not_measurable'),
     ),
-    { maxLength: 15, selector: ([caseId]) => caseId },
+    { maxLength: 15, size: 'max', selector: ([caseId]) => caseId },
   )
   .map((rows) =>
     rows.map(([caseId, halves, day, status]): ProfileCase => {
@@ -201,8 +182,8 @@ const anyProfile = anyCases.chain((cases) =>
 );
 
 describe('profileChecks', () => {
-  it('[CA-SEN-11] [SEN-27] [CL-SEN-24] gives the worked example a control mean gap of +0.51 over 10 cases, a ratio of about 1.5: inconclusive', () => {
-    const checks = profileChecks(WORKED_EXAMPLE_CASES, [], DEFAULTS);
+  it('[SEN-27] [CL-SEN-24] gives the worked example a control mean gap of +0.51 over 10 cases, a ratio of about 1.5: inconclusive', () => {
+    const checks = checksOf(WORKED_EXAMPLE_CASES, [], DEFAULTS);
 
     expect(checks.controlCaseCount).toBe(10);
     expect(checks.controlQuantities?.meanGap).toBeCloseTo(0.51, 2);
@@ -212,7 +193,7 @@ describe('profileChecks', () => {
   });
 
   it('[SEN-27] [CL-SEN-24] shows no manual-exclusion warning on the worked example, whose exclusions are automatic', () => {
-    const checks = profileChecks(WORKED_EXAMPLE_CASES, [], DEFAULTS);
+    const checks = checksOf(WORKED_EXAMPLE_CASES, [], DEFAULTS);
 
     // The control differs from the verdict: the verdict depends on automatic exclusions.
     expect(profileVerdict(WORKED_EXAMPLE_CASES, DEFAULTS).verdict).not.toStrictEqual(
@@ -222,18 +203,24 @@ describe('profileChecks', () => {
   });
 
   it('[CA-SEN-16] [SEN-27] warns that the verdict depends on manual exclusions when undoing two of them leaves "possible" inconclusive', () => {
-    const checks = profileChecks(EXCLUDED_BY_HAND, decided([4, 9], 'measured'), DEFAULTS);
+    const checks = checksOf(EXCLUDED_BY_HAND, decided([4, 9], 'measured'), DEFAULTS);
+    // C4 and C9 measured again, their two manual exclusions undone.
+    const measuredAgain = EXCLUDED_BY_HAND.map((caseItem) =>
+      caseItem.status === 'excluded' ? valid(caseItem.caseId, caseItem.normalizedGap) : caseItem,
+    );
 
     expect(profileVerdict(EXCLUDED_BY_HAND, DEFAULTS).verdict).toStrictEqual({
       level: 'possible',
       direction: 'increase',
     });
+    expect(profileVerdict(measuredAgain, DEFAULTS).verdict).toStrictEqual(INCONCLUSIVE);
+    expect(checks.controlVerdict).toStrictEqual(INCONCLUSIVE);
     expect(checks.dependsOnManualExclusions).toBe(true);
   });
 
   it('[SEN-27] [SEN-17] undoes a reinstatement too: the case goes back to excluded', () => {
     // C7 reinstated by hand: without it, the 7 other valid cases are inconclusive.
-    const checks = profileChecks(WORKED_EXAMPLE_CASES, decided([7], 'excluded'), DEFAULTS);
+    const checks = checksOf(WORKED_EXAMPLE_CASES, decided([7], 'excluded'), DEFAULTS);
 
     expect(checks.dependsOnManualExclusions).toBe(true);
   });
@@ -246,15 +233,14 @@ describe('profileChecks', () => {
     );
 
     expect(
-      profileChecks(repeatedByCriteria, decided([4, 9], 'excluded'), DEFAULTS)
-        .dependsOnManualExclusions,
+      checksOf(repeatedByCriteria, decided([4, 9], 'excluded'), DEFAULTS).dependsOnManualExclusions,
     ).toBe(false);
   });
 
   it('[SEN-27] warns when undoing the manual decisions changes the level of the verdict alone', () => {
     // Two gaps of +2 excluded by hand: with them, "probable, increase" (a ratio of 3.29).
     const cases = [...WORKED_EXAMPLE_VALID, ...casesOf([2, 2], excludedByHand, 20)];
-    const checks = profileChecks(cases, decided([20, 21], 'measured'), DEFAULTS);
+    const checks = checksOf(cases, decided([20, 21], 'measured'), DEFAULTS);
 
     expect(profileVerdict(cases, DEFAULTS).verdict.level).toBe('possible');
     expect(checks.controlVerdict).toStrictEqual({ level: 'probable', direction: 'increase' });
@@ -270,7 +256,7 @@ describe('profileChecks', () => {
       6,
     );
     const cases = [...casesOf([1, 1, 1, 1, 1], valid), ...minusOnes];
-    const checks = profileChecks(
+    const checks = checksOf(
       cases,
       decided(
         minusOnes.map((caseItem) => caseItem.caseId),
@@ -291,7 +277,7 @@ describe('profileChecks', () => {
     // Four valid gaps of 1.5 are below the threshold; five give a ratio of about 3.35.
     const cases = [...casesOf([1.5, 1.5, 1.5, 1.5], valid), excludedByHand(5, 1.5)];
 
-    expect(profileChecks(cases, decided([5], 'measured'), DEFAULTS)).toMatchObject({
+    expect(checksOf(cases, decided([5], 'measured'), DEFAULTS)).toMatchObject({
       controlVerdict: { level: 'probable', direction: 'increase' },
       dependsOnManualExclusions: true,
     });
@@ -305,7 +291,7 @@ describe('profileChecks', () => {
       level: 'probable',
       direction: 'increase',
     });
-    expect(profileChecks(cases, decided([5], 'excluded'), DEFAULTS).dependsOnManualExclusions).toBe(
+    expect(checksOf(cases, decided([5], 'excluded'), DEFAULTS).dependsOnManualExclusions).toBe(
       true,
     );
   });
@@ -314,10 +300,11 @@ describe('profileChecks', () => {
     // Three valid gaps of 1.5 and an excluded one: a ratio of exactly 3 on four cases.
     const cases = [...casesOf([1.5, 1.5, 1.5], valid), excludedByHand(4, 1.5)];
 
-    expect(profileChecks(cases, [], DEFAULTS).controlVerdict).toStrictEqual(INCONCLUSIVE);
-    expect(
-      profileChecks(cases, [], withThresholds({ minValidCases: 4 })).controlVerdict,
-    ).toStrictEqual({ level: 'probable', direction: 'increase' });
+    expect(checksOf(cases, [], DEFAULTS).controlVerdict).toStrictEqual(INCONCLUSIVE);
+    expect(checksOf(cases, [], withThresholds({ minValidCases: 4 })).controlVerdict).toStrictEqual({
+      level: 'probable',
+      direction: 'increase',
+    });
   });
 
   it('[SEN-27] [SEN-10] [CL-SEN-08] takes the valid and the excluded cases into the control, never an awaiting or a not-measurable one', () => {
@@ -327,7 +314,7 @@ describe('profileChecks', () => {
       withoutGap(3, 'not_measurable'),
       withoutGap(4, 'awaiting_game'),
     ];
-    const checks = profileChecks(cases, decided([3, 4], 'measured'), DEFAULTS);
+    const checks = checksOf(cases, decided([3, 4], 'measured'), DEFAULTS);
 
     expect(checks).toStrictEqual({
       controlCaseCount: 2,
@@ -343,7 +330,7 @@ describe('profileChecks', () => {
     const inGameOrder = verdictQuantities([0.1, 0.2, 0.3]);
 
     expect(verdictQuantities([0.2, 0.3, 0.1])).not.toStrictEqual(inGameOrder);
-    expect(profileChecks(cases, [], DEFAULTS).controlQuantities).toStrictEqual(inGameOrder);
+    expect(checksOf(cases, [], DEFAULTS).controlQuantities).toStrictEqual(inGameOrder);
   });
 
   it('[SEN-27] [CL-SEN-15] gives a profile without a valid or an excluded case no control mean gap and no warning', () => {
@@ -355,13 +342,13 @@ describe('profileChecks', () => {
       dependsOnManualExclusions: false,
     };
 
-    expect(profileChecks(cases, [], DEFAULTS)).toStrictEqual(none);
-    expect(profileChecks([], [], DEFAULTS)).toStrictEqual(none);
+    expect(checksOf(cases, [], DEFAULTS)).toStrictEqual(none);
+    expect(checksOf([], [], DEFAULTS)).toStrictEqual(none);
   });
 
   it('[SEN-24] [H-04] gives the mirrored worked example the mirrored control and the same warnings', () => {
-    const checks = profileChecks(mirrored(WORKED_EXAMPLE_CASES), [], DEFAULTS);
-    const byHand = profileChecks(mirrored(EXCLUDED_BY_HAND), decided([4, 9], 'measured'), DEFAULTS);
+    const checks = checksOf(mirrored(WORKED_EXAMPLE_CASES), [], DEFAULTS);
+    const byHand = checksOf(mirrored(EXCLUDED_BY_HAND), decided([4, 9], 'measured'), DEFAULTS);
 
     expect(checks.controlQuantities?.meanGap).toBeCloseTo(-0.51, 2);
     expect(checks.controlQuantities?.signalToNoise).toBeCloseTo(-1.5, ABOUT);
@@ -375,7 +362,7 @@ describe('profileChecks', () => {
   it('[SEN-27] never warns about a profile without a manual decision', () => {
     fc.assert(
       fc.property(anyCases, (cases) => {
-        expect(profileChecks(cases, [], DEFAULTS).dependsOnManualExclusions).toBe(false);
+        expect(checksOf(cases, [], DEFAULTS).dependsOnManualExclusions).toBe(false);
       }),
     );
   });
@@ -383,8 +370,8 @@ describe('profileChecks', () => {
   it('[SEN-27] [CL-STA-09] gives the same checks for the same cases in any order', () => {
     fc.assert(
       fc.property(anyProfile, ({ cases, shuffled, decisions }) => {
-        expect(profileChecks(shuffled, decisions, DEFAULTS)).toStrictEqual(
-          profileChecks(cases, decisions, DEFAULTS),
+        expect(checksOf(shuffled, decisions, DEFAULTS)).toStrictEqual(
+          checksOf(cases, decisions, DEFAULTS),
         );
       }),
     );

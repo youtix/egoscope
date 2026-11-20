@@ -1,0 +1,42 @@
+{
+  "games": {
+    "minutesFloor": 15,
+    "minutesAverageShare": 50,
+    "minBaselineGames": 10,
+    "postseasonBaseline": "postseason",
+    "partialBaselineShare": 20,
+    "dailyUpdateDelayHours": 3,
+    "correctionWindowDays": 7,
+    "boxScoreUnavailableAfterDays": 30,
+    "retryFirstDelayHours": 1,
+    "retryIntervalHours": 4,
+    "incidentAfterHours": 12,
+    "quotaReserveShare": 10
+  },
+  "sensitivity": {
+    "maxAttachmentDays": 10,
+    "coOccurringCasesDoubtful": false,
+    "injuryReturnMinGamesMissed": 4,
+    "injuryReturnFirstGames": 2,
+    "allPlayoffGamesUnusualStakes": false,
+    "opponentWinShareLow": 25,
+    "opponentWinShareHigh": 75,
+    "opponentMinGames": 10,
+    "minValidCases": 5,
+    "possibleSignalToNoise": 2,
+    "possibleMeanGap": 0.25,
+    "probableSignalToNoise": 3,
+    "probableMeanGap": 0.4,
+    "confidenceMediumFromCases": 8,
+    "confidenceHighFromCases": 15,
+    "confidenceDispersionDrop": 1.5,
+    "confidenceDoubtfulShareDrop": 30,
+    "trendMinPlayers": 3,
+    "trendMaxTopShare": 50,
+    "countsBelowCases": 20
+  },
+  "tracking": {
+    "categoryThreshold": 0.25,
+    "minTrackedCasesForAssessment": 10
+  }
+}

@@ -22,7 +22,8 @@ export type ConfidenceStepDownReason =
  * excluded cases, by hand or not; its gap dispersion, the observed one and never the
  * retained one, null below two valid cases (CL-SEN-15); and whether the robustness test
  * found its verdict fragile, which it never does below the valid-case threshold
- * (SEN-26, CL-SEN-14).
+ * (SEN-26, CL-SEN-14), nor for a general trend whose valid cases come from fewer than
+ * sensitivity.trendMinPlayers players, where the test does not run either (SEN-29).
  */
 export type ConfidenceInputs = Readonly<{
   validCount: number;
@@ -59,6 +60,15 @@ export function doubtfulShare(validCount: number, excludedCount: number): number
   return judgedCount === 0 ? null : excludedCount / judgedCount;
 }
 
+/**
+ * Says whether an exact share, a fraction never rounded, exceeds `percent` percent, the
+ * unit of the registry's shares (SEN-25, SEN-29, CL-SEN-21): it meets the parameter's own
+ * fraction, so 3 cases of 10 make exactly 30 %, not more.
+ */
+export function isAbovePercent(share: number, percent: number): boolean {
+  return share > percent / PERCENT;
+}
+
 /** The level that n gives, before any step down (SEN-25). */
 function startingConfidence(
   validCount: number,
@@ -70,8 +80,15 @@ function startingConfidence(
   return validCount >= thresholds.confidenceMediumFromCases ? 'medium' : 'low';
 }
 
-/** `values` one level lower, never below low, with `reason` after the earlier ones (SEN-25). */
-function steppedDown(values: ConfidenceValues, reason: ConfidenceStepDownReason): ConfidenceValues {
+/**
+ * Steps a profile confidence down one level, never below low, and gives `reason` after
+ * the earlier reasons (SEN-25): the step of each sign of a weak base, and the one that a
+ * general trend takes on top when one player dominates (SEN-29).
+ */
+export function steppedDown(
+  values: ConfidenceValues,
+  reason: ConfidenceStepDownReason,
+): ConfidenceValues {
   return {
     profileConfidence: ONE_LEVEL_DOWN[values.profileConfidence],
     confidenceStepDownReasons: [...values.confidenceStepDownReasons, reason],
@@ -101,10 +118,9 @@ export function profileConfidence(
   if ((inputs.gapDispersion ?? 0) > thresholds.confidenceDispersionDrop) {
     values = steppedDown(values, 'high_dispersion');
   }
-  // Without a valid or an excluded case, no case was doubtful. The exact share meets the
-  // parameter's own fraction, so 3 cases of 10 make exactly 30 %, not more (CL-SEN-21).
+  // Without a valid or an excluded case, no case was doubtful.
   const share = doubtfulShare(inputs.validCount, inputs.excludedCount) ?? 0;
-  if (share > thresholds.confidenceDoubtfulShareDrop / PERCENT) {
+  if (isAbovePercent(share, thresholds.confidenceDoubtfulShareDrop)) {
     values = steppedDown(values, 'high_doubtful_share');
   }
   if (inputs.isFragile) {

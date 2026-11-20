@@ -105,11 +105,12 @@ function without(
     : lacking;
 }
 
-// A time on court above zero and within regulation, so within any game's length, with
-// its decimal minutes.
+// A time on court above zero and within regulation, so within any game's length, in whole
+// seconds and in decimal minutes.
 const anyTimeOnCourt = fc.oneof(
   fc.integer({ min: 1, max: 48 }).map((minutes) => ({
     time: { minutesPrecision: 'whole_minutes' as const, minutes, seconds: null },
+    secondsOnCourt: minutes * 60,
     decimalMinutes: minutes,
   })),
   fc.integer({ min: 1, max: 48 * 60 }).map((seconds) => ({
@@ -118,6 +119,7 @@ const anyTimeOnCourt = fc.oneof(
       minutes: Math.floor(seconds / 60),
       seconds: seconds % 60,
     },
+    secondsOnCourt: seconds,
     decimalMinutes: seconds / 60,
   })),
 );
@@ -153,12 +155,16 @@ const anyConsistentCounts = fc
     };
   });
 
-type ConsistentLine = Readonly<{ line: BoxScoreLine; decimalMinutes: number }>;
+type ConsistentLine = Readonly<{
+  line: BoxScoreLine;
+  secondsOnCourt: number;
+  decimalMinutes: number;
+}>;
 
-// A line that every check accepts and that lacks nothing, with its decimal minutes.
+// A line that every check accepts and that lacks nothing, with its time on court.
 const anyConsistentLine: fc.Arbitrary<ConsistentLine> = fc
   .tuple(anyTimeOnCourt, anyConsistentCounts)
-  .map(([{ time, decimalMinutes }, counts]) => ({ line: { ...time, ...counts }, decimalMinutes }));
+  .map(([{ time, ...timeOnCourt }, counts]) => ({ line: { ...time, ...counts }, ...timeOnCourt }));
 
 // Such a line and the elements it lacks, in the order of `missing`: a single one in two
 // draws out of three, any of them otherwise. A whole-minutes line has no seconds to lack.
@@ -179,10 +185,11 @@ const anyLackingLine = anyConsistentLine.chain(({ line }) => {
 const anyOvertimes = fc.option(fc.nat(4), { nil: null });
 
 describe('verifyBoxScore', () => {
-  it('[STA-09] [STA-10] [STA-12] [CL-STA-06] finds the box score of CA-STA-01 complete, 34 min 30 s making 34.5 decimal minutes', () => {
+  it('[STA-09] [STA-10] [STA-12] [CL-STA-06] finds the box score of CA-STA-01 complete, 34 min 30 s making 2,070 seconds and 34.5 decimal minutes', () => {
     expect(verifyBoxScore(SPEC_LINE, 0)).toMatchObject({
       status: 'complete',
       hasRoundedMinutes: false,
+      secondsOnCourt: 2070,
       decimalMinutes: 34.5,
       points: 31,
       fieldGoalsMade: 11,
@@ -209,6 +216,7 @@ describe('verifyBoxScore', () => {
       expect(verifyBoxScore(line, 0)).toMatchObject({
         status,
         hasRoundedMinutes: true,
+        secondsOnCourt: 2100,
         decimalMinutes: 35,
       });
     },
@@ -218,6 +226,7 @@ describe('verifyBoxScore', () => {
     expect(verifyBoxScore(withValue(SPEC_LINE, 'turnovers', null), 0)).toStrictEqual({
       status: 'incomplete',
       hasRoundedMinutes: false,
+      secondsOnCourt: 2070,
       decimalMinutes: 34.5,
       missing: ['turnovers'],
     });
@@ -229,6 +238,7 @@ describe('verifyBoxScore', () => {
     expect(verifyBoxScore(withValue(SPEC_LINE, total, null), 0)).toStrictEqual({
       status: 'incomplete',
       hasRoundedMinutes: false,
+      secondsOnCourt: 2070,
       decimalMinutes: 34.5,
       missing: [total],
     });
@@ -240,6 +250,7 @@ describe('verifyBoxScore', () => {
     expect(verifyBoxScore(line, 0)).toStrictEqual({
       status: 'incomplete',
       hasRoundedMinutes: true,
+      secondsOnCourt: null,
       decimalMinutes: null,
       missing: ['minutes', 'points', 'personalFouls'],
     });
@@ -248,13 +259,15 @@ describe('verifyBoxScore', () => {
   it.each([
     [null, 30, ['minutes']],
     [34, null, ['seconds']],
+    [48, null, ['seconds']],
     [null, null, ['minutes', 'seconds']],
   ])(
-    '[STA-10] marks incomplete a line of a source in seconds at %s min %s s',
+    '[STA-10] [STA-09] [CL-STA-03] marks incomplete a line of a source in seconds at %s min %s s, within 48 minutes',
     (minutes, seconds, missing) => {
       expect(verifyBoxScore({ ...SPEC_LINE, minutes, seconds }, 0)).toStrictEqual({
         status: 'incomplete',
         hasRoundedMinutes: false,
+        secondsOnCourt: null,
         decimalMinutes: null,
         missing,
       });
@@ -272,6 +285,7 @@ describe('verifyBoxScore', () => {
     expect(verifyBoxScore(line, 0)).toStrictEqual({
       status: 'incomplete',
       hasRoundedMinutes: true,
+      secondsOnCourt: null,
       decimalMinutes: null,
       missing: ['minutes'],
     });
@@ -281,6 +295,7 @@ describe('verifyBoxScore', () => {
     expect(verifyBoxScore(withValue(NOTHING, 'defensiveRebounds', 1), 0)).toStrictEqual({
       status: 'suspect',
       hasRoundedMinutes: false,
+      secondsOnCourt: null,
       decimalMinutes: null,
       failedChecks: ['statistic_without_minutes'],
     });
@@ -295,6 +310,7 @@ describe('verifyBoxScore', () => {
       expect(verifyBoxScore(line, 0)).toStrictEqual({
         status: 'incomplete',
         hasRoundedMinutes: false,
+        secondsOnCourt: null,
         decimalMinutes: null,
         missing,
       });
@@ -313,6 +329,7 @@ describe('verifyBoxScore', () => {
     expect(verifyBoxScore(line, 0)).toStrictEqual({
       status: 'suspect',
       hasRoundedMinutes: false,
+      secondsOnCourt: 2070,
       decimalMinutes: 34.5,
       failedChecks: ['points_mismatch'],
     });
@@ -396,6 +413,7 @@ describe('verifyBoxScore', () => {
     ['49 whole minutes', 0, withValue(WHOLE_LINE, 'minutes', 49)],
     ['59 whole minutes', 2, withValue(WHOLE_LINE, 'minutes', 59)],
     ['48 min 1 s', 0, { ...SPEC_LINE, minutes: 48, seconds: 1 }],
+    ['49 minutes and unknown seconds', 0, { ...SPEC_LINE, minutes: 49, seconds: null }],
   ])(
     '[STA-09] [CL-STA-03] marks suspect %s with %s overtimes, above 48 minutes plus 5 per overtime',
     (_time, overtimes, line) => {
@@ -409,7 +427,12 @@ describe('verifyBoxScore', () => {
   it('[STA-09] [CL-STA-03] skips the bound on the minutes when the number of overtimes is unknown', () => {
     expect(verifyBoxScore(withValue(WHOLE_LINE, 'minutes', 60), null)).toMatchObject({
       status: 'complete',
+      secondsOnCourt: 3600,
       decimalMinutes: 60,
+    });
+    expect(verifyBoxScore({ ...SPEC_LINE, minutes: 60, seconds: null }, null)).toMatchObject({
+      status: 'incomplete',
+      missing: ['seconds'],
     });
   });
 
@@ -438,6 +461,7 @@ describe('verifyBoxScore', () => {
     expect(verifyBoxScore(line, 0)).toStrictEqual({
       status: 'suspect',
       hasRoundedMinutes: false,
+      secondsOnCourt: 2070,
       decimalMinutes: 34.5,
       failedChecks: ['negative_value'],
     });
@@ -445,15 +469,14 @@ describe('verifyBoxScore', () => {
 
   it('[STA-09] [STA-10] [STA-12] finds complete a consistent line that lacks nothing, and keeps the values it is given', () => {
     fc.assert(
-      fc.property(anyConsistentLine, anyOvertimes, ({ line, decimalMinutes }, overtimes) => {
-        const check = verifyBoxScore(line, overtimes);
-
-        expect(check).toMatchObject({
+      fc.property(anyConsistentLine, anyOvertimes, ({ line, ...timeOnCourt }, overtimes) => {
+        // The decimal minutes are the whole seconds divided by 60 once, to the bit.
+        expect(verifyBoxScore(line, overtimes)).toMatchObject({
           status: 'complete',
           hasRoundedMinutes: line.minutesPrecision === 'whole_minutes',
+          ...timeOnCourt,
           ...totalsOf(line),
         });
-        expect(check.decimalMinutes).toBeCloseTo(decimalMinutes, 9);
       }),
     );
   });

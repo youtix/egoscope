@@ -4,6 +4,8 @@
 // supplements share these rules. Dates are calendar dates written YYYY-MM-DD, compared
 // as written (CL-IMP-09).
 
+import { dayAfter } from './calendar-days';
+
 import type { IsoDate } from '../types';
 
 /**
@@ -26,16 +28,6 @@ export type TypeCoverage = Readonly<{
   coveredPeriods: readonly CoveredPeriod[];
   latestBroadeningVersion: number | undefined;
 }>;
-
-// A date written YYYY-MM-DD is the start of an instant written in ISO 8601.
-const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
-
-// The calendar date right after `day`, in the same calendar. A day not written
-// YYYY-MM-DD makes no date, which toISOString refuses with a RangeError: a bug.
-function dayAfter(day: IsoDate): IsoDate {
-  const [year = NaN, month = NaN, date = NaN] = day.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, date + 1)).toISOString().slice(0, ISO_DATE_LENGTH);
-}
 
 // The first day from `day` on that lies in no counting period (rule 3): past the end of
 // each period that holds it, until none does.

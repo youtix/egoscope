@@ -58,13 +58,12 @@ const TAKEN_OUT: PlannedType = { ...asked('bereavement', FIRST_GAME, CREATED), i
  * declares the requested types covered from his first NBA game to 2022-06-30.
  */
 function afterImport(planned: readonly PlannedType[]): readonly CoveredResearchType[] {
-  const requested = planned.filter(({ isRequested }) => isRequested);
   const declared = {
     coveredTypes: ['public-humiliation', 'record-approach'],
     startOn: FIRST_GAME,
     endOn: '2022-06-30',
   };
-  const { retainedPeriods } = retainedCoverage(requested, declared, FIRST_GAME);
+  const { retainedPeriods } = retainedCoverage(planned, declared, FIRST_GAME);
   return planned.map(({ eventTypeId }) =>
     coveredType(
       eventTypeId,

@@ -97,9 +97,16 @@ const closePairs: fc.Arbitrary<readonly [ComparedEvent, ComparedEvent]> = fc
     eventOn(secondForm(ms + gap), { eventTypeId: secondType }),
   ]);
 
+/** Whether two events cite a link in common. */
+function haveLinkInCommon(event: ComparedEvent, other: ComparedEvent): boolean {
+  return event.cleanedUrls.some((url) => other.cleanedUrls.includes(url));
+}
+
 /**
  * The positions of a result whose entry breaks IMP-26, by which each event duplicates
- * the first earlier event that is kept and that it corresponds to, or is kept.
+ * the first earlier event that is kept and that it corresponds to, or that it is of the
+ * player and type of and shares a link with one of its earlier duplicates, a
+ * calendar-derived event never; or is kept.
  */
 function breachesOf(
   events: readonly ComparedEvent[],
@@ -107,13 +114,24 @@ function breachesOf(
   windowDays: number,
 ): readonly number[] {
   const indexed = events.map((event, position) => ({ event, position }));
+  const isJoinedThroughLink = (event: ComparedEvent, position: number, keptAt: number): boolean =>
+    indexed.some(
+      (earlier) =>
+        earlier.position < position &&
+        duplicateOf[earlier.position] === keptAt &&
+        event.origin !== 'calendar' &&
+        event.playerId === earlier.event.playerId &&
+        event.eventTypeId === earlier.event.eventTypeId &&
+        haveLinkInCommon(earlier.event, event),
+    );
   return indexed
     .filter(({ event, position }) => {
       const original = indexed.find(
         (earlier) =>
           earlier.position < position &&
           duplicateOf[earlier.position] === undefined &&
-          classify(earlier.event, event, windowDays) === 'duplicate',
+          (classify(earlier.event, event, windowDays) === 'duplicate' ||
+            isJoinedThroughLink(event, position, earlier.position)),
       );
       return duplicateOf[position] !== original?.position;
     })
@@ -238,12 +256,22 @@ describe('classify', () => {
     },
   );
 
-  it('[IMP-25] [CL-IMP-14] compares cleaned links exactly, so that http and https make no common link', () => {
-    const first = dated('2021-01-14', { cleanedUrls: [ARTICLE] });
-    const second = dated('2021-05-03', { cleanedUrls: [ARTICLE.replace('https:', 'http:')] });
+  it.each([
+    ['http and https', ARTICLE, ARTICLE.replace('https:', 'http:')],
+    [
+      'the case of their paths',
+      'https://media-national.example/news/Story-ID',
+      'https://media-national.example/news/story-id',
+    ],
+  ])(
+    '[IMP-25] [CL-IMP-14] compares cleaned links exactly, so that %s make no common link',
+    (_difference, url, otherUrl) => {
+      const first = dated('2021-01-14', { cleanedUrls: [url] });
+      const second = dated('2021-05-03', { cleanedUrls: [otherUrl] });
 
-    expect(classify(first, second, WINDOW)).toBe('none');
-  });
+      expect(classify(first, second, WINDOW)).toBe('none');
+    },
+  );
 
   it.each(['historical', 'detected'] as const)(
     '[IMP-25] [CL-IMP-29] never matches a calendar-derived event and a %s one, of one type on one day',
@@ -356,19 +384,41 @@ describe('duplicatesInResult', () => {
     expect(duplicatesInResult(events, WINDOW)).toStrictEqual([undefined, 0, undefined, 2]);
   });
 
-  it('[IMP-26] keeps an event that corresponds only to a duplicate', () => {
+  it('[IMP-26] keeps an event close in date to a duplicate alone: the chain goes through links only', () => {
     // 16 January duplicates 14 January; 18 January is 4 days from 14 January.
     const events = [dated('2021-01-14'), dated('2021-01-16'), dated('2021-01-18')];
 
     expect(duplicatesInResult(events, WINDOW)).toStrictEqual([undefined, 0, undefined]);
   });
 
-  it('[IMP-26] keeps an event that shares a link only with a duplicate, whose links stay its own', () => {
+  it('[IMP-26] [IMP-25] makes an event that shares a link with a duplicate the duplicate of the event that duplicate joins', () => {
     // 15 January duplicates 14 January by its date; 3 May shares a link with 15 January only.
     const events = [
       dated('2021-01-14', { cleanedUrls: [ARTICLE] }),
       dated('2021-01-15', { cleanedUrls: [OTHER_ARTICLE] }),
       dated('2021-05-03', { cleanedUrls: [OTHER_ARTICLE] }),
+    ];
+
+    expect(duplicatesInResult(events, WINDOW)).toStrictEqual([undefined, 0, 0]);
+  });
+
+  it('[IMP-26] [IMP-25] brings the links of a duplicate found through a link to the event it joins as well', () => {
+    // 3 May joins 14 January through 15 January's link; 9 August, through 3 May's other link.
+    const events = [
+      dated('2021-01-14', { cleanedUrls: [ARTICLE] }),
+      dated('2021-01-15', { cleanedUrls: [OTHER_ARTICLE] }),
+      dated('2021-05-03', { cleanedUrls: [OTHER_ARTICLE, THIRD_ARTICLE] }),
+      dated('2021-08-09', { cleanedUrls: [THIRD_ARTICLE] }),
+    ];
+
+    expect(duplicatesInResult(events, WINDOW)).toStrictEqual([undefined, 0, 0, 0]);
+  });
+
+  it('[IMP-26] [CL-IMP-13] keeps an event of another type that shares a link with a duplicate', () => {
+    const events = [
+      dated('2021-01-14', { cleanedUrls: [ARTICLE] }),
+      dated('2021-01-15', { cleanedUrls: [OTHER_ARTICLE] }),
+      dated('2021-05-03', { eventTypeId: MEDIA_STORM, cleanedUrls: [OTHER_ARTICLE] }),
     ];
 
     expect(duplicatesInResult(events, WINDOW)).toStrictEqual([undefined, 0, undefined]);
@@ -385,7 +435,7 @@ describe('duplicatesInResult', () => {
     expect(duplicatesInResult([], WINDOW)).toStrictEqual([]);
   });
 
-  it('[IMP-26] makes each event the duplicate of the first earlier kept event it corresponds to, or keeps it', () => {
+  it('[IMP-26] [IMP-25] [CL-IMP-13] makes each event the duplicate of the first earlier kept event it corresponds to or joins through a link of its duplicates, or keeps it', () => {
     fc.assert(
       fc.property(fc.array(comparedEvents, { maxLength: 8 }), windows, (events, windowDays) => {
         const duplicateOf = duplicatesInResult(events, windowDays);

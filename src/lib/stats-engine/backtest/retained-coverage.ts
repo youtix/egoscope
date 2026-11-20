@@ -6,9 +6,11 @@
 // Dates are calendar dates written YYYY-MM-DD, compared as written (CL-IMP-09), here as
 // days counted from 1970-01-01.
 
+import { dateOf, dayCount } from './calendar-days';
+
 import type { EventTypeId, IsoDate } from '../types';
 import type { TypeCoverage } from './counting';
-import type { RequestedType } from './extents';
+import type { PlannedType, RequestedType } from './extents';
 
 /**
  * The coverage that a research result declares (IMP-10): its covered types as the
@@ -78,23 +80,6 @@ type RequestedDays = Readonly<{
 // What an import keeps of one requested type.
 type TypeRetention = Pick<RetainedCoverage, 'retainedPeriods' | 'coverageGaps'>;
 
-const MS_PER_DAY = 86_400_000;
-// A date written YYYY-MM-DD is the start of an instant written in ISO 8601.
-const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
-
-// The day of a date written YYYY-MM-DD, counted from 1970-01-01 in the same calendar.
-function dayCount(day: IsoDate): number {
-  const [year = NaN, month = NaN, date = NaN] = day.split('-').map(Number);
-  return Date.UTC(year, month - 1, date) / MS_PER_DAY;
-}
-
-// The date written YYYY-MM-DD of a day counted from 1970-01-01. A day that makes no
-// date, which only a date not written YYYY-MM-DD gives, makes toISOString throw a
-// RangeError: a bug.
-function dateOf(day: number): IsoDate {
-  return new Date(day * MS_PER_DAY).toISOString().slice(0, ISO_DATE_LENGTH);
-}
-
 // The date of a day, or his first NBA game, its date unknown (`undefined`).
 function dateOrUnknown(day: number | undefined): IsoDate | undefined {
   return day === undefined ? undefined : dateOf(day);
@@ -155,8 +140,12 @@ function declaredRetention(requested: RequestedDays, declared: Days): TypeRetent
 // of its requested types to their latest end, which the covered period of format 1.0
 // lies within (05 « Données manipulées »): the retained periods are brought back to it.
 // A start from his first NBA game, its date unknown, never lies after the declared one,
-// which stands for it (IMP-12).
+// which stands for it (IMP-12). A request without a requested type has no period, and
+// so brings nothing back.
 function isClamped(requested: readonly RequestedDays[], declared: Days): boolean {
+  if (requested.length === 0) {
+    return false;
+  }
   const requestStart = Math.min(...requested.map(({ startDay }) => startDay ?? declared.startDay));
   const requestEnd = Math.max(...requested.map(({ endDay }) => endDay));
   return (
@@ -188,20 +177,25 @@ function warningsOf(
  * period of a requested type that the result does not declare; and a warning for the
  * declared types outside the request, which are ignored, a calendar-derived one among
  * them (CL-IMP-29), and one for a declared period that goes beyond the request's.
- * Requested types are those in the request's prompt (CL-BKT-07). A period that starts
- * from his first NBA game, its date unknown at the request, starts on that game's US
- * date once the app knows it (STA-47); while it does not, the declared start stands for
- * it (IMP-12), and a gap over the whole period keeps the unknown start. A recovered cut
- * result whose shortened period ends before it starts retains nothing (CL-IMP-18). The
- * result's events play no part: an empty result retains like any other (BKT-23).
+ * `plannedTypes` are the planned types of the request, as it stores them, and only those
+ * in its prompt are requested (CL-BKT-07): a type that a reduction took out retains
+ * nothing, leaves no gap, adds nothing to the request's period and is ignored when the
+ * result declares it. A period that starts from his first NBA game, its date unknown at
+ * the request, starts on that game's US date once the app knows it (STA-47); while it
+ * does not, the declared start stands for it (IMP-12), and a gap over the whole period
+ * keeps the unknown start. A recovered cut result whose shortened period ends before it
+ * starts retains nothing (CL-IMP-18). The result's events play no part: an empty result
+ * retains like any other (BKT-23).
  */
 export function retainedCoverage(
-  requestedTypes: readonly RequestedType[],
+  plannedTypes: readonly PlannedType[],
   declared: DeclaredCoverage,
   firstNbaGameOn: IsoDate | undefined,
 ): RetainedCoverage {
   const declaredDays = { startDay: dayCount(declared.startOn), endDay: dayCount(declared.endOn) };
-  const requested = requestedTypes.map((type) => requestedDaysOf(type, firstNbaGameOn));
+  const requested = plannedTypes
+    .filter((type) => type.isRequested)
+    .map((type) => requestedDaysOf(type, firstNbaGameOn));
   const retentions = requested.map((days) =>
     declared.coveredTypes.includes(days.eventTypeId)
       ? declaredRetention(days, declaredDays)

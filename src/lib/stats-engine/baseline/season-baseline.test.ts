@@ -1,6 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
+
 import { baselinePhaseOf, seasonBaseline } from './season-baseline';
 
 import type { PhaseState } from '../schedule/phase-state';
@@ -9,45 +11,15 @@ import type { BaselinePhase, EngineParams } from '../types';
 import type { BaselineGame, SeasonBaseline, SeasonBaselineInput } from './season-baseline';
 
 // The registry's defaults: 10 games at least, play-in and playoff games compared with the
-// postseason, partial above 20 % (STA-18, STA-19, STA-24).
+// postseason, partial above 20 % (STA-18, STA-19, STA-24). JSON gives the baseline phase
+// as a string, which the comparison narrows to a BaselinePhase (types.test.ts).
 const DEFAULTS: EngineParams = {
+  ...engineParams,
   games: {
-    minutesFloor: 15,
-    minutesAverageShare: 50,
-    minBaselineGames: 10,
-    postseasonBaseline: 'postseason',
-    partialBaselineShare: 20,
-    dailyUpdateDelayHours: 3,
-    correctionWindowDays: 7,
-    boxScoreUnavailableAfterDays: 30,
-    retryFirstDelayHours: 1,
-    retryIntervalHours: 4,
-    incidentAfterHours: 12,
-    quotaReserveShare: 10,
+    ...engineParams.games,
+    postseasonBaseline:
+      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
   },
-  sensitivity: {
-    maxAttachmentDays: 10,
-    coOccurringCasesDoubtful: false,
-    injuryReturnMinGamesMissed: 4,
-    injuryReturnFirstGames: 2,
-    allPlayoffGamesUnusualStakes: false,
-    opponentWinShareLow: 25,
-    opponentWinShareHigh: 75,
-    opponentMinGames: 10,
-    minValidCases: 5,
-    possibleSignalToNoise: 2,
-    possibleMeanGap: 0.25,
-    probableSignalToNoise: 3,
-    probableMeanGap: 0.4,
-    confidenceMediumFromCases: 8,
-    confidenceHighFromCases: 15,
-    confidenceDispersionDrop: 1.5,
-    confidenceDoubtfulShareDrop: 30,
-    trendMinPlayers: 3,
-    trendMaxTopShare: 50,
-    countsBelowCases: 20,
-  },
-  tracking: { categoryThreshold: 0.25, minTrackedCasesForAssessment: 10 },
 };
 
 const withGames = (games: Partial<EngineParams['games']>): EngineParams => ({
@@ -292,6 +264,14 @@ describe('seasonBaseline', () => {
     expect(baselineOf(four, {}, params).status).toBe('insufficient');
   });
 
+  it('[STA-22] [STA-19] [CL-STA-08] keeps a baseline building below its minimum while the phase runs, even with a deviation of zero', () => {
+    expect(whileRunning([0.4, 0.4])).toMatchObject({
+      gameCount: 2,
+      standardDeviation: 0,
+      status: 'building',
+    });
+  });
+
   it('[STA-16] [STA-22] gives a building baseline its mean from one game on and its deviation from two', () => {
     const none = { gameCount: 0, mean: null, standardDeviation: null };
 
@@ -440,8 +420,18 @@ const anyPlace = {
   scheduledStartAt: fc.nat({ max: 20 }),
   phase: fc.constantFrom<GamePhase>('regular_season', 'play_in', 'playoffs'),
 };
+// Usable games four times out of six, so that a season of up to 40 games often gives a
+// baseline more than the 12 games that its minimum may ask for. Without a size, fast-check
+// draws at most 10 of them, whatever the maximum.
 const anyGame: fc.Arbitrary<BaselineGame> = fc.oneof(
-  fc.record({ ...anyPlace, classification: fc.constant('usable'), performanceIndex: anyIndex }),
+  {
+    arbitrary: fc.record({
+      ...anyPlace,
+      classification: fc.constant('usable'),
+      performanceIndex: anyIndex,
+    }),
+    weight: 4,
+  },
   fc.record({
     ...anyPlace,
     classification: fc.constant('played_not_usable'),
@@ -454,7 +444,7 @@ const anyGame: fc.Arbitrary<BaselineGame> = fc.oneof(
   }),
 );
 const anyInput: fc.Arbitrary<SeasonBaselineInput> = fc.record({
-  games: fc.uniqueArray(anyGame, { selector: (game) => game.gameId, maxLength: 40 }),
+  games: fc.uniqueArray(anyGame, { selector: (game) => game.gameId, maxLength: 40, size: 'max' }),
   phase: fc.constantFrom<BaselinePhase>('regular_season', 'postseason'),
   excludedGameId: fc.nat({ max: 99 }),
   phaseState: fc.record({ finished: fc.boolean(), lastGameConsolidated: fc.boolean() }),

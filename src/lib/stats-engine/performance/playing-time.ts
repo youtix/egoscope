@@ -2,6 +2,8 @@
 // (STA-13 to STA-15): one threshold per player and season, which the baselines and the
 // measured game share (CL-STA-07).
 
+import { SECONDS_PER_MINUTE } from './box-score';
+
 import type { BoxScoreCheck } from './box-score';
 import type { EngineParams, EpochMs, GameId } from '../types';
 
@@ -23,19 +25,12 @@ export type PlayerGame = Readonly<{
 /** The class of a game for the baselines and the measured game (STA-13, STA-14). */
 export type GamePlayClassification = 'not_played' | 'played_not_usable' | 'usable';
 
-/** His minutes in a game of the average (CL-STA-07), or null for a game outside it. */
-function averagedMinutes(game: PlayerGame): number | null {
+/** His whole seconds on court in a game of the average (CL-STA-07), or null outside it. */
+function averagedSeconds(game: PlayerGame): number | null {
   const { boxScore } = game;
   return boxScore !== null && game.phase === 'regular_season' && boxScore.status !== 'suspect'
-    ? boxScore.decimalMinutes
+    ? boxScore.secondsOnCourt
     : null;
-}
-
-/** Scheduled start, then game id: the fixed order of every sum (CL-STA-09). */
-function inFixedOrder(left: PlayerGame, right: PlayerGame): number {
-  return left.scheduledStartAt === right.scheduledStartAt
-    ? left.gameId - right.gameId
-    : left.scheduledStartAt - right.scheduledStartAt;
 }
 
 /**
@@ -44,26 +39,25 @@ function inFixedOrder(left: PlayerGame, right: PlayerGame): number {
  * his mean minutes over the regular-season games he played with a time on court above
  * zero and a box score that is not suspect, incomplete ones included; the floor alone
  * without such a game. `games` are his team games of that season, the measured game
- * among them, since one threshold serves every game of the season. Whole minutes count
- * as they are, and the minutes add up by scheduled start, then game id. The share
- * multiplies their sum before the one division, so whole minutes and a whole share give
- * the exact quotient rounded once: a threshold of exactly 17 minutes is 17, and a game
- * of 17 whole minutes reaches it.
+ * among them, since one threshold serves every game of the season. The mean comes from
+ * whole seconds, whole minutes counting as they are: the seconds add up exactly, in any
+ * order, and the share multiplies their sum before the one division by 100 × 60 × the
+ * games, so a whole share gives the exact quotient rounded once. A game's decimal minutes
+ * are its seconds divided by 60 once (verifyBoxScore), so a game at exactly the threshold
+ * reaches it: 17 whole minutes reach a threshold of exactly 17, and 15 min 4 s beside
+ * 45 min 12 s reach half their mean.
  */
 export function playingTimeThreshold(games: readonly PlayerGame[], params: EngineParams): number {
   const { minutesFloor, minutesAverageShare } = params.games;
-  const minutes = games
-    .toSorted((left, right) => inFixedOrder(left, right))
-    .map((game) => averagedMinutes(game))
-    .filter((value) => value !== null);
-  if (minutes.length === 0) {
+  const seconds = games.map((game) => averagedSeconds(game)).filter((value) => value !== null);
+  if (seconds.length === 0) {
     return minutesFloor;
   }
-  let sum = 0;
-  for (const value of minutes) {
-    sum += value;
-  }
-  return Math.max(minutesFloor, (minutesAverageShare * sum) / (PERCENT * minutes.length));
+  const totalSeconds = seconds.reduce((total, value) => total + value, 0);
+  return Math.max(
+    minutesFloor,
+    (minutesAverageShare * totalSeconds) / (PERCENT * SECONDS_PER_MINUTE * seconds.length),
+  );
 }
 
 /**

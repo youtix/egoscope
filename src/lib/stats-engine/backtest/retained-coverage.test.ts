@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { isTypeCovered, retainedCoverage } from './retained-coverage';
 
 import type { CoveredPeriod, TypeCoverage } from './counting';
-import type { RequestedType } from './extents';
+import type { PlannedType } from './extents';
 import type {
   CoverageGap,
   CoverageWarning,
@@ -17,10 +17,13 @@ import type {
 const FIRST_GAME = '2019-10-23';
 const CREATED = '2026-11-11';
 
-/** A requested type with its period. */
-function asked(eventTypeId: string, startOn: string | undefined, endOn: string): RequestedType {
-  return { eventTypeId, periodStartOn: startOn, periodEndOn: endOn };
+/** A planned type with its period, in the prompt. */
+function asked(eventTypeId: string, startOn: string | undefined, endOn: string): PlannedType {
+  return { eventTypeId, periodStartOn: startOn, periodEndOn: endOn, isRequested: true };
 }
+
+// A planned type over the whole career that a reduction took out of the prompt (CL-BKT-07).
+const TAKEN_OUT: PlannedType = { ...asked('bereavement', FIRST_GAME, CREATED), isRequested: false };
 
 /** The coverage that a result declares. */
 function declaredAs(
@@ -77,9 +80,17 @@ const offset = fc.integer({ min: 0, max: LAST_OFFSET });
 const span = fc
   .tuple(offset, offset)
   .map(([one, other]) => ({ start: Math.min(one, other), end: Math.max(one, other) }));
-const requestedTypes = fc
+// Planned types, three in four of them in the prompt, the others taken out of it by a
+// reduction.
+const mostlyInPrompt = fc.oneof({ arbitrary: fc.constant(true), weight: 3 }, fc.constant(false));
+const plannedTypes = fc
   .uniqueArray(
-    fc.record({ eventTypeId: fc.constantFrom(...TYPE_IDS), span, isOpen: fc.boolean() }),
+    fc.record({
+      eventTypeId: fc.constantFrom(...TYPE_IDS),
+      span,
+      isOpen: fc.boolean(),
+      isRequested: mostlyInPrompt,
+    }),
     {
       selector: ({ eventTypeId }) => eventTypeId,
       minLength: 1,
@@ -87,9 +98,10 @@ const requestedTypes = fc
     },
   )
   .map((types) =>
-    types.map(({ eventTypeId, span: { start, end }, isOpen }) =>
-      asked(eventTypeId, dayOrUnknown(isOpen ? undefined : start), dayAt(end)),
-    ),
+    types.map(({ eventTypeId, span: { start, end }, isOpen, isRequested }) => ({
+      ...asked(eventTypeId, dayOrUnknown(isOpen ? undefined : start), dayAt(end)),
+      isRequested,
+    })),
   );
 // A declared period may end before it starts, as after the recovery of a cut result.
 const declaredCoverages = fc
@@ -98,7 +110,7 @@ const declaredCoverages = fc
 const firstGames = fc.option(offset, { nil: undefined }).map(dayOrUnknown);
 
 type Import = Readonly<{
-  request: readonly RequestedType[];
+  request: readonly PlannedType[];
   declared: DeclaredCoverage;
   firstNbaGameOn: string | undefined;
 }>;
@@ -111,14 +123,19 @@ function isWithin(
   return (period.startOn ?? '') <= day && day <= period.endOn;
 }
 
-/** Whether a retained period holds a day outside its type's requested period or the declared one. */
+/**
+ * Whether a retained period holds a day outside its type's requested period or the
+ * declared one, or belongs to a type out of the prompt.
+ */
 function isBeyondPeriods(period: RetainedPeriod, testImport: Import): boolean {
   const { request, declared, firstNbaGameOn } = testImport;
-  const type = request.find(({ eventTypeId }) => eventTypeId === period.eventTypeId);
-  const requested = {
-    startOn: type?.periodStartOn ?? firstNbaGameOn,
-    endOn: type?.periodEndOn ?? '',
-  };
+  const type = request.find(
+    ({ eventTypeId, isRequested }) => isRequested && eventTypeId === period.eventTypeId,
+  );
+  if (type === undefined) {
+    return true;
+  }
+  const requested = { startOn: type.periodStartOn ?? firstNbaGameOn, endOn: type.periodEndOn };
   return (
     !declared.coveredTypes.includes(period.eventTypeId) ||
     period.startOn > period.endOn ||
@@ -130,12 +147,13 @@ function isBeyondPeriods(period: RetainedPeriod, testImport: Import): boolean {
 }
 
 /**
- * The days that an import's result places wrongly for a requested type, his first NBA
- * game known: a day that its requested period and the declaration both hold must be
- * retained, any other requested day must be a gap, and no other day may be either.
+ * The days that an import's result places wrongly for a planned type, his first NBA game
+ * known: a day that its requested period and the declaration both hold must be retained,
+ * any other requested day must be a gap, and no other day may be either, nor any day of
+ * a type out of the prompt.
  */
 function misplacedDays(
-  type: RequestedType,
+  type: PlannedType,
   { declared, firstNbaGameOn }: Import,
   result: RetainedCoverage,
 ): readonly string[] {
@@ -147,8 +165,9 @@ function misplacedDays(
   const ofType = <T extends Readonly<{ eventTypeId: string }>>(items: readonly T[]): readonly T[] =>
     items.filter(({ eventTypeId }) => eventTypeId === type.eventTypeId);
   return EVERY_DAY.filter((day) => {
-    const isKept = isWithin(requested, day) && isDeclared && isWithin(declared, day);
-    const isGap = isWithin(requested, day) && !isKept;
+    const isAsked = type.isRequested && isWithin(requested, day);
+    const isKept = isAsked && isDeclared && isWithin(declared, day);
+    const isGap = isAsked && !isKept;
     return (
       ofType(result.retainedPeriods).some((period) => isWithin(period, day)) !== isKept ||
       ofType(result.coverageGaps).some((period) => isWithin(period, day)) !== isGap
@@ -389,10 +408,36 @@ describe('retainedCoverage', () => {
     );
   });
 
-  it('[IMP-10] never retains a day outside the requested period or the declared period', () => {
+  it('[IMP-10] [CL-BKT-07] retains nothing of a planned type that a reduction took out of the prompt, leaves it no gap and ignores it when declared', () => {
+    const request = [asked('media-storm', FIRST_GAME, CREATED), TAKEN_OUT];
+    const declared = declaredAs(['media-storm', 'bereavement'], FIRST_GAME, CREATED);
+
+    expect(retainedCoverage(request, declared, FIRST_GAME)).toStrictEqual(
+      retention([kept('media-storm', FIRST_GAME, CREATED)], [], [ignored('bereavement')]),
+    );
+  });
+
+  it("[IMP-10] [CL-BKT-07] reads the request's period over the types in its prompt alone", () => {
+    // Bereavement, taken out of the prompt, would start the request's period earlier.
+    const request = [asked('media-storm', '2022-07-01', CREATED), TAKEN_OUT];
+    const declared = declaredAs(['media-storm'], FIRST_GAME, CREATED);
+
+    expect(retainedCoverage(request, declared, FIRST_GAME)).toStrictEqual(
+      retention([kept('media-storm', '2022-07-01', CREATED)], [], [CLAMPED]),
+    );
+  });
+
+  it('[IMP-10] [CL-BKT-07] brings back no declared period of a request without a requested type', () => {
+    const declared = declaredAs([], '2019-07-01', '2026-12-31');
+
+    expect(retainedCoverage([], declared, FIRST_GAME)).toStrictEqual(retention([]));
+    expect(retainedCoverage([TAKEN_OUT], declared, FIRST_GAME)).toStrictEqual(retention([]));
+  });
+
+  it('[IMP-10] [CL-BKT-07] never retains a day outside the requested period or the declared period, nor a day of a type out of the prompt', () => {
     fc.assert(
       fc.property(
-        requestedTypes,
+        plannedTypes,
         declaredCoverages,
         firstGames,
         (request, declared, firstNbaGameOn) => {
@@ -407,9 +452,9 @@ describe('retainedCoverage', () => {
     );
   });
 
-  it('[IMP-10] retains each requested day that the result declares and leaves each other requested day a gap, once his first NBA game is known', () => {
+  it('[IMP-10] [CL-BKT-07] retains each requested day that the result declares and leaves each other requested day a gap, once his first NBA game is known', () => {
     fc.assert(
-      fc.property(requestedTypes, declaredCoverages, offset, (request, declared, firstGame) => {
+      fc.property(plannedTypes, declaredCoverages, offset, (request, declared, firstGame) => {
         const testImport = { request, declared, firstNbaGameOn: dayAt(firstGame) };
         const result = retainedCoverage(request, declared, testImport.firstNbaGameOn);
 

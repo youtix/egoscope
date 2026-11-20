@@ -19,10 +19,11 @@ type Article = Readonly<{
 }>;
 
 // How an article's link may be written: tracking parameters, each with the position it
-// takes among the article's own, a fragment, and the default port of its scheme when
-// the address names no port.
+// takes among the article's own, then empty parameters at theirs, a fragment, and the
+// default port of its scheme when the address names no port.
 type Writing = Readonly<{
   tracking: readonly (readonly [position: number, parameter: string])[];
+  emptyAt: readonly number[];
   fragment: string | undefined;
   withDefaultPort: boolean;
 }>;
@@ -75,6 +76,7 @@ const trackingParameter = fc
 const placedTrackingParameter = fc.tuple(fc.nat(), trackingParameter);
 const writing: fc.Arbitrary<Writing> = fc.record({
   tracking: fc.array(placedTrackingParameter, { maxLength: 4 }),
+  emptyAt: fc.array(fc.nat(), { maxLength: 3 }),
   fragment: fc.option(fc.webFragments(), { nil: undefined }),
   withDefaultPort: fc.boolean(),
 });
@@ -90,6 +92,10 @@ function writtenLinkOf({ scheme, host, port, path, parameters }: Article, how: W
   const allParameters = [...parameters];
   for (const [position, parameter] of how.tracking) {
     allParameters.splice(position % (allParameters.length + 1), 0, parameter);
+  }
+  // An empty parameter alone writes the query as a `?` alone.
+  for (const position of how.emptyAt) {
+    allParameters.splice(position % (allParameters.length + 1), 0, '');
   }
   const writtenPort = port === '' && how.withDefaultPort ? DEFAULT_PORT[scheme] : port;
   const query = allParameters.length === 0 ? '' : `?${allParameters.join('&')}`;
@@ -143,10 +149,22 @@ describe('cleanLink', () => {
     expect(cleanLink(`${ARTICLE}?fbclid&id=7&utm_source`)).toBe(`${ARTICLE}?id=7`);
   });
 
-  it('[CL-IMP-14] keeps an empty query and an empty parameter as written', () => {
-    expect(cleanLink(`${ARTICLE}?`)).toBe(`${ARTICLE}?`);
-    expect(cleanLink(`${ARTICLE}?id=7&&page=2`)).toBe(`${ARTICLE}?id=7&&page=2`);
-  });
+  it.each([
+    ['https://media-national.example/a?utm_source=feed&', 'https://media-national.example/a'],
+    ['https://media-national.example/a?&utm_source=feed', 'https://media-national.example/a'],
+    ['https://media-national.example/a?', 'https://media-national.example/a'],
+    ['https://media-national.example/?utm_source=feed&', 'https://media-national.example/'],
+    [
+      'https://media-national.example/a?id=7&&page=2',
+      'https://media-national.example/a?id=7&page=2',
+    ],
+    ['https://media-national.example/a?&id=7&#top', 'https://media-national.example/a?id=7'],
+  ])(
+    '[COL-28] [CL-COL-23] [CL-IMP-14] removes the empty parameters of %s, and its ? when none remains',
+    (url, expected) => {
+      expect(cleanLink(url)).toBe(expected);
+    },
+  );
 
   it('[CL-IMP-14] lowercases the scheme and the host, and keeps the case of the path and the query', () => {
     expect(cleanLink('HTTPS://Media-National.EXAMPLE/Basketball/Article-Title?Id=AbC')).toBe(
@@ -229,7 +247,7 @@ describe('cleanLink', () => {
     },
   );
 
-  it('[COL-28] [CL-COL-23] [CL-IMP-14] gives an article one link, whatever tracking parameters, fragment, case and default port it is written with', () => {
+  it('[COL-28] [CL-COL-23] [CL-IMP-14] gives an article one link, whatever tracking and empty parameters, fragment, case and default port it is written with', () => {
     fc.assert(
       fc.property(article, writing, (parts, how) => {
         expect(cleanLink(writtenLinkOf(parts, how))).toBe(cleanedLinkOf(parts));
@@ -262,6 +280,17 @@ describe('isSameLink', () => {
       ),
     ).toBe(true);
   });
+
+  it.each([
+    ['https://media-national.example/a?', 'https://media-national.example/a'],
+    ['https://media-national.example/a?utm_source=feed&', 'https://media-national.example/a'],
+    ['https://media-national.example/a?id=7&', 'https://media-national.example/a?&id=7'],
+  ])(
+    '[IMP-25] [COL-28] [CL-IMP-14] takes %s and %s, which differ only by an empty query or empty parameters, for one link',
+    (url, otherUrl) => {
+      expect(isSameLink(url, otherUrl)).toBe(true);
+    },
+  );
 
   it.each([
     ['http and https', 'http://media-national.example/a', 'https://media-national.example/a'],
