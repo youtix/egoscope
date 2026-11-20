@@ -1,0 +1,14 @@
+{
+  "pasted": [
+    "{",
+    "  \"format\": \"egoscope-exploration\",",
+    "  \"format_version\": \"1.0\",",
+    "  \"proposed_types\": [",
+    "    { \"name\": null, \"definition\": \"A public report that the player asked his team to trade him.\" },",
+    "    { \"name\": \"\", \"definition\": \"The official all-star rosters leave out a player whom the press expected on them.\" },",
+    "    { \"name\": \"  \", \"definition\": \"His own head coach criticizes the player by name in a press conference or an interview.\" },",
+    "    { \"name\": \"Trade request made public\" }",
+    "  ]",
+    "}"
+  ]
+}

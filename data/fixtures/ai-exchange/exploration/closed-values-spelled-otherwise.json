@@ -1,0 +1,13 @@
+{
+  "pasted": [
+    "{",
+    "  \"format\": \" Égoscope-EXPLORATION \",",
+    "  \"format_version\": \" 1.0 \",",
+    "  \"proposed_types\": [",
+    "    { \"name\": \"Trade request\", \"documentation_difficulty\": \" Easy\" },",
+    "    { \"name\": \"All-star snub\", \"documentation_difficulty\": \"MÉDIUM\" },",
+    "    { \"name\": \"Coach criticism\", \"documentation_difficulty\": \"hard\u00A0\" }",
+    "  ]",
+    "}"
+  ]
+}

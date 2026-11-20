@@ -1,0 +1,34 @@
+{
+  "format": "egoscope-exploration",
+  "format_version": "1.0",
+  "proposed_types": [
+    {
+      "name": "Trade request made public",
+      "definition": "A public report that the player asked his team to trade him.",
+      "inclusion_criteria": "A dated press article reports that the player or his agent asked the team for a trade.",
+      "exclusion_criteria": "Rumors that name no request by the player or his agent; trades that the team starts.",
+      "dating_rule": "The publication date of the first article that reports the request.",
+      "known_in_advance": false,
+      "generic_example": "A national outlet reports that player A asked team X to trade him.",
+      "documentation_difficulty": "easy",
+      "possible_overlaps": ["Media storm, when the request sparks wide coverage."],
+      "illustration_sources": [
+        {
+          "url": "https://www.national-outlet.example/basketball/2024/02/01/trade-request",
+          "outlet": "National Outlet",
+          "title": "Forward asks to be traded, sources say",
+          "publication_date": "2024-02-01"
+        }
+      ]
+    },
+    {
+      "name": "Left off the all-star roster",
+      "definition": "The official all-star rosters leave out a player whom the press expected on them.",
+      "inclusion_criteria": "The league announces the rosters and dated articles call the omission a snub.",
+      "dating_rule": "The date of the official roster announcement.",
+      "known_in_advance": true,
+      "documentation_difficulty": "medium",
+      "illustration_sources": []
+    }
+  ]
+}

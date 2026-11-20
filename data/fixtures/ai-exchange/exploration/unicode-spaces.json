@@ -1,0 +1,11 @@
+{
+  "pasted": [
+    "{",
+    "\u2003\u2003\"format\":\u2003\"egoscope-exploration\",",
+    "\u202F\u202F\"format_version\":\u202F\"1.0\",",
+    "\u3000\u3000\"proposed_types\":\u3000[",
+    "\u00A0\u00A0\u00A0\u00A0{ \"name\":\u00A0\"Trade request made public\",\u2003\"definition\":\u00A0\"A public report that the player asked his team to trade him.\",\u2003\"inclusion_criteria\":\u00A0\"A dated press article reports that the player or his agent asked the team for a trade.\",\u2003\"exclusion_criteria\":\u00A0\"Rumors that name no request by the player or his agent; trades that the team starts.\",\u2003\"dating_rule\":\u00A0\"The publication date of the first article that reports the request.\",\u2003\"known_in_advance\":\u00A0false, \"generic_example\":\u00A0\"A national outlet reports that player A asked team X to trade him.\",\u2003\"documentation_difficulty\":\u00A0\"easy\",\u2003\"possible_overlaps\":\u00A0[\"Media storm, when the request sparks wide coverage.\"], \"illustration_sources\":\u00A0[{ \"url\":\u00A0\"https://www.national-outlet.example/basketball/2024/02/01/trade-request\",\u2003\"outlet\":\u00A0\"National Outlet\",\u2003\"title\":\u00A0\"Forward asks to be traded, sources say\",\u2003\"publication_date\":\u00A0\"2024-02-01\" }] }",
+    "\u2003\u2003]",
+    "}"
+  ]
+}
