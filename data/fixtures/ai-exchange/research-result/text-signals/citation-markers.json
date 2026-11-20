@@ -1,0 +1,38 @@
+{
+  "markers": {
+    "numberList": [
+      "An opposing head coach mocked the forward's defense on television [3].",
+      "Two outlets reported the trade request on the same night [2, 5].",
+      "The team fined the guard for missing the flight to a road game [3–4].",
+      "The forward questioned the officiating after the loss [12 – 15]."
+    ],
+    "footnoteCall": [
+      "The guard criticized the coaching staff in a radio interview [^1].",
+      "The league fined the forward after the interview [^note]."
+    ],
+    "citeToken": ["[cite_start]The forward asked for a trade after the loss. [cite: 1]"],
+    "lenticularSpan": ["Opposing coach takes aim at the forward 【3†source】"],
+    "superscriptDigit": ["An opposing head coach mocked the forward's defense on television¹."],
+    "dagger": [
+      "The league fined the forward for the remarks†.",
+      "Fans booed the guard at every touch in his first game back‡."
+    ],
+    "privateUse": [
+      "The forward asked for a trade after the loss \uE200cite\uE202turn0search3\uE201."
+    ],
+    "markdownLink": [
+      "The forward questioned his role, according to [City Daily](https://www.city-daily.example/sports/2021/03/02/media-session).",
+      "The guard apologized for the remarks [National Outlet](http://www.national-outlet.example/basketball/2021/01/15/apology)."
+    ]
+  },
+  "plain": [
+    "An opposing head coach mocked the player's defense in a televised interview.",
+    "The players’ union backed the guard’s complaint about the schedule.",
+    "The forward called the trade (his third in 2 years) a mistake.",
+    "The coach said [the forward] was out of line.",
+    "A [3-game] suspension followed the incident.",
+    "Fans held up signs reading {3}, <3>, 〖3〗, 「3」 and ［3］.",
+    "The outlet pointed to [the interview](page 3) and to (https://www.city-daily.example/sports).",
+    "A lone 【 bracket opened the title."
+  ]
+}

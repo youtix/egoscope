@@ -1,0 +1,71 @@
+{
+  "signals": {
+    "numberAndWord": [
+      "The forward scored 31 points in the first game after the remarks.",
+      "The forward averaged 3.5 steals in the week after the trade request.",
+      "The guard hit a 3-pointer at the buzzer the next night.",
+      "The guard made 4 threes in the second half.",
+      "The forward scored 31\u202Fpoints in the next game."
+    ],
+    "numberAndAbbreviation": [
+      "The forward finished the next game with 12 reb.",
+      "The guard answered the boos with a 7-ast night.",
+      "The guard opened the next game with 12pts in the first quarter.",
+      "The guard answered the boos with a 7\u2011ast night."
+    ],
+    "doubleOrTripleDouble": [
+      "The forward answered the criticism with a triple-double.",
+      "The guard posted a double-double the next night.",
+      "Three straight triple-doubles followed the remarks.",
+      "The forward answered the criticism with a triple\u2011double."
+    ],
+    "score": [
+      "The team won 102-98 the night after the remarks.",
+      "The team lost 99–101 at home two days later."
+    ]
+  },
+  "words": [
+    "point",
+    "points",
+    "pt",
+    "pts",
+    "rebound",
+    "rebounds",
+    "reb",
+    "rebs",
+    "assist",
+    "assists",
+    "ast",
+    "steal",
+    "steals",
+    "stl",
+    "block",
+    "blocks",
+    "blk",
+    "turnover",
+    "turnovers",
+    "tov",
+    "minute",
+    "minutes",
+    "min",
+    "field goal",
+    "field goals",
+    "free throw",
+    "free throws",
+    "three-pointer",
+    "three-pointers",
+    "pointer",
+    "pointers",
+    "threes"
+  ],
+  "plain": [
+    "The coach criticized the forward after the 2023-24 season.",
+    "The guard was benched for game 7.",
+    "The remarks came on the eve of a 3-game road trip.",
+    "The team lost the series 4-1 after the remarks.",
+    "The coach made his points about the forward's defense clear.",
+    "The forward criticized his 4 assistant coaches.",
+    "The guard played through 3 minor injuries.",
+    "The team blew a double-digit lead after the remarks."
+  ]
+}
