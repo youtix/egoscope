@@ -55,8 +55,10 @@ export const STATISTICS_PATTERNS: Readonly<Record<string, RegExp>> = {
   // The word double-double or triple-double, its plural included.
   doubleOrTripleDouble: /(?:double|triple)\p{Pd}double/iu,
   // Two numbers of two or three digits joined by a hyphen or a dash, no digit touching
-  // either of them: 102-98 or 99–101, never the season 2023-24.
-  score: /(?<!\d)\d{2,3}\p{Pd}\d{2,3}(?!\d)/u,
+  // either of them: 102-98 or 99–101, never the season 2023-24. A number of exactly four
+  // digits and a dash just before the pair, or a dash and such a number just after it,
+  // make the pair part of a date, never a score: 2021-12-03, 12-03-2021.
+  score: /(?<!\d)(?<!(?<!\d)\d{4}\p{Pd})\d{2,3}\p{Pd}\d{2,3}(?!\d)(?!\p{Pd}\d{4}(?!\d))/u,
 };
 
 /**

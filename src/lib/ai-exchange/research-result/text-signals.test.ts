@@ -204,6 +204,24 @@ describe('hasPossibleStatistics', () => {
     );
   });
 
+  it('[CL-IMP-03] [IMP-13] reads no score in a date, a pair that a dash and a number of exactly four digits come just before or just after', () => {
+    const number = fc.stringMatching(/^\d{1,6}$/u);
+    const scoreNumber = fc.stringMatching(/^\d{2,3}$/u);
+    const dash = fc.constantFrom(...HYPHENS_AND_DASHES);
+    const pair = fc.tuple(scoreNumber, dash, scoreNumber).map((parts) => parts.join(''));
+
+    fc.assert(
+      fc.property(number, dash, pair, (other, separator, scorePair) => {
+        const isScore = other.length !== 4;
+
+        expect([
+          hasPossibleStatistics(`The forward spoke on ${other}${separator}${scorePair}.`),
+          hasPossibleStatistics(`The forward spoke on ${scorePair}${separator}${other}.`),
+        ]).toStrictEqual([isScore, isScore]);
+      }),
+    );
+  });
+
   it('[CL-IMP-03] gives the same answer each time it checks a text', () => {
     const texts = Object.values(statisticTexts).flat();
 
