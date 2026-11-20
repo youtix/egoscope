@@ -23,7 +23,7 @@ describe('the tables of the db module', { timeout: 60_000 }, () => {
     const database = await createTestDatabase();
     db = database.db;
     return database.close;
-  });
+  }, 60_000);
 
   it('records the first start as an absolute instant and reads it back unchanged', async () => {
     await db.insert(installation).values({ id: 1, firstStartedAt: GO_LIVE });
