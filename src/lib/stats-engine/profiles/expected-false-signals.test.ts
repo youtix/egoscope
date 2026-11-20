@@ -1,49 +1,21 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
+
 import { expectedFalseSignals } from './expected-false-signals';
 
 import type { EngineParams } from '../types';
 
-// The registry's defaults.
+// The registry's defaults. JSON gives the baseline phase as a string, which the comparison
+// narrows to a BaselinePhase (types.test.ts).
 const DEFAULTS: EngineParams = {
+  ...engineParams,
   games: {
-    minutesFloor: 15,
-    minutesAverageShare: 50,
-    minBaselineGames: 10,
-    postseasonBaseline: 'postseason',
-    partialBaselineShare: 20,
-    dailyUpdateDelayHours: 3,
-    correctionWindowDays: 7,
-    boxScoreUnavailableAfterDays: 30,
-    retryFirstDelayHours: 1,
-    retryIntervalHours: 4,
-    incidentAfterHours: 12,
-    quotaReserveShare: 10,
+    ...engineParams.games,
+    postseasonBaseline:
+      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
   },
-  sensitivity: {
-    maxAttachmentDays: 10,
-    coOccurringCasesDoubtful: false,
-    injuryReturnMinGamesMissed: 4,
-    injuryReturnFirstGames: 2,
-    allPlayoffGamesUnusualStakes: false,
-    opponentWinShareLow: 25,
-    opponentWinShareHigh: 75,
-    opponentMinGames: 10,
-    minValidCases: 5,
-    possibleSignalToNoise: 2,
-    possibleMeanGap: 0.25,
-    probableSignalToNoise: 3,
-    probableMeanGap: 0.4,
-    confidenceMediumFromCases: 8,
-    confidenceHighFromCases: 15,
-    confidenceDispersionDrop: 1.5,
-    confidenceDoubtfulShareDrop: 30,
-    trendMinPlayers: 3,
-    trendMaxTopShare: 50,
-    countsBelowCases: 20,
-  },
-  tracking: { categoryThreshold: 0.25, minTrackedCasesForAssessment: 10 },
 };
 
 // Φ(t), and the share 2 × (1 − Φ(t)) of pure noise beyond t either way, rounded to the

@@ -4,6 +4,8 @@
 // to be determined included (STA-31, CL-STA-14): this part only compares instants and
 // dates.
 
+import { daysBetween } from './calendar-days';
+
 import type { BacktestRequestId, EpochMs, IsoDate } from '../types';
 
 /** Why a player has no next game (STA-26). */
@@ -53,19 +55,6 @@ export type RequestToDo = Readonly<{
   createdAt: EpochMs;
   urgentDeadlineAt: EpochMs | undefined;
 }>;
-
-const MS_PER_DAY = 86_400_000;
-
-// 00:00 UTC on a date written YYYY-MM-DD.
-function utcMidnight(day: IsoDate): EpochMs {
-  const [year = NaN, month = NaN, date = NaN] = day.split('-').map(Number);
-  return Date.UTC(year, month - 1, date);
-}
-
-// The calendar days from `fromOn` to `toOn`, two dates written YYYY-MM-DD.
-function daysBetween(fromOn: IsoDate, toOn: IsoDate): number {
-  return (utcMidnight(toOn) - utcMidnight(fromOn)) / MS_PER_DAY;
-}
 
 /**
  * The deadline of a request (BKT-16, CL-BKT-24), from its game and the owner's day,

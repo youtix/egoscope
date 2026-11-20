@@ -1,6 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
+
 import {
   compareCasesInFixedOrder,
   profileVerdict,
@@ -16,45 +18,15 @@ import type { Verdict, VerdictQuantities } from './verdict';
 // (CL-STA-09, CL-SEN-24).
 const PRECISION = 9;
 
-// The registry's defaults.
+// The registry's defaults. JSON gives the baseline phase as a string, which the comparison
+// narrows to a BaselinePhase (types.test.ts).
 const DEFAULTS: EngineParams = {
+  ...engineParams,
   games: {
-    minutesFloor: 15,
-    minutesAverageShare: 50,
-    minBaselineGames: 10,
-    postseasonBaseline: 'postseason',
-    partialBaselineShare: 20,
-    dailyUpdateDelayHours: 3,
-    correctionWindowDays: 7,
-    boxScoreUnavailableAfterDays: 30,
-    retryFirstDelayHours: 1,
-    retryIntervalHours: 4,
-    incidentAfterHours: 12,
-    quotaReserveShare: 10,
+    ...engineParams.games,
+    postseasonBaseline:
+      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
   },
-  sensitivity: {
-    maxAttachmentDays: 10,
-    coOccurringCasesDoubtful: false,
-    injuryReturnMinGamesMissed: 4,
-    injuryReturnFirstGames: 2,
-    allPlayoffGamesUnusualStakes: false,
-    opponentWinShareLow: 25,
-    opponentWinShareHigh: 75,
-    opponentMinGames: 10,
-    minValidCases: 5,
-    possibleSignalToNoise: 2,
-    possibleMeanGap: 0.25,
-    probableSignalToNoise: 3,
-    probableMeanGap: 0.4,
-    confidenceMediumFromCases: 8,
-    confidenceHighFromCases: 15,
-    confidenceDispersionDrop: 1.5,
-    confidenceDoubtfulShareDrop: 30,
-    trendMinPlayers: 3,
-    trendMaxTopShare: 50,
-    countsBelowCases: 20,
-  },
-  tracking: { categoryThreshold: 0.25, minTrackedCasesForAssessment: 10 },
 };
 
 const DAY_MS = 86_400_000;
@@ -150,7 +122,7 @@ const WORKED_EXAMPLE_CASES: ProfileCase[] = [
 const MIRRORED_EXAMPLE_CASES = validCases(WORKED_EXAMPLE_GAPS.map((gap) => -gap));
 
 const anyGap = fc.double({ min: -5, max: 5, noNaN: true });
-const anyGaps = fc.array(anyGap, { minLength: 1, maxLength: 30 });
+const anyGaps = fc.array(anyGap, { minLength: 1, maxLength: 30, size: 'max' });
 // From 5 to 12 gaps, in hundredths, around a shift of up to ±1.5 that they share, each
 // with its own spread of up to ±1, so that their verdicts reach every level in both
 // directions. The shift is drawn evenly: fast-check's bias would draw it close to zero,
@@ -169,6 +141,7 @@ const anyValidCases = fc
   .uniqueArray(fc.tuple(fc.nat({ max: 1000 }), anyGap, fc.nat({ max: 5 })), {
     minLength: 1,
     maxLength: 20,
+    size: 'max',
     selector: ([caseId]) => caseId,
   })
   .map((rows) => rows.map(([caseId, gap, day]) => valid(caseId, gap, day)));
@@ -466,11 +439,18 @@ describe('profileVerdict', () => {
     });
   });
 
-  it('[SEN-23] [H-03] counts only the valid cases towards the valid-case threshold', () => {
+  it('[SEN-23] [SEN-05] [H-03] counts only the valid cases towards the valid-case threshold, a case of two events once', () => {
     // Four valid gaps of 1.5, a ratio of exactly 3, among seven cases: an excluded, a
-    // not-measurable and an awaiting case take the total past the threshold, not n.
+    // not-measurable and an awaiting case take the total past the threshold, not n; nor
+    // does the second event grouped in the first case, which takes the events to five.
     const cases: ProfileCase[] = [
-      ...validCases(repeated(1.5, 4)),
+      {
+        ...valid(1, 1.5),
+        events: [{ researchConfidence: 'high' }, { researchConfidence: 'medium' }],
+      },
+      valid(2, 1.5),
+      valid(3, 1.5),
+      valid(4, 1.5),
       { ...valid(5, 2), status: 'excluded', triggeredCriteria: ['playing_time_too_low'] },
       {
         caseId: 6,

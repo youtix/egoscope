@@ -37,7 +37,7 @@ function checked(line: BoxScoreLine): CheckedBoxScore {
 }
 
 describe('performanceIndex', () => {
-  it('[STA-12] [CA-STA-01] gives the box score of the example a Game Score of 25.9 and an index shown as 0.751', () => {
+  it('[STA-11] [STA-12] [CA-STA-01] gives the box score of the example a Game Score of 25.9 and an index shown as 0.751', () => {
     const boxScore = checked(SPEC_LINE);
 
     expect(gameScore(boxScore)).toBeCloseTo(25.9, 9);
@@ -80,10 +80,15 @@ describe('performanceIndex', () => {
     expect(performanceIndex(checked(line))).toBeCloseTo(-0.55, 9);
   });
 
-  it('[STA-12] [STA-09] [CA-STA-04] takes only a box score that verifyBoxScore found complete and consistent', () => {
+  it('[STA-10] [STA-12] [STA-09] [CA-STA-04] takes only a box score that verifyBoxScore found complete and consistent', () => {
     const incomplete = verifyBoxScore({ ...SPEC_LINE, turnovers: null }, 0);
     type Unbranded = GameScoreInput &
-      Readonly<{ status: 'complete'; hasRoundedMinutes: boolean; decimalMinutes: number }>;
+      Readonly<{
+        status: 'complete';
+        hasRoundedMinutes: boolean;
+        secondsOnCourt: number;
+        decimalMinutes: number;
+      }>;
 
     expectTypeOf(performanceIndex).parameter(0).toEqualTypeOf<CheckedBoxScore>();
     // @ts-expect-error -- a raw line, which no check has seen, has no index

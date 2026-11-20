@@ -134,27 +134,34 @@ export function classify(
  * The duplicates among the events of one result, given in the order of its list
  * (IMP-26): the first of two corresponding events is kept, and the later one is its
  * duplicate, not added. Each event is compared, in turn, with the events kept before
- * it: it duplicates the first one it corresponds to, or is kept. An event that only
- * corresponds to a duplicate is kept, so that each duplicate corresponds to the event
- * it joins. Two events of different types never duplicate each other, even with a
- * common link: both are added (CL-IMP-13). A kept event is compared by the links it is
- * given: the sources of its duplicates, which IMP-26 attaches to it within the maximum
- * number of sources, are not added to them here, so a later event that shares a link
- * only with such a source is kept. Only the import preview knows which sources join
- * the event. For each event, the index in `events` of the event it duplicates, or
- * `undefined` when it is kept.
+ * it: it duplicates the first one it corresponds to, or is kept. A kept event is
+ * compared by its own links and by those of the events already found to be its
+ * duplicates in the result, whose sources join it (IMP-26), whether or not the import
+ * attaches them within the maximum number of sources: a later event of its player and
+ * type is its duplicate when it corresponds to it, by its date or by a common link, or
+ * when it shares a link with one of those duplicates, whose own links then join it in
+ * turn. The chain goes through links only, never through dates: an event close in date
+ * to a duplicate alone, without a common link, is kept. Two events of different types
+ * never duplicate each other, even with a common link: both are added (CL-IMP-13). For
+ * each event, the index in `events` of the event it duplicates, or `undefined` when it
+ * is kept.
  */
 export function duplicatesInResult(
   events: readonly ComparedEvent[],
   windowDays: number,
 ): readonly (number | undefined)[] {
+  // Each kept event with its own links and those of its duplicates so far.
   const kept: Readonly<{ index: number; event: ComparedEvent }>[] = [];
   return events.map((event, index) => {
-    const original = kept.find(
+    const position = kept.findIndex(
       (candidate) => classify(candidate.event, event, windowDays) === 'duplicate',
     );
+    const original = kept[position];
     if (original === undefined) {
       kept.push({ index, event });
+    } else {
+      const cleanedUrls = [...original.event.cleanedUrls, ...event.cleanedUrls];
+      kept[position] = { index: original.index, event: { ...original.event, cleanedUrls } };
     }
     return original?.index;
   });

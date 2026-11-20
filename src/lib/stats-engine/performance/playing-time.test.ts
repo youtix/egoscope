@@ -1,6 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
+
 import { verifyBoxScore } from './box-score';
 import { classifyGame, playingTimeThreshold } from './playing-time';
 
@@ -8,45 +10,16 @@ import type { BoxScoreCheck, BoxScoreLine } from './box-score';
 import type { PlayerGame } from './playing-time';
 import type { EngineParams } from '../types';
 
-// The registry's defaults: a 15-minute floor and 50 % of the average (STA-14).
+// The registry's defaults: a 15-minute floor and 50 % of the average (STA-14). JSON gives
+// the baseline phase as a string, which the comparison narrows to a BaselinePhase
+// (types.test.ts).
 const PARAMS: EngineParams = {
+  ...engineParams,
   games: {
-    minutesFloor: 15,
-    minutesAverageShare: 50,
-    minBaselineGames: 10,
-    postseasonBaseline: 'postseason',
-    partialBaselineShare: 20,
-    dailyUpdateDelayHours: 3,
-    correctionWindowDays: 7,
-    boxScoreUnavailableAfterDays: 30,
-    retryFirstDelayHours: 1,
-    retryIntervalHours: 4,
-    incidentAfterHours: 12,
-    quotaReserveShare: 10,
+    ...engineParams.games,
+    postseasonBaseline:
+      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
   },
-  sensitivity: {
-    maxAttachmentDays: 10,
-    coOccurringCasesDoubtful: false,
-    injuryReturnMinGamesMissed: 4,
-    injuryReturnFirstGames: 2,
-    allPlayoffGamesUnusualStakes: false,
-    opponentWinShareLow: 25,
-    opponentWinShareHigh: 75,
-    opponentMinGames: 10,
-    minValidCases: 5,
-    possibleSignalToNoise: 2,
-    possibleMeanGap: 0.25,
-    probableSignalToNoise: 3,
-    probableMeanGap: 0.4,
-    confidenceMediumFromCases: 8,
-    confidenceHighFromCases: 15,
-    confidenceDispersionDrop: 1.5,
-    confidenceDoubtfulShareDrop: 30,
-    trendMinPlayers: 3,
-    trendMaxTopShare: 50,
-    countsBelowCases: 20,
-  },
-  tracking: { categoryThreshold: 0.25, minTrackedCasesForAssessment: 10 },
 };
 
 // A complete and consistent whole-minutes line: 10 points, 4 of 8 from the field, 2 of 2
@@ -99,8 +72,8 @@ function season(minutes: readonly number[]): PlayerGame[] {
 const repeat = (minutes: number, times: number): number[] =>
   Array.from({ length: times }, () => minutes);
 
-// Three exact times whose sum ends in other bits when the additions come in another
-// order; half their mean is 17.9361 minutes.
+// Three exact times whose decimal minutes would add up to other bits in another order;
+// half their mean is 17.9361 minutes.
 const FIRST = exact(30, 1);
 const SECOND = exact(36, 56);
 const THIRD = exact(40, 40);
@@ -210,7 +183,7 @@ describe('playingTimeThreshold and classifyGame', () => {
     expect(classifyGame(game(0, boxScore), 17.5)).toBe(expected);
   });
 
-  it('[CL-STA-09] add up the minutes by scheduled start, whatever the order and the ids of the games', () => {
+  it('[CL-STA-09] add up whole seconds, exact in any order: the same threshold, to the bit, whatever the order, the ids and the starts of the games', () => {
     const inOrder = [game(0, FIRST), game(1, SECOND), game(2, THIRD)];
     // Given last first, with ids in yet another order.
     const shuffled = [
@@ -218,21 +191,24 @@ describe('playingTimeThreshold and classifyGame', () => {
       { ...game(1, SECOND), gameId: 1 },
       { ...game(0, FIRST), gameId: 3 },
     ];
+    // The second and the third games start together, the higher id first.
+    const tied = [game(0, FIRST), { ...game(1, THIRD), gameId: 3 }, game(1, SECOND)];
     const threshold = playingTimeThreshold(inOrder, PARAMS);
 
     expect(threshold).toBeCloseTo(HALF_MEAN, 9);
     expect(playingTimeThreshold(shuffled, PARAMS)).toBe(threshold);
+    expect(playingTimeThreshold(tied, PARAMS)).toBe(threshold);
   });
 
-  it('[CL-STA-09] add up the minutes of games with the same start by game id', () => {
-    // The second and the third games start together, given in the other order: the lower
-    // id comes first, as it would if it started earlier, and the bits are those of three
-    // games apart. The higher id first would add first, third, second, which ends in
-    // other bits.
-    const tied = [game(0, FIRST), { ...game(1, THIRD), gameId: 3 }, game(1, SECOND)];
-    const apart = [game(0, FIRST), game(1, SECOND), game(2, THIRD)];
+  it('[STA-14] [STA-15] [CL-STA-06] [CL-STA-09] make a game usable at a threshold of exactly its time, 15 min 4 s beside 45 min 12 s', () => {
+    // Half the mean of 2,712 and 904 seconds is 904 seconds: 15.0666… minutes either way, to
+    // the bit.
+    const measured = game(1, exact(15, 4));
+    const threshold = playingTimeThreshold([game(0, exact(45, 12)), measured], PARAMS);
 
-    expect(playingTimeThreshold(tied, PARAMS)).toBe(playingTimeThreshold(apart, PARAMS));
+    expect(threshold).toBeCloseTo(15.066666666667, 9);
+    expect(measured.boxScore?.decimalMinutes).toBe(threshold);
+    expect(classifyGame(measured, threshold)).toBe('usable');
   });
 });
 
@@ -252,7 +228,7 @@ const anyGames = fc.uniqueArray(
     phase: fc.constantFrom('regular_season', 'play_in', 'playoffs'),
     boxScore: anyBoxScore,
   }),
-  { selector: (each) => each.gameId, maxLength: 30 },
+  { selector: (each) => each.gameId, maxLength: 30, size: 'max' },
 );
 const anyParams = fc
   .record({
@@ -261,51 +237,66 @@ const anyParams = fc
   })
   .map((games) => ({ ...PARAMS, games: { ...PARAMS.games, ...games } }));
 
-// A whole-minutes season whose last game plays exactly `share` percent of the season's
-// average: share × (rest + minutes) = 100 × games × minutes, so the other games add up to
-// minutes × (100 × games − share) ÷ share whole minutes, spread as evenly as they allow,
-// from 1 to 48 each.
-const anyExactSeason = fc
-  .record({
-    share: fc.integer({ min: 1, max: 100 }),
-    games: fc.integer({ min: 2, max: 82 }),
-    minutes: fc.integer({ min: 1, max: 48 }),
-  })
-  .map((drawn) => ({
-    ...drawn,
-    rest: (drawn.minutes * (100 * drawn.games - drawn.share)) / drawn.share,
-  }))
-  .filter(
-    ({ games, rest }) =>
-      Number.isSafeInteger(rest) && rest >= games - 1 && rest <= 48 * (games - 1),
-  )
-  .map(({ share, games, minutes, rest }) => {
-    const low = Math.floor(rest / (games - 1));
-    const higher = rest % (games - 1);
-    const others = Array.from({ length: games - 1 }, (_, index) =>
-      index < higher ? low + 1 : low,
-    );
-    return { share, minutes, others };
-  });
+/**
+ * A season whose last game plays exactly `share` percent of the season's average, its
+ * times counted in units of a whole minute or of a second, at most `most` a game:
+ * share × (rest + time) = 100 × games × time, so the other games add up to
+ * time × (100 × games − share) ÷ share units, spread as evenly as they allow, from 1 each.
+ */
+function anyExactSeason(
+  most: number,
+): fc.Arbitrary<Readonly<{ share: number; time: number; others: number[] }>> {
+  return fc
+    .record({
+      share: fc.integer({ min: 1, max: 100 }),
+      games: fc.integer({ min: 2, max: 82 }),
+      time: fc.integer({ min: 1, max: most }),
+    })
+    .map((drawn) => ({
+      ...drawn,
+      rest: (drawn.time * (100 * drawn.games - drawn.share)) / drawn.share,
+    }))
+    .filter(
+      ({ games, rest }) =>
+        Number.isSafeInteger(rest) && rest >= games - 1 && rest <= most * (games - 1),
+    )
+    .map(({ share, games, time, rest }) => {
+      const low = Math.floor(rest / (games - 1));
+      const higher = rest % (games - 1);
+      const others = Array.from({ length: games - 1 }, (_, index) =>
+        index < higher ? low + 1 : low,
+      );
+      return { share, time, others };
+    });
+}
+
+const inSeconds = (seconds: number): BoxScoreCheck => exact(Math.floor(seconds / 60), seconds % 60);
 
 describe('playingTimeThreshold and classifyGame, for any season', () => {
-  it('[STA-14] [CL-STA-06] make a game usable at a threshold of exactly its whole minutes, and not a minute below, for any share', () => {
-    fc.assert(
-      fc.property(anyExactSeason, ({ share, minutes, others }) => {
-        // Without a floor, the share of the average alone makes the threshold.
-        const params = {
-          ...PARAMS,
-          games: { ...PARAMS.games, minutesFloor: 0, minutesAverageShare: share },
-        };
-        const measured = game(others.length, complete(minutes));
-        const shorter = game(others.length, complete(minutes - 1), 'playoffs');
-        const threshold = playingTimeThreshold([...season(others), measured], params);
+  it.each([
+    { unit: 'whole minutes', most: 48, checked: complete },
+    { unit: 'seconds', most: 48 * 60, checked: inSeconds },
+  ])(
+    '[STA-14] [CL-STA-06] [CL-STA-09] make a game usable at a threshold of exactly its time in $unit, and not one below, for any share',
+    ({ most, checked }) => {
+      fc.assert(
+        fc.property(anyExactSeason(most), ({ share, time, others }) => {
+          // Without a floor, the share of the average alone makes the threshold.
+          const params = {
+            ...PARAMS,
+            games: { ...PARAMS.games, minutesFloor: 0, minutesAverageShare: share },
+          };
+          const otherGames = others.map((value, day) => game(day, checked(value)));
+          const measured = game(others.length, checked(time));
+          const shorter = game(others.length, checked(time - 1), 'playoffs');
+          const threshold = playingTimeThreshold([...otherGames, measured], params);
 
-        expect(classifyGame(measured, threshold)).toBe('usable');
-        expect(classifyGame(shorter, threshold)).toBe('played_not_usable');
-      }),
-    );
-  });
+          expect(classifyGame(measured, threshold)).toBe('usable');
+          expect(classifyGame(shorter, threshold)).toBe('played_not_usable');
+        }),
+      );
+    },
+  );
 
   it('[STA-14] never put the threshold below the floor', () => {
     fc.assert(

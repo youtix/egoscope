@@ -9,12 +9,13 @@ import type { GameScoreInput } from './game-score';
 // A game lasts 48 minutes, and each overtime adds 5 (STA-09).
 const REGULATION_MINUTES = 48;
 const OVERTIME_MINUTES = 5;
-const SECONDS_PER_MINUTE = 60;
+/** The seconds of a minute, by which whole seconds make decimal minutes (STA-12). */
+export const SECONDS_PER_MINUTE = 60;
 // A made field goal scores 2 points; a three-pointer 1 more, a free throw 1 (STA-09).
 const FIELD_GOAL_POINTS = 2;
 
 // The twelve totals of the Game Score, in the order of STA-08.
-const GAME_SCORE_TOTALS = [
+const GAME_SCORE_TOTALS: readonly (keyof GameScoreInput)[] = [
   'points',
   'fieldGoalsMade',
   'fieldGoalsAttempted',
@@ -27,7 +28,7 @@ const GAME_SCORE_TOTALS = [
   'blocks',
   'turnovers',
   'personalFouls',
-] as const satisfies readonly (keyof GameScoreInput)[];
+];
 
 const checkedBrand: unique symbol = Symbol();
 
@@ -57,14 +58,16 @@ export type MissingElement = 'minutes' | 'seconds' | keyof GameScoreInput;
 
 /**
  * A box score that verifyBoxScore found complete and consistent (STA-09, STA-10), the
- * only one that has a performance index (STA-12): the twelve totals of the Game Score
- * and the decimal minutes, above zero. Its brand lives under a symbol of this file, so no
- * other code can make one, from a raw line or from an object literal.
+ * only one that has a performance index (STA-12): the twelve totals of the Game Score,
+ * and his time on court in whole seconds and in decimal minutes, above zero. Its brand
+ * lives under a symbol of this file, so no other code can make one, from a raw line or
+ * from an object literal.
  */
 export type CheckedBoxScore = GameScoreInput &
   Readonly<{
     status: 'complete';
     hasRoundedMinutes: boolean;
+    secondsOnCourt: number;
     decimalMinutes: number;
     [checkedBrand]: typeof checkedBrand;
   }>;
@@ -72,20 +75,23 @@ export type CheckedBoxScore = GameScoreInput &
 /**
  * What verifyBoxScore says of a line: complete, as a CheckedBoxScore; incomplete, with
  * what it lacks; or suspect, with the checks it fails. Each says whether the line carries
- * the "rounded minutes" mention (STA-12) and gives its decimal minutes, null unless his
- * time on court is known and above zero.
+ * the "rounded minutes" mention (STA-12) and gives his time on court in whole seconds,
+ * which the playing-time threshold adds up exactly (CL-STA-09), and in decimal minutes,
+ * both null unless that time is known and above zero.
  */
 export type BoxScoreCheck =
   | CheckedBoxScore
   | Readonly<{
       status: 'incomplete';
       hasRoundedMinutes: boolean;
+      secondsOnCourt: number | null;
       decimalMinutes: number | null;
       missing: readonly MissingElement[];
     }>
   | Readonly<{
       status: 'suspect';
       hasRoundedMinutes: boolean;
+      secondsOnCourt: number | null;
       decimalMinutes: number | null;
       failedChecks: readonly FailedCheck[];
     }>;
@@ -95,14 +101,40 @@ function isKnownAbove(value: number | null, bound: number): boolean {
   return (value ?? bound) > bound;
 }
 
-/** His time on court in decimal minutes, when the line gives it (STA-12): 34 min 30 s is 34.5. */
-function timeOnCourt(line: BoxScoreLine): number | null {
-  if (line.minutesPrecision === 'whole_minutes') {
-    return line.minutes;
-  }
-  return line.minutes === null || line.seconds === null
+/**
+ * His time on court in whole seconds, when the line gives it: 34 min 30 s is 2,070 and 35
+ * whole minutes 2,100 (STA-12, CL-STA-06).
+ */
+function secondsOf(line: BoxScoreLine): number | null {
+  const seconds = line.minutesPrecision === 'whole_minutes' ? 0 : line.seconds;
+  return seconds === null || line.minutes === null
     ? null
-    : line.minutes + line.seconds / SECONDS_PER_MINUTE;
+    : SECONDS_PER_MINUTE * line.minutes + seconds;
+}
+
+/**
+ * His time on court in decimal minutes, when the line gives it (STA-12): its whole seconds
+ * divided by 60 at once, so 34 min 30 s is 34.5 and 35 whole minutes are 35 exactly.
+ */
+function timeOnCourt(line: BoxScoreLine): number | null {
+  const seconds = secondsOf(line);
+  return seconds === null ? null : seconds / SECONDS_PER_MINUTE;
+}
+
+// His time on court as a check gives it, in whole seconds and in decimal minutes, or none
+// while it is unknown or zero.
+type CheckedTime =
+  | Readonly<{ secondsOnCourt: number; decimalMinutes: number }>
+  | Readonly<{ secondsOnCourt: null; decimalMinutes: null }>;
+
+const NO_TIME: CheckedTime = { secondsOnCourt: null, decimalMinutes: null };
+
+/** His time on court when it is known and above zero (STA-12): an unknown time is none. */
+function checkedTimeOf(line: BoxScoreLine): CheckedTime {
+  const seconds = secondsOf(line) ?? 0;
+  return seconds > 0
+    ? { secondsOnCourt: seconds, decimalMinutes: seconds / SECONDS_PER_MINUTE }
+    : NO_TIME;
 }
 
 /**
@@ -141,10 +173,14 @@ function hasPointsMismatch(line: BoxScoreLine): boolean {
 }
 
 function isAboveGameLength(line: BoxScoreLine, overtimeCount: number | null): boolean {
-  // Unknown overtimes skip the bound (CL-STA-03).
+  // Unknown overtimes skip the bound (CL-STA-03). While the seconds are unknown, the known
+  // minutes alone can already exceed it.
   return (
     overtimeCount !== null &&
-    isKnownAbove(timeOnCourt(line), REGULATION_MINUTES + OVERTIME_MINUTES * overtimeCount)
+    isKnownAbove(
+      timeOnCourt(line) ?? line.minutes,
+      REGULATION_MINUTES + OVERTIME_MINUTES * overtimeCount,
+    )
   );
 }
 
@@ -198,7 +234,11 @@ function missingTimeOf(line: BoxScoreLine): readonly MissingElement[] {
     // Unknown, or zero: less than 30 seconds on court, a time that is not known.
     return ['minutes'];
   }
-  const unknown = (['minutes', 'seconds'] as const).filter((element) => line[element] === null);
+  const timeElements: readonly Extract<MissingElement, 'minutes' | 'seconds'>[] = [
+    'minutes',
+    'seconds',
+  ];
+  const unknown = timeElements.filter((element) => line[element] === null);
   // Minutes and seconds both zero: no time on court to divide by.
   return unknown.length > 0 ? unknown : ['minutes'];
 }
@@ -215,31 +255,31 @@ function missingOf(line: BoxScoreLine, decimalMinutes: number | null): readonly 
  * element listed and none replaced by zero, a mean or an estimate; otherwise complete. A
  * whole-minutes line carries the "rounded minutes" mention, and zero whole minutes with
  * a statistic make it incomplete, not suspect. `overtimeCount` is null when the number
- * of overtimes is unknown, which skips the bound on the minutes.
+ * of overtimes is unknown, which skips the bound on the minutes; while the seconds of a
+ * source in seconds are unknown, the bound applies to the known minutes.
  */
 export function verifyBoxScore(line: BoxScoreLine, overtimeCount: number | null): BoxScoreCheck {
   const hasRoundedMinutes = line.minutesPrecision === 'whole_minutes';
-  const time = timeOnCourt(line);
-  const decimalMinutes = isKnownAbove(time, 0) ? time : null;
+  const time = checkedTimeOf(line);
   const failedChecks = CHECKS.filter((check) => check.fails(line, overtimeCount)).map(
     (check) => check.name,
   );
   if (failedChecks.length > 0) {
-    return { status: 'suspect', hasRoundedMinutes, decimalMinutes, failedChecks };
+    return { status: 'suspect', hasRoundedMinutes, ...time, failedChecks };
   }
-  if (decimalMinutes !== null && hasEveryTotal(line)) {
+  if (time.secondsOnCourt !== null && hasEveryTotal(line)) {
     return {
       ...totalsOf(line),
       status: 'complete',
       hasRoundedMinutes,
-      decimalMinutes,
+      ...time,
       [checkedBrand]: checkedBrand,
     };
   }
   return {
     status: 'incomplete',
     hasRoundedMinutes,
-    decimalMinutes,
-    missing: missingOf(line, decimalMinutes),
+    ...time,
+    missing: missingOf(line, time.decimalMinutes),
   };
 }

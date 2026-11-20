@@ -90,8 +90,9 @@ function trialWithout(
  * fragile when either gives possible or probable. A tie goes to the first case in the
  * fixed order. Each recomputation retains the dispersion anew, never below 1 (SEN-22),
  * and applies the thresholds of SEN-23 without the valid-case threshold. The verdict
- * tested is the caller's: a profile's from profileVerdict, a general trend's its own,
- * whose 3-player rule no recomputation applies (SEN-29).
+ * tested is the caller's: a profile's from profileVerdict, or a general trend's own,
+ * which the trend tests only once its valid cases come from sensitivity.trendMinPlayers
+ * players, and whose player rule no recomputation applies (SEN-29).
  */
 export function runRobustnessTest(
   cases: readonly ProfileCase[],

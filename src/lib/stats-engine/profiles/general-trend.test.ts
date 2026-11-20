@@ -1,6 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
+
 import { profileChecks } from './checks';
 import { profileConfidence } from './confidence';
 import { generalTrend, topContributorShare } from './general-trend';
@@ -9,50 +11,20 @@ import { tallyProfile } from './tally';
 import { profileVerdict } from './verdict';
 
 import type { EngineParams } from '../types';
-import type { ManuallyDecidedCase } from './checks';
+import type { ManuallyDecidedCase, ProfileChecks } from './checks';
 import type { ConfidenceStepDownReason, ConfidenceValues, ProfileConfidence } from './confidence';
 import type { GeneralTrendValues, TrendCase } from './general-trend';
 import type { Verdict } from './verdict';
 
-// The registry's defaults.
+// The registry's defaults. JSON gives the baseline phase as a string, which the comparison
+// narrows to a BaselinePhase (types.test.ts).
 const DEFAULTS: EngineParams = {
+  ...engineParams,
   games: {
-    minutesFloor: 15,
-    minutesAverageShare: 50,
-    minBaselineGames: 10,
-    postseasonBaseline: 'postseason',
-    partialBaselineShare: 20,
-    dailyUpdateDelayHours: 3,
-    correctionWindowDays: 7,
-    boxScoreUnavailableAfterDays: 30,
-    retryFirstDelayHours: 1,
-    retryIntervalHours: 4,
-    incidentAfterHours: 12,
-    quotaReserveShare: 10,
+    ...engineParams.games,
+    postseasonBaseline:
+      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
   },
-  sensitivity: {
-    maxAttachmentDays: 10,
-    coOccurringCasesDoubtful: false,
-    injuryReturnMinGamesMissed: 4,
-    injuryReturnFirstGames: 2,
-    allPlayoffGamesUnusualStakes: false,
-    opponentWinShareLow: 25,
-    opponentWinShareHigh: 75,
-    opponentMinGames: 10,
-    minValidCases: 5,
-    possibleSignalToNoise: 2,
-    possibleMeanGap: 0.25,
-    probableSignalToNoise: 3,
-    probableMeanGap: 0.4,
-    confidenceMediumFromCases: 8,
-    confidenceHighFromCases: 15,
-    confidenceDispersionDrop: 1.5,
-    confidenceDoubtfulShareDrop: 30,
-    trendMinPlayers: 3,
-    trendMaxTopShare: 50,
-    countsBelowCases: 20,
-  },
-  tracking: { categoryThreshold: 0.25, minTrackedCasesForAssessment: 10 },
 };
 
 // Raw values are compared to 1e-9, the worked example's at their printed precision
@@ -134,6 +106,14 @@ function trendOf(
   return generalTrend({ cases, exitReasons: [], manuallyDecidedCases }, params);
 }
 
+/** The checks that a profile of these cases would show, under the registry's defaults. */
+function profileChecksOf(
+  cases: readonly TrendCase[],
+  manuallyDecidedCases: readonly ManuallyDecidedCase[] = [],
+): ProfileChecks {
+  return profileChecks({ cases, manuallyDecidedCases }, DEFAULTS);
+}
+
 /** A profile confidence and its reasons. */
 function confidence(
   level: ProfileConfidence,
@@ -165,6 +145,8 @@ function mostlyFromOne(gaps: readonly number[]): TrendCase[] {
 
 // Twenty gaps of +1 from two players: "probable, increase" for a profile, a ratio of 4.47.
 const TWO_PLAYERS = [...casesOf(A, repeated(1, 10), 1), ...casesOf(B, repeated(1, 10), 11)];
+// The gaps of the 08 worked example, a fragile "possible, increase" for a profile (CA-SEN-11).
+const WORKED_EXAMPLE_GAPS = [1.16, -0.43, 0.95, 0.55, 1.81, -0.2, 1.13, 1.43];
 // The 08 variant (« trop peu de cas »), fed the values it prints (CL-SEN-24): 63 valid gaps
 // of 11 players around a mean gap of +0.31 with a dispersion of 1.12, 31 of them at
 // 0.31 + 1.12, 31 at 0.31 − 1.12 and one at 0.31, the players taking turns.
@@ -296,15 +278,13 @@ describe('generalTrend', () => {
   });
 
   it('[SEN-29] [SEN-25] gives the dominant-player reason after the other reasons of SEN-25', () => {
-    // Gaps of −2 and +2 in turn disagree, a dispersion of 2.1; the worked example's gaps
-    // give a fragile "possible, increase" (CA-SEN-11). Most of them from one player.
+    // Gaps of −2 and +2 in turn disagree, a dispersion of 2.1. Most of them from one player.
     const disagreeing = [-2, 2, -2, 2, -2, 2, -2, 2, -2, 2];
-    const workedExample = [1.16, -0.43, 0.95, 0.55, 1.81, -0.2, 1.13, 1.43];
 
     expect(trendOf(mostlyFromOne(disagreeing))).toMatchObject(
       confidence('low', ['high_dispersion', 'dominant_player']),
     );
-    expect(trendOf(mostlyFromOne(workedExample))).toMatchObject({
+    expect(trendOf(mostlyFromOne(WORKED_EXAMPLE_GAPS))).toMatchObject({
       verdict: POSSIBLE_INCREASE,
       isFragile: true,
       ...confidence('low', ['fragile_verdict', 'dominant_player']),
@@ -319,11 +299,30 @@ describe('generalTrend', () => {
     expect(trend).toMatchObject(confidence('high'));
   });
 
-  it('[SEN-26] [CL-SEN-14] finds a trend that the player rule alone holds inconclusive fragile, one case less giving a verdict without that rule', () => {
+  it('[SEN-26] [SEN-25] [SEN-29] [CL-SEN-14] does not test the robustness of a trend that the player rule alone holds inconclusive: not fragile, and no level lost', () => {
+    // One case less would give "probable, increase" without the player rule.
     const trend = trendOf(TWO_PLAYERS);
 
-    expect(trend).toMatchObject({ verdict: INCONCLUSIVE, isFragile: true });
-    expect(trend).toMatchObject(confidence('medium', ['fragile_verdict']));
+    expect(trend).toMatchObject({ verdict: INCONCLUSIVE, isFragile: false });
+    expect(trend).toMatchObject(confidence('high'));
+  });
+
+  it('[SEN-26] [SEN-25] [SEN-29] [CL-SEN-14] tests the robustness of a trend once its valid cases come from sensitivity.trendMinPlayers players', () => {
+    // The worked example's gaps, from 2 players in turn: a fragile "possible, increase".
+    const fromTwo = WORKED_EXAMPLE_GAPS.map((gap, index) =>
+      valid(index + 1, [A, B][index % 2] ?? A, gap),
+    );
+
+    expect(trendOf(fromTwo)).toMatchObject({
+      verdict: INCONCLUSIVE,
+      isFragile: false,
+      ...confidence('medium'),
+    });
+    expect(trendOf(fromTwo, withSensitivity({ trendMinPlayers: 2 }))).toMatchObject({
+      verdict: POSSIBLE_INCREASE,
+      isFragile: true,
+      ...confidence('low', ['fragile_verdict']),
+    });
   });
 
   it('[SEN-27] [SEN-29] gives the control the trend rules: the excluded cases of a third player complete its players', () => {
@@ -338,7 +337,7 @@ describe('generalTrend', () => {
   it('[SEN-27] [SEN-29] keeps the control inconclusive on the cases of 2 players, however strong their signal', () => {
     const cases = [...TWO_PLAYERS, excluded(valid(21, A, 2))];
 
-    expect(profileChecks(cases, [], DEFAULTS).controlVerdict).toStrictEqual(PROBABLE_INCREASE);
+    expect(profileChecksOf(cases).controlVerdict).toStrictEqual(PROBABLE_INCREASE);
     expect(trendOf(cases)).toMatchObject({ controlCaseCount: 21, controlVerdict: INCONCLUSIVE });
   });
 
@@ -351,7 +350,7 @@ describe('generalTrend', () => {
       verdict: PROBABLE_INCREASE,
       dependsOnManualExclusions: true,
     });
-    expect(profileChecks(cases, decisions, DEFAULTS).dependsOnManualExclusions).toBe(false);
+    expect(profileChecksOf(cases, decisions).dependsOnManualExclusions).toBe(false);
   });
 
   it('[SEN-27] [SEN-29] does not warn when the player rule holds the verdict inconclusive with and without the manual decisions', () => {
@@ -363,7 +362,7 @@ describe('generalTrend', () => {
       verdict: INCONCLUSIVE,
       dependsOnManualExclusions: false,
     });
-    expect(profileChecks(cases, decisions, DEFAULTS).dependsOnManualExclusions).toBe(true);
+    expect(profileChecksOf(cases, decisions).dependsOnManualExclusions).toBe(true);
   });
 
   it('[SEN-27] [SEN-17] does not warn when undoing a manual decision leaves the verdict to 3 players or more', () => {
@@ -448,40 +447,56 @@ function casesAndDecisions(ruledCases: readonly RuledCase[]): Readonly<{
   };
 }
 
-/** Valid gaps, in halves, brought in turn by `playerCount` players, and other cases besides. */
+/**
+ * Valid gaps, in halves, then gaps reinstated by hand, brought in turn by `playerCount`
+ * players, and other cases of any of them besides, awaiting their game when they have no
+ * standing.
+ */
 function sharedTrend({
   playerCount,
   validHalves,
+  reinstatedHalves,
   others,
 }: Readonly<{
   playerCount: number;
   validHalves: readonly number[];
-  others: readonly Readonly<{ isExcluded: boolean; halves: number }>[];
-}>): Readonly<{ cases: TrendCase[]; playerCount: number; validCount: number }> {
+  reinstatedHalves: readonly number[];
+  others: readonly Readonly<{ standing: Standing | undefined; halves: number }>[];
+}>): ReturnType<typeof casesAndDecisions> & Readonly<{ playerCount: number; validCount: number }> {
   const playerOf = (index: number): string => `player-${String(index % playerCount)}`;
-  const otherCases = others.map(({ isExcluded, halves }, index) =>
-    isExcluded
-      ? excluded(valid(100 + index, playerOf(index), halves / 2))
-      : awaiting(100 + index, playerOf(index)),
-  );
-  return {
-    cases: [
-      ...validHalves.map((halves, index) => valid(index + 1, playerOf(index), halves / 2)),
-      ...otherCases,
-    ],
-    playerCount,
-    validCount: validHalves.length,
-  };
+  const validNow = [
+    ...validHalves.map((halves) => ({ halves, standing: 'valid' as const })),
+    ...reinstatedHalves.map((halves) => ({ halves, standing: 'reinstated by hand' as const })),
+  ];
+  const ruledCases = [
+    ...validNow.map(({ halves, standing }, index) =>
+      ruled(valid(index + 1, playerOf(index), halves / 2), standing),
+    ),
+    ...others.map(({ standing, halves }, index) =>
+      standing === undefined
+        ? { caseItem: awaiting(100 + index, playerOf(index)), decisions: [] }
+        : ruled(valid(100 + index, playerOf(index), halves / 2), standing),
+    ),
+  ];
+  return { ...casesAndDecisions(ruledCases), playerCount, validCount: validNow.length };
 }
 
 const anyHalves = fc.integer({ min: -6, max: 6 });
-// From 3 to 5 players who bring 5 to 20 valid cases in turn, so that none brings more than
-// half, with excluded or awaiting cases of any of them besides.
-const anyOtherCase = fc.record({ isExcluded: fc.boolean(), halves: anyHalves });
+// From 3 to 5 players who bring in turn 5 to 20 valid cases, then up to 4 reinstated by
+// hand, so that none brings more than half and the valid cases come from all of them with
+// and without the manual decisions; with cases of any of them besides, awaiting their game
+// or excluded, by hand or not.
+const anyOtherCase = fc.record({
+  standing: fc.option(fc.constantFrom<Standing>('excluded', 'excluded by hand'), {
+    nil: undefined,
+  }),
+  halves: anyHalves,
+});
 const anySharedTrend = fc
   .record({
     playerCount: fc.integer({ min: 3, max: 5 }),
     validHalves: fc.array(anyHalves, { minLength: 5, maxLength: 20 }),
+    reinstatedHalves: fc.array(anyHalves, { maxLength: 4 }),
     others: fc.array(anyOtherCase, { maxLength: 6 }),
   })
   .map((drawn) => sharedTrend(drawn));
@@ -495,7 +510,7 @@ const anyTwoPlayerCase = fc.record({
 const anyTwoPlayerTrend = fc
   .tuple(
     fc.integer({ min: -150, max: 150 }),
-    fc.array(anyTwoPlayerCase, { minLength: 5, maxLength: 30 }),
+    fc.array(anyTwoPlayerCase, { minLength: 5, maxLength: 30, size: 'max' }),
   )
   .map(([shift, rows]) =>
     casesAndDecisions(
@@ -514,7 +529,12 @@ const anyCaseRow = fc.record({
   standing: fc.option(fc.constantFrom(...STANDINGS), { nil: undefined }),
 });
 const anyTrendAndShuffle = fc
-  .uniqueArray(anyCaseRow, { minLength: 1, maxLength: 15, selector: ({ caseId }) => caseId })
+  .uniqueArray(anyCaseRow, {
+    minLength: 1,
+    maxLength: 15,
+    size: 'max',
+    selector: ({ caseId }) => caseId,
+  })
   .chain((rows) => {
     const { cases, decisions } = casesAndDecisions(
       rows.map(({ caseId, player, halves, day, standing }) =>
@@ -536,7 +556,7 @@ const anyTrendAndShuffle = fc
 describe('generalTrend, whatever its cases', () => {
   it('[SEN-28] is the profile of its cases when 3 players or more bring them and none brings more than half', () => {
     fc.assert(
-      fc.property(anySharedTrend, ({ cases, playerCount, validCount }) => {
+      fc.property(anySharedTrend, ({ cases, decisions, playerCount, validCount }) => {
         const tally = tallyProfile(cases, []);
         const verdictValues = profileVerdict(cases, DEFAULTS);
         const { isFragile } = runRobustnessTest(cases, verdictValues.verdict, DEFAULTS);
@@ -547,12 +567,12 @@ describe('generalTrend, whatever its cases', () => {
           isFragile,
         };
 
-        expect(trendOf(cases)).toStrictEqual({
+        expect(trendOf(cases, DEFAULTS, decisions)).toStrictEqual({
           tally,
           ...verdictValues,
           isFragile,
           ...profileConfidence(confidenceInputs, DEFAULTS),
-          ...profileChecks(cases, [], DEFAULTS),
+          ...profileChecksOf(cases, decisions),
           distinctPlayerCount: playerCount,
           topContributorValidCount: Math.ceil(validCount / playerCount),
         });
@@ -560,11 +580,12 @@ describe('generalTrend, whatever its cases', () => {
     );
   });
 
-  it('[CA-SEN-15] [SEN-29] [SEN-27] is inconclusive, its control too, and never depends on manual exclusions with fewer than 3 players', () => {
+  it('[CA-SEN-15] [SEN-29] [SEN-27] [SEN-26] [CL-SEN-14] is inconclusive, its control too, never fragile and never dependent on manual exclusions with fewer than 3 players', () => {
     fc.assert(
       fc.property(anyTwoPlayerTrend, ({ cases, decisions }) => {
         expect(trendOf(cases, DEFAULTS, decisions)).toMatchObject({
           verdict: INCONCLUSIVE,
+          isFragile: false,
           controlVerdict: INCONCLUSIVE,
           dependsOnManualExclusions: false,
         });

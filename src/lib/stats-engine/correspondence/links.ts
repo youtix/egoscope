@@ -46,13 +46,15 @@ function isAdTracking(parameter: string): boolean {
   );
 }
 
-// The query without its ad-tracking parameters, the others in their order with their
-// values, behind its `?` unless none remains; nothing without a query.
+// The query without its ad-tracking parameters and its empty ones, the empty pieces
+// between, before or after its `&`, as in `?&id=7`, `?id=7&&page=2` or `?id=7&`; the
+// others in their order with their values, behind its `?` unless none remains, as after
+// a `?` alone; nothing without a query.
 function cleanQuery(query: string | undefined): string {
   if (query === undefined) {
     return '';
   }
-  const kept = query.split('&').filter((parameter) => !isAdTracking(parameter));
+  const kept = query.split('&').filter((parameter) => parameter !== '' && !isAdTracking(parameter));
   return kept.length === 0 ? '' : `?${kept.join('&')}`;
 }
 
@@ -87,14 +89,16 @@ function cleanAddress(address: string): string {
 
 /**
  * A link cleaned as COL-28 and CL-COL-23 say: the ad-tracking parameters removed from
- * its query, the other parameters kept in their order with their values, and the `?`
- * dropped when none remains; its scheme and host in lowercase; the default port of its
- * scheme, 80 for http and 443 for https, and its fragment removed (CL-IMP-14). Nothing
- * else changes: the path and the remaining query stay exactly as written, `http` and
- * `https` differ, a `www.` prefix makes another host and a trailing slash another path.
- * A link that does not start with a scheme and `://` only loses its tracking parameters
- * and its fragment. It is the form in which the import compares links (IMP-25) and in
- * which collection keeps, shows and deduplicates them in Lot 2 (COL-28, CL-COL-18).
+ * its query, and its empty parameters too, the empty pieces of the query split at each
+ * `&`, as in `?&id=7`, `?id=7&&page=2` or `?id=7&`; the other parameters kept in their
+ * order with their values, and the `?` dropped when none remains, as after a `?` alone;
+ * its scheme and host in lowercase; the default port of its scheme, 80 for http and 443
+ * for https, and its fragment removed (CL-IMP-14). Nothing else changes: the path and
+ * the remaining parameters stay exactly as written, `http` and `https` differ, a `www.`
+ * prefix makes another host and a trailing slash another path. A link that does not
+ * start with a scheme and `://` only loses its tracking and empty parameters and its
+ * fragment. It is the form in which the import compares links (IMP-25) and in which
+ * collection keeps, shows and deduplicates them in Lot 2 (COL-28, CL-COL-18).
  */
 export function cleanLink(url: string): string {
   const [beforeFragment] = splitAt(url, '#');

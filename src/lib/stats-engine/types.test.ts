@@ -1,5 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
+
 import type {
   BacktestRequestId,
   BaselinePhase,
@@ -55,56 +57,30 @@ const CALC_KEYS = [
   'tracking.minTrackedCasesForAssessment',
 ];
 
-// The registry's defaults. The type check refuses a key that EngineParams lacks, and an
-// EngineParams key missing here.
+// The two baseline phases, which a JSON string must be one of.
+const BASELINE_PHASES: readonly BaselinePhase[] = ['postseason', 'regular_season'];
+
+// The registry's defaults, held once in data/fixtures/stats-engine/engine-params.json for
+// every test of the engine. JSON gives the baseline phase as a string, which the comparison
+// narrows to a BaselinePhase, so the type check holds the whole fixture to EngineParams and
+// refuses it when an EngineParams key is missing; the test below refuses an added key.
 const DEFAULTS: EngineParams = {
+  ...engineParams,
   games: {
-    minutesFloor: 15,
-    minutesAverageShare: 50,
-    minBaselineGames: 10,
-    postseasonBaseline: 'postseason',
-    partialBaselineShare: 20,
-    dailyUpdateDelayHours: 3,
-    correctionWindowDays: 7,
-    boxScoreUnavailableAfterDays: 30,
-    retryFirstDelayHours: 1,
-    retryIntervalHours: 4,
-    incidentAfterHours: 12,
-    quotaReserveShare: 10,
+    ...engineParams.games,
+    postseasonBaseline:
+      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
   },
-  sensitivity: {
-    maxAttachmentDays: 10,
-    coOccurringCasesDoubtful: false,
-    injuryReturnMinGamesMissed: 4,
-    injuryReturnFirstGames: 2,
-    allPlayoffGamesUnusualStakes: false,
-    opponentWinShareLow: 25,
-    opponentWinShareHigh: 75,
-    opponentMinGames: 10,
-    minValidCases: 5,
-    possibleSignalToNoise: 2,
-    possibleMeanGap: 0.25,
-    probableSignalToNoise: 3,
-    probableMeanGap: 0.4,
-    confidenceMediumFromCases: 8,
-    confidenceHighFromCases: 15,
-    confidenceDispersionDrop: 1.5,
-    confidenceDoubtfulShareDrop: 30,
-    trendMinPlayers: 3,
-    trendMaxTopShare: 50,
-    countsBelowCases: 20,
-  },
-  tracking: { categoryThreshold: 0.25, minTrackedCasesForAssessment: 10 },
 };
 
 /** The registry key of each value of `params`: its family, a dot, its name. */
-const keysOf = (params: EngineParams): readonly string[] =>
+const keysOf = (params: Readonly<Record<string, object>>): readonly string[] =>
   Object.entries(params).flatMap(([family, values]) =>
     Object.keys(values).map((name) => `${family}.${name}`),
   );
 
 describe('the shared engine types', () => {
-  it('take instants, dates and identifiers as plain values, and each calculation parameter under its registry key', () => {
+  it('take instants, dates and identifiers as plain values, and each calculation parameter under its registry key, its default held once', () => {
     // The type check verifies these: the core receives plain numbers and strings, which
     // the time module's branded values are too, a brand being a property of the type only.
     type Branded<T> = T & { readonly brand: true };
@@ -117,6 +93,10 @@ describe('the shared engine types', () => {
     >().toEqualTypeOf<[number, number, number, number, number, number]>();
     expectTypeOf<BaselinePhase>().toEqualTypeOf<'postseason' | 'regular_season'>();
 
+    // The fixture's own keys, in the registry's order: one more or one less fails.
+    expect(keysOf(engineParams)).toStrictEqual(CALC_KEYS);
     expect(keysOf(DEFAULTS)).toStrictEqual(CALC_KEYS);
+    expect(BASELINE_PHASES).toContain(engineParams.games.postseasonBaseline);
+    expect(DEFAULTS.games.postseasonBaseline).toBe(engineParams.games.postseasonBaseline);
   });
 });
