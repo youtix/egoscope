@@ -56,6 +56,16 @@ describe('fixed sentences', () => {
     );
   });
 
+  it('[SEN-31] [CL-SEN-15] [CL-TEL-16] writes one valid case in the singular, and none or several in the plural', () => {
+    expect(
+      ['0', '1', '4'].map((k) => sentence('sensitivity.inconclusiveForPlayer', { k, n: '5' })),
+    ).toStrictEqual([
+      'inconclusive for this player (0 valid cases of the 5 needed)',
+      'inconclusive for this player (1 valid case of the 5 needed)',
+      'inconclusive for this player (4 valid cases of the 5 needed)',
+    ]);
+  });
+
   it('[IHM-50] gives the profile and validation screens their short notice', () => {
     expect(sentence('interface.shortNotice')).toBe(
       'A measure of the past, an unproven hypothesis, no betting recommendation',

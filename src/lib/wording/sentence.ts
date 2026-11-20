@@ -64,7 +64,8 @@ const TEMPLATES: ReadonlyMap<string, string> = new Map(
  * placeholders filled with values already written, numbers through the formatters of
  * this module and dates through those of `@/lib/time` (IHM-13):
  * `sentence('sensitivity.inconclusiveForPlayer', { k: '4', n: '5' })` gives
- * "inconclusive for this player (4 valid cases of the 5 needed)" (SEN-31).
+ * "inconclusive for this player (4 valid cases of the 5 needed)", and with `k: '1'`,
+ * "(1 valid case of the 5 needed)" (SEN-31, CL-TEL-16).
  */
 export function sentence<K extends SentenceKey>(key: K, ...values: FillArgs<Template<K>>): string {
   const template = TEMPLATES.get(key);
