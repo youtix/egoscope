@@ -9,7 +9,7 @@ export const MACHINERY_MESSAGES = [
     key: 'profiles_recalculated',
     category: 'profile_recalculation',
     params: { cause: 'cause', profileCount: 'count' },
-    happened: 'A recalculation of the profiles ended; it followed {cause}.',
+    happened: 'A recalculation of the profiles ended; its cause: {cause}.',
     consequence:
       '{profileCount} {profileCount|profile|profiles} and the trends that depend on them are up to date.',
     whatToDo: 'nothing.',
@@ -48,8 +48,10 @@ export const MACHINERY_MESSAGES = [
     whatToDo: 'look at it on the app status screen.',
   },
   {
+    // Nothing is lost, but attention is useful (TRV-43): the export reminder (TRV-54).
     key: 'reminder_opened',
     category: 'incident',
+    level: 'warning',
     subject: 'incident',
     params: { incident: 'incident' },
     happened: 'The reminder "{incident}" was given.',
@@ -197,7 +199,7 @@ export const MACHINERY_MESSAGES = [
       lastAt: 'instant',
     },
     happened:
-      'Between {firstAt} and {lastAt}, strangers wrote {privateCount} more times to the Telegram bot from private chats, {groupCount} from groups and {channelCount} from channels; beyond 1,000 at once, only their number is kept.',
+      'Between {firstAt} and {lastAt}, more updates from strangers reached the Telegram bot: {privateCount} from private chats, {groupCount} from groups and {channelCount} from channels; beyond 1,000 at once, only their number is kept.',
     consequence: 'The bot answered none of them, and nothing of them was kept.',
     whatToDo: 'nothing.',
   },

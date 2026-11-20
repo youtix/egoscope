@@ -54,7 +54,14 @@ export type JournalPage = Readonly<{
 }>;
 
 type Reader = Database | Transaction;
-type StoredRow = typeof journalEntries.$inferSelect;
+
+/** How the entries are read: which ones, in which order, how many, with their details or not. */
+type Reading = Readonly<{
+  where: SQL | undefined;
+  order: readonly SQL[];
+  limit?: number;
+  withTechnicalDetails: boolean;
+}>;
 
 /** The entries that come after `cursor` in the journal's order, newest first. */
 function olderThan(cursor: JournalCursor): SQL | undefined {
@@ -67,9 +74,10 @@ function olderThan(cursor: JournalCursor): SQL | undefined {
 
 /** The entries of `period`: from its start, included, to its end, excluded. */
 function within(period: JournalPeriod): SQL | undefined {
-  const from = new Date(period.from);
-  const to = new Date(period.to);
-  return and(gte(journalEntries.occurredAt, from), lt(journalEntries.occurredAt, to));
+  return and(
+    gte(journalEntries.occurredAt, new Date(period.from)),
+    lt(journalEntries.occurredAt, new Date(period.to)),
+  );
 }
 
 function filters(query: Omit<JournalQuery, 'timeZone' | 'pageSize'>): SQL | undefined {
@@ -80,34 +88,35 @@ function filters(query: Omit<JournalQuery, 'timeZone' | 'pageSize'>): SQL | unde
   );
 }
 
-/** The technical details of the entries `ids`, by entry. */
-async function detailsOf(
+/**
+ * The entries that `reading` asks for, each with its text built at display, and its
+ * technical details when asked for, read in the same query (TRV-44, CL-TRV-10).
+ */
+async function readEntries(
   db: Reader,
-  ids: readonly number[],
-): Promise<ReadonlyMap<number, StoredTechnicalDetails>> {
-  const rows =
-    ids.length === 0
-      ? []
-      : await db
-          .select()
-          .from(journalTechnicalDetails)
-          .where(inArray(journalTechnicalDetails.journalEntryId, [...ids]));
-  return new Map(rows.map((row) => [row.journalEntryId, readDetails(row.details)]));
-}
-
-function view(
-  row: StoredRow,
   timeZone: string,
-  details: ReadonlyMap<number, StoredTechnicalDetails>,
-): JournalEntryView {
-  return {
-    ...renderEntry(row, timeZone),
-    id: row.id,
-    occurredAt: toEpochMs(row.occurredAt.getTime()),
-    category: row.category,
-    level: row.level,
-    technicalDetails: details.get(row.id) ?? null,
-  };
+  reading: Reading,
+): Promise<readonly JournalEntryView[]> {
+  const query = db
+    .select({ entry: journalEntries, details: journalTechnicalDetails.details })
+    .from(journalEntries)
+    .leftJoin(
+      journalTechnicalDetails,
+      eq(journalTechnicalDetails.journalEntryId, journalEntries.id),
+    )
+    .where(reading.where)
+    .orderBy(...reading.order)
+    .$dynamic();
+  const rows = await (reading.limit === undefined ? query : query.limit(reading.limit));
+  return rows.map(({ entry, details }) => ({
+    ...renderEntry(entry, timeZone),
+    id: entry.id,
+    occurredAt: toEpochMs(entry.occurredAt.getTime()),
+    category: entry.category,
+    level: entry.level,
+    technicalDetails:
+      details !== null && reading.withTechnicalDetails ? readDetails(details) : null,
+  }));
 }
 
 /**
@@ -117,26 +126,20 @@ function view(
  * (CL-TRV-10), and its technical details only when asked for (TRV-44).
  */
 export async function list(db: Reader, query: JournalQuery): Promise<JournalPage> {
-  const rows = await db
-    .select()
-    .from(journalEntries)
-    .where(filters(query))
-    .orderBy(desc(journalEntries.occurredAt), desc(journalEntries.id))
-    .limit(query.pageSize + 1);
-  const page = rows.slice(0, query.pageSize);
-  const last = page.at(-1);
-  const details =
-    query.withTechnicalDetails === true
-      ? await detailsOf(
-          db,
-          page.map((row) => row.id),
-        )
-      : new Map();
+  const read = await readEntries(db, query.timeZone, {
+    where: filters(query),
+    order: [desc(journalEntries.occurredAt), desc(journalEntries.id)],
+    // One entry more than the page, which tells whether another page follows.
+    limit: query.pageSize + 1,
+    withTechnicalDetails: query.withTechnicalDetails === true,
+  });
+  const entries = read.slice(0, query.pageSize);
+  const last = entries.at(-1);
   return {
-    entries: page.map((row) => view(row, query.timeZone, details)),
+    entries,
     next:
-      last !== undefined && rows.length > query.pageSize
-        ? { occurredAt: toEpochMs(last.occurredAt.getTime()), id: last.id }
+      last !== undefined && read.length > entries.length
+        ? { occurredAt: last.occurredAt, id: last.id }
         : null,
   };
 }
@@ -149,6 +152,7 @@ function writeDetail(key: string, value: unknown, timeZone: string): string {
   return `  ${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`;
 }
 
+/** One entry of the export: its instant, level and category, its text, then its details. */
 function block(entry: JournalEntryView, timeZone: string): string {
   const heading = [
     formatInstant(entry.occurredAt, timeZone, 'full'),
@@ -172,19 +176,12 @@ export async function exportText(
   db: Reader,
   request: Readonly<{ timeZone: string; period: JournalPeriod; withTechnicalDetails?: boolean }>,
 ): Promise<string> {
-  const rows = await db
-    .select()
-    .from(journalEntries)
-    .where(filters({ period: request.period }))
-    .orderBy(asc(journalEntries.occurredAt), asc(journalEntries.id));
-  const details =
-    request.withTechnicalDetails === true
-      ? await detailsOf(
-          db,
-          rows.map((row) => row.id),
-        )
-      : new Map();
-  const title = `Activity journal from ${formatInstant(request.period.from, request.timeZone, 'full')} to ${formatInstant(request.period.to, request.timeZone, 'full')}`;
-  const blocks = rows.map((row) => block(view(row, request.timeZone, details), request.timeZone));
-  return [title, ...blocks].join('\n\n').concat('\n');
+  const { timeZone, period } = request;
+  const entries = await readEntries(db, timeZone, {
+    where: within(period),
+    order: [asc(journalEntries.occurredAt), asc(journalEntries.id)],
+    withTechnicalDetails: request.withTechnicalDetails === true,
+  });
+  const title = `Activity journal from ${formatInstant(period.from, timeZone, 'full')} to ${formatInstant(period.to, timeZone, 'full')}`;
+  return [title, ...entries.map((entry) => block(entry, timeZone))].join('\n\n').concat('\n');
 }

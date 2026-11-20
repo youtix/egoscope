@@ -2,6 +2,8 @@
 // followed players, stats-source mappings, cases, withdrawals, the account. An entry
 // about a case names it alone (operations.md section 1.2), and a withdrawal names
 // nothing at all (CL-TRV-10).
+import { sentence } from '@/lib/wording';
+
 import type { KeyedMessage } from './message-types';
 
 export const OWNER_ACTION_MESSAGES = [
@@ -142,7 +144,7 @@ export const OWNER_ACTION_MESSAGES = [
   {
     key: 'event_withdrawn',
     category: 'user_action',
-    happened: 'An event was withdrawn.',
+    happened: `${sentence('crossCutting.eventWithdrawn')}.`,
     consequence: 'It and every trace of it are erased, and the profiles are recalculated.',
     whatToDo: 'nothing.',
   },

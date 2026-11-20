@@ -1,7 +1,10 @@
-// The English words of the journal's entries, from the glossary: its category and level
-// labels (section 4.1, Operations), the task names (section 9.1), the incident names
-// (section 9.2), and the codes that a message names, in the form they take inside a
-// sentence. Each table lists the codes of its stored set as pairs, code then words.
+// The English words of the journal's entries. From the glossary, as it writes them: the
+// category and level labels and the service-role labels (section 4.1), the task names
+// (section 9.1) and the incident names (section 9.2); and, with their first letter in
+// lower case, the labels of the refusals, causes and notification categories that a
+// message names inside a sentence. The journal's own words name the run triggers, the
+// services and the Telegram conversations inside a sentence. Each table lists the codes
+// of its stored set as pairs, code then words; the tests compare them with the glossary.
 import type {
   IncidentKind,
   JournalEntryCategory,
@@ -147,15 +150,15 @@ export const BLOCKING_ERROR_WORDS = words([
 // What made a recalculation necessary (`VerdictChangeCause`, SEN-37).
 export const CAUSE_WORDS = words([
   ['new_cases', 'new cases'],
-  ['stats_correction', 'a statistics correction'],
-  ['baseline_updated', 'a baseline update'],
-  ['manual_decision', 'a manual decision'],
-  ['event_dismissed', 'an event dismissed'],
-  ['parameter_change', 'a parameter change'],
-  ['recalculation', 'a recalculation'],
-  ['event_corrected_or_removed', 'an event corrected or removed'],
-  ['event_reinstated', 'an event reinstated'],
-  ['taxonomy_changed', 'a change of the event types'],
+  ['stats_correction', 'statistics correction'],
+  ['baseline_updated', 'baseline updated'],
+  ['manual_decision', 'manual decision'],
+  ['event_dismissed', 'event dismissed'],
+  ['parameter_change', 'parameter change'],
+  ['recalculation', 'recalculation'],
+  ['event_corrected_or_removed', 'event corrected or removed'],
+  ['event_reinstated', 'event reinstated'],
+  ['taxonomy_changed', 'taxonomy changed'],
 ]);
 
 // The category of a Telegram message (`NotificationCategory`, TEL-24).

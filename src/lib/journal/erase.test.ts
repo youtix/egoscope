@@ -16,6 +16,8 @@ const PLAYER_ID = '5b0d2f8e-3c41-4f6a-9d7e-2a1c8b9e4f60';
 const OTHER_PLAYER_ID = '0f6c1d2e-8a9b-4c3d-9e1f-7a6b5c4d3e2f';
 const ERASED_EVENT = 21;
 const OTHER_EVENT = 22;
+// An alert sheet that holds both events.
+const SHEET = 5;
 const DETAILS = { service: 'stats_source', httpStatus: 503 } as const;
 
 describe('eraseDetailsAbout', { timeout: 60_000 }, () => {
@@ -53,7 +55,19 @@ describe('eraseDetailsAbout', { timeout: 60_000 }, () => {
     return page.entries.toReversed().map((entry) => [entry.text, entry.objectRef]);
   }
 
-  it('[CL-TRV-10] [DSN-29] keeps the text of an entry whose event is erased, which then reads "an item that no longer exists" and leads nowhere', async () => {
+  /** The references to an event and to a Lot 2 object that the entries hold, oldest first. */
+  async function storedReferences() {
+    return db
+      .select({
+        playerEventId: journalEntries.playerEventId,
+        lot2ObjectKind: journalEntries.lot2ObjectKind,
+        lot2ObjectId: journalEntries.lot2ObjectId,
+      })
+      .from(journalEntries)
+      .orderBy(asc(journalEntries.id));
+  }
+
+  it('[CL-TRV-10] [DSN-29] keeps the text of an entry whose event is erased, which loses its event reference and reads "an item that no longer exists"', async () => {
     await write([
       { messageKey: 'calendar_event_derived', playerEventId: ERASED_EVENT },
       { messageKey: 'calendar_event_derived', playerEventId: OTHER_EVENT },
@@ -71,9 +85,37 @@ describe('eraseDetailsAbout', { timeout: 60_000 }, () => {
         { kind: 'event', id: OTHER_EVENT },
       ],
     ]);
+    await expect(storedReferences()).resolves.toStrictEqual([
+      { playerEventId: null, lot2ObjectKind: null, lot2ObjectId: null },
+      { playerEventId: OTHER_EVENT, lot2ObjectKind: null, lot2ObjectId: null },
+    ]);
   });
 
-  it('[CL-TRV-10] empties, with the event, the Lot 2 object that an entry names beside it', async () => {
+  it('[CL-TRV-10] [DSN-29] empties, with the event, the alert sheet that an entry names beside it, though the sheet keeps other events', async () => {
+    await write([
+      { messageKey: 'alert_sheet_produced', alertSheetId: SHEET, playerEventId: ERASED_EVENT },
+      { messageKey: 'alert_sheet_event_added', alertSheetId: SHEET, playerEventId: OTHER_EVENT },
+    ]);
+
+    await erase({ playerEventId: ERASED_EVENT });
+
+    await expect(storedReferences()).resolves.toStrictEqual([
+      { playerEventId: null, lot2ObjectKind: null, lot2ObjectId: null },
+      { playerEventId: OTHER_EVENT, lot2ObjectKind: 'alert_sheet', lot2ObjectId: SHEET },
+    ]);
+    await expect(journal()).resolves.toStrictEqual([
+      [
+        'An item that no longer exists was produced: a profiled player has a new event. It shows his profile for the type of that event. What to do: nothing; you may read it in Alerts.',
+        null,
+      ],
+      [
+        'A new event joined an alert sheet. The sheet shows it with its other events. What to do: nothing.',
+        { kind: 'alertSheet', id: SHEET },
+      ],
+    ]);
+  });
+
+  it('[CL-TRV-10] empties, with the event, the Telegram message that an entry names beside it', async () => {
     await write([
       {
         messageKey: 'telegram_message_sent',
@@ -90,19 +132,26 @@ describe('eraseDetailsAbout', { timeout: 60_000 }, () => {
 
     await erase({ playerEventId: ERASED_EVENT });
 
-    await expect(
-      db
-        .select({
-          playerEventId: journalEntries.playerEventId,
-          lot2ObjectKind: journalEntries.lot2ObjectKind,
-          lot2ObjectId: journalEntries.lot2ObjectId,
-        })
-        .from(journalEntries)
-        .orderBy(asc(journalEntries.id)),
-    ).resolves.toStrictEqual([
+    await expect(storedReferences()).resolves.toStrictEqual([
       { playerEventId: null, lot2ObjectKind: null, lot2ObjectId: null },
       { playerEventId: null, lot2ObjectKind: 'notification_message', lot2ObjectId: 8 },
     ]);
+  });
+
+  it('[CL-TRV-10] leaves every entry and its technical details as they are when none names the erased item', async () => {
+    await write([
+      { messageKey: 'player_paused', playerId: OTHER_PLAYER_ID, technicalDetails: DETAILS },
+    ]);
+
+    await erase({ playerId: PLAYER_ID });
+
+    await expect(journal()).resolves.toStrictEqual([
+      [
+        'You paused a followed player. His profiles stay, and his cases waiting for their game are still measured. What to do: nothing.',
+        { kind: 'player', id: OTHER_PLAYER_ID },
+      ],
+    ]);
+    await expect(db.$count(journalTechnicalDetails)).resolves.toBe(1);
   });
 
   it('[CL-TRV-10] [TRV-44] deletes the technical details of the entries that concerned only the erased item, and keeps the others', async () => {

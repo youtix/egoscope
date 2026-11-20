@@ -1,7 +1,8 @@
 // The messages of Lot 2: the Telegram messages with their status (TEL-22, TEL-31, TEL-34),
-// the press sources and their reads (COL-39, COL-43), and the owner's actions on sources,
-// articles and detected events (TRV-41). A Lot 2 object is named by its kind and
-// identifier; a Telegram message may name, beside it, the event it is about.
+// the alert sheets, the press sources and their reads (COL-39, COL-43), and the owner's
+// actions on sources, articles and detected events (TRV-41). A Lot 2 object is named by
+// its kind and identifier; a Telegram message or an alert sheet may name, beside it, the
+// event it is about.
 import type { KeyedMessage } from './message-types';
 
 export const LOT2_MESSAGES = [
@@ -82,6 +83,24 @@ export const LOT2_MESSAGES = [
     category: 'user_action',
     happened: 'You unlinked the Telegram chat.',
     consequence: 'No notification is sent any more; everything stays in the app.',
+    whatToDo: 'nothing.',
+  },
+
+  // --- Alert sheets (09): a sheet names, beside it, the event that joins it ---------
+  {
+    key: 'alert_sheet_produced',
+    category: 'task_pass',
+    subject: 'alertSheet',
+    happened: '{subject} was produced: a profiled player has a new event.',
+    consequence: 'It shows his profile for the type of that event.',
+    whatToDo: 'nothing; you may read it in Alerts.',
+  },
+  {
+    key: 'alert_sheet_event_added',
+    category: 'task_pass',
+    subject: 'alertSheet',
+    happened: 'A new event joined {subject}.',
+    consequence: 'The sheet shows it with its other events.',
     whatToDo: 'nothing.',
   },
 

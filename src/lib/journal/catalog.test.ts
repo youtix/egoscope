@@ -73,6 +73,10 @@ function textOf(key: string, references: ReferenceColumns): string {
     .text;
 }
 
+/** The text of an entry of `key` whose stored parameters are `messageParams`, naming nothing. */
+const storedText = (key: string, messageParams: unknown): string =>
+  renderEntry({ ...ERASED, messageKey: key, messageParams }, PARIS).text;
+
 const KEYS = JOURNAL_MESSAGES.map((message) => message.key);
 
 const inOrder = (values: Iterable<string>): readonly string[] =>
@@ -161,10 +165,28 @@ describe('the closed list of journal messages', () => {
     );
   });
 
-  it('shows a parameter that a damaged row holds as it is stored, rather than hiding the entry', () => {
-    const damaged = { ...ERASED, messageKey: 'data_purged', messageParams: { count: 'many' } };
+  it('names an incident by its glossary name, a quota incident followed by its service', () => {
+    expect([
+      storedText('incident_closed', { incident: { kind: 'stats_source_unavailable' } }),
+      storedText('incident_closed', {
+        incident: { kind: 'quota_reached', service: 'stats_source' },
+      }),
+    ]).toStrictEqual([
+      '"Stats source unavailable" closed: its cause is gone. What it concerned works again. What to do: nothing.',
+      '"Quota reached — Stats source" closed: its cause is gone. What it concerned works again. What to do: nothing.',
+    ]);
+  });
 
-    expect(renderEntry(damaged, PARIS).text).toMatch(/^The data purge deleted "many" items/u);
+  it('shows a parameter that a damaged row holds as it is stored, or missing, rather than hiding the entry', () => {
+    expect([
+      storedText('data_purged', { count: 'many' }),
+      storedText('data_purged', {}),
+      storedText('data_purged', 7),
+    ]).toStrictEqual([
+      'The data purge deleted "many" items past their retention. Open incidents and the entries tied to them stay. What to do: nothing.',
+      'The data purge deleted null items past their retention. Open incidents and the entries tied to them stay. What to do: nothing.',
+      'The data purge deleted null items past their retention. Open incidents and the entries tied to them stay. What to do: nothing.',
+    ]);
   });
 
   it('refuses, as bugs, an entry of no known message and a message that names no parameter of its own', () => {

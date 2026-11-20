@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { sequenceCounters } from './schema';
 
@@ -12,27 +12,32 @@ import type { Transaction } from './transaction';
  */
 export type SequenceName = 'import_sequence' | `request_reference_${number}`;
 
-// The first number a counter issues.
-const FIRST_VALUE = 1;
+// A counter that has issued nothing yet; its first number is the one after it.
+const NOTHING_ISSUED = 0;
 
 /**
  * The next number of the counter `name`, drawn in the caller's transaction `tx`, which
  * then uses it (IMP-31, BKT-12, CL-BKT-11). The increment locks the counter's row until
  * that transaction ends: a concurrent caller waits, then draws the number after it, or
  * the same one if `tx` rolled back, so no number is ever issued twice and a rolled-back
- * transaction leaves no gap. The counters outlive the rows they numbered.
+ * transaction leaves no gap. A counter's first draw creates its row, at nothing issued,
+ * then increments it like any other; the counters outlive the rows they numbered.
  */
 export async function nextValue(tx: Transaction, name: SequenceName): Promise<number> {
-  const [counter] = await tx
-    .insert(sequenceCounters)
-    .values({ name, lastValue: FIRST_VALUE })
-    .onConflictDoUpdate({
-      target: sequenceCounters.name,
-      set: { lastValue: sql`${sequenceCounters.lastValue} + 1` },
-    })
-    .returning({ value: sequenceCounters.lastValue });
-  if (counter === undefined) {
-    throw new Error(`The counter ${name} returned no row from its increment.`);
+  // Two turns at most: a counter's first draw finds no row, creates it, then increments it.
+  for (;;) {
+    const [counter] = await tx
+      .update(sequenceCounters)
+      .set({ lastValue: sql`${sequenceCounters.lastValue} + 1` })
+      .where(eq(sequenceCounters.name, name))
+      .returning({ value: sequenceCounters.lastValue });
+    if (counter !== undefined) {
+      return counter.value;
+    }
+    // A concurrent first draw makes this insert wait for its transaction, then do nothing.
+    await tx
+      .insert(sequenceCounters)
+      .values({ name, lastValue: NOTHING_ISSUED })
+      .onConflictDoNothing({ target: sequenceCounters.name });
   }
-  return counter.value;
 }

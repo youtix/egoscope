@@ -1,6 +1,5 @@
 export { recordCountedAttempts } from './attempts';
 export type { CountedAttempts } from './attempts';
-export { JOURNAL_MESSAGES } from './catalog';
 export type { JournalMessageKey } from './catalog';
 export { JOURNAL_ENTRY_CATEGORIES } from './entries';
 export type { JournalEntryCategory, JournalLevel } from './entries';

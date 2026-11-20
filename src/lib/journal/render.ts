@@ -1,3 +1,5 @@
+import { sentence } from '@/lib/wording';
+
 import { messageOf } from './catalog';
 import { writeParam } from './params';
 import { subjectOf } from './references';
@@ -16,8 +18,8 @@ export type RenderedEntry = Readonly<{
   objectRef: JournalObjectRef | null;
 }>;
 
-// How a text names a subject that still exists: by what it is, the entry leading to it;
-// and one that an erasure removed (CL-TRV-10, glossary section 7.4).
+// How a text names a subject that still exists: by what it is, the entry leading to it.
+// One that an erasure removed reads as the glossary says (CL-TRV-10, section 7.4).
 const LIVE_SUBJECTS: Readonly<Record<ObjectKind, string>> = {
   player: 'a followed player',
   event: 'an event',
@@ -32,8 +34,6 @@ const LIVE_SUBJECTS: Readonly<Record<ObjectKind, string>> = {
   alertSheet: 'an alert sheet',
   notificationMessage: 'a Telegram message',
 };
-const DELETED_PLAYER = 'a deleted player';
-const ITEM_NO_LONGER_EXISTS = 'an item that no longer exists';
 const SUBJECT = 'subject';
 const WHAT_TO_DO = 'What to do:';
 
@@ -50,7 +50,9 @@ function designation(subject: SubjectKind, objectRef: JournalObjectRef | null): 
   if (objectRef !== null) {
     return LIVE_SUBJECTS[objectRef.kind];
   }
-  return subject === 'player' ? DELETED_PLAYER : ITEM_NO_LONGER_EXISTS;
+  return subject === 'player'
+    ? sentence('crossCutting.deletedPlayer')
+    : sentence('crossCutting.itemNoLongerExists');
 }
 
 const capitalized = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);

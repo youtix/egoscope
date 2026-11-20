@@ -89,7 +89,7 @@ describe('recordCountedAttempts', { timeout: 60_000 }, () => {
 
     expect(written).toBe(2);
     expect(rows.map((row) => renderEntry(row, PARIS).text)).toStrictEqual([
-      'Between Thu 19 Nov 2026, 19:00 and Thu 19 Nov 2026, 19:45, strangers wrote 0 more times to the Telegram bot from private chats, 12 from groups and 3 from channels; beyond 1,000 at once, only their number is kept. The bot answered none of them, and nothing of them was kept. What to do: nothing.',
+      'Between Thu 19 Nov 2026, 19:00 and Thu 19 Nov 2026, 19:45, more updates from strangers reached the Telegram bot: 0 from private chats, 12 from groups and 3 from channels; beyond 1,000 at once, only their number is kept. The bot answered none of them, and nothing of them was kept. What to do: nothing.',
       'Between Thu 19 Nov 2026, 20:55 and Thu 19 Nov 2026, 21:40, 1,280 more calls to start the scheduled tasks were refused; beyond 1,000 at once, only their number is kept. No task ran, and the database was not woken. What to do: check that the task trigger sends the secret of the deployment configuration; a flood of refused calls uses up the hosting allowance.',
     ]);
     expect(rows.map((row) => [row.category, row.occurredAt])).toStrictEqual([
