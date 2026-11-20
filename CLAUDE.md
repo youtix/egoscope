@@ -214,6 +214,11 @@ touches it and its prefix, its letters before the first hyphen, is that of an ID
   drizzle-kit generates from the schema alone, as a migration edited by hand does. Nobody
   migrates by hand (TRV-76): the production build runs `db:migrate` (`scripts/migrate.ts`) before
   `next build`, through the direct connection, and only when `VERCEL_ENV` is `production`.
+- Drizzle's migrator applies a migration only when its `when` in `drizzle/meta/_journal.json` is
+  later than that of the last one applied, and skips any other without a word: `bun run db:check`
+  refuses a journal whose `idx` and `when` do not both increase. A conflict in `drizzle/meta/`
+  after a rebase is resolved by generating the migration again, never by hand: keep the journal as
+  `origin/main` has it, delete your own migration and its snapshot, then run `bun run db:generate`.
 - A test gets a database of its own from `createTestDatabase()`: in memory, every migration
   applied. Close it when the test ends, `onTestFinished(database.close)`, since an open one holds
   about 200 MB.
