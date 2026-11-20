@@ -141,10 +141,21 @@ export type { PrecedenceSource } from './measured-game/precedence';
 // cases/doubtful-criteria.ts
 
 // cases/grouping.ts
+export { groupCases } from './cases/grouping';
+export type { CaseEvent } from './cases/grouping';
+export type { CaseGroup } from './cases/grouping';
 
 // cases/review-flags.ts
+export { caseReviewFlags } from './cases/review-flags';
+export type { ReviewFlag } from './cases/review-flags';
+export type { ReviewFlagInput } from './cases/review-flags';
 
 // cases/manual-decisions.ts
+export { applyManualDecisions } from './cases/manual-decisions';
+export { effectiveDecision } from './cases/manual-decisions';
+export type { DecidableCase } from './cases/manual-decisions';
+export type { DecidedCase } from './cases/manual-decisions';
+export type { ManualDecision } from './cases/manual-decisions';
 
 // --- profiles/ -------------------------------------------------------------------
 
