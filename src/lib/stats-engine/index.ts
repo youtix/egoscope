@@ -50,6 +50,12 @@ export type { PlayerGame } from './performance/playing-time';
 // --- baseline/ -------------------------------------------------------------------
 
 // baseline/season-baseline.ts
+export { baselinePhaseOf } from './baseline/season-baseline';
+export { seasonBaseline } from './baseline/season-baseline';
+export type { BaselineGame } from './baseline/season-baseline';
+export type { SeasonBaseline } from './baseline/season-baseline';
+export type { SeasonBaselineInput } from './baseline/season-baseline';
+export type { SeasonBaselineStatus } from './baseline/season-baseline';
 
 // baseline/indicative-comparison.ts
 
