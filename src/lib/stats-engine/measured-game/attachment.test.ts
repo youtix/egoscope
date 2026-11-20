@@ -118,13 +118,13 @@ const startingAt = (teamGame: AttachmentGame, scheduledStartAt: number): Attachm
 
 type Evaluation = Omit<AttachmentContext, 'games'>;
 
-/** The evaluation at `now`, a winter instant, with its US date. */
-const at = (now: number): Evaluation => ({
+/** The evaluation at `now`, an instant of `season`, with its US date. */
+const at = (now: number, season: Season = 'winter'): Evaluation => ({
   now,
-  nowGameDayOn: new Date(now - BEHIND_UTC.winter.newYork * HOUR).toISOString().slice(0, 10),
+  nowGameDayOn: new Date(now - BEHIND_UTC[season].newYork * HOUR).toISOString().slice(0, 10),
 });
 // An evaluation after every game of the examples.
-const LATER = at(easternAt('2020-04-01', '12:00'));
+const LATER = at(easternAt('2020-04-01', '12:00', 'summer'), 'summer');
 
 const attach = (
   event: AttachmentEvent,
@@ -264,7 +264,7 @@ describe('attachToMeasuredGame from a reference instant', () => {
     };
     const opener = gameOn(1, '2019-10-23', { season: 'summer' });
 
-    expect(attach(event, [opener], at(reference + DAY))).toStrictEqual({
+    expect(attach(event, [opener], at(reference + DAY, 'summer'))).toStrictEqual({
       status: 'not_measurable',
       reason: 'no_game_within_window',
       measuredGameId: null,
@@ -278,9 +278,11 @@ describe('attachToMeasuredGame from a reference instant', () => {
   it('[SEN-04] [CA-SEN-04] [CL-SEN-05] awaits a game while no further game is stored, until 240 hours have passed', () => {
     const reference = endOfDayPacific('2019-07-05', 'summer');
     const event = fromInstant(reference);
+    const atTheEnd = at(reference + WINDOW, 'summer');
+    const pastTheEnd = at(reference + WINDOW + 1, 'summer');
 
-    expect(endOf(event, [], at(reference + WINDOW))).toStrictEqual([...NOT_PLAYED_YET, null]);
-    expect(endOf(event, [], at(reference + WINDOW + 1))).toStrictEqual([...NO_GAME, null]);
+    expect(endOf(event, [], atTheEnd)).toStrictEqual([...NOT_PLAYED_YET, null]);
+    expect(endOf(event, [], pastTheEnd)).toStrictEqual([...NO_GAME, null]);
   });
 
   it('[SEN-03] [CL-STA-14] compares a game whose time is to be determined by its deemed start, 00:00 New York time on its US date', () => {
