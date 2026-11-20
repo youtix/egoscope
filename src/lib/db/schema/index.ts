@@ -19,3 +19,37 @@ export {
 } from './params';
 export { databaseActivityMinutes, databaseSizeSamples, quotaUsage } from './quotas';
 export { schedulerLease, taskRuns } from './scheduler';
+
+// The players, games and event-type tables (players.md, games-and-statistics.md,
+// event-types.md).
+export {
+  followedPlayers,
+  playerNameVariants,
+  playerStatusChanges,
+  playerTeamChanges,
+} from './players';
+export {
+  games,
+  playerDirectoryEntries,
+  playerDirectoryTeams,
+  seasons,
+  series,
+  teamSeasons,
+  teams,
+  teamSourceRefs,
+} from './games';
+export { fetchQueueItems, statsSourceVersions } from './games-fetch';
+export {
+  boxScores,
+  mappingCandidates,
+  playerIndicators,
+  statCorrections,
+  statsSourceMappings,
+} from './games-followed-players';
+export { eventTypes, eventTypeStatusChanges } from './taxonomy';
+export {
+  typeIllustrationSources,
+  typeOccurrences,
+  typeSheetChanges,
+  typeSheetVersions,
+} from './taxonomy-sheets';

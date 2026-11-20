@@ -15,6 +15,13 @@
       "when": 1795038894475,
       "tag": "0001_machinery_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795171865139,
+      "tag": "0002_players_games_and_event_types",
+      "breakpoints": true
     }
   ]
 }
