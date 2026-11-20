@@ -253,21 +253,29 @@ describe('playerIndicators: consecutive team games missed', () => {
   });
 
   it('[JOU-22] [CL-JOU-15] [CL-STA-05] counts, after a trade, the games of the team he left up to his departure and those of the new team from his arrival', () => {
+    // X plays three games after his departure on 8 January and Y two after his arrival and
+    // one before it, so a count that ignores the trade, or counts Y's games from before his
+    // arrival, gives 5.
     const games = [
-      ...gamesOf(X, ['2026-01-02', '2026-01-04', '2026-01-06', '2026-01-10', '2026-01-12']),
+      ...gamesOf(X, ['2026-01-02', '2026-01-04', '2026-01-06']),
+      ...gamesOf(X, ['2026-01-10', '2026-01-12', '2026-01-14']),
       ...gamesOf(Y, ['2026-01-05', '2026-01-09', '2026-01-11']),
     ];
     const player = { lines: [lineIn(X, '2026-01-02')], history: [observed('2026-01-08', Y)] };
 
     expect(
-      indicatorsOf(player, { games, seasons: [IN_PROGRESS] }, '2026-01-13')
+      indicatorsOf(player, { games, seasons: [IN_PROGRESS] }, '2026-01-15')
         .consecutiveTeamGamesMissed,
     ).toBe(4);
   });
 
   it('[JOU-22] [CL-JOU-15] [CL-JOU-20] adds nothing while he has no team after a release, and counts the games of his next team from his arrival', () => {
+    // X plays two games after his release on 8 January and Z one after his arrival on the
+    // 12th and one before it, so a count that ignores the release, or counts Z's games from
+    // before his arrival, gives 4.
     const games = [
-      ...gamesOf(X, ['2026-01-02', '2026-01-04', '2026-01-06', '2026-01-10']),
+      ...gamesOf(X, ['2026-01-02', '2026-01-04', '2026-01-06']),
+      ...gamesOf(X, ['2026-01-10', '2026-01-12']),
       ...gamesOf(Y, ['2026-01-09']),
       ...gamesOf(Z, ['2026-01-11', '2026-01-13']),
     ];
