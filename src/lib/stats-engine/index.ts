@@ -104,8 +104,18 @@ export type { TeamStint } from './schedule/team-membership';
 // --- measured-game/ --------------------------------------------------------------
 
 // measured-game/attachment.ts
+export { attachEvent } from './measured-game/attachment';
+export type { Attachment } from './measured-game/attachment';
+export type { AttachmentContext } from './measured-game/attachment';
+export type { AttachmentEvent } from './measured-game/attachment';
+export type { AttachmentGame } from './measured-game/attachment';
+export type { ReferenceInstantOrigin } from './measured-game/attachment';
 
 // measured-game/precedence.ts
+export { classifyPrecedence } from './measured-game/precedence';
+export type { Precedence } from './measured-game/precedence';
+export type { PrecedenceGame } from './measured-game/precedence';
+export type { PrecedenceSource } from './measured-game/precedence';
 
 // measured-game/late-detection.ts
 
