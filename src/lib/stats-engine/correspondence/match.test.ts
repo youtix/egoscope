@@ -76,6 +76,27 @@ const comparedEvents: fc.Arbitrary<ComparedEvent> = fc.record({
   cleanedUrls: fc.subarray([ARTICLE, OTHER_ARTICLE, THIRD_ARTICLE]),
 });
 
+// The reference date of the instant `ms` after 2019-10-01, 00:00 UTC: with its time, or
+// its date without one.
+const withTime = (ms: number): ReferenceDate => ({ at: ORIGIN + ms });
+const withoutTime = (ms: number): ReferenceDate => ({ on: dayAt(Math.floor(ms / DAY)) });
+const dateForms = fc.constantFrom(withTime, withoutTime);
+
+// The pairs whose outcome the window decides: two historical events of player A without
+// links, of one type or two, each dated with or without a time, at most 8 days apart.
+const closePairs: fc.Arbitrary<readonly [ComparedEvent, ComparedEvent]> = fc
+  .record({
+    ms: fc.integer({ min: 8 * DAY, max: 21 * DAY }),
+    gap: fc.integer({ min: -8 * DAY, max: 8 * DAY }),
+    firstForm: dateForms,
+    secondForm: dateForms,
+    secondType: fc.constantFrom(HUMILIATION, MEDIA_STORM),
+  })
+  .map(({ ms, gap, firstForm, secondForm, secondType }) => [
+    eventOn(firstForm(ms)),
+    eventOn(secondForm(ms + gap), { eventTypeId: secondType }),
+  ]);
+
 /**
  * The positions of a result whose entry breaks IMP-26, by which each event duplicates
  * the first earlier event that is kept and that it corresponds to, or is kept.
@@ -285,7 +306,7 @@ describe('classify', () => {
     const widenings = fc.record({ windowDays: windows, widening: fc.integer({ min: 1, max: 7 }) });
 
     fc.assert(
-      fc.property(comparedEvents, comparedEvents, widenings, (first, second, window) => {
+      fc.property(closePairs, widenings, ([first, second], window) => {
         const kind = classify(first, second, window.windowDays);
         const widerKind = classify(first, second, window.windowDays + window.widening);
 
@@ -321,6 +342,18 @@ describe('duplicatesInResult', () => {
     ];
 
     expect(duplicatesInResult(events, WINDOW)).toStrictEqual([undefined, undefined, 0]);
+  });
+
+  it('[IMP-26] gives the index in the result of the event that a duplicate joins', () => {
+    // 15 January duplicates 14 January; 4 May duplicates 3 May, the third event.
+    const events = [
+      dated('2021-01-14'),
+      dated('2021-01-15'),
+      dated('2021-05-03'),
+      dated('2021-05-04'),
+    ];
+
+    expect(duplicatesInResult(events, WINDOW)).toStrictEqual([undefined, 0, undefined, 2]);
   });
 
   it('[IMP-26] keeps an event that corresponds only to a duplicate', () => {

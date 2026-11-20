@@ -8,15 +8,19 @@ const ARTICLE = 'https://media-national.example/basketball/2021/01/14/article-ti
 
 // --- Links built from their parts, for the properties --------------------------------
 
+// An article's address: its port is `:` and digits, never the default port of its
+// scheme, or empty when the address names none.
 type Article = Readonly<{
   scheme: 'http' | 'https';
   host: string;
+  port: string;
   path: string;
   parameters: readonly string[];
 }>;
 
 // How an article's link may be written: tracking parameters, each with the position it
-// takes among the article's own, a fragment, and the default port of its scheme.
+// takes among the article's own, a fragment, and the default port of its scheme when
+// the address names no port.
 type Writing = Readonly<{
   tracking: readonly (readonly [position: number, parameter: string])[];
   fragment: string | undefined;
@@ -26,7 +30,9 @@ type Writing = Readonly<{
 const CLICK_IDENTIFIERS: ReadonlySet<string> = new Set(['fbclid', 'gclid', 'mc_cid', 'mc_eid']);
 const DEFAULT_PORT = { http: ':80', https: ':443' } as const;
 
-const parameterValue = fc.stringMatching(/^[\w.~-]{0,6}$/u);
+// Values hold some of what RFC 3986 allows in a query besides the `&` that separates
+// parameters, among them `?`, `/` and `=`, which the cleaning must keep as written.
+const parameterValue = fc.stringMatching(/^[\w.~:@/?=-]{0,6}$/u);
 // Parameters that the cleaning keeps: their names hold no `_`, so that none starts with
 // `utm_`, and are none of the click identifiers. Some start with `utm`, at the edge of
 // the tracking prefix, which ends with its underscore.
@@ -38,12 +44,24 @@ const keptParameter = fc
   .tuple(keptName, parameterValue)
   .filter(([name]) => !CLICK_IDENTIFIERS.has(name))
   .map(([name, value]) => `${name}=${value}`);
-const article: fc.Arbitrary<Article> = fc.record({
-  scheme: fc.constantFrom('http', 'https'),
-  host: fc.domain(),
-  path: fc.webPath(),
-  parameters: fc.array(keptParameter, { maxLength: 4 }),
-});
+// Ports of any number, and ports that start with the digits of a default one, which
+// only the whole port tells from it.
+const portDigits = fc.oneof(
+  fc.nat({ max: 65_535 }).map(String),
+  fc.stringMatching(/^(?:80|443)\d{1,2}$/u),
+);
+const article: fc.Arbitrary<Article> = fc
+  .record({
+    scheme: fc.constantFrom('http', 'https'),
+    host: fc.domain(),
+    port: fc.option(
+      portDigits.map((digits) => `:${digits}`),
+      { freq: 2, nil: '' },
+    ),
+    path: fc.webPath(),
+    parameters: fc.array(keptParameter, { maxLength: 4 }),
+  })
+  .filter(({ scheme, port }) => port !== DEFAULT_PORT[scheme]);
 // Tracking parameters in any case, with or without a value.
 const campaignName = fc.stringMatching(/^[\da-z]{0,6}$/u).map((suffix) => `utm_${suffix}`);
 const trackingName = fc.oneof(fc.constantFrom(...CLICK_IDENTIFIERS), campaignName);
@@ -62,21 +80,21 @@ const writing: fc.Arbitrary<Writing> = fc.record({
 });
 
 /** The link of an article as the cleaning gives it. */
-function cleanedLinkOf({ scheme, host, path, parameters }: Article): string {
+function cleanedLinkOf({ scheme, host, port, path, parameters }: Article): string {
   const query = parameters.length === 0 ? '' : `?${parameters.join('&')}`;
-  return `${scheme}://${host}${path}${query}`;
+  return `${scheme}://${host}${port}${path}${query}`;
 }
 
 /** The link of an article written another way: scheme and host in capitals, and more. */
-function writtenLinkOf({ scheme, host, path, parameters }: Article, how: Writing): string {
+function writtenLinkOf({ scheme, host, port, path, parameters }: Article, how: Writing): string {
   const allParameters = [...parameters];
   for (const [position, parameter] of how.tracking) {
     allParameters.splice(position % (allParameters.length + 1), 0, parameter);
   }
-  const port = how.withDefaultPort ? DEFAULT_PORT[scheme] : '';
+  const writtenPort = port === '' && how.withDefaultPort ? DEFAULT_PORT[scheme] : port;
   const query = allParameters.length === 0 ? '' : `?${allParameters.join('&')}`;
   const fragment = how.fragment === undefined ? '' : `#${how.fragment}`;
-  return `${scheme.toUpperCase()}://${host.toUpperCase()}${port}${path}${query}${fragment}`;
+  return `${scheme.toUpperCase()}://${host.toUpperCase()}${writtenPort}${path}${query}${fragment}`;
 }
 
 describe('cleanLink', () => {
@@ -97,6 +115,16 @@ describe('cleanLink', () => {
     expect(
       cleanLink(`${ARTICLE}?id=7&utm_source=feed&Page=2&fbclid=IwAR&ref=Home&gclid=Cj0&x=`),
     ).toBe(`${ARTICLE}?id=7&Page=2&ref=Home&x=`);
+  });
+
+  it('[COL-28] [CL-COL-23] [CL-IMP-14] keeps a parameter whose value holds ? as written, and removes the tracking parameters around it', () => {
+    expect(cleanLink(`${ARTICLE}?utm_source=feed&next=/b?id=1&fbclid=x`)).toBe(
+      `${ARTICLE}?next=/b?id=1`,
+    );
+  });
+
+  it('[COL-28] [CL-COL-23] removes a click identifier whose value holds =', () => {
+    expect(cleanLink(`${ARTICLE}?gclid=Cj0=&id=7&mc_eid=a=b`)).toBe(`${ARTICLE}?id=7`);
   });
 
   it('[CL-COL-23] keeps a parameter whose name only holds a tracking name, and one whose value does', () => {
@@ -139,8 +167,16 @@ describe('cleanLink', () => {
     'https://media-national.example:80/a',
     'http://media-national.example:443/a',
     'https://media-national.example:8443/a',
+    'http://media-national.example:8080/a',
+    'https://media-national.example:4433/a',
     'ftp://files.example:21/a',
   ])('[CL-IMP-14] keeps any other port: %s', (url) => {
+    expect(cleanLink(url)).toBe(url);
+  });
+
+  it('[CL-IMP-14] keeps an IPv6 host whose address ends with the digits of the default port', () => {
+    const url = 'https://[2001:db8::443]/a';
+
     expect(cleanLink(url)).toBe(url);
   });
 
@@ -148,6 +184,7 @@ describe('cleanLink', () => {
     [`${ARTICLE}#comments`, ARTICLE],
     [`${ARTICLE}?id=7#utm_source=feed`, `${ARTICLE}?id=7`],
     [`${ARTICLE}#top?utm_source=feed&id=7`, ARTICLE],
+    [`${ARTICLE}?id=7#top#comments`, `${ARTICLE}?id=7`],
     [`${ARTICLE}#`, ARTICLE],
   ])('[CL-IMP-14] drops the fragment of %s', (url, expected) => {
     expect(cleanLink(url)).toBe(expected);
@@ -162,9 +199,12 @@ describe('cleanLink', () => {
     expect(cleanLink(url)).toBe(url);
   });
 
-  it('[CL-IMP-14] keeps the case of the user information before the host', () => {
+  it('[CL-IMP-14] keeps the case of the user information, up to the last @ before the host', () => {
     expect(cleanLink('https://Reader@Media-National.EXAMPLE:443/a')).toBe(
       'https://Reader@media-national.example/a',
+    );
+    expect(cleanLink('https://Reader@Home@Media-National.EXAMPLE/a')).toBe(
+      'https://Reader@Home@media-national.example/a',
     );
   });
 
@@ -238,6 +278,16 @@ describe('isSameLink', () => {
       'https://media-national.example/a?page=2&id=7',
     ],
     ['another port', 'https://media-national.example:8443/a', 'https://media-national.example/a'],
+    [
+      'two ports that start with the digits of the default one',
+      'http://media-national.example:8080/a',
+      'http://media-national.example:8090/a',
+    ],
+    [
+      'what follows a second ? in the value of a parameter',
+      'https://media-national.example/a?next=/b?id=1',
+      'https://media-national.example/a?next=/b?id=2',
+    ],
     [
       'the value of a parameter whose name starts with utm without the underscore',
       'https://media-national.example/a?utmost=1',
