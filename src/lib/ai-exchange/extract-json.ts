@@ -1,14 +1,10 @@
 // Isolation of the JSON object in a text pasted from a research AI (IMP-04, BKT-26),
 // tested against the usual quirks of their answers (ADR 0013). The text loses what
-// the AI or the copy adds around the JSON: invisible characters anywhere, code-fence
-// lines, trailing spaces. Then each object that can start in it is read token by
+// the AI or the copy adds around the JSON: invisible characters anywhere, code
+// fences, trailing spaces. Then each object that can start in it is read token by
 // token, no-break and other Unicode spaces counting as spaces between tokens, and
 // nothing else is repaired (CL-IMP-06): a fault is a syntax error at its place, and
 // a text that ends inside the object is cut, which the recovery of IMP-05 reads.
-//
-// Patterns and literals live inside the functions, never in module constants, so that
-// mutation testing reaches each of them through the tests: the test runner does not
-// activate a mutant of code that runs when the module loads.
 import { canonicalValue } from './conventions';
 
 /**
@@ -20,8 +16,9 @@ export type JsonPath = readonly (number | string)[];
 /**
  * Why no single object was isolated:
  * - `no_result_found`: the text holds no JSON object;
- * - `several_results`: it holds different ones, and either more than one is in a
- *   format of Egoscope or none is, so the owner is asked to paste only one;
+ * - `several_results`: it holds different ones among those it keeps: the objects in
+ *   the format that the reader prefers, else those in a format of Egoscope, else, when
+ *   none is in one, all of them; so the owner is asked to paste only one;
  * - `syntax_error`: the object breaks the JSON syntax, and the reading stopped at
  *   `path`, the value read or last read there;
  * - `cut`: the text ends inside the object, at `path`; `partialText` is the object as
@@ -49,7 +46,8 @@ type Frame = { readonly isArray: boolean; key: string | undefined; index: number
 type Expected = 'colon' | 'first_key' | 'first_value' | 'key' | 'next' | 'value';
 
 type Candidate = Readonly<{
-  // The tokens read, without the spaces between them, so that copies compare equal.
+  // The tokens read, without the spaces between them: what a copy that cannot be read
+  // is compared by.
   compact: string;
   // The value of the object's own `format` member, when read before a fault or a cut.
   format: unknown;
@@ -57,6 +55,38 @@ type Candidate = Readonly<{
   resumeAt: number;
   result: ExtractJsonResult;
 }>;
+
+// Two values that JSON read, for a comparison of copies.
+type ValuePair = readonly [unknown, unknown];
+
+// The zero-width space and non-joiner, the word joiner, the byte-order mark and the
+// zero-width joiner, last, so that it joins no two characters of the class.
+const INVISIBLE_CHARACTERS = /[\u{200B}\u{200C}\u{2060}\u{FEFF}\u{200D}]/gu;
+
+// A code fence, three or more backticks or tildes at the start of a line, with the
+// spaces around it and its language tag, which the object may follow on the same line.
+// A line starts where the character before, if any, is a line feed or a carriage
+// return: U+2028 and U+2029, which JSON allows inside a string, start none.
+const CODE_FENCE = /(?<![^\n\r])[ \t]*(?:`{3,}|~{3,})[ \t]*\w*/gu;
+
+// Where the spaces that a text starts with end, JSON's and the Unicode ones.
+const END_OF_SPACES = /\S|$/u;
+
+// A token: a punctuation mark; a string, up to the first quotation mark that no
+// backslash escapes; anything else, up to a space, a quotation mark or punctuation.
+const TOKEN = /^(?:[{}[\]:,]|"(?:[^"\\]|\\.)*"|[^\s",:[\]{}]+)/su;
+
+// The punctuation marks of JSON, each of them a token.
+const PUNCTUATION = '{}[]:,';
+
+// A brace that starts an object: a key follows, between quotation marks of any kind,
+// so that curly-quoted keys are read, and refused, or the closing brace.
+const OBJECT_START = /\{(?=\s*["'‘’“”}])/gu;
+
+// The names of the two formats of Egoscope: the research result's (BKT-24) and the
+// exploration response's (TAX-17). A reader may prefer its own.
+const FORMAT_NAMES = ['egoscope-backtest', 'egoscope-exploration'] as const;
+type FormatName = (typeof FORMAT_NAMES)[number];
 
 function failure(error: ExtractJsonError): ExtractJsonResult {
   return { ok: false, error };
@@ -75,19 +105,17 @@ function placeOf(frame: Frame): JsonPath {
 
 /** How many spaces, JSON's and the Unicode ones, `rest` starts with. */
 function leadingSpaces(rest: string): number {
-  return rest.search(/\S|$/u);
+  return rest.search(END_OF_SPACES);
 }
 
 /** The token that `rest` starts with, the spaces before it already skipped. */
 function readToken(rest: string): Token {
-  // A punctuation mark; a string, up to the first quotation mark that no backslash
-  // escapes; anything else, up to a space, a quotation mark or punctuation.
-  const token = /^(?:[{}[\]:,]|"(?:[^"\\]|\\.)*"|[^\s",:[\]{}]+)/su.exec(rest)?.[0];
+  const token = TOKEN.exec(rest)?.[0];
   if (token === undefined) {
     // The end of the text, or a string that no quotation mark closes.
     return 'unfinished';
   }
-  if ('{}[]:,'.includes(token)) {
+  if (PUNCTUATION.includes(token)) {
     return { text: token, value: token, isPunctuation: true };
   }
   try {
@@ -234,11 +262,8 @@ class ObjectScanner {
 }
 
 function nextObjectStart(text: string, from: number): number | undefined {
-  // A brace that starts an object: a key follows, between quotation marks of any kind,
-  // so that curly-quoted keys are read, and refused, or the closing brace.
-  const objectStart = /\{(?=\s*["'‘’“”}])/gu;
-  objectStart.lastIndex = from;
-  return objectStart.exec(text)?.index;
+  OBJECT_START.lastIndex = from;
+  return OBJECT_START.exec(text)?.index;
 }
 
 function readCandidates(text: string): readonly Candidate[] {
@@ -252,47 +277,106 @@ function readCandidates(text: string): readonly Candidate[] {
   return candidates;
 }
 
+// An object or a list, whose members a comparison of values goes through.
+function isContainer(value: unknown): value is object {
+  return typeof value === 'object' && value !== null;
+}
+
 /**
- * The one object among the candidates (IMP-04, CL-IMP-06): those in a format of Egoscope
- * when there are some, copies counting as one. When none names one, the first object
- * that cannot be read is the one, since what follows its fault may be its own members.
+ * The pairs of values, member by member and keys in any order, that two values JSON
+ * read are equal by when both are objects, or both lists, with as many members.
+ * Undefined when they differ already.
  */
-function choose(candidates: readonly Candidate[]): ExtractJsonResult {
-  const known = candidates.filter(
-    (candidate) =>
-      canonicalValue(candidate.format, ['egoscope-backtest', 'egoscope-exploration']) !== undefined,
-  );
-  const unreadable = candidates.find((candidate) => !candidate.result.ok);
-  if (unreadable !== undefined && known.length === 0) {
-    return unreadable.result;
+function memberPairs(left: unknown, right: unknown): readonly ValuePair[] | undefined {
+  if (!isContainer(left) || !isContainer(right) || Array.isArray(left) !== Array.isArray(right)) {
+    return undefined;
   }
-  const pool = known.length > 0 ? known : candidates;
-  const [first, ...others] = pool.filter(
-    (candidate, index) => pool.findIndex((other) => other.compact === candidate.compact) === index,
-  );
+  const leftMembers: readonly [string, unknown][] = Object.entries(left);
+  const rightMembers = new Map<string, unknown>(Object.entries(right));
+  return leftMembers.length === rightMembers.size
+    ? leftMembers.map(([key, value]): ValuePair => [value, rightMembers.get(key)])
+    : undefined;
+}
+
+/**
+ * Whether two values that JSON read are equal value for value (CL-IMP-06): the members
+ * of an object in any order, and strings and numbers as JSON reads them, so that a
+ * character is the same written or escaped, and `1.0` is the number `1`. Compared
+ * without recursion, like the scanner reads, so that no depth of nesting can overflow
+ * the stack.
+ */
+function areEqualValues(left: unknown, right: unknown): boolean {
+  const pending: ValuePair[] = [[left, right]];
+  for (let pair = pending.pop(); pair !== undefined; pair = pending.pop()) {
+    const [first, second] = pair;
+    const members = first === second ? [] : memberPairs(first, second);
+    if (members === undefined) {
+      return false;
+    }
+    for (const member of members) {
+      pending.push(member);
+    }
+  }
+  return true;
+}
+
+// What a copy is compared by (CL-IMP-06): the value read, or, for an object that cannot
+// be read, the tokens read as they are written.
+function copyOf(candidate: Candidate): unknown {
+  return candidate.result.ok ? candidate.result.value : candidate.compact;
+}
+
+/** The one object of a pool, its copies counting as one, or why there is none. */
+function oneOf(pool: readonly Candidate[]): ExtractJsonResult {
+  const [first, ...others] = pool;
   if (first === undefined) {
     return failure({ kind: 'no_result_found' });
   }
-  return others.length === 0 ? first.result : failure({ kind: 'several_results' });
+  const copy = copyOf(first);
+  return others.every((other) => areEqualValues(copy, copyOf(other)))
+    ? first.result
+    : failure({ kind: 'several_results' });
+}
+
+/** The format of Egoscope that an object names in its own `format` member, if any. */
+function formatOf(candidate: Candidate): FormatName | undefined {
+  return canonicalValue(candidate.format, FORMAT_NAMES);
+}
+
+/**
+ * The one object among the candidates (IMP-04, CL-IMP-06): of those in a format of
+ * Egoscope, the ones in the format that the reader prefers when there are some. When
+ * none names a format of Egoscope, the one is the first object that cannot be read,
+ * since what follows its fault may be its own members, or else the one object of all.
+ */
+function choose(
+  candidates: readonly Candidate[],
+  preferredFormat: FormatName | undefined,
+): ExtractJsonResult {
+  const known = candidates.filter((candidate) => formatOf(candidate) !== undefined);
+  if (known.length === 0) {
+    const unreadable = candidates.find((candidate) => !candidate.result.ok);
+    return unreadable === undefined ? oneOf(candidates) : unreadable.result;
+  }
+  const preferred = known.filter((candidate) => formatOf(candidate) === preferredFormat);
+  return oneOf(preferred.length > 0 ? preferred : known);
 }
 
 /**
  * Isolates the one JSON object of a text pasted from a research AI (IMP-04, BKT-26):
- * the prose around it, code-fence lines and invisible characters are ignored, no-break
- * and other Unicode spaces between tokens read as spaces, and copies of one object count
- * as one. Among several objects, the one in a format of Egoscope, egoscope-backtest or
- * egoscope-exploration, is kept, each reader refusing the other format. Nothing else is
+ * the prose around it, code fences with their language tags and invisible characters
+ * are ignored, no-break and other Unicode spaces between tokens read as spaces, and
+ * copies of one object, equal value for value, count as one (CL-IMP-06). Among several
+ * objects, those in the format that the reader prefers are kept; when none is, those in
+ * a format of Egoscope, egoscope-backtest or egoscope-exploration, so that a reader
+ * given only the other format receives it, and refuses it with its own message (IMP-06,
+ * CA-TAX-17). Without a preferred format, both formats count alike. Nothing else is
  * repaired: a fault, a citation marker between tokens included, is a syntax error at
  * its place, and a text that ends inside the object is cut, apart from a syntax error,
  * with the partial text that the recovery of IMP-05 reads. A citation marker inside a
  * text value stays as written (ADR 0013).
  */
-export function extractJson(pastedText: string): ExtractJsonResult {
-  // The zero-width space and non-joiner, the word joiner, the byte-order mark and the
-  // zero-width joiner, last, so that it joins no two characters of the class.
-  const invisible = /[\u{200B}\u{200C}\u{2060}\u{FEFF}\u{200D}]/gu;
-  // A code-fence line: three backticks or tildes, possibly more and a language tag.
-  const fenceLine = /^[ \t]*(?:```|~~~).*/gmu;
-  const text = pastedText.replaceAll(invisible, '').replaceAll(fenceLine, '').trimEnd();
-  return choose(readCandidates(text));
+export function extractJson(pastedText: string, preferredFormat?: FormatName): ExtractJsonResult {
+  const text = pastedText.replaceAll(INVISIBLE_CHARACTERS, '').replaceAll(CODE_FENCE, '');
+  return choose(readCandidates(text.trimEnd()), preferredFormat);
 }
