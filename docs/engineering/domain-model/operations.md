@@ -435,9 +435,10 @@ Owned by module `db`, created by the database task; `backtests` and `imports` dr
 
 The counters survive the deletion of the rows they numbered, so no reference or import number is
 issued twice (BKT-12, CL-BKT-11). A restore keeps that true: after the load, each counter, like
-each identity sequence, continues from the larger of the target database's value and the backup's,
-except a restore into a new database without the previous one, which continues from the backup's
-(§2.5 step 3, CL-TRV-06).
+each identity sequence, continues from the larger of the target database's value and the backup's —
+for an identity sequence, the value the backup's manifest records (`identity_sequences`, §5.1),
+never the highest identifier among its rows —, except a restore into a new database without the
+previous one, which continues from the backup's (§2.5 step 3, CL-TRV-06).
 
 ### 1.15 `outbox_facts` — `OutboxFact`
 
@@ -600,7 +601,8 @@ result.
    the load, each row of `sequence_counters` and each identity sequence continues from the larger of
    the target database's value and the backup's (for a new database, the previous database's value
    when step 2 can still read it); without the previous database, from the backup's, a limit that
-   CL-TRV-06 names.
+   CL-TRV-06 names. The backup's value of a counter is its loaded row, and that of an identity
+   sequence the one its manifest records (`identity_sequences`, §5.1).
 4. In the transaction of step 3, it re-applies the ledger without changing the counter or creating a fingerprint: a restored
    player matching a deleted-player entry is deleted again (JOU-24 scope, no new Telegram
    deletion); for each live fingerprint, exactly one restored event of that player and type on its
@@ -623,20 +625,20 @@ result.
 
 ## 3. Invariants
 
-| rule                                                                                                                              | spec IDs                             | enforced by                                                                                                                                                                                 |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A parameter value outside its allowed values is refused with the bounds                                                           | TRV-35, CL-TRV-16                    | parameter service, against the registry                                                                                                                                                     |
-| Every parameter change is traced with old and new values and the instant                                                          | TRV-35                               | `parameter_changes` and a journal entry, in one transaction                                                                                                                                 |
-| Secrets — deployment values, password, tokens, keys — are never displayed, journaled or exported                                  | TRV-64                               | hashes only (`accounts`, `sessions`); journal allowlist                                                                                                                                     |
-| One open incident per cause                                                                                                       | TRV-45                               | partial unique index                                                                                                                                                                        |
-| No run of a task overlaps another                                                                                                 | TRV-28                               | partial unique index                                                                                                                                                                        |
-| Each run is idempotent and resumable                                                                                              | TRV-29, TRV-30                       | task services; `cursor` and progress marks                                                                                                                                                  |
-| A journal entry never copies an event's player, type, date, description or source                                                 | TRV-41, DSN-11, CL-TRV-10            | journal writer: message keys and references only                                                                                                                                            |
-| Rotation really deletes; a backup stays listed until its deletion is verified                                                     | TRV-50, CL-TRV-04                    | backup service                                                                                                                                                                              |
-| Backups and full exports never hold drafts, ledger entries, account password data or sessions                                     | TRV-51, CL-TRV-05, CL-DSN-08         | the writers skip those tables by name                                                                                                                                                       |
-| A structure change never runs without a stored backup first                                                                       | TRV-55, CL-TRV-19                    | update procedure                                                                                                                                                                            |
-| Every owner-editable row carries a version, and a save sent with an older version is refused                                      | CL-IHM-18                            | `row_version` compare-and-set in every save                                                                                                                                                 |
-| References and import numbers are never issued twice, a restore into a new database without the previous one excepted (CL-TRV-06) | BKT-12, IMP-31, CL-BKT-11, CL-TRV-06 | `sequence_counters`, incremented in the using transaction; at a restore, every counter and identity sequence continued from the larger of the target's value and the backup's (§2.5 step 3) |
+| rule                                                                                                                              | spec IDs                             | enforced by                                                                                                                                                                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A parameter value outside its allowed values is refused with the bounds                                                           | TRV-35, CL-TRV-16                    | parameter service, against the registry                                                                                                                                                                                                    |
+| Every parameter change is traced with old and new values and the instant                                                          | TRV-35                               | `parameter_changes` and a journal entry, in one transaction                                                                                                                                                                                |
+| Secrets — deployment values, password, tokens, keys — are never displayed, journaled or exported                                  | TRV-64                               | hashes only (`accounts`, `sessions`); journal allowlist                                                                                                                                                                                    |
+| One open incident per cause                                                                                                       | TRV-45                               | partial unique index                                                                                                                                                                                                                       |
+| No run of a task overlaps another                                                                                                 | TRV-28                               | partial unique index                                                                                                                                                                                                                       |
+| Each run is idempotent and resumable                                                                                              | TRV-29, TRV-30                       | task services; `cursor` and progress marks                                                                                                                                                                                                 |
+| A journal entry never copies an event's player, type, date, description or source                                                 | TRV-41, DSN-11, CL-TRV-10            | journal writer: message keys and references only                                                                                                                                                                                           |
+| Rotation really deletes; a backup stays listed until its deletion is verified                                                     | TRV-50, CL-TRV-04                    | backup service                                                                                                                                                                                                                             |
+| Backups and full exports never hold drafts, ledger entries, account password data or sessions                                     | TRV-51, CL-TRV-05, CL-DSN-08         | the writers skip those tables by name                                                                                                                                                                                                      |
+| A structure change never runs without a stored backup first                                                                       | TRV-55, CL-TRV-19                    | update procedure                                                                                                                                                                                                                           |
+| Every owner-editable row carries a version, and a save sent with an older version is refused                                      | CL-IHM-18                            | `row_version` compare-and-set in every save                                                                                                                                                                                                |
+| References and import numbers are never issued twice, a restore into a new database without the previous one excepted (CL-TRV-06) | BKT-12, IMP-31, CL-BKT-11, CL-TRV-06 | `sequence_counters`, incremented in the using transaction; at a restore, every counter and identity sequence continued from the larger of the target's value and the backup's, the manifest's for an identity sequence (§2.5 step 3, §5.1) |
 
 ## 4. Stored or derived
 
@@ -665,7 +667,8 @@ archive layout the module map gives the export, backup and restore (one format f
   per row and per line, one key per column named as in this model; instants as ISO 8601 UTC strings
   with milliseconds; dates `YYYY-MM-DD`; jsonb columns embedded as JSON; arrays as JSON arrays;
   numbers with a plain decimal point; `null` for a null column.
-- `manifest.json`, the archive's last entry, so that a cut archive is seen as incomplete:
+- `manifest.json`, the archive's last entry, so that a cut archive is seen as incomplete (here a
+  backup's, whose last two keys a full export does not have):
 
 ```json
 {
@@ -676,18 +679,21 @@ archive layout the module map gives the export, backup and restore (one format f
   "tables": [
     { "name": "teams", "file": "teams.jsonl", "rows": 30, "sha256": "…" },
     { "name": "followed_players", "file": "followed_players.jsonl", "rows": 24, "sha256": "…" }
-  ]
+  ],
+  "backup_kind": "weekly",
+  "identity_sequences": { "teams": 30 }
 }
 ```
 
-| key                     | type    | rule                                                                                                           |
-| ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| `format`                | string  | `egoscope-export`                                                                                              |
-| `format_version`        | string  | `1.0`; a new column, table or value changes the version                                                        |
-| `exported_at`           | string  | ISO 8601 instant in UTC with milliseconds                                                                      |
-| `withdrawn_event_count` | integer | the counter's value (CL-DSN-08)                                                                                |
-| `tables`                | array   | every exported table, in the loading order below: `name`, `file`, `rows` (integer), `sha256` (hex of the file) |
-| `backup_kind`           | string  | in a backup only: `weekly`, `manual` or `before_update`                                                        |
+| key                     | type    | rule                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`                | string  | `egoscope-export`                                                                                                                                                                                                                                                                                                                         |
+| `format_version`        | string  | `1.0`; a new column, table or value changes the version                                                                                                                                                                                                                                                                                   |
+| `exported_at`           | string  | ISO 8601 instant in UTC with milliseconds                                                                                                                                                                                                                                                                                                 |
+| `withdrawn_event_count` | integer | the counter's value (CL-DSN-08)                                                                                                                                                                                                                                                                                                           |
+| `tables`                | array   | every exported table, in the loading order below: `name`, `file`, `rows` (integer), `sha256` (hex of the file)                                                                                                                                                                                                                            |
+| `backup_kind`           | string  | in a backup only: `weekly`, `manual` or `before_update`                                                                                                                                                                                                                                                                                   |
+| `identity_sequences`    | object  | in a backup only: for every exported table with an identity column, its name and the last value its sequence has issued, rows erased since included (0 when it has issued none), read after the tables, so that each is at least the highest identifier exported; the value a restore compares with the target's (§2.5 step 3, CL-TRV-06) |
 
 **Loading order.** The manifest lists the tables so that each one comes after every table it
 references, and a restore inserts them in that sequence, in one transaction. The foreign keys of
@@ -713,7 +719,7 @@ name; every other table is exported.
 
 ### 5.2 Backup file
 
-The archive of 5.1, with `backup_kind` in its manifest, encrypted as one object with AES-256-GCM
+The archive of 5.1, with `backup_kind` and `identity_sequences` in its manifest, encrypted as one object with AES-256-GCM
 under the backup key of the deployment configuration (ADR 0018, CL-TRV-04). Layout: the 16 ASCII
 bytes `EGOSCOPE-BACKUP1`, a 12-byte random nonce, the ciphertext, the 16-byte authentication tag.
 Object name `egoscope-backup-<YYYYMMDDTHHMMSSZ>-<kind>.bin`: only the creation instant in UTC and the

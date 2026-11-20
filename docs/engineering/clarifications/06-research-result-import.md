@@ -13,7 +13,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ## CL-IMP-02 — Error messages: English, location, problem, fix
 
-- **Affects:** IMP-20, IMP-04 to IMP-17, IHM-29, CA-IMP-06, CA-IMP-07, CA-IMP-08
+- **Affects:** IMP-20, IMP-04 to IMP-17, IMP-31, IHM-29, DSN-18, CA-IMP-06, CA-IMP-07, CA-IMP-08
 - **Problem:** IMP-20 requires plain French and a location by position, type and date, while one of its own examples (« 7e événement : … ») omits the type and the date.
 - **Ruling:**
   - Every import message is plain English (ADR 0010), in three parts: location, what is wrong, how to fix it.

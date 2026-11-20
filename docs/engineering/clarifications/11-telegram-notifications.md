@@ -82,13 +82,13 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
     2. outside any database transaction, since no outside call runs inside one but a message's own send, the app asks Telegram once to delete each of them in the chat it was sent to, whatever its age and even in a chat no longer linked;
     3. the erasure's transaction then erases the event's data, the abandoned messages and the text and identifiers of every sent one, whatever Telegram answered, and their activity-journal entries lose their mention of the event (TRV-41);
     4. the result screen is built from memory.
-  - The messages about the event also include those whose fact is an update entry that the erasure deletes from a sheet it initializes again (CL-ALE-16), which trace the sheet's production for the event.
+  - The messages about the event also include those whose fact is an update entry that the erasure deletes from a sheet it initializes again, which trace the sheet's production for the event, or with the expected games that the event's moved reference date gave (CL-ALE-16).
   - A fact about the event still pending at step 1 can give a message that is sent before step 3. Step 1 passes the identifiers of the sent messages it read to the erasure, which compares the sent messages about the event with them: if the erasure's transaction finds one that is not among them, it commits nothing, and the withdrawal starts again at step 1, which reads it: the app never forgets a sent message before Telegram has been asked to delete it. Each fact gives at most one message (TEL-17), so the restarts end. A player-data deletion and an erasure by requalification or split, which take the same steps, start again at their own step 1 the same way.
   - A restore's re-application of the withdrawal ledger (CL-TRV-06) has no step 1 and asks Telegram nothing: the sent messages about an event it withdraws again or a player it deletes again, which the backup brought back, are erased with them, without that check.
   - If the process stops after step 1 or 2, the event still exists and the owner withdraws it again; on that second attempt, a message Telegram no longer finds counts as deleted.
   - A digest is deleted whole; its other facts stay in the app (TEL-02) and are not sent again.
   - The screen shown right after the withdrawal gives the number of messages deleted and, for each message Telegram refused or that could not be reached, its send date and time with the zone and whether it was a digest. That list is computed during the withdrawal, shown on that screen only, never stored, and gone when the owner leaves the screen.
-- **Why:** the owner learns where to delete by hand at the only moment it is allowed, and nothing outlives the withdrawal but the counter and the keyed fingerprint (ADR 0017).
+- **Why:** the owner learns where to delete by hand at the only moment it is allowed, and nothing outlives the withdrawal but the counter and the keyed fingerprint (ADR 0017), besides the accepted residual limits of CL-SEN-18, CL-SUI-17 and CL-ALE-16.
 - **Owner review:** yes
 
 ## CL-TEL-10 — Detection-born proposals and intimate subjects

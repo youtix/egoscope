@@ -230,9 +230,9 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 ## CL-IHM-26 — Which words open a one-tap definition
 
-- **Affects:** IHM-15, IHM-53, VUE-08
+- **Affects:** IHM-15, IHM-37, VUE-08
 - **Problem:** IHM-15 gives every glossary term shown on screen a one-tap definition, but nothing says which occurrence of a term can be tapped when a screen shows it several times, or inside a sentence.
-- **Ruling:** on every screen, the first label of each term of glossary section 7.7 that the screen shows — a heading, a field, column or filter label, a figure's label, the name of a state set — is a glossary term that opens its section 7.7 sentence. Its other occurrences on the screen, and terms inside sentences, values, notices and Telegram texts, stay plain. The components of the figures (`ui/figures`) wrap their own labels, so the screens that use them inherit it. Help lists every sentence.
+- **Ruling:** on every screen, the first label of each term of glossary section 7.7 that the screen shows — a heading, a field, column or filter label, a figure's label, the name of a state set — is a `GlossaryTerm` (module map, `ui`) that opens its section 7.7 sentence. Its other occurrences on the screen, and terms inside sentences, values, notices and Telegram texts, stay plain. The components of the figures (`ui/figures`) wrap their own labels, so the screens that use them inherit it. Help lists every sentence.
 - **Why:** the first label is where the owner meets a term on a screen, so one tap there gives its definition, as IHM-15 asks, while a tap target on every occurrence, inside sentences and values too, would clutter the screens; Help keeps every definition at hand.
 - **Owner review:** yes — on each screen, only the first label of each glossary term opens its definition; its other occurrences and the terms inside sentences, values, notices and Telegram texts stay plain, and Help lists every definition.
 
