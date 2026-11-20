@@ -252,8 +252,16 @@ export type {
 // --- correspondence/ -------------------------------------------------------------
 
 // correspondence/links.ts
+export { cleanLink, isSameLink } from './correspondence/links';
 
 // correspondence/match.ts
+export { classify, duplicatesInResult } from './correspondence/match';
+export type {
+  ComparedEvent,
+  DuplicateKind,
+  EventOrigin,
+  ReferenceDate,
+} from './correspondence/match';
 
 // --- calendar/ -------------------------------------------------------------------
 
