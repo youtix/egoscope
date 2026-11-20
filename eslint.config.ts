@@ -936,6 +936,18 @@ const composed = defineConfig(
     },
   },
 
+  // --- Formats (IHM-13) -----------------------------------------------------------
+  {
+    // People read numbers and dates only as the formatters of the wording and time
+    // modules write them, in the formats of record 0010 (CL-IHM-03, CL-IHM-04).
+    name: 'egoscope/formats',
+    files: SRC_FILES,
+    ignores: ['src/lib/time/**', 'src/lib/wording/**'],
+    rules: {
+      'egoscope/no-ad-hoc-format': 'error',
+    },
+  },
+
   {
     // Coverage leaves route shells out (scripts/route-shells.ts), so lint keeps them
     // thin: SHELL_SYNTAX refuses loops, top-level helpers and stray exports, and
