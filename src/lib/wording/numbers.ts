@@ -4,6 +4,12 @@
 // other value shows only its minus; a value that rounds to zero shows no sign, and a
 // count none at all. The machine formats of prompts, imports and exports are written
 // elsewhere, with a plain point and the ASCII hyphen-minus.
+//
+// Rounding works on the double that a calculation gives (CL-STA-09), so a decimal tie
+// that no double holds exactly falls on the side of its double: 1.005, held as
+// 1.00499…, shows "+1.00", and the mean of +0.03 and 0.00, held as 0.01499…, "+0.01".
+// A test that feeds printed values (CL-SEN-24) expects these, not the tie rounded by
+// hand.
 
 /** Where a value shows its sign: `explicit`, "+" or "−"; `negative`, "−" only. */
 type Sign = 'explicit' | 'negative';

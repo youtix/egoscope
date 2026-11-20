@@ -6,9 +6,10 @@
  * outside those two modules. It refuses, whatever value they are read from and in
  * whatever way a property is named (`value.toFixed`, `value['toFixed']`, a destructured
  * `{ toFixed }`), the methods that write a number or a date by themselves — `toFixed`,
- * `toLocaleString`, `toLocaleDateString`, `toLocaleTimeString` — and the number and
- * date formats of `Intl`, `Intl.NumberFormat` and `Intl.DateTimeFormat`, also read
- * through `globalThis`. It needs no type information: no other value has these names.
+ * `toPrecision`, `toExponential`, `toLocaleString`, `toLocaleDateString`,
+ * `toLocaleTimeString` — and the number and date formats of `Intl`, `Intl.NumberFormat`
+ * and `Intl.DateTimeFormat`, also read through `globalThis`. It needs no type
+ * information: no other value has these names.
  */
 import { AST_NODE_TYPES, ASTUtils, ESLintUtils } from '@typescript-eslint/utils';
 
@@ -22,10 +23,12 @@ const createRule = ESLintUtils.RuleCreator<{ requiresTypeChecking?: boolean }>(
 
 // The methods that write a number or a date by themselves.
 const FORMAT_METHODS: ReadonlySet<string> = new Set([
+  'toExponential',
   'toFixed',
   'toLocaleDateString',
   'toLocaleString',
   'toLocaleTimeString',
+  'toPrecision',
 ]);
 // The number and date formats of Intl.
 const INTL_FORMATS: ReadonlySet<string> = new Set(['DateTimeFormat', 'NumberFormat']);

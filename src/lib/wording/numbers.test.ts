@@ -98,6 +98,14 @@ describe('number formats', () => {
       );
     });
 
+    it('[IHM-13] [CL-STA-09] rounds the double a calculation gives, so a decimal tie that no double holds falls on its side', () => {
+      expect([formatGap(1.005), formatGap((0.03 + 0) / 2), formatGap(1.125)]).toStrictEqual([
+        '+1.00',
+        '+0.01',
+        '+1.13',
+      ]);
+    });
+
     it('[IHM-13] [CL-IHM-03] writes the opposite of a gap with the opposite sign', () => {
       fc.assert(
         fc.property(VALUES, (value) => {
@@ -185,7 +193,7 @@ describe('number formats', () => {
       expect(() => formatCount(1.5)).toThrow(RangeError);
     });
 
-    it('[SEN-39] [CL-SEN-21] writes a share as a whole percentage, rounded half away from zero', () => {
+    it('[SEN-39] [CL-SEN-21] writes the percentage form of a share, whole and rounded half away from zero', () => {
       expect([formatShare(15, 21), formatShare(4, 10), formatShare(2, 10)]).toStrictEqual([
         '71%',
         '40%',

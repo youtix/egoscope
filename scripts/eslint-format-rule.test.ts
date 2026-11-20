@@ -1,5 +1,5 @@
 // Proves where no-ad-hoc-format bites: in src/, tests included, outside src/lib/time and
-// src/lib/wording, for each of the six formats and each way of naming one, and nowhere
+// src/lib/wording, for each of the eight formats and each way of naming one, and nowhere
 // else. Deliberate violations are linted in the probe project of lint-probes.ts.
 import path from 'node:path';
 
@@ -26,6 +26,8 @@ async function rulesIn(file: string, code: string): Promise<readonly (string | n
 
 const FORMATS = [
   ['toFixed', 'export const text = (value: number): string => value.toFixed(2);\n'],
+  ['toPrecision', 'export const text = (value: number): string => value.toPrecision(2);\n'],
+  ['toExponential', 'export const text = (value: number): string => value.toExponential(2);\n'],
   [
     'toLocaleString',
     "export const text = (value: number): string => value.toLocaleString('en-US');\n",

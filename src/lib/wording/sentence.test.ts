@@ -41,7 +41,7 @@ describe('fixed sentences', () => {
     expect(withoutSlot).toStrictEqual([]);
   });
 
-  it('[SEN-30] recalls, beside every general trend, what it describes', () => {
+  it('[SEN-30] gives the reminder that accompanies every general trend', () => {
     expect(sentence('sensitivity.generalTrendReminder')).toBe(
       'The general trend describes all observed players, not any one of them.',
     );
@@ -72,13 +72,13 @@ describe('fixed sentences', () => {
     );
   });
 
-  it('[ALE-17] ends every alert sheet with its standing notice', () => {
+  it('[ALE-17] gives the standing notice that ends every alert sheet', () => {
     expect(sentence('alerts.standingNotice')).toBe(
       'This sheet describes past games. It does not predict the next game and is not a betting recommendation.',
     );
   });
 
-  it('[TEL-05] closes every alert message with its mention', () => {
+  it('[TEL-05] gives the mention that closes every alert message', () => {
     expect(sentence('notifications.closingLine')).toBe('A measure of the past, not a forecast.');
   });
 
