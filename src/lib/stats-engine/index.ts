@@ -188,10 +188,27 @@ export type {
 } from './backtest/extents';
 
 // backtest/retained-coverage.ts
+export { isTypeCovered, retainedCoverage } from './backtest/retained-coverage';
+export type {
+  CoverageGap,
+  CoverageWarning,
+  DeclaredCoverage,
+  RetainedCoverage,
+  RetainedPeriod,
+} from './backtest/retained-coverage';
 
 // backtest/proposals.ts
+export { incompleteImportSupplement, isTypeSupplementNeeded } from './backtest/proposals';
 
 // backtest/deadline.ts
+export { deadlineOf, rankTodo } from './backtest/deadline';
+export type {
+  Deadline,
+  DeadlineGame,
+  NoGameScheduled,
+  NoNextGameReason,
+  RequestToDo,
+} from './backtest/deadline';
 
 // backtest/urgency.ts
 
