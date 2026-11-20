@@ -330,6 +330,17 @@ describe('duplicatesInResult', () => {
     expect(duplicatesInResult(events, WINDOW)).toStrictEqual([undefined, 0, undefined]);
   });
 
+  it('[IMP-26] keeps an event that shares a link only with a duplicate, whose links stay its own', () => {
+    // 15 January duplicates 14 January by its date; 3 May shares a link with 15 January only.
+    const events = [
+      dated('2021-01-14', { cleanedUrls: [ARTICLE] }),
+      dated('2021-01-15', { cleanedUrls: [OTHER_ARTICLE] }),
+      dated('2021-05-03', { cleanedUrls: [OTHER_ARTICLE] }),
+    ];
+
+    expect(duplicatesInResult(events, WINDOW)).toStrictEqual([undefined, 0, undefined]);
+  });
+
   it('[IMP-26] [CL-IMP-34] finds the duplicates of the window it is given', () => {
     const events = [dated('2021-01-14'), dated('2021-01-17')];
 

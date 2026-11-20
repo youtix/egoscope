@@ -28,9 +28,14 @@ const DEFAULT_PORT = { http: ':80', https: ':443' } as const;
 
 const parameterValue = fc.stringMatching(/^[\w.~-]{0,6}$/u);
 // Parameters that the cleaning keeps: their names hold no `_`, so that none starts with
-// `utm_`, and are none of the click identifiers.
+// `utm_`, and are none of the click identifiers. Some start with `utm`, at the edge of
+// the tracking prefix, which ends with its underscore.
+const keptName = fc.oneof(
+  fc.stringMatching(/^[a-z][\da-z]{0,7}$/u),
+  fc.stringMatching(/^utm[\da-z]{0,5}$/u),
+);
 const keptParameter = fc
-  .tuple(fc.stringMatching(/^[a-z][\da-z]{0,7}$/u), parameterValue)
+  .tuple(keptName, parameterValue)
   .filter(([name]) => !CLICK_IDENTIFIERS.has(name))
   .map(([name, value]) => `${name}=${value}`);
 const article: fc.Arbitrary<Article> = fc.record({
@@ -96,6 +101,12 @@ describe('cleanLink', () => {
 
   it('[CL-COL-23] keeps a parameter whose name only holds a tracking name, and one whose value does', () => {
     const url = `${ARTICLE}?xutm_source=1&fbclid2=2&my_gclid=3&mc_eid_page=4&source=utm_feed`;
+
+    expect(cleanLink(url)).toBe(url);
+  });
+
+  it('[COL-28] [CL-COL-23] keeps a parameter whose name starts with utm without the underscore', () => {
+    const url = `${ARTICLE}?utm=1&utmost=2&utm-source=3&UTMcampaign=4`;
 
     expect(cleanLink(url)).toBe(url);
   });
@@ -227,6 +238,11 @@ describe('isSameLink', () => {
       'https://media-national.example/a?page=2&id=7',
     ],
     ['another port', 'https://media-national.example:8443/a', 'https://media-national.example/a'],
+    [
+      'the value of a parameter whose name starts with utm without the underscore',
+      'https://media-national.example/a?utmost=1',
+      'https://media-national.example/a?utmost=2',
+    ],
   ])('[IMP-25] [CL-IMP-14] tells two links apart by %s', (_difference, url, otherUrl) => {
     expect(isSameLink(url, otherUrl)).toBe(false);
   });

@@ -137,8 +137,12 @@ export function classify(
  * it: it duplicates the first one it corresponds to, or is kept. An event that only
  * corresponds to a duplicate is kept, so that each duplicate corresponds to the event
  * it joins. Two events of different types never duplicate each other, even with a
- * common link: both are added (CL-IMP-13). For each event, the index in `events` of
- * the event it duplicates, or `undefined` when it is kept.
+ * common link: both are added (CL-IMP-13). A kept event is compared by the links it is
+ * given: the sources of its duplicates, which IMP-26 attaches to it within the maximum
+ * number of sources, are not added to them here, so a later event that shares a link
+ * only with such a source is kept. Only the import preview knows which sources join
+ * the event. For each event, the index in `events` of the event it duplicates, or
+ * `undefined` when it is kept.
  */
 export function duplicatesInResult(
   events: readonly ComparedEvent[],
