@@ -162,10 +162,21 @@ export { profileChecks } from './profiles/checks';
 export type { ManuallyDecidedCase, ProfileChecks } from './profiles/checks';
 
 // profiles/general-trend.ts
+export { generalTrend, topContributorShare } from './profiles/general-trend';
+export type { GeneralTrendInput, GeneralTrendValues, TrendCase } from './profiles/general-trend';
 
 // profiles/expected-false-signals.ts
+export { expectedFalseSignals } from './profiles/expected-false-signals';
+export type { ExpectedFalseSignals } from './profiles/expected-false-signals';
 
 // profiles/verdict-history.ts
+export { statisticsUpdateCause, verdictChanges } from './profiles/verdict-history';
+export type {
+  StatisticsUpdateCause,
+  StatisticsUpdateEffects,
+  VerdictAndConfidence,
+  VerdictChange,
+} from './profiles/verdict-history';
 
 // profiles/evaluate-player.ts
 
