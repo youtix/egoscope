@@ -74,42 +74,108 @@ const NOTHING: BoxScoreLine = {
 
 type Value = 'minutes' | 'seconds' | 'threePointersMade' | keyof GameScoreInput;
 
+// What a line can lack (STA-10): its time on court or a total of the Game Score.
+type Element = 'minutes' | 'seconds' | keyof GameScoreInput;
+
 /** `line` with one value changed. */
 function withValue(line: BoxScoreLine, name: Value, value: number | null): BoxScoreLine {
   return { ...line, [name]: value };
 }
 
-const anyValue = fc.option(fc.integer({ min: -1, max: 60 }), { nil: null });
-const anyCounts = fc.record({
-  points: anyValue,
-  fieldGoalsMade: anyValue,
-  fieldGoalsAttempted: anyValue,
-  threePointersMade: anyValue,
-  freeThrowsMade: anyValue,
-  freeThrowsAttempted: anyValue,
-  offensiveRebounds: anyValue,
-  defensiveRebounds: anyValue,
-  assists: anyValue,
-  steals: anyValue,
-  blocks: anyValue,
-  turnovers: anyValue,
-  personalFouls: anyValue,
-});
-const anyTime = fc.oneof(
-  fc.record({
-    minutesPrecision: fc.constant('whole_minutes' as const),
-    minutes: anyValue,
-    seconds: fc.constant(null),
-  }),
-  fc.record({
-    minutesPrecision: fc.constant('seconds' as const),
-    minutes: anyValue,
-    seconds: anyValue,
-  }),
+/** The twelve totals of the Game Score that `line` gives. */
+function totalsOf(line: BoxScoreLine): Partial<Record<keyof GameScoreInput, number | null>> {
+  return Object.fromEntries(TOTALS.map((total) => [total, line[total]]));
+}
+
+/**
+ * `line` without `elements`, each unknown, except whole minutes, which `absentMinutes`
+ * may make zero: less than 30 seconds on court, as unknown a time (CL-STA-06).
+ */
+function without(
+  line: BoxScoreLine,
+  elements: readonly Element[],
+  absentMinutes: 0 | null,
+): BoxScoreLine {
+  let lacking = line;
+  for (const element of elements) {
+    lacking = withValue(lacking, element, null);
+  }
+  return lacking.minutesPrecision === 'whole_minutes' && elements.includes('minutes')
+    ? { ...lacking, minutes: absentMinutes }
+    : lacking;
+}
+
+// A time on court above zero and within regulation, so within any game's length, with
+// its decimal minutes.
+const anyTimeOnCourt = fc.oneof(
+  fc.integer({ min: 1, max: 48 }).map((minutes) => ({
+    time: { minutesPrecision: 'whole_minutes' as const, minutes, seconds: null },
+    decimalMinutes: minutes,
+  })),
+  fc.integer({ min: 1, max: 48 * 60 }).map((seconds) => ({
+    time: {
+      minutesPrecision: 'seconds' as const,
+      minutes: Math.floor(seconds / 60),
+      seconds: seconds % 60,
+    },
+    decimalMinutes: seconds / 60,
+  })),
 );
-const anyLine: fc.Arbitrary<BoxScoreLine> = fc
-  .tuple(anyTime, anyCounts)
-  .map(([time, counts]) => ({ ...time, ...counts }));
+
+// Counts that pass every check of STA-09 by construction: none below zero, made within
+// attempted, threes within made, and 2 points per made field goal plus 1 per three and
+// per made free throw. The three-pointers made may be unknown, which skips the points check.
+const anyConsistentCounts = fc
+  .record({
+    threePointersMade: fc.nat(8),
+    twoPointersMade: fc.nat(15),
+    fieldGoalsMissed: fc.nat(15),
+    freeThrowsMade: fc.nat(12),
+    freeThrowsMissed: fc.nat(6),
+    offensiveRebounds: fc.nat(8),
+    defensiveRebounds: fc.nat(15),
+    assists: fc.nat(15),
+    steals: fc.nat(6),
+    blocks: fc.nat(6),
+    turnovers: fc.nat(8),
+    personalFouls: fc.nat(6),
+    areThreesKnown: fc.boolean(),
+  })
+  .map(({ twoPointersMade, fieldGoalsMissed, freeThrowsMissed, areThreesKnown, ...counts }) => {
+    const fieldGoalsMade = counts.threePointersMade + twoPointersMade;
+    return {
+      ...counts,
+      points: 2 * fieldGoalsMade + counts.threePointersMade + counts.freeThrowsMade,
+      fieldGoalsMade,
+      fieldGoalsAttempted: fieldGoalsMade + fieldGoalsMissed,
+      threePointersMade: areThreesKnown ? counts.threePointersMade : null,
+      freeThrowsAttempted: counts.freeThrowsMade + freeThrowsMissed,
+    };
+  });
+
+type ConsistentLine = Readonly<{ line: BoxScoreLine; decimalMinutes: number }>;
+
+// A line that every check accepts and that lacks nothing, with its decimal minutes.
+const anyConsistentLine: fc.Arbitrary<ConsistentLine> = fc
+  .tuple(anyTimeOnCourt, anyConsistentCounts)
+  .map(([{ time, decimalMinutes }, counts]) => ({ line: { ...time, ...counts }, decimalMinutes }));
+
+// Such a line and the elements it lacks, in the order of `missing`: a single one in two
+// draws out of three, any of them otherwise. A whole-minutes line has no seconds to lack.
+const anyLackingLine = anyConsistentLine.chain(({ line }) => {
+  const elements: Element[] =
+    line.minutesPrecision === 'seconds'
+      ? ['minutes', 'seconds', ...TOTALS]
+      : ['minutes', ...TOTALS];
+  return fc.record({
+    line: fc.constant(line),
+    lacking: fc.oneof(
+      { arbitrary: fc.constantFrom(...elements).map((element) => [element]), weight: 2 },
+      { arbitrary: fc.subarray(elements, { minLength: 1 }), weight: 1 },
+    ),
+    absentMinutes: fc.constantFrom(0, null),
+  });
+});
 const anyOvertimes = fc.option(fc.nat(4), { nil: null });
 
 describe('verifyBoxScore', () => {
@@ -377,15 +443,27 @@ describe('verifyBoxScore', () => {
     });
   });
 
-  it('[STA-10] never finds complete a line that lacks an element, and keeps the values it is given', () => {
+  it('[STA-09] [STA-10] [STA-12] finds complete a consistent line that lacks nothing, and keeps the values it is given', () => {
     fc.assert(
-      fc.property(anyLine, anyOvertimes, (line, overtimeCount) => {
-        const check = verifyBoxScore(line, overtimeCount);
-        const isComplete = check.status === 'complete';
+      fc.property(anyConsistentLine, anyOvertimes, ({ line, decimalMinutes }, overtimes) => {
+        const check = verifyBoxScore(line, overtimes);
 
-        expect(isComplete && TOTALS.some((total) => line[total] === null)).toBe(false);
-        expect(isComplete && TOTALS.some((total) => check[total] !== line[total])).toBe(false);
-        expect(isComplete && check.decimalMinutes <= 0).toBe(false);
+        expect(check).toMatchObject({
+          status: 'complete',
+          hasRoundedMinutes: line.minutesPrecision === 'whole_minutes',
+          ...totalsOf(line),
+        });
+        expect(check.decimalMinutes).toBeCloseTo(decimalMinutes, 9);
+      }),
+    );
+  });
+
+  it('[STA-10] [CL-STA-06] never finds complete a line that lacks an element, and lists every element it lacks', () => {
+    fc.assert(
+      fc.property(anyLackingLine, anyOvertimes, ({ line, lacking, absentMinutes }, overtimes) => {
+        const check = verifyBoxScore(without(line, lacking, absentMinutes), overtimes);
+
+        expect(check).toMatchObject({ status: 'incomplete', missing: lacking });
       }),
     );
   });
