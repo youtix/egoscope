@@ -87,7 +87,7 @@ function isToPlay(
   );
 }
 
-function nextGameOf(
+function asNextGame(
   game: NextGameCandidate & SetTeams,
   teamId: TeamId,
   lastGamePlayedOn: IsoDate | null,
@@ -185,7 +185,7 @@ function reasonOf(schedule: NextGameSchedule, teamId: TeamId, now: EpochMs): NoN
  * names it, a placeholder included: an accepted limit, since nothing stored tells it from
  * a team that did not qualify.
  */
-export function nextGame(
+export function nextGameOf(
   player: Readonly<{ teamId: TeamId | null; lastGamePlayedOn: IsoDate | null }>,
   schedule: NextGameSchedule,
   now: EpochMs,
@@ -199,7 +199,7 @@ export function nextGame(
     .toSorted(byScheduledStart);
   return game === undefined
     ? { kind: 'no_game_scheduled', reason: reasonOf(schedule, teamId, now) }
-    : nextGameOf(game, teamId, lastGamePlayedOn);
+    : asNextGame(game, teamId, lastGamePlayedOn);
 }
 
 /**
@@ -211,7 +211,7 @@ export function nextGame(
  * final game he did not play included; null while none of `games` is one. It is one of
  * `games`, returned as itself with the team he belonged to at its start.
  */
-export function expectedGame<G extends LinesGame>(
+export function expectedGameOf<G extends LinesGame>(
   player: Readonly<{ stints: readonly TeamStint[]; lines: readonly PlayerLine[] }>,
   games: readonly G[],
   after: EpochMs,

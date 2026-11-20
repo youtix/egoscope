@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { firstNbaGame, indicatorsOf } from './player-indicators';
+import { firstNbaGameOf, indicatorsOf } from './player-indicators';
 import { teamMembership } from './team-membership';
 
 import type {
@@ -458,14 +458,14 @@ const CAREER = [
 ];
 const DEBUT = { firstNbaGameId: gameOf(X, '2019-10-27').id, firstNbaGameOn: '2019-10-27' };
 
-describe('firstNbaGame', () => {
+describe('firstNbaGameOf', () => {
   it.each([
     ['every season stored', { '2019-20': true, '2020-21': true }],
     ['only the earliest stored', { '2019-20': true, '2020-21': false }],
   ])(
     '[STA-47] [CL-STA-04] [CL-STA-12] gives the US date of the earliest official game he played once the earliest season listing him is stored: %s',
     (_, stored) => {
-      expect(firstNbaGame(CAREER, careerOf(stored), CAREER_SPANS)).toStrictEqual({
+      expect(firstNbaGameOf(CAREER, careerOf(stored), CAREER_SPANS)).toStrictEqual({
         ok: true,
         firstNbaGame: DEBUT,
       });
@@ -491,7 +491,7 @@ describe('firstNbaGame', () => {
     ],
     ['no game played yet', [lineIn(X, '2020-12-23', NOT_PLAYED)], { '2020-21': true }],
   ])('[STA-47] [CL-STA-12] answers "date unknown" for %s', (_, lines, stored) => {
-    expect(firstNbaGame(lines, careerOf(stored), CAREER_SPANS)).toStrictEqual({
+    expect(firstNbaGameOf(lines, careerOf(stored), CAREER_SPANS)).toStrictEqual({
       ok: true,
       firstNbaGame: null,
     });
@@ -501,7 +501,7 @@ describe('firstNbaGame', () => {
     const lines = [lineIn(X, '2020-12-23'), lineIn(X, '2019-01-10', NOT_PLAYED)];
     const stored = { '2018-19': true, '2019-20': true, '2020-21': true };
 
-    expect(firstNbaGame(lines, careerOf(stored), CAREER_SPANS)).toStrictEqual({
+    expect(firstNbaGameOf(lines, careerOf(stored), CAREER_SPANS)).toStrictEqual({
       ok: true,
       firstNbaGame: { firstNbaGameId: gameOf(X, '2020-12-23').id, firstNbaGameOn: '2020-12-23' },
     });
@@ -510,7 +510,7 @@ describe('firstNbaGame', () => {
   it('[STA-47] [STA-48] [CL-STA-28] gives season_not_read when the stored spans cannot tell the season of the first game he played', () => {
     const lines = [lineIn(X, '2016-11-15')];
 
-    expect(firstNbaGame(lines, careerOf({ '2016-17': true }), CAREER_SPANS)).toStrictEqual(
+    expect(firstNbaGameOf(lines, careerOf({ '2016-17': true }), CAREER_SPANS)).toStrictEqual(
       notRead('2015-16', '2016-17'),
     );
   });

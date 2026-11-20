@@ -206,7 +206,7 @@ export function indicatorsOf(
  * (CL-STA-28): so that it does not occur, `seasons` holds the span of every season his
  * `lines` fall in.
  */
-export function firstNbaGame(
+export function firstNbaGameOf(
   lines: readonly IndicatorLine[],
   career: CareerSeasons,
   seasons: readonly SeasonSpan[],
