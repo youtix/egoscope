@@ -11,7 +11,7 @@ export const OWNER_ACTION_MESSAGES = [
     category: 'user_action',
     subject: 'player',
     happened: 'You added {subject} to the followed players.',
-    consequence: 'His game statistics are fetched from the stats source.',
+    consequence: 'His game statistics are fetched once his stats-source mapping is established.',
     whatToDo: 'nothing.',
   },
   {
@@ -60,7 +60,7 @@ export const OWNER_ACTION_MESSAGES = [
     category: 'user_action',
     subject: 'player',
     happened: 'You paused {subject}.',
-    consequence: 'He stays in the followed players, and his profiles keep their cases.',
+    consequence: 'His profiles stay, and his cases waiting for their game are still measured.',
     whatToDo: 'nothing.',
   },
   {
@@ -76,7 +76,8 @@ export const OWNER_ACTION_MESSAGES = [
     category: 'user_action',
     subject: 'player',
     happened: 'You withdrew {subject}.',
-    consequence: 'He is no longer followed, and his profiles are archived.',
+    consequence:
+      'His requests still to do are canceled; his data stay, his profiles shown as archived.',
     whatToDo: 'nothing.',
   },
   {

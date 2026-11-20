@@ -132,8 +132,8 @@ describe('the closed list of journal messages', () => {
 
   it('[CL-TRV-10] names a subject that exists, and says what became of one erased', () => {
     expect([textOf('player_paused', LIVE), textOf('player_paused', ERASED)]).toStrictEqual([
-      'You paused a followed player. He stays in the followed players, and his profiles keep their cases. What to do: nothing.',
-      'You paused a deleted player. He stays in the followed players, and his profiles keep their cases. What to do: nothing.',
+      'You paused a followed player. His profiles stay, and his cases waiting for their game are still measured. What to do: nothing.',
+      'You paused a deleted player. His profiles stay, and his cases waiting for their game are still measured. What to do: nothing.',
     ]);
     expect(textOf('historical_event_corrected', ERASED)).toBe(
       'You corrected an item that no longer exists. Its case and the profiles concerned are recalculated. What to do: nothing.',

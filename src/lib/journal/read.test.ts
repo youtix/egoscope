@@ -64,7 +64,7 @@ describe('reading the journal', { timeout: 60_000 }, () => {
         category: 'user_action',
         level: 'info',
         messageKey: 'player_added',
-        text: 'You added a followed player to the followed players. His game statistics are fetched from the stats source. What to do: nothing.',
+        text: 'You added a followed player to the followed players. His game statistics are fetched once his stats-source mapping is established. What to do: nothing.',
         objectRef: { kind: 'player', id: PLAYER_ID },
         technicalDetails: null,
       },

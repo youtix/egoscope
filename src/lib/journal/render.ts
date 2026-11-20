@@ -7,8 +7,7 @@ import type { SubjectKind } from './message-types';
 import type { JournalObjectRef, ObjectKind, ReferenceColumns } from './references';
 
 /** A stored entry, as the text of its message is built from it. */
-export type StoredEntry = ReferenceColumns &
-  Readonly<{ messageKey: string; messageParams: unknown }>;
+type StoredEntry = ReferenceColumns & Readonly<{ messageKey: string; messageParams: unknown }>;
 
 /** An entry's text, built at display, and the object it leads to while that object exists. */
 export type RenderedEntry = Readonly<{

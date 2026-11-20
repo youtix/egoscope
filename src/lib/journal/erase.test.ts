@@ -145,11 +145,11 @@ describe('eraseDetailsAbout', { timeout: 60_000 }, () => {
 
     await expect(journal()).resolves.toStrictEqual([
       [
-        'You paused a deleted player. He stays in the followed players, and his profiles keep their cases. What to do: nothing.',
+        'You paused a deleted player. His profiles stay, and his cases waiting for their game are still measured. What to do: nothing.',
         null,
       ],
       [
-        'You paused a followed player. He stays in the followed players, and his profiles keep their cases. What to do: nothing.',
+        'You paused a followed player. His profiles stay, and his cases waiting for their game are still measured. What to do: nothing.',
         { kind: 'player', id: OTHER_PLAYER_ID },
       ],
     ]);

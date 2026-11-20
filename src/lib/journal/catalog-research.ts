@@ -49,7 +49,7 @@ export const RESEARCH_MESSAGES = [
     category: 'user_action',
     subject: 'eventType',
     happened: 'You withdrew the type {subject}.',
-    consequence: 'It is no longer used for new events.',
+    consequence: 'Its events and cases stay, and its profiles and general trend show as archived.',
     whatToDo: 'nothing.',
   },
   {
@@ -57,8 +57,9 @@ export const RESEARCH_MESSAGES = [
     category: 'user_action',
     subject: 'eventType',
     happened: 'You reactivated the type {subject}.',
-    consequence: 'It is used again for new events.',
-    whatToDo: 'nothing.',
+    consequence:
+      'Its profiles are no longer archived, and supplements are proposed for the backtests imported meanwhile.',
+    whatToDo: 'look at the proposed supplements in the to-do list.',
   },
   {
     key: 'types_merged',
