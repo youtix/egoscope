@@ -22,6 +22,15 @@ export type { TextRuleBreach } from './text-rules';
 // template.ts stays internal to the part.
 
 // research-prompt/build-prompt.ts
+export { buildPrompt } from './research-prompt/build-prompt';
+export type {
+  BuildPromptError,
+  BuildPromptResult,
+  PromptPeriod,
+  PromptRequestedType,
+  PromptTypeSheet,
+  ResearchPromptInput,
+} from './research-prompt/build-prompt';
 
 // --- research-result/ ------------------------------------------------------------
 // recover-cut.ts and text-signals.ts stay internal to the part.

@@ -1,0 +1,92 @@
+{
+  "reference": "REQ-2026-0007",
+  "today": "2026-11-11",
+  "player": {
+    "id": "8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f",
+    "displayName": "Player A",
+    "firstNbaGameOn": "2019-10-23"
+  },
+  "overallPeriod": {
+    "startOn": "2019-10-23",
+    "endOn": "2026-11-11"
+  },
+  "requestedTypes": [
+    {
+      "sheet": {
+        "id": "record-approach",
+        "name": "Approaching a positive historic record",
+        "definition": "the press presents the followed player as able to equal or break a notable record in his next game.",
+        "inclusionCriteria": "a dated article, published before the game, presents the record as within reach in that game; the record is individual (a league record, a record of his team's history, or a career milestone the press presents as historic).",
+        "exclusionCriteria": "a team record; a record already broken; a statistical curiosity no outlet presents before the game; the following games, when the record is not broken in the first game presented as decisive, because a record gives only one event.",
+        "datingRule": "the first publication that presents the record as within reach in the next game.",
+        "knownInAdvance": false,
+        "isCalendarDerived": false,
+        "coverageThreshold": null,
+        "genericExample": "the day before a game, a national outlet writes that player A is only a few points short of the scoring record of team X's history."
+      },
+      "period": {
+        "startOn": "2019-10-23",
+        "endOn": "2026-11-11"
+      }
+    },
+    {
+      "sheet": {
+        "id": "public-humiliation",
+        "name": "Public humiliation",
+        "definition": "a public act or remark, by an identifiable author, that belittles or ridicules the followed player by name.",
+        "inclusionCriteria": "the act or remark targets the player by name; it belittles him (mockery, contempt, doubt cast on his worth or status, a derisive gesture); its author is identifiable by role (opponent, coach, his own included, executive, media outlet, commentator); it is reported by at least one dated press article.",
+        "exclusionCriteria": "criticism of a specific play in an ordinary game analysis; an anonymous social-media message the press does not report; a play suffered on the court, unless an identified author then mocks it publicly; racist remarks (type \"Racist abuse\"); a hostile exchange between the player and another player (type \"Conflict between players\"); a wave of criticism from several outlets with no single triggering remark (type \"Media storm\").",
+        "datingRule": "the moment the remark or act becomes public (live broadcast, publication), established by the first dated article that reports it.",
+        "knownInAdvance": false,
+        "isCalendarDerived": false,
+        "coverageThreshold": null,
+        "genericExample": "the day before a game, the coach of team X says at a press conference that player A is not at the level of a top player; a national outlet reports it that evening; the measured game is player A's game the next day."
+      },
+      "period": {
+        "startOn": "2019-10-23",
+        "endOn": "2026-11-11"
+      }
+    },
+    {
+      "sheet": {
+        "id": "media-storm",
+        "name": "Media storm",
+        "definition": "a wave of negative coverage centered on the followed player, triggered by an identifiable public fact: a statement, a behavior, a controversy about his commitment.",
+        "inclusionCriteria": "a public, dated triggering fact; critical articles from at least three distinct outlets within two days (the sheet's coverage threshold); the player is at the center of the coverage.",
+        "exclusionCriteria": "an isolated critical remark (type \"Public humiliation\"); a conflict with another player (type \"Conflict between players\"); a racist incident (type \"Racist abuse\"); a controversy touching the player's private life or health.",
+        "datingRule": "the moment the coverage threshold is reached, that is the publication of the article that crosses it; one triggering fact gives only one event.",
+        "knownInAdvance": false,
+        "isCalendarDerived": false,
+        "coverageThreshold": {
+          "outlets": 3,
+          "days": 2
+        },
+        "genericExample": "after a statement by player A judged offhand, three national outlets publish critical articles about his commitment within two days; the measured game is player A's first game after the third article."
+      },
+      "period": {
+        "startOn": "2019-10-23",
+        "endOn": "2026-11-11"
+      }
+    },
+    {
+      "sheet": {
+        "id": "racist-abuse",
+        "name": "Racist abuse",
+        "definition": "the followed player is the target of racist remarks, gestures or messages reported by the press.",
+        "inclusionCriteria": "the press reports that the player was personally targeted; the author is designated by role (spectator, opponent, public figure, author of online messages); the incident is dated.",
+        "exclusionCriteria": "a general racist climate with no incident targeting the player; the player speaking about racism in general, with no incident targeting him; an incident targeting another player.",
+        "datingRule": "if the incident happened during a game, it is public from that moment, and the measured game is the next game; otherwise the date is that of the first dated article that reports it.",
+        "knownInAdvance": false,
+        "isCalendarDerived": false,
+        "coverageThreshold": null,
+        "genericExample": "during an away game, a spectator shouts racist insults at player A; a national outlet reports it the next day; the measured game is player A's next game."
+      },
+      "period": {
+        "startOn": "2019-10-23",
+        "endOn": "2026-11-11"
+      }
+    }
+  ],
+  "maxTextLength": 200,
+  "maxSources": 3
+}
