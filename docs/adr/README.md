@@ -67,4 +67,4 @@ The same section names the heaviest drafting hypotheses. H-12 (two lots) is conf
 
 - A new record takes the next free number and a kebab-case title, and keeps the sections of the others: status and date, context, decision, consequences, alternatives considered where any were; the coordinator's records also say who decided and what would change the decision.
 - Numbers never change. A ruling or a later choice that refines a record goes into a dated "Amendments" section of that record, citing its source; the original decision stays as written, and the body changes only where it would otherwise contradict the amendment. A decision that replaces another gets a new record that supersedes the old one, which is then marked "Superseded by" with the new number.
-- The rows of the deviations register change in the same pull request as the record.
+- The rows of the deviations register change in the same pull request as the record, or, when a task's brief gives it the record, through the coordinator (module map §9).
