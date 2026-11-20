@@ -523,14 +523,14 @@ describe('parseExplorationResponse: the size bound', () => {
     `${empty}${' '.repeat(bytes - empty.length - lastBytes)}${last}`;
 
   it.each([
-    ['the last one-byte character, U+007F', '\u{7F}', 1],
-    ['the first two-byte character, U+0080', '\u{80}', 2],
-    ['the first three-byte character, U+0800', '\u{800}', 3],
-    ['a lone surrogate, written as U+FFFD', '\u{D800}', 3],
-    ['an emoji outside the first plane', '😀', 4],
+    ['the last one-byte character, U+007F', 1, '\u{7F}'],
+    ['the first two-byte character, U+0080', 2, '\u{80}'],
+    ['the first three-byte character, U+0800', 3, '\u{800}'],
+    ['a lone surrogate, written as U+FFFD', 3, '\u{D800}'],
+    ['an emoji outside the first plane', 4, '😀'],
   ])(
-    '[TAX-17] [CL-IMP-27] counts %s as %i bytes of UTF-8: a text of the size bound is read, one byte more is refused',
-    (_, last, lastBytes) => {
+    '[TAX-17] [CL-IMP-27] gives %s a UTF-8 length of %i: a text of the size bound is read, one byte more is refused',
+    (_, lastBytes, last) => {
       const atLimit = textOf(500_000, last, lastBytes);
 
       expect(parse(atLimit, 0.5)).toStrictEqual(read([]));
