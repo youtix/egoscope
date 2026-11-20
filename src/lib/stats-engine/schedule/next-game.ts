@@ -128,7 +128,12 @@ function areFinalsOver(season: SeasonSchedule): boolean {
 
 /**
  * Whether the season of `teamId` is over (CL-STA-20): the regular season is finished,
- * league-wide, and his team was put out of the postseason or never entered it.
+ * league-wide, and his team was put out of the postseason or never entered it. An
+ * accepted limit: until a play-in or playoff game of the stored schedule names his team,
+ * a placeholder included, a team that qualified reads as never in the postseason, so
+ * "team eliminated", where rule 4 of the ruling gives "schedule not published" to a team
+ * still in the playoffs. Nothing stored tells it from a team that did not qualify, which
+ * plays no more before the next season and so gets "team eliminated" (CA-STA-09).
  */
 function isSeasonOverFor(season: SeasonSchedule, teamId: TeamId, now: EpochMs): boolean {
   return (
@@ -164,7 +169,10 @@ function reasonOf(schedule: NextGameSchedule, teamId: TeamId, now: EpochMs): NoN
  * first reason that applies: a player without a team; his team eliminated while the
  * postseason is under way, its Finals not over and his team's season over, eliminated or
  * never in the postseason; the offseason, the Finals over and no game of the next season
- * stored; otherwise the schedule not published.
+ * stored; otherwise the schedule not published. A team that qualified for the postseason
+ * reads as never in it until a play-in or playoff game of the stored schedule names it, a
+ * placeholder included: an accepted limit, since nothing stored tells it from a team that
+ * did not qualify.
  */
 export function nextGame(
   player: Readonly<{ teamId: TeamId | null; lastGamePlayedOn: IsoDate | null }>,
