@@ -134,7 +134,11 @@ the observed row that game records follows it, and the membership it started end
 games of `new_team_id` in between counting neither as played nor as missed. An observed row whose
 new team is the team the walk already gives him at its `changed_at` changes no membership. An
 observed row read from the player file between the entry and that game is applied first, and the
-game is compared with its `new_team_id`. The addition writes an entered row dated `added_at`, with
+game is compared with its `new_team_id` only: like every recorded change, it ends the entered
+membership at its `changed_at`, so the entered team's games between the entry and that read are
+his team games, and the entered row stays `unverified`. A first game judges only his latest
+entered row: an earlier entered row stays `unverified`, its membership ending at the next row
+(CL-JOU-03). The addition writes an entered row dated `added_at`, with
 `previous_team_id` null, for the team chosen: his team before the addition is known only from his
 box scores, which may not be stored yet, so for that row "the team he leaves" is his membership at
 `added_at` as his box scores give it — the team of his last game played before it, none if he has
@@ -147,12 +151,13 @@ records a change from a team to itself, which the row check
 the row's membership unconfirmed, as above. While it is his latest row and no game played since has judged it, a read
 of the source's current-season player file that gives the same team makes its `origin` `observed`,
 a change the source reports, so that membership starts at the addition with no first-game test
-(CL-STA-05); one that gives another team is applied first, as above, unless it gives the team of his last game played, which records no change (CL-STA-27). An entered row other than the
+(CL-STA-05); one that gives another team is applied first, as above, unless it gives the team of his last game played, which records no change (CL-STA-27). A followed player whom the current-season player file does not list is no observation: only a listed player's team counts, an empty one being a release (CL-STA-27). An entered row other than the
 addition's, and the game that makes an entered row void or ends its membership unconfirmed, each
-request a full calendar derivation for the player, with the cause `team_history_changed`, in the
-transaction that records them: the edit screen's, or the unit transaction of
-`games.processFetchQueue`, through the hook its caller passes (CL-TAX-19; events-and-cases.md 1.13;
-module map §4). The addition's row requests none of its own: the confirmation of his mapping and the storing of
+request a full calendar derivation for the player, in the transaction that records them: the
+entered row with the cause `team_change_entered`, in the edit screen's transaction, and that game
+with the cause `team_history_changed`, which stays for what a game or a box-score correction
+shows, in the unit transaction of `games.processFetchQueue`, through the hook its caller passes
+(CL-TAX-19; events-and-cases.md 1.13; module map §4). The addition's row requests none of its own: the confirmation of his mapping and the storing of
 his history request his derivations (causes `mapping_changed` and `history_stored`, CL-TAX-19).
 
 | column             | type        | null | default  | constraint or reference                                                                                                                                                                               | class | spec IDs                                |
@@ -211,18 +216,21 @@ The application never changes a status by itself (JOU-22). `withdrawn → paused
 | unverified | unverified (ended unconfirmed) | first official game played after the entry, for any other team                                                                     | —                                     | an observed change to that team is recorded, dated by that game; the entered team's games in between count for no team; a full derivation requested                                                                                          |
 | unverified | (observed)                     | the row of the addition, still his latest and judged by no game, when a read of the current-season player file gives the same team | —                                     | `origin` becomes `observed`: membership from the addition, no first-game test (CL-STA-05)                                                                                                                                                    |
 
+A first game judges only his latest entered row: an earlier entered row stays `unverified`, its
+membership ending at the next row (CL-JOU-03).
+
 ## 3. Invariants
 
-| rule                                                                                                                                                                                                                                                                   | spec IDs                     | enforced by                                                                      |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
-| An addition or a reactivation never takes the active count above `players.maxActive`; lowering the parameter pauses no one                                                                                                                                             | JOU-04, JOU-05, CL-JOU-10    | player service, in the transaction that adds or reactivates                      |
-| A variant appears once per player and differs from his display name, after CL-JOU-13 normalization                                                                                                                                                                     | JOU-09, CL-JOU-13            | unique index (variants); player service (display name)                           |
-| A display-name change keeps the old name as a spelling variant                                                                                                                                                                                                         | JOU-12                       | player service, same transaction                                                 |
-| No year of birth is ever stored, logged or shown; the adapter drops it before anything else                                                                                                                                                                            | JOU-11, CL-JOU-16, CL-DSN-21 | table shape (no column); statistics adapter                                      |
-| Only the owner changes a status                                                                                                                                                                                                                                        | JOU-15, JOU-22               | player service (no scheduled job writes `status`)                                |
-| A player id is never issued twice                                                                                                                                                                                                                                      | JOU-08, CL-JOU-09            | random UUID; no other source of ids                                              |
-| The current team moves only on evidence more recent than the latest team-history change: his most recent game played, or the current-season player file refreshed after it, which never takes back an entered change by still giving the team of that game (CL-STA-27) | CL-JOU-02, CL-STA-27         | statistics ingestion service                                                     |
-| Data deletion applies only to a withdrawn player, after two confirmations                                                                                                                                                                                              | JOU-24                       | player service; `events.player_id ON DELETE RESTRICT` forces the ordered erasure |
+| rule                                                                                                                                                                                                                                                                                   | spec IDs                     | enforced by                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| An addition or a reactivation never takes the active count above `players.maxActive`; lowering the parameter pauses no one                                                                                                                                                             | JOU-04, JOU-05, CL-JOU-10    | player service, in the transaction that adds or reactivates                      |
+| A variant appears once per player and differs from his display name, after CL-JOU-13 normalization                                                                                                                                                                                     | JOU-09, CL-JOU-13            | unique index (variants); player service (display name)                           |
+| A display-name change keeps the old name as a spelling variant                                                                                                                                                                                                                         | JOU-12                       | player service, same transaction                                                 |
+| No year of birth is ever stored, logged or shown; the adapter drops it before anything else                                                                                                                                                                                            | JOU-11, CL-JOU-16, CL-DSN-21 | table shape (no column); statistics adapter                                      |
+| Only the owner changes a status                                                                                                                                                                                                                                                        | JOU-15, JOU-22               | player service (no scheduled job writes `status`)                                |
+| A player id is never issued twice                                                                                                                                                                                                                                                      | JOU-08, CL-JOU-09            | random UUID; no other source of ids                                              |
+| The current team moves only on evidence more recent than the latest team-history change: his most recent game played, or the current-season player file refreshed after it and listing him, which never takes back an entered change by still giving the team of that game (CL-STA-27) | CL-JOU-02, CL-STA-27         | statistics ingestion service                                                     |
+| Data deletion applies only to a withdrawn player, after two confirmations                                                                                                                                                                                                              | JOU-24                       | player service; `events.player_id ON DELETE RESTRICT` forces the ordered erasure |
 
 ## 4. Stored or derived
 
@@ -254,7 +262,8 @@ compared per CL-IMP-22.
 - CL-JOU-02, CL-STA-27: the current team follows only the most recent evidence.
 - CL-JOU-03, CL-STA-05: the entered change and its confirming game in one `game_id` column; that a
   row is void or ended unconfirmed is read from the first game played after it, never stored as a
-  mark, while the observed change that game records, back to the team he left or to a third team,
+  mark — a game that judges only his latest entered row, an earlier one staying `unverified`, its
+  membership ending at the next row —, while the observed change that game records, back to the team he left or to a third team,
   is a row (JOU-13); the team chosen at addition is the first row of the history, judged against
   his membership at the addition.
 - CL-JOU-04, CL-JOU-13: normalized names and the variants' unique index; an identity linked to one
@@ -268,7 +277,7 @@ compared per CL-IMP-22.
 - CL-JOU-12: every change, a reactivation included, may carry an optional reason.
 - CL-JOU-18, CL-STA-24: former teams and his stints are derived from his own box-score lines of
   covered seasons (a team he played for, CL-STA-04), never from the player directory, and never
-  stored.
+  stored; a period in which he played no official game for a team is no stint with it.
 - CL-JOU-19: the daily exposure counts are written by detection and modeled with it
   (`detection.md`, Lot 2).
 - CL-JOU-20: a nullable current team.

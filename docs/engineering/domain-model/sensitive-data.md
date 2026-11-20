@@ -133,11 +133,14 @@ named being deleted unless stated; no outside call runs inside a transaction but
    own committed step (CL-TEL-09); a restore's re-application, which runs no committed step and
    asks Telegram nothing (CL-TRV-06), erases them without that comparison; alerts — in the sheet holding E, everything about it, or
    the whole sheet and its alert-history entry if E was its only event, and every sheet or section
-   a correction or a merge of E left without an event, each remaining sheet taking the status of its
-   remaining events with no entry, and a sheet produced for E initialized again from its earliest
+   a correction or a merge of E left without an event, a sheet then left with no event and no
+   initial section included, each remaining sheet taking the status and the expected-game block of
+   its remaining events with no entry, and a sheet produced for E initialized again from its earliest
    remaining event, its entries up to that event's joining deleted but those about another event a
-   correction or a merge took off it before then (CL-ALE-16), with the outbox facts of its sheets and update
-   entries; tracking — its tracked-case data, or, when its case
+   correction or a merge took off it before then and the drop of a calendar-derived event before
+   then (CL-ALE-16), with the outbox facts of its sheets and update entries, and the
+   `alert_sheet_produced` fact of a sheet initialized again whose new initial section still waits
+   for its profile values, emitted again when they enter (alert-sheets.md section 1.9, step 5); tracking — its tracked-case data, or, when its case
    keeps other events, the tracked case rebuilt from them (CL-SUI-17), and its regrouping exits, with
    the outbox facts of its tracked game results; detection — the classification results
    of its articles and their attachments, then, through collection's eraser, every article attached
@@ -163,7 +166,9 @@ named being deleted unless stated; no outside call runs inside a transaction but
 7. `journal_technical_details` of journal entries that concerned only E; the entries' references
    to E then become null and read "an item that no longer exists" (CL-TRV-10), and so does the Lot 2
    object an entry names beside E, such as an alert sheet that keeps other events; an entry that
-   names E's case loses that reference when step 9 deletes the case. An entry that names an event or
+   names E's case loses that reference when step 9 deletes the case; when step 9 rebuilds it
+   instead, the entries that name it keep that reference and their date, an accepted residual limit
+   (CL-SUI-17). An entry that names an event or
    a case names neither its player nor its type (operations.md section 1.2), so none keeps E's
    player, type, request or import (TRV-41, DSN-29).
 8. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),
@@ -184,7 +189,8 @@ named being deleted unless stated; no outside call runs inside a transaction but
     started keeps its versions, since SUI-09 freezes the last one before that start, and gets a
     version dated at the job's instant when the job changes its forecast (CL-SUI-03;
     tracking-and-validation.md section 1.8), unless it has no version, such as a case that the
-    operation's rebuild turned tracked at or after that start: that case gets none (CL-SUI-17),
+    operation's rebuild turned tracked at or after that start: that case gets none (CL-SUI-17) —
+    unless SUI-18 moves its expected game: it then gets versions like any waiting case (SUI-09) —,
     and CL-SUI-18 freezes « sans pronostic ».
 13. The result screen gives the number of messages deleted and lists, from memory, the ones
     Telegram refused or could not be reached for, with their send date and time and whether each
@@ -196,7 +202,10 @@ would instead leave messages in the chat with no record of them if the process s
 requests were sent.
 
 What remains afterwards: the counter and, for the horizon, the fingerprint. Accepted residual
-limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); for a case rebuilt from
+limits: a `recalculation` verdict-history entry dated that day, and the verdict-history entries
+written earlier for actions on E — its dismissal or reinstatement, a manual decision, a correction —,
+which name no event and keep their profile and date (CL-SEN-18); the journal entries that name a
+case rebuilt from its other events, which keep that reference and their date (CL-SUI-17); for a case rebuilt from
 its other events, its own decisions dated before its new creation instant and its history rows,
 review flags and category changes recorded since that instant while E was in it, and a review flag that the job of step 12 raises again, even one the owner had acknowledged (CL-SUI-17); in Lot 2, the values in force before the
 withdrawal wherever a requirement froze them for another event of the same pair or type — the
@@ -207,7 +216,9 @@ messages sent about other events (SUI-19, TEL-11 to TEL-13) — which never chan
 Lot 2, a sheet whose status changed at the withdrawal with no entry, or closed on a day when none
 of its cases changed, and the number of a sheet initialized again from its earliest remaining
 event, with the snapshots and flags of its sections and the corrections of other events it keeps
-from before its new production instant (CL-ALE-16); backups until they
+from before its new production instant, and a sheet whose section a correction emptied of E and of
+another event, which keeps E's production under that event's mark until that event's erasure
+(CL-ALE-16); backups until they
 rotate out; exports already downloaded; Telegram messages the bot could not delete; a device left
 offline until its next refresh; in Lot 2, an article still in a feed, collected and classified
 again for at most its maximum age while the fingerprint keeps it from becoming an event
@@ -313,17 +324,17 @@ value and the backup's and does not grow when it re-applies the ledger, a player
 
 ## 5. Invariants
 
-| rule                                                                                                          | spec IDs                     | enforced by                                                           |
-| ------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------- |
-| After a withdrawal nothing designates the event but the counter and, for the horizon, the fingerprint         | DSN-27, DSN-29, ADR 0017     | the erasure step, in one transaction                                  |
-| Only a withdrawal creates a fingerprint                                                                       | CL-DSN-06                    | the erasure step's variants                                           |
-| A fingerprint holds only its hash and its creation instant; it is never shown, logged, exported or backed up  | ADR 0017                     | table shape; backup and export writers skip the ledger by name        |
-| The counter never decreases and carries no date                                                               | DSN-29, CL-DSN-04            | `CHECK`; no date column; no service decrements it                     |
-| An event holds the DSN-06 items and no other; none of the DSN-18 items is stored anywhere                     | DSN-06, DSN-18               | table shapes; writing services                                        |
-| The birthday has no year anywhere, and is never sent to an AI or logged as a value                            | JOU-11, CL-DSN-21            | table shape; prompt builder; journal writer                           |
-| The pasted text exists only in the draft store                                                                | DSN-32, CL-DSN-17            | no other column holds it; drafts excluded from backups and exports    |
-| The journal and its technical details hold no description, justification, title, link, excerpt or DSN-18 item | DSN-11, CL-DSN-11, CL-TRV-10 | journal writer (references by identifier, technical-detail allowlist) |
-| A withdrawal is never decided on the game that followed, and no reason selects events by their gap            | DSN-28, H-01                 | no such reason value; the confirmation text                           |
+| rule                                                                                                                                                                                                                                                                                                                               | spec IDs                     | enforced by                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------- |
+| After a withdrawal nothing designates the event but the counter and, for the horizon, the fingerprint, besides the accepted residual limits of section 2.1, the verdict-history entries written earlier for actions on it and the journal entries that name a case rebuilt from its other events among them (CL-SEN-18, CL-SUI-17) | DSN-27, DSN-29, ADR 0017     | the erasure step, in one transaction                                  |
+| Only a withdrawal creates a fingerprint                                                                                                                                                                                                                                                                                            | CL-DSN-06                    | the erasure step's variants                                           |
+| A fingerprint holds only its hash and its creation instant; it is never shown, logged, exported or backed up                                                                                                                                                                                                                       | ADR 0017                     | table shape; backup and export writers skip the ledger by name        |
+| The counter never decreases and carries no date                                                                                                                                                                                                                                                                                    | DSN-29, CL-DSN-04            | `CHECK`; no date column; no service decrements it                     |
+| An event holds the DSN-06 items and no other; none of the DSN-18 items is stored anywhere                                                                                                                                                                                                                                          | DSN-06, DSN-18               | table shapes; writing services                                        |
+| The birthday has no year anywhere, and is never sent to an AI or logged as a value                                                                                                                                                                                                                                                 | JOU-11, CL-DSN-21            | table shape; prompt builder; journal writer                           |
+| The pasted text exists only in the draft store                                                                                                                                                                                                                                                                                     | DSN-32, CL-DSN-17            | no other column holds it; drafts excluded from backups and exports    |
+| The journal and its technical details hold no description, justification, title, link, excerpt or DSN-18 item                                                                                                                                                                                                                      | DSN-11, CL-DSN-11, CL-TRV-10 | journal writer (references by identifier, technical-detail allowlist) |
+| A withdrawal is never decided on the game that followed, and no reason selects events by their gap                                                                                                                                                                                                                                 | DSN-28, H-01                 | no such reason value; the confirmation text                           |
 
 ## 6. Stored or derived
 

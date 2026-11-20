@@ -122,7 +122,10 @@ Plain HTTPS with `fetch`. Every call sends `Authorization: Bearer <BACKUP_GITHUB
    digits, `.`, `_` and `-`, and hold only the creation instant in UTC and the kind: `weekly`,
    `manual` or `before_update`.
 3. **Rotate**: list the assets (`GET .../releases/{release_id}/assets?per_page=100`, paging when
-   more than 100 are kept), sort them by `created_at`, keep the newest N (`backups.kept`), all kinds
+   more than 100 are kept). The listing decides the rotation: each rotation first aligns the
+   application's backup register with it, a row, from its name, for a listed asset the register
+   lacks, and `deleted_at` on a row whose asset is gone, so that no backup outlives the count.
+   Then sort the assets by `created_at`, keep the newest N (`backups.kept`), all kinds
    counted together, and delete an asset only when it is beyond that count:
    `DELETE https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}` (expect `204`).
    Then confirm that the asset no longer appears in a new listing and that reading it by id answers

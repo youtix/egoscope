@@ -339,13 +339,13 @@ Conventions:
 
 ### `getPlayerRecords` (`player_core_{Y}.csv`)
 
-| Port field             | Source field                                                        | Conversion                                                                                                     |
-| ---------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Player id              | `athlete_id`                                                        | String                                                                                                         |
-| Display name           | `display_name`                                                      | As written                                                                                                     |
-| Current team           | `current_team_id` in the current season's file                      | String; empty, or a player the current season's file does not list, becomes null (no team, STA-26)             |
-| Day and month of birth | `date_of_birth`, written `YYYY-MM-DDT07:00Z` or `YYYY-MM-DDT08:00Z` | Month and day from the date part as written (midnight on the US Pacific coast); the year is dropped            |
-| Version                | `ETag` of the current season's `player_core_{Y}.csv`                | As is; a 304 answers `not_modified`; a read without a version, for a newly mapped player, always gets the file |
+| Port field             | Source field                                                        | Conversion                                                                                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Player id              | `athlete_id`                                                        | String                                                                                                                                                                                                       |
+| Display name           | `display_name`                                                      | As written                                                                                                                                                                                                   |
+| Current team           | `current_team_id` in the current season's file                      | String; empty becomes null, a release (no team, STA-26); a player the current season's file does not list is no observation: no current team is reported for him, and his team stays as recorded (CL-STA-27) |
+| Day and month of birth | `date_of_birth`, written `YYYY-MM-DDT07:00Z` or `YYYY-MM-DDT08:00Z` | Month and day from the date part as written (midnight on the US Pacific coast); the year is dropped                                                                                                          |
+| Version                | `ETag` of the current season's `player_core_{Y}.csv`                | As is; a 304 answers `not_modified`; a read without a version, for a newly mapped player, always gets the file                                                                                               |
 
 ### `mapPlayers`
 
@@ -415,6 +415,7 @@ All other columns of these files (team, venue and broadcaster names, ids of game
 
 - Write the series-length table per season and the play-in elimination rules, and test them against the labeled seasons (T19).
 - Confirm, in the producer's code, the status names it gives a canceled and an in-progress game, and map them to `canceled` and `in_progress` (STA-05, §12 "Status"); until then a row with either is held back, its game staying as stored and the cases of a game canceled under it waiting without limit, an exception to SEN-47 (CL-STA-17). The same task scans the status values of all 34 schedule files, which installation reads, and maps every value found before installation: T2 and T5 covered two of them, and a row held back at installation is never stored. This is the statistics adapter task's (F-adapter-stats-source).
+- Check whether the current-season player file lists rostered players who have not played, such as an injured player or a rookie before his first game, and how soon it shows a trade; meanwhile a followed player that file does not list is no observation, only a listed player's team counting, an empty one being a release (CL-STA-27).
 - Script the fixture anonymization of section 13, with its final check, before the first recorded fixture is committed.
 - Consider Parquet for the player-box files, about 25 times smaller than their CSV (20.0 MB against 507 MB for the 34 seasons, T1), with a pure-JavaScript reader; only CSV was tested (T12). Stream the CSV to keep memory low.
 - Re-check this evaluation before each deployment and at any source incident (TRV-10).

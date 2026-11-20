@@ -105,7 +105,7 @@ Verified by test on 2026-11-11 (evaluation, section 6): anonymous direct downloa
 
 From documentation only: the CC BY 4.0 license and the attribution duty; GitHub's statements on release bandwidth and on scraping; the REST API rate limit; the producer's workflow schedule; Vercel's function limits.
 
-Not verified: when the next season's schedule and the playoff schedule appear in the files; behavior under sustained high request rates (not attempted, out of courtesy); Parquet parsing in TypeScript.
+Not verified: when the next season's schedule and the playoff schedule appear in the files; whether the current-season player file lists rostered players who have not played; how soon it shows a trade; behavior under sustained high request rates (not attempted, out of courtesy); Parquet parsing in TypeScript.
 
 ## Risks
 

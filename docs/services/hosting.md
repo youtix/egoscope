@@ -237,8 +237,12 @@ that duration (CL-TRV-07; module map §6, "Not parameters").
 
 Any host that runs a Next.js server application with HTTPS, environment variables and an outside
 scheduler. The Vercel-specific helpers (`@vercel/functions`, Runtime Cache, Schedules) sit behind
-the application's own interfaces with a plain fallback, so another host only changes the
-deployment, not the features. Procedure (TRV-77): export, deploy the same commit on the new host,
+the application's own interfaces with a plain fallback, so another host keeps the features, but
+replacing the host takes a code step: the new host gets its own adapter for the host check
+(`env.hostCheck()`, which reports a missing `VERCEL_ENV` or `VERCEL_DEPLOYMENT_ID`), the
+deployment identifier (`env.deploymentId`) and the migration's production test (migrations run only
+when `VERCEL_ENV` is `production`), each reading what that host provides; no host value is faked
+(module map §2.1, `env`). Procedure (TRV-77): export, add and merge that adapter, deploy that commit on the new host,
 copy the environment variables, point the scheduler and the Telegram webhook at the new address, run
 the installation check (TRV-47). Cloudflare Workers is not a drop-in replacement on its free plan:
 it allows 10 ms of CPU per request ([Workers limits](https://developers.cloudflare.com/workers/platform/limits/)),
