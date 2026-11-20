@@ -12,7 +12,8 @@ The functional reference is the French specification in [`docs/`](docs/README.md
 [`docs/00-vue-d-ensemble.md`](docs/00-vue-d-ensemble.md). Code is tied to it by requirement IDs
 such as `STA-11`. English reference documents (a glossary of the specification's terms, the module
 map, the clarifications and the domain model in `docs/engineering/`, decision records in
-`docs/adr/`) arrive by their own pull requests.
+`docs/adr/`, service sheets in `docs/services/`) sit beside it; `docs/engineering/README.md` lists
+them in reading order.
 
 ## Stack
 
