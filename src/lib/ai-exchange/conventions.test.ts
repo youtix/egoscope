@@ -153,11 +153,14 @@ describe('canonicalValue', () => {
 });
 
 describe('isAbsent', () => {
-  it.each([undefined, null, '', ' '.repeat(3), '\n\t'])('takes %j for an absent field', (value) => {
-    expect(isAbsent(value)).toBe(true);
-  });
+  it.each([undefined, null, '', ' '.repeat(3), '\n\t'])(
+    '[CL-IMP-06] takes %j for an absent field',
+    (value) => {
+      expect(isAbsent(value)).toBe(true);
+    },
+  );
 
-  it.each(['x', ' x ', 0, false, [], {}])('takes %j for a present field', (value) => {
+  it.each(['x', ' x ', 0, false, [], {}])('[CL-IMP-06] takes %j for a present field', (value) => {
     expect(isAbsent(value)).toBe(false);
   });
 });

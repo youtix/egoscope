@@ -3,10 +3,6 @@
 // lowercase; no `null`, an optional field without content being left out. Readers
 // compare closed values without case or accents, and take `null` or an empty text
 // for an absent field (CL-IMP-06, CL-IMP-22).
-//
-// Patterns and literals live inside the functions, never in module constants, so that
-// mutation testing reaches each of them through the tests: the test runner does not
-// activate a mutant of code that runs when the module loads.
 
 /**
  * A date of an exchange format as written: a calendar date alone, or a date and time
@@ -34,6 +30,15 @@ const MAX_HOUR = 23;
 const MAX_MINUTE = 59;
 const MINUTES_PER_HOUR = 60;
 const MS_PER_MINUTE = 60_000;
+
+// The two forms of a date in the exchange formats: a calendar date alone, and a date
+// and time with its offset.
+const DATE_ONLY = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u;
+const DATE_AND_TIME =
+  /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})T(?<hour>\d{2}):(?<minute>\d{2})(?<sign>[+-])(?<offsetHours>\d{2}):(?<offsetMinutes>\d{2})$/u;
+
+// A combining mark, such as the accent of a letter once the text is decomposed.
+const COMBINING_MARK = /\p{M}/gu;
 
 function refused(kind: DateParseError['kind']): ExchangeDateResult {
   return { ok: false, error: { kind } };
@@ -97,20 +102,17 @@ function readDateTime(text: string, groups: Groups): ExchangeDateResult {
  * cannot exist is `nonexistent`: each reader decides which variants it tolerates.
  */
 export function parseExchangeDate(text: string): ExchangeDateResult {
-  const dateOnly = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u;
-  const date = dateOnly.exec(text)?.groups;
+  const date = DATE_ONLY.exec(text)?.groups;
   if (date !== undefined) {
     return readDate(text, date);
   }
-  const dateAndTime =
-    /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})T(?<hour>\d{2}):(?<minute>\d{2})(?<sign>[+-])(?<offsetHours>\d{2}):(?<offsetMinutes>\d{2})$/u;
-  const dateTime = dateAndTime.exec(text)?.groups;
+  const dateTime = DATE_AND_TIME.exec(text)?.groups;
   return dateTime === undefined ? refused('malformed') : readDateTime(text, dateTime);
 }
 
 // Trimmed, without accents (Unicode NFD, combining marks removed) and in lowercase.
 function fold(text: string): string {
-  return text.trim().normalize('NFD').replaceAll(/\p{M}/gu, '').toLowerCase();
+  return text.trim().normalize('NFD').replaceAll(COMBINING_MARK, '').toLowerCase();
 }
 
 /**
@@ -131,7 +133,8 @@ export function canonicalValue<T extends string>(
 
 /**
  * Says whether a field of an exchange format is absent: left out, `null`, or a text
- * with nothing but spaces, which the formats never write for a field with content.
+ * with nothing but spaces, which the formats never write for a field with content
+ * (CL-IMP-06: `null` or an empty text for an optional field is treated as absent).
  */
 export function isAbsent(value: unknown): boolean {
   return (

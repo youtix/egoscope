@@ -1,0 +1,28 @@
+{
+  "pasted": [
+    "Result, as returned by the research:",
+    "{\"format\":\"egoscope-backtest\",\"format_version\":1.0,\"request_reference\":\"REQ-2026-0007\",\"player\":{\"id\":\"8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f\",\"name\":\"Player A\"},\"covered_types\":[\"public-humiliation\",\"media-storm\"],\"covered_period\":{\"start\":\"2020-12-22\",\"end\":\"2021-05-16\"},\"events\":[],\"unverified_leads\":[],\"limitations\":[\"Local outlets were not searched before 2021.\"]}",
+    "",
+    "The same result, once more at the end:",
+    "```json",
+    "{\"format\":\"egoscope-backtest\",\"format_version\":1,\"request_reference\":\"REQ-2026-0007\",\"player\":{\"id\":\"8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f\",\"name\":\"Player A\"},\"covered_types\":[\"public-humiliation\",\"media-storm\"],\"covered_period\":{\"start\":\"2020-12-22\",\"end\":\"2021-05-16\"},\"events\":[],\"unverified_leads\":[],\"limitations\":[\"Local outlets were not searched before 2021.\"]}",
+    "```"
+  ],
+  "expected": {
+    "format": "egoscope-backtest",
+    "format_version": 1,
+    "request_reference": "REQ-2026-0007",
+    "player": {
+      "id": "8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f",
+      "name": "Player A"
+    },
+    "covered_types": ["public-humiliation", "media-storm"],
+    "covered_period": {
+      "start": "2020-12-22",
+      "end": "2021-05-16"
+    },
+    "events": [],
+    "unverified_leads": [],
+    "limitations": ["Local outlets were not searched before 2021."]
+  }
+}
