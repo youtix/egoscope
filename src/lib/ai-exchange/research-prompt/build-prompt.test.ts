@@ -369,6 +369,10 @@ describe('buildPrompt', () => {
         ...career,
         ...blocks,
       ]);
+      // The display format names the month: "Wed 11 Nov 2026", "11 November 2026".
+      expect(golden()).not.toMatch(
+        /\b\d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/u,
+      );
     });
 
     it('keeps out the facts before his first NBA game, about the whole team or of a type not requested (rule 2.10)', () => {
