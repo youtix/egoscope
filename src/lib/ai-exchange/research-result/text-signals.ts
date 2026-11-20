@@ -16,10 +16,13 @@
 export const CITATION_MARKER_PATTERNS: Readonly<Record<string, RegExp>> = {
   // A bracketed number list: [1], [2, 5], [3–4].
   numberList: /\[\d+(?:\s*[,\p{Pd}]\s*\d+)*\]/u,
-  // A footnote call: [^1], [^note].
-  footnoteCall: /\[\^[^\]]+\]/u,
-  // A bracketed token that starts with cite: [cite_start], [cite: 1].
-  citeToken: /\[cite[^\]]*\]/u,
+  // A footnote call: [^1], [^note]. A [ inside is left out, so that the innermost call
+  // matches and the check stays linear in the length of the text.
+  footnoteCall: /\[\^[^[\]]+\]/u,
+  // A bracketed token that starts with cite: [cite_start], [cite: 1]. A [ inside is left
+  // out, so that the innermost token matches and the check stays linear in the length of
+  // the text.
+  citeToken: /\[cite[^[\]]*\]/u,
   // Any text between lenticular brackets: 【3†source】. A 【 inside is left out, so that
   // the innermost span matches and the check stays linear in the length of the text.
   lenticularSpan: /【[^【】]*】/u,

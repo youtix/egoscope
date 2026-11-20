@@ -54,6 +54,16 @@ describe('CITATION_MARKER_PATTERNS', () => {
       expect(texts.filter((text) => !pattern.test(text))).toStrictEqual([]);
     },
   );
+
+  it.each([
+    ['footnoteCall', '[^a[b]'],
+    ['citeToken', '[cite[b]'],
+  ])(
+    '[CL-IMP-07] keeps an opening bracket out of the inside of the %s pattern, so that it does not match %s',
+    (name, text) => {
+      expect(CITATION_MARKER_PATTERNS[name]?.test(text)).toBe(false);
+    },
+  );
 });
 
 describe('hasPossibleCitationMarker', () => {

@@ -8,9 +8,13 @@
     ],
     "footnoteCall": [
       "The guard criticized the coaching staff in a radio interview [^1].",
-      "The league fined the forward after the interview [^note]."
+      "The league fined the forward after the interview [^note].",
+      "The guard criticized the coaching staff [^a[^b] in a radio interview."
     ],
-    "citeToken": ["[cite_start]The forward asked for a trade after the loss. [cite: 1]"],
+    "citeToken": [
+      "[cite_start]The forward asked for a trade after the loss. [cite: 1]",
+      "The forward asked for a trade after the loss [cite[cite: 2]."
+    ],
     "lenticularSpan": ["Opposing coach takes aim at the forward 【3†source】"],
     "superscriptDigit": ["An opposing head coach mocked the forward's defense on television¹."],
     "dagger": [
