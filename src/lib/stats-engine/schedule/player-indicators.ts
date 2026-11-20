@@ -119,7 +119,7 @@ function averageMinutes(lines: readonly IndicatorLine[]): number | null {
  * his membership began when he has played none: across seasons and trades, those of
  * unknown participation included, and none while he belongs to no team (JOU-22 reads it).
  */
-export function playerIndicators(
+export function indicatorsOf(
   player: Readonly<{ stints: readonly TeamStint[]; lines: readonly IndicatorLine[] }>,
   schedule: Readonly<{ games: readonly LinesGame[]; seasons: readonly SeasonSpan[] }>,
   todayOn: IsoDate,

@@ -108,7 +108,7 @@ export type { NextGameSchedule } from './schedule/next-game';
 
 // schedule/player-indicators.ts
 export { firstNbaGame } from './schedule/player-indicators';
-export { playerIndicators } from './schedule/player-indicators';
+export { indicatorsOf } from './schedule/player-indicators';
 export type { CareerSeasons } from './schedule/player-indicators';
 export type { FirstNbaGame } from './schedule/player-indicators';
 export type { IndicatorLine } from './schedule/player-indicators';

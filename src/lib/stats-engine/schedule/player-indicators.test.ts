@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { firstNbaGame, playerIndicators } from './player-indicators';
+import { firstNbaGame, indicatorsOf } from './player-indicators';
 import { teamMembership } from './team-membership';
 
 import type { CareerSeasons, IndicatorLine } from './player-indicators';
@@ -118,9 +118,9 @@ type Player = Readonly<{ lines: readonly IndicatorLine[]; history?: readonly Pla
 type Stored = Readonly<{ games?: readonly LinesGame[]; seasons: readonly SeasonSpan[] }>;
 
 /** His indicators on `todayOn`, his membership read from his lines and his team history. */
-function indicatorsOf({ lines, history = [] }: Player, stored: Stored, todayOn: string) {
+function indicatorsFromHistory({ lines, history = [] }: Player, stored: Stored, todayOn: string) {
   const stints = teamMembership(lines, history);
-  return playerIndicators({ stints, lines }, { games: [], ...stored }, todayOn);
+  return indicatorsOf({ stints, lines }, { games: [], ...stored }, todayOn);
 }
 
 const observed = (on: string, newTeamId: number | null): PlayerTeamChange => ({
@@ -130,7 +130,7 @@ const observed = (on: string, newTeamId: number | null): PlayerTeamChange => ({
   origin: 'observed',
 });
 
-describe('playerIndicators: games played and average minutes', () => {
+describe('indicatorsOf: games played and average minutes', () => {
   it('[STA-46] [JOU-02] [STA-09] [CL-STA-09] counts the games he played in the season in progress, a suspect line among them, and averages the minutes of the lines that are not suspect and give his time on court', () => {
     const lines = [
       lineIn(X, '2025-11-03', NOT_PLAYED),
@@ -142,7 +142,7 @@ describe('playerIndicators: games played and average minutes', () => {
       lineIn(X, '2025-11-01', FIFTY_MINUTES),
       lineIn(X, '2025-03-01'),
     ];
-    const indicators = indicatorsOf(
+    const indicators = indicatorsFromHistory(
       { lines },
       { seasons: [IN_PROGRESS, OLDER, LAST] },
       '2025-11-06',
@@ -169,17 +169,21 @@ describe('playerIndicators: games played and average minutes', () => {
       averageMinutesThisSeason: (30 + 34.5) / 2,
     };
 
-    expect(indicatorsOf({ lines }, { seasons: [COMING, LAST, ENDED] }, '2026-08-01')).toMatchObject(
-      expected,
-    );
-    expect(indicatorsOf({ lines }, { seasons: [LAST, ENDED] }, '2026-08-01')).toMatchObject(
-      expected,
-    );
+    expect(
+      indicatorsFromHistory({ lines }, { seasons: [COMING, LAST, ENDED] }, '2026-08-01'),
+    ).toMatchObject(expected);
+    expect(
+      indicatorsFromHistory({ lines }, { seasons: [LAST, ENDED] }, '2026-08-01'),
+    ).toMatchObject(expected);
   });
 
   it('[STA-46] [CL-STA-21] [CL-JOU-15] gives, between seasons, no game for the season that ended last when he played none of it', () => {
     expect(
-      indicatorsOf({ lines: [lineIn(X, '2025-03-01')] }, { seasons: [LAST, ENDED] }, '2026-08-01'),
+      indicatorsFromHistory(
+        { lines: [lineIn(X, '2025-03-01')] },
+        { seasons: [LAST, ENDED] },
+        '2026-08-01',
+      ),
     ).toMatchObject({
       indicatorSeason: '2025-26',
       gamesPlayedThisSeason: 0,
@@ -191,11 +195,13 @@ describe('playerIndicators: games played and average minutes', () => {
   it('[STA-46] [STA-48] [CL-STA-21] covers a season from its first game day, and the season of the day while no stored season has begun', () => {
     const lines = [lineIn(X, '2026-04-10')];
 
-    expect(indicatorsOf({ lines }, { seasons: [ENDED, COMING] }, '2026-10-20')).toMatchObject({
+    expect(
+      indicatorsFromHistory({ lines }, { seasons: [ENDED, COMING] }, '2026-10-20'),
+    ).toMatchObject({
       indicatorSeason: '2026-27',
       gamesPlayedThisSeason: 0,
     });
-    expect(indicatorsOf({ lines: [] }, { seasons: [] }, '2026-01-20')).toMatchObject({
+    expect(indicatorsFromHistory({ lines: [] }, { seasons: [] }, '2026-01-20')).toMatchObject({
       indicatorSeason: '2025-26',
       averageMinutesThisSeason: null,
     });
@@ -216,14 +222,14 @@ const ABSENT = {
 
 /** The id of his last game played on 3 January 2026, his lines being `lines`. */
 const lastOf = (lines: readonly IndicatorLine[]): number | null =>
-  indicatorsOf({ lines }, { seasons: [IN_PROGRESS] }, '2026-01-03').lastGamePlayedId;
+  indicatorsFromHistory({ lines }, { seasons: [IN_PROGRESS] }, '2026-01-03').lastGamePlayedId;
 
-describe('playerIndicators: consecutive team games missed', () => {
+describe('indicatorsOf: consecutive team games missed', () => {
   it('[STA-46] [JOU-21] [CA-STA-16] gives, for a player absent from five games, five consecutive games missed and the date of his last game played, and no cause of absence', () => {
     const { lines, games } = ABSENT;
 
     expect(
-      indicatorsOf({ lines }, { games, seasons: [LAST, IN_PROGRESS] }, '2026-01-15'),
+      indicatorsFromHistory({ lines }, { games, seasons: [LAST, IN_PROGRESS] }, '2026-01-15'),
     ).toStrictEqual({
       indicatorSeason: '2025-26',
       gamesPlayedThisSeason: 1,
@@ -243,7 +249,7 @@ describe('playerIndicators: consecutive team games missed', () => {
     ] satisfies LinesGame[];
 
     expect(
-      indicatorsOf({ lines }, { games, seasons: [LAST, IN_PROGRESS] }, '2025-10-27'),
+      indicatorsFromHistory({ lines }, { games, seasons: [LAST, IN_PROGRESS] }, '2025-10-27'),
     ).toMatchObject({
       indicatorSeason: '2025-26',
       gamesPlayedThisSeason: 0,
@@ -264,7 +270,7 @@ describe('playerIndicators: consecutive team games missed', () => {
     const player = { lines: [lineIn(X, '2026-01-02')], history: [observed('2026-01-08', Y)] };
 
     expect(
-      indicatorsOf(player, { games, seasons: [IN_PROGRESS] }, '2026-01-15')
+      indicatorsFromHistory(player, { games, seasons: [IN_PROGRESS] }, '2026-01-15')
         .consecutiveTeamGamesMissed,
     ).toBe(4);
   });
@@ -286,7 +292,7 @@ describe('playerIndicators: consecutive team games missed', () => {
     };
 
     expect(
-      indicatorsOf(player, { games, seasons: [IN_PROGRESS] }, '2026-01-14')
+      indicatorsFromHistory(player, { games, seasons: [IN_PROGRESS] }, '2026-01-14')
         .consecutiveTeamGamesMissed,
     ).toBe(3);
   });
@@ -296,8 +302,11 @@ describe('playerIndicators: consecutive team games missed', () => {
     const games = [unpublished, ...ABSENT.games.slice(-2)];
 
     expect(
-      indicatorsOf({ lines: ABSENT.lines }, { games, seasons: [IN_PROGRESS] }, '2026-01-15')
-        .consecutiveTeamGamesMissed,
+      indicatorsFromHistory(
+        { lines: ABSENT.lines },
+        { games, seasons: [IN_PROGRESS] },
+        '2026-01-15',
+      ).consecutiveTeamGamesMissed,
     ).toBe(1);
   });
 
@@ -308,7 +317,9 @@ describe('playerIndicators: consecutive team games missed', () => {
     };
     const games = gamesOf(X, ['2025-12-30', '2026-01-02', '2026-01-04']);
 
-    expect(indicatorsOf(player, { games, seasons: [IN_PROGRESS] }, '2026-01-05')).toStrictEqual({
+    expect(
+      indicatorsFromHistory(player, { games, seasons: [IN_PROGRESS] }, '2026-01-05'),
+    ).toStrictEqual({
       indicatorSeason: '2025-26',
       gamesPlayedThisSeason: 0,
       averageMinutesThisSeason: null,
@@ -353,15 +364,15 @@ const withShuffled = anyLines.chain((lines) =>
   fc.tuple(fc.constant(lines), fc.shuffledSubarray(lines, { minLength: lines.length })),
 );
 
-describe('playerIndicators over any data', () => {
+describe('indicatorsOf over any data', () => {
   it('[STA-46] [CL-STA-09] gives the same indicators whatever the order of his lines and of the games', () => {
     fc.assert(
       fc.property(withShuffled, ([lines, shuffled]) => {
         const stored = { games: GAMES, seasons: [IN_PROGRESS] };
         const reordered = { ...stored, games: GAMES.toReversed() };
 
-        expect(indicatorsOf({ lines: shuffled }, reordered, '2025-11-02')).toStrictEqual(
-          indicatorsOf({ lines }, stored, '2025-11-02'),
+        expect(indicatorsFromHistory({ lines: shuffled }, reordered, '2025-11-02')).toStrictEqual(
+          indicatorsFromHistory({ lines }, stored, '2025-11-02'),
         );
       }),
     );
