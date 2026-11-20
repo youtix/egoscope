@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { err, ok } from '@/lib/result';
@@ -7,6 +9,7 @@ import { sequenceCounters } from './schema';
 import { createTestDatabase } from './test-database';
 import { transaction } from './transaction';
 
+import type { SequenceName } from './sequence';
 import type { Transaction } from './transaction';
 import type { Database } from './types';
 
@@ -16,7 +19,7 @@ vi.mock(import('./database'), () => ({ getDb: vi.fn() }));
 const REFUSAL = { kind: 'out_of_bounds' } as const;
 
 /** Writes one counter in `tx`, as a service's own write. */
-async function writeCounter(tx: Transaction, name: 'import_sequence' | 'request_reference_2026') {
+async function writeCounter(tx: Transaction, name: SequenceName) {
   await tx.insert(sequenceCounters).values({ name, lastValue: 1 });
 }
 
@@ -107,9 +110,70 @@ describe('transaction', { timeout: 60_000 }, () => {
     });
 
     await expect(outcome).rejects.toThrow(
-      'A call nested in this transaction failed, and the work around it went on as if it had succeeded: return that failure instead.',
+      'A call nested in this transaction failed, and the work around it went on as if it had succeeded: return that failure, or let its error through, instead.',
     );
     await expect(committedCounters(db)).resolves.toStrictEqual([]);
+  });
+
+  it('rolls back everything, as a bug, when the work goes on as if a nested call had not thrown', async () => {
+    const outcome = transaction(async (tx) => {
+      await writeCounter(tx, 'import_sequence');
+      try {
+        await transaction(async (innerTx) => {
+          await writeCounter(innerTx, 'request_reference_2026');
+          throw new Error('A bug in the nested service.');
+        });
+      } catch {
+        // The work swallows the nested error and carries on.
+      }
+      return ok('saved');
+    });
+
+    await expect(outcome).rejects.toThrow(
+      'A call nested in this transaction failed, and the work around it went on as if it had succeeded: return that failure, or let its error through, instead.',
+    );
+    await expect(committedCounters(db)).resolves.toStrictEqual([]);
+  });
+
+  it('opens its own transaction for work that a callback bound inside an ended transaction starts, as after() does', async () => {
+    const callbacks: (() => Promise<unknown>)[] = [];
+    // Next.js after() binds its callback to the context of the work that schedules it,
+    // and runs it once that work is over, here committed, then rolled back.
+    const scheduleLater = (name: SequenceName): void => {
+      callbacks.push(
+        AsyncLocalStorage.bind(async () =>
+          transaction(async (laterTx) => {
+            await writeCounter(laterTx, name);
+            return ok(await committedCounters(laterTx));
+          }),
+        ),
+      );
+    };
+    await transaction(async (tx) => {
+      await writeCounter(tx, 'import_sequence');
+      scheduleLater('request_reference_2026');
+      return ok('saved');
+    });
+    await transaction(async (tx) => {
+      await writeCounter(tx, 'request_reference_2025');
+      scheduleLater('request_reference_2027');
+      return err(REFUSAL);
+    });
+
+    const results: unknown[] = [];
+    for (const callback of callbacks) {
+      results.push(await callback());
+    }
+
+    expect(results).toStrictEqual([
+      { ok: true, value: ['import_sequence', 'request_reference_2026'] },
+      { ok: true, value: ['import_sequence', 'request_reference_2026', 'request_reference_2027'] },
+    ]);
+    await expect(committedCounters(db)).resolves.toStrictEqual([
+      'import_sequence',
+      'request_reference_2026',
+      'request_reference_2027',
+    ]);
   });
 
   it('rolls back everything and throws again when the work throws', async () => {
