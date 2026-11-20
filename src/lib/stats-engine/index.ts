@@ -258,3 +258,13 @@ export type {
 // --- calendar/ -------------------------------------------------------------------
 
 // calendar/calendar-games.ts
+export { birthdayGames } from './calendar/calendar-games';
+export { formerTeamGames } from './calendar/calendar-games';
+export { gamesToDerive } from './calendar/calendar-games';
+export type { Birthday } from './calendar/calendar-games';
+export type { CalendarGame } from './calendar/calendar-games';
+export type { CalendarPlayer } from './calendar/calendar-games';
+export type { CalendarSchedule } from './calendar/calendar-games';
+export type { DerivationRun } from './calendar/calendar-games';
+export type { DerivedGame } from './calendar/calendar-games';
+export type { FormerTeamGame } from './calendar/calendar-games';
