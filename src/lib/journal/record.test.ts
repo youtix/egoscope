@@ -123,6 +123,7 @@ describe('record', { timeout: 60_000 }, () => {
       durationMs: 1250,
       errorMessage: `Service Unavailable ${'x'.repeat(400)}`,
       responseBody: '<html>An article title the journal must never hold</html>',
+      requestHeaders: { 'user-agent': 'a header the allowlist leaves out' },
     } as const;
 
     const id = await write({

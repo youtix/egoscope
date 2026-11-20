@@ -86,20 +86,20 @@ describe('the words of the journal', () => {
     ]).toStrictEqual(['Refused trigger', 'Warning']);
   });
 
-  it('[TRV-26] [TRV-45] names every scheduled task and every incident kind as glossary section 9 does', () => {
+  it('[TRV-26] names every scheduled task and every incident kind as glossary section 9 does', () => {
     expect(TASK_NAMES).toStrictEqual(namesOf('9.1', '9.2'));
     expect(INCIDENT_NAMES).toStrictEqual(namesOf('9.2', '9.3'));
     expect(inOrder(TASK_NAMES.keys())).toStrictEqual(inOrder(taskRuns.taskKey.enumValues));
     expect(inOrder(INCIDENT_NAMES.keys())).toStrictEqual(inOrder(incidents.kind.enumValues));
   });
 
-  it('[TRV-09] labels every service role as the glossary does, and names each inside a sentence', () => {
+  it('labels every service role as the glossary does, and names each inside a sentence', () => {
     expect(SERVICE_LABELS).toStrictEqual(setLabels('ServiceRole'));
     expect(inOrder(SERVICE_WORDS.keys())).toStrictEqual(inOrder(incidents.serviceRole.enumValues));
     expect(inOrder(TRIGGER_WORDS.keys())).toStrictEqual(inOrder(taskRuns.trigger.enumValues));
   });
 
-  it('[CL-IMP-33] [SEN-37] [TEL-34] names the refusals, causes and notification categories by their glossary labels', () => {
+  it('[CL-IMP-33] [TEL-34] names the refusals, causes and notification categories by their glossary labels', () => {
     expect(BLOCKING_ERROR_WORDS).toStrictEqual(lowered(setLabels('BlockingErrorKind')));
     expect(CAUSE_WORDS).toStrictEqual(lowered(setLabels('VerdictChangeCause')));
     expect(NOTIFICATION_CATEGORY_WORDS).toStrictEqual(lowered(setLabels('NotificationCategory')));
