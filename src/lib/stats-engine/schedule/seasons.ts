@@ -55,7 +55,10 @@ export type SeasonSpanInput = Readonly<{
   lastPlayoffGameOn: IsoDate | null;
   /** The day of its last game, of any phase. */
   lastGameOn: IsoDate;
-  /** Whether its Finals are over, as `phaseState` says of a team of the Finals. */
+  /**
+   * Whether its Finals are over, as `phaseState` says of a team of the Finals when it is
+   * asked with the same `hasLaterSeasonGame`.
+   */
   isFinalsOver: boolean;
   /** Whether a game of a later season is stored. */
   hasLaterSeasonGame: boolean;
@@ -106,7 +109,7 @@ export function seasonOfDate(date: IsoDate, seasons: readonly SeasonSpan[]): Sea
 /** The day a season closes, or null while it may still be in progress. */
 function closingDayOf(input: SeasonSpanInput): IsoDate | null {
   if (input.isFinalsOver) {
-    return input.lastPlayoffGameOn;
+    return input.lastPlayoffGameOn ?? input.lastGameOn;
   }
   return input.hasLaterSeasonGame ? input.lastGameOn : null;
 }
@@ -115,10 +118,12 @@ function closingDayOf(input: SeasonSpanInput): IsoDate | null {
  * The span of a season whose schedule is stored (STA-48, CL-STA-16, CL-STA-30), built
  * from what the games module reads of it, `SeasonSpanInput`: from the day of its first
  * regular-season game to the day it closes. A season closes when its Finals are over, on
- * its last playoff game, or once a game of a later season is stored, on its last game, so
- * that a past season whose last playoff games the source does not list closes all the
- * same. Until then it may be in progress, and its last day is null. A season without a
- * regular-season game has no span: null.
+ * its last playoff game, or on its last game when none of its playoff games is final, so
+ * that a season whose Finals are over never stays open; or once a game of a later season
+ * is stored, on its last game, so that a past season whose last playoff games the source
+ * does not list closes all the same. `isFinalsOver` comes from `phaseState` asked with
+ * the same `hasLaterSeasonGame`. Until it closes a season may be in progress, and its last
+ * day is null. A season without a regular-season game has no span: null.
  */
 export function seasonSpan(input: SeasonSpanInput): SeasonSpan | null {
   if (input.firstRegularSeasonGameOn === null) {

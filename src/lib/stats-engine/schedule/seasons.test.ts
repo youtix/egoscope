@@ -320,6 +320,23 @@ describe('seasonSpan', () => {
     expect(seasonSpan({ ...FINALS_OVER, hasLaterSeasonGame: true })).toStrictEqual(expected);
   });
 
+  it('[STA-48] [CL-STA-30] closes a season whose Finals are over on its last game when none of its playoff games is final, never leaving it open', () => {
+    const input: SeasonSpanInput = {
+      season: '2002-03',
+      firstRegularSeasonGameOn: '2002-10-29',
+      lastPlayoffGameOn: null,
+      lastGameOn: '2003-04-16',
+      isFinalsOver: true,
+      hasLaterSeasonGame: true,
+    };
+
+    expect(seasonSpan(input)).toStrictEqual({
+      season: '2002-03',
+      firstGameOn: '2002-10-29',
+      lastGameOn: '2003-04-16',
+    });
+  });
+
   it.each([
     ['its Finals under way', FINALS_UNDER_WAY],
     [
