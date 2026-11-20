@@ -70,9 +70,9 @@ refuses a change to a frozen French specification, unless the checksum list
 `docs/frozen-specs.sha256` changes in the same diff: that is the coordinator's path, when the owner
 changes a specification. It stops at the first failing step. CI runs the full gate on every push.
 
-`gate` runs the mutation tests only when the pure core or the way Stryker runs (its configuration
-and workflow, the Vitest configuration, the dependencies, `scripts/mutation-scope.ts`) differs from
-`origin/main`, and the `mutation` workflow does the same in CI.
+`gate` runs the mutation tests from scratch, and only when a file of their scope, which
+[`CLAUDE.md`](CLAUDE.md) lists under "Mutation testing", differs from `origin/main`. The `mutation`
+workflow does the same in CI.
 
 Several agents may share one machine, so the heavy scripts (`build`, `typecheck`, `lint`,
 `lint:fix`, `test`, `test:coverage`, `test:mutation`, `knip`, `check:changed` and `gate`) take turns

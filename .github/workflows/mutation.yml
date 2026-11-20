@@ -3,7 +3,10 @@
 # every one. The workflow always starts, with no path filter, and its final job,
 # `mutation`, always reports a result, because `main` requires it by name. The job
 # that runs Stryker finishes at once when the pull request (or, on main, the push)
-# changes nothing in the mutation scope (scripts/mutation-scope.ts).
+# changes nothing in the mutation scope (scripts/mutation-scope.ts), and otherwise
+# tests every mutant afresh: it keeps no result of an earlier run, which Stryker's
+# incremental mode would reuse after a change that it cannot see
+# (scripts/mutation-gate.ts).
 name: Mutation
 
 on:
@@ -33,21 +36,7 @@ jobs:
           # previous commit of main.
           fetch-depth: 2
       - uses: ./.github/actions/setup-project
-      - name: Restore the results of earlier mutation runs
-        id: incremental
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        env:
-          # Incremental mode compares only the code of the pure core and its tests, so
-          # it cannot see a change outside them: of configuration, dependencies or
-          # fixtures, which these tests may import from data/. The files of the Stryker
-          # setup (scripts/mutation-scope.ts) and data/ name the cache: when one of
-          # them changes, the run starts afresh, as `--force` makes it locally.
-          PREFIX: stryker-${{ hashFiles('stryker.config.ts', 'scripts/mutation-run.ts', '.github/workflows/mutation.yml', 'vitest.stryker.config.ts', 'vitest.config.ts', 'package.json', 'bun.lock', 'scripts/mutation-scope.ts', 'tsconfig.json', 'data/**') }}-
-        with:
-          path: reports/stryker-incremental.json
-          key: ${{ env.PREFIX }}${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: ${{ env.PREFIX }}
-      - name: Mutation tests, when the mutation scope changed
+      - name: Mutation tests from scratch, when the mutation scope changed
         run: bun scripts/mutation-gate.ts HEAD^1
       # Stryker writes its report only when it runs.
       - name: Upload the mutation report (HTML and JSON)
@@ -57,15 +46,6 @@ jobs:
           name: mutation-report
           path: reports/mutation/
           retention-days: 14
-      # After a failing run too: the next run tests a survivor again once a test that
-      # covers it changes or is added, and a mutant of code that runs when its module
-      # loads in every run (scripts/mutation-run.ts).
-      - name: Save the results for later mutation runs
-        if: ${{ !cancelled() && hashFiles('reports/mutation/mutation.json') != '' }}
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: reports/stryker-incremental.json
-          key: ${{ steps.incremental.outputs.cache-primary-key }}
 
   mutation:
     name: mutation

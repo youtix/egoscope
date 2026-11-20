@@ -3,18 +3,16 @@
 // that the configuration sets exactly the options below, so that a new one, such as
 // a project-wide exclusion, which needs no comment in the code, is a change that a
 // reviewer reads, and that `bun run test:mutation` adds none on the command line;
-// that the Vitest configuration that Stryker runs is the project's, with the tests
-// of the pure core alone; and that CI caches the results that Stryker records, and
-// reuses them only while what incremental mode cannot see stays the same.
+// and that the Vitest configuration that Stryker runs is the project's, with the
+// tests of the pure core alone.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
-import { parse } from 'yaml';
 import { z } from 'zod';
 
 import { STRYKER_COMMAND } from './scripts/mutation-run';
-import { INCREMENTAL_FILE, PURE_CORE_MODULES, STRYKER_SETUP } from './scripts/mutation-scope';
+import { INCREMENTAL_FILE, PURE_CORE_MODULES } from './scripts/mutation-scope';
 import config from './stryker.config';
 import vitestConfig from './vitest.config';
 import strykerVitestConfig from './vitest.stryker.config';
@@ -68,36 +66,6 @@ const PACKAGE = z.object({ scripts: z.record(z.string(), z.string()) });
 function mutationScript(): string | undefined {
   const manifest = readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8');
   return PACKAGE.parse(JSON.parse(manifest)).scripts['test:mutation'];
-}
-
-const WORKFLOW = path.join(import.meta.dirname, '.github/workflows/mutation.yml');
-// The step of the mutation workflow that restores the results of earlier runs.
-const RESTORE_STEP = z.object({
-  id: z.literal('incremental'),
-  env: z.object({ PREFIX: z.string() }),
-  with: z.object({ path: z.string(), 'restore-keys': z.string() }),
-});
-// The step that saves the results of the run for later runs.
-const SAVE_STEP = z.object({
-  uses: z.string().startsWith('actions/cache/save@'),
-  with: z.object({ path: z.string(), key: z.string() }),
-});
-const STRYKER_JOB = z.object({ steps: z.array(z.unknown()) });
-const WORKFLOW_JOBS = z.object({ jobs: z.object({ stryker: STRYKER_JOB }) });
-
-/** The step of mutation.yml that `schema` describes, which must be there. */
-function stepOf<Step>(schema: z.ZodType<Step>): Step {
-  const workflow = WORKFLOW_JOBS.parse(parse(readFileSync(WORKFLOW, 'utf8')));
-  return schema.parse(workflow.jobs.stryker.steps.find((step) => schema.safeParse(step).success));
-}
-
-/** The step of mutation.yml that restores the results of earlier runs. */
-const restoreStep = (): z.infer<typeof RESTORE_STEP> => stepOf(RESTORE_STEP);
-
-/** The globs of the files whose content names the cache: those that its prefix hashes. */
-function cacheKeyGlobs(): readonly string[] {
-  const listed = /hashFiles\((?<globs>[^)]*)\)/u.exec(restoreStep().env.PREFIX)?.groups?.['globs'];
-  return (listed ?? '').split(',').map((glob) => glob.trim().replaceAll("'", ''));
 }
 
 describe('stryker.config.ts', () => {
@@ -193,26 +161,5 @@ describe('vitest.stryker.config.ts', () => {
       ...strykerVitestConfig,
       test: { ...strykerVitestConfig.test, projects: vitestConfig.test?.projects },
     }).toStrictEqual(vitestConfig);
-  });
-});
-
-describe('the cache of the mutation workflow', () => {
-  it.each([
-    ...STRYKER_SETUP,
-    'data/fixtures/trace/spec-id-counts.json',
-    'data/fixtures/ai-exchange/extract-json/comment.json',
-  ])('starts the CI run afresh after a change to %s, which incremental mode cannot see', (file) => {
-    expect(cacheKeyGlobs().some((glob) => path.matchesGlob(file, glob))).toBe(true);
-  });
-
-  it('restores only results that were recorded under the same key prefix, and saves those that Stryker records', () => {
-    expect(restoreStep().with).toStrictEqual({
-      path: INCREMENTAL_FILE,
-      'restore-keys': '${{ env.PREFIX }}',
-    });
-    expect(stepOf(SAVE_STEP).with).toStrictEqual({
-      path: INCREMENTAL_FILE,
-      key: '${{ steps.incremental.outputs.cache-primary-key }}',
-    });
   });
 });

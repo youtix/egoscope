@@ -1,7 +1,7 @@
 // Proves that the mutation gate runs the mutation tests only when their scope
-// changed, and from scratch outside CI when what changed lies outside the pure
-// core: it runs the gate in a throwaway repository, against its one commit, where a
-// `test:mutation` script that prints the arguments it receives stands in for Stryker.
+// changed, and then from scratch, in CI as outside it: it runs the gate in a
+// throwaway repository, against its one commit, where a `test:mutation` script that
+// prints the arguments it receives stands in for Stryker.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -53,7 +53,8 @@ function gate(root: string): readonly string[] {
 describe('the mutation gate', { timeout: TIMEOUT_MS }, () => {
   beforeEach(() => {
     // git reads neither the machine's nor the user's configuration, such as a global
-    // ignore file, and commits under a neutral identity; the gate runs outside CI.
+    // ignore file, and commits under a neutral identity; the gate runs outside CI,
+    // unless a test says otherwise.
     vi.stubEnv('GIT_CONFIG_GLOBAL', '/dev/null');
     vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
     vi.stubEnv('GIT_AUTHOR_NAME', 'Test');
@@ -64,44 +65,34 @@ describe('the mutation gate', { timeout: TIMEOUT_MS }, () => {
   });
 
   it.each([
+    'src/lib/ai-exchange/text-rules.test.ts',
+    'src/lib/stats-engine/performance/game-score.ts',
     'bun.lock',
     'stryker.config.ts',
     'vitest.config.ts',
     'tsconfig.json',
     'data/fixtures/ai-exchange/extract-json/comment.json',
-  ])('runs the mutation tests from scratch after a change to %s, outside the pure core', (file) => {
-    expect(gate(repositoryWith([file]))).toStrictEqual([
-      `Mutation tests from scratch, because of ${file}: earlier results do not account for a change outside the pure core.`,
-      'test:mutation --force',
-    ]);
-  });
+  ])(
+    'runs the mutation tests from scratch after a change to %s, which an earlier result may not account for',
+    (file) => {
+      expect(gate(repositoryWith([file]))).toStrictEqual([
+        `Mutation tests from scratch, because of ${file}.`,
+        'test:mutation --force',
+      ]);
+    },
+  );
 
-  it('runs them from scratch when a path outside the pure core changed along with the core', () => {
+  it('runs them from scratch in CI too, when only the pure core changed, a test file included', () => {
+    vi.stubEnv('CI', 'true');
     // git lists the changes in the order of their paths.
-    expect(gate(repositoryWith(['src/lib/ai-exchange/text-rules.ts', 'bun.lock']))).toStrictEqual([
-      'Mutation tests from scratch, because of bun.lock, src/lib/ai-exchange/text-rules.ts: earlier results do not account for a change outside the pure core.',
-      'test:mutation --force',
-    ]);
-  });
-
-  it('keeps the results of earlier runs when only the pure core changed, its tests included', () => {
     const changed = [
       'src/lib/ai-exchange/text-rules.test.ts',
       'src/lib/stats-engine/performance/game-score.ts',
     ];
 
     expect(gate(repositoryWith(changed))).toStrictEqual([
-      `Mutation tests, because of ${changed.join(', ')}.`,
-      'test:mutation',
-    ]);
-  });
-
-  it('keeps them in CI, where a change outside the pure core renames their cache instead', () => {
-    vi.stubEnv('CI', 'true');
-
-    expect(gate(repositoryWith(['bun.lock']))).toStrictEqual([
-      'Mutation tests, because of bun.lock.',
-      'test:mutation',
+      `Mutation tests from scratch, because of ${changed.join(', ')}.`,
+      'test:mutation --force',
     ]);
   });
 

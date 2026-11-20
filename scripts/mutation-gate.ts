@@ -1,8 +1,9 @@
 /**
- * The mutation step of `bun run gate` and of the mutation workflow: runs
- * `bun run test:mutation` when a path of the mutation scope (mutation-scope.ts)
- * differs from the base, and otherwise says why it does not, so that the common
- * gate stays fast. Run with `bun scripts/mutation-gate.ts [base]`.
+ * The mutation step of `bun run gate` and of the mutation workflow: runs the
+ * mutation tests from scratch, `bun run test:mutation --force`, when a path of the
+ * mutation scope (mutation-scope.ts) differs from the base, and otherwise says why
+ * they do not run, so that the common gate stays fast. Run with
+ * `bun scripts/mutation-gate.ts [base]`.
  *
  * The base defaults to where HEAD left origin/main, and the changes are listed as
  * check:changed lists them (changed-files.ts): committed, staged, unstaged and
@@ -10,17 +11,16 @@
  * passes HEAD^1: for a pull request, the base branch of its merge commit; for a
  * push to main, the previous commit.
  *
- * Locally, a run that a path outside the pure core started, an upgrade for one,
- * starts from scratch (`--force`): the results that earlier runs recorded in
- * reports/ do not account for such a change. CI already starts from scratch then,
- * since those paths name the cache of these results (mutation.yml).
+ * Locally as in CI, which keeps no results (mutation.yml), the run reuses none of
+ * those that an earlier run recorded in reports/: Stryker's incremental mode judges
+ * a mutant by its own code and the lines of its tests alone, so it misses a change
+ * to a helper of a test file, to another function of the pure core that a test
+ * runs, or outside the pure core (CLAUDE.md, "Mutation testing").
  */
 import { spawnSync } from 'node:child_process';
 
 import { describeFiles, listChanges } from './changed-files';
-import { mutationTriggers, requiresFreshRun } from './mutation-scope';
-
-const isCi = process.env['CI'] === 'true';
+import { mutationTriggers } from './mutation-scope';
 
 function main(argv: readonly string[]): number {
   const [base] = argv;
@@ -36,14 +36,8 @@ function main(argv: readonly string[]): number {
     );
     return 0;
   }
-  const isFreshRun = !isCi && requiresFreshRun(triggers);
-  console.info(
-    isFreshRun
-      ? `Mutation tests from scratch, because of ${describeFiles(triggers)}: earlier results do not account for a change outside the pure core.`
-      : `Mutation tests, because of ${describeFiles(triggers)}.`,
-  );
-  const force = isFreshRun ? ['--force'] : [];
-  const result = spawnSync('bun', ['run', 'test:mutation', ...force], { stdio: 'inherit' });
+  console.info(`Mutation tests from scratch, because of ${describeFiles(triggers)}.`);
+  const result = spawnSync('bun', ['run', 'test:mutation', '--force'], { stdio: 'inherit' });
   return result.status ?? 1;
 }
 
