@@ -96,15 +96,18 @@ function urgencyRank(request: RequestToDo): number {
 }
 
 // The order of the to-do list, key after key: urgent requests first, by deadline, then
-// by age; identifiers break the last ties, between requests created at one instant.
+// by age; identifiers, distinct for distinct requests, break the ties that remain,
+// between requests created at one instant.
 function compareRanks(one: RequestToDo, other: RequestToDo): number {
   const differences = [
     urgencyRank(one) - urgencyRank(other),
     (one.urgentDeadlineAt ?? 0) - (other.urgentDeadlineAt ?? 0),
     one.createdAt - other.createdAt,
-    one.backtestRequestId - other.backtestRequestId,
   ];
-  return differences.find((difference) => difference !== 0) ?? 0;
+  return (
+    differences.find((difference) => difference !== 0) ??
+    one.backtestRequestId - other.backtestRequestId
+  );
 }
 
 /**
