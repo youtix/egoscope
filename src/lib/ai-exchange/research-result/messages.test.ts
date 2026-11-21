@@ -380,13 +380,16 @@ describe('eventMessage', () => {
       'Event 1 (public-humiliation, 2021-01-14): the research confidence is missing or not high, medium or low. Nothing to correct: it is set to low.',
       'Event 2 (racist-abuse, 2021-01-20): this type is not part of the request. Nothing to correct: request a backtest of this type to add its events.',
       'Event 3 (player-conflict, 2021-02-10): the description contains a quotation mark (“). Quotations are not allowed: summarize what was said instead.',
+      'Event 3 (player-conflict, 2021-02-10): the research confidence is missing or not high, medium or low. Nothing to correct: it is set to low.',
       'Event 4 (public-humiliation, 2021-02-30): this date does not exist. Give the public date as YYYY-MM-DD.',
       'Event 5 (public-humiliation, 2021-03-05), source 2: the source is dated 2021-02-28, more than one day before the public date. Correct the public date or remove this source.',
       'Event 6 (no type, 2021-03-20): the event type is missing. Give the ID of one of the requested types.',
       'Event 6 (no type, 2021-03-20): the description has 206 characters, more than the maximum of 200. Shorten it to 200 characters at most.',
+      'Event 6 (no type, 2021-03-20): the unverified note contains a quotation mark («) and is ignored. Nothing to correct: the event is added without it.',
     ]);
     const freeTexts = refusedEvents.events.flatMap((event) => [
       event.description,
+      ...('unverified_note' in event ? [event.unverified_note] : []),
       ...event.sources.flatMap(({ outlet, title }) => [outlet, title]),
     ]);
     expect(

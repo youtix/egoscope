@@ -47,8 +47,7 @@
           "publication_date": "2021-02-10"
         }
       ],
-      "context": { "injury_return": "no", "game_stakes": "normal" },
-      "confidence": "medium"
+      "context": { "injury_return": "no", "game_stakes": "normal" }
     },
     {
       "event_type": "public-humiliation",
@@ -98,7 +97,8 @@
         }
       ],
       "context": { "injury_return": "no", "game_stakes": "normal" },
-      "confidence": "low"
+      "confidence": "low",
+      "unverified_note": "One outlet calls the coach's remarks «unfair»; no second source confirms it."
     }
   ],
   "unverified_leads": [],

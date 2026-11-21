@@ -57,7 +57,9 @@ const COVERED_PERIOD_LINE =
   'The whole result — covered_period: it is missing, has an invalid date or starts after its end. Give "start" and "end" as YYYY-MM-DD, the start on or before the end.';
 const EVENTS_LINE =
   'The whole result — events: it is missing or is not a list. Give the events as a list, [] when you found none.';
-// The lines of the refused events 3, 4 and 5 of the fixture, then those of event 6.
+// The lines of the refused events 3, 4 and 5 of the fixture, then those of event 6. The
+// warnings of the refused events 3 (its confidence missing) and 6 (a quotation mark in its
+// unverified note) give no line, nor do the added event 1 and the ignored event 2.
 const EVENT_LINES = [
   'Event 3 (player-conflict, 2021-02-10) — description: the description contains a quotation mark (“). Remove the quotation mark (“): summarize what was said instead of quoting it (rule 2.6).',
   'Event 4 (public-humiliation, 2021-02-30) — public_date: this date does not exist. Give a date that exists, as YYYY-MM-DD.',
