@@ -60,12 +60,44 @@ export type {
 } from './research-result/read-result';
 
 // research-result/check-events.ts
+export { checkEvents } from './research-result/check-events';
+export type {
+  AcceptedEvent,
+  EventCheck,
+  EventCheckContext,
+  ImportRefusal,
+  ImportWarning,
+} from './research-result/check-events';
 
 // research-result/check-sources.ts
+export { checkSources } from './research-result/check-sources';
+export type {
+  CheckedSource,
+  SourceCheckRules,
+  SourceChecks,
+  SourceDropCause,
+  SourceWarning,
+} from './research-result/check-sources';
 
 // research-result/messages.ts
 
 // research-result/correction-message.ts
+
+// research-result/check-scope.ts
+export type {
+  CheckedEventType,
+  ImportIgnoreReason,
+  RequestedType,
+  SplitChoice,
+  TaxonomyType,
+} from './research-result/check-scope';
+
+// research-result/check-leads-and-limitations.ts
+export { checkLeadsAndLimitations } from './research-result/check-leads-and-limitations';
+export type {
+  ResultTextChecks,
+  ResultTextWarning,
+} from './research-result/check-leads-and-limitations';
 
 // --- exploration/ ----------------------------------------------------------------
 

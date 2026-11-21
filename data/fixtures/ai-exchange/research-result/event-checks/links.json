@@ -1,0 +1,44 @@
+{
+  "articles": [
+    "http://news.example/2021/01/14/rival-mocks-player-a",
+    "https://www.news-24.xn--p1ai/2021/01/14/rival-mocks-player-a",
+    "HTTPS://News.Example:8080/a",
+    "https://news.example?id=7",
+    "https://news.example/?id=7",
+    "https://news.example/?&id=7",
+    "https://news.example/index.html?id=7",
+    "https://news.example/index.phpx",
+    "https://news.example/index",
+    "https://news.example/sports/index.html",
+    "https://news.example/redirect/https://other.example/",
+    "https://news.example/a#comments"
+  ],
+  "incompleteAddresses": [
+    "www.media-national.example",
+    "ftp://news.example/a",
+    "see https://news.example/a",
+    "xhttps://news.example/a",
+    "https://news.example/a b",
+    "https://localhost/a",
+    "https://192.168.1.20/a",
+    "https:///a",
+    "https://news..example/a",
+    "https://news.example:/a",
+    "https://news.example/a[1]",
+    "https://news.example/a†",
+    "https://news.example/a【source】"
+  ],
+  "homePages": [
+    "https://news.example",
+    "http://news.example/",
+    "https://news.example:8443/",
+    "https://news.example/index.html",
+    "https://news.example/index.htm",
+    "https://news.example/INDEX.PHP",
+    "https://news.example/?",
+    "https://news.example/?&",
+    "https://news.example/?&&",
+    "https://news.example#top",
+    "https://news.example/?utm_source=feed"
+  ]
+}

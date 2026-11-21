@@ -1,0 +1,133 @@
+{
+  "format": "egoscope-backtest",
+  "format_version": "1.0",
+  "request_reference": "REQ-2026-0007",
+  "player": { "id": "8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f", "name": "Player A" },
+  "covered_types": ["public-humiliation", "player-conflict"],
+  "covered_period": { "start": "2019-10-23", "end": "2026-11-11" },
+  "events": [
+    {
+      "event_type": "public-humiliation",
+      "public_date": "2021-01-14",
+      "description": "An opposing player publicly mocks player A at a press conference [1].",
+      "sources": [
+        {
+          "url": "https://www.site-basket.example/news/2021/01/14/rival-mocks-player-a",
+          "outlet": "A specialist basketball site (fictitious)",
+          "title": "Rival mocks Player A 【3†source】",
+          "publication_date": "2021-01-14"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": "high"
+    },
+    {
+      "event_type": "player-conflict",
+      "public_date": "2021-02-03",
+      "description": "Verbal altercation between player A and a teammate on the bench, reported by a regional daily.",
+      "sources": [
+        {
+          "url": "https://www.quotidien-regional.example/sports/2021/02/03/tension-on-the-bench",
+          "outlet": "A regional daily (fictitious)",
+          "title": "Tension on the bench of team X",
+          "publication_date": "2021-02-03"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal", "detail": "" },
+      "confidence": "medium",
+      "unverified_note": null
+    },
+    {
+      "event_type": "player-conflict",
+      "public_date": "2021-03-10",
+      "description": "Player A and a coach argue during a timeout, as a national outlet reports.",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2021/03/10/argument-during-a-timeout",
+          "outlet": "",
+          "title": "Argument during a timeout",
+          "publication_date": "2021-03-10"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": null
+    },
+    {
+      "event_type": "player-conflict",
+      "public_date": "2021-04-02",
+      "description": "",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2021/04/02/a-second-argument",
+          "outlet": "A national outlet (fictitious)",
+          "title": "A second argument",
+          "publication_date": "2021-04-02"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": "low"
+    },
+    {
+      "event_type": " Public-Humiliation ",
+      "public_date": "2021-05-20",
+      "description": "Fans of team Y jeer player A at every touch, as a national outlet reports.",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2021/05/20/jeered-at-every-touch",
+          "outlet": "A national outlet (fictitious)",
+          "title": "Jeered at every touch",
+          "publication_date": "2021-05-20"
+        }
+      ],
+      "context": { "injury_return": " No ", "game_stakes": "NORMAL" },
+      "confidence": "HÍGH"
+    },
+    {
+      "event_type": "public-humiliation",
+      "public_date": "2021-06-01 20:15:30Z",
+      "description": "An opposing coach mocks player A in a televised interview, as a national outlet reports.",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2021/06/01/mocked-on-television",
+          "outlet": "A national outlet (fictitious)",
+          "title": "Mocked on television",
+          "publication_date": "2021-06-01T16:40-0400"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "high" },
+      "confidence": "high"
+    },
+    {
+      "event_type": "public-humiliation",
+      "public_date": "2021-07-01T00:00+02:00",
+      "description": "A rival executive belittles player A at a public event, as a specialist site reports.",
+      "sources": [
+        {
+          "url": "https://www.site-basket.example/news/2021/07/01/belittled-at-a-public-event",
+          "outlet": "A specialist basketball site (fictitious)",
+          "title": "Belittled at a public event",
+          "publication_date": "2021-07-01T19:30"
+        }
+      ],
+      "context": { "injury_return": "unknown", "game_stakes": "unknown" },
+      "confidence": "medium"
+    },
+    {
+      "eventType": "public-humiliation",
+      "date_publique": "2021-08-01",
+      "description": "An opposing player mocks player A after a game, as a specialist site reports.",
+      "sources": [
+        {
+          "url": "https://www.site-basket.example/news/2021/08/01/mocked-after-the-game",
+          "outlet": "A specialist basketball site (fictitious)",
+          "title": "Mocked after the game",
+          "publication_date": "2021-08-01"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": "high"
+    }
+  ],
+  "unverified_leads": [],
+  "limitations": []
+}
