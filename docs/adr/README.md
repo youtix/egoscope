@@ -36,6 +36,7 @@ The French functional specs in `docs/` stay the reference. Where a record change
 | [0026](0026-runtime-node-in-production-bun-for-tooling.md)               | Node.js 22 in production and throughout the build; Bun for tooling                                                                                                   |                                    |
 | [0027](0027-supply-chain-guard.md)                                       | Dependency versions younger than seven days refused; exact versions pinned                                                                                           |                                    |
 | [0028](0028-a-game-day-is-its-us-eastern-date.md)                        | A game's day is its US Eastern date, for every rule and display                                                                                                      |                                    |
+| [0029](0029-design-system-primitives.md)                                 | The design system: native elements, Base UI where they fall short, Tailwind tokens                                                                                   |                                    |
 
 ## The twelve points to settle before development
 

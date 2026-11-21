@@ -2,3 +2,140 @@
 
 /* The other agents' worktrees are not sources of class names (scripts/ignored-folders.ts). */
 @source not '../../.claude';
+
+/*
+ * The design tokens of the design system (src/lib/ui, decision record 0029).
+ *
+ * Colors: Tailwind's own palette is removed, so every screen draws from these
+ * names only. Each pair of text and background meets WCAG 2.2 AA, 4.5:1 for text,
+ * and each control border 3:1 against what surrounds it (IHM-61, CL-IHM-08). The
+ * light values are set here and the dark ones below, chosen by the phone's own
+ * setting (IHM-63).
+ *
+ * Type: Tailwind's scale, in rem, so text follows the size set on the phone
+ * (IHM-60). Spacing: Tailwind's scale, plus `touch`, the side of a target that a
+ * thumb hits comfortably, beyond the 24 CSS pixels of WCAG 2.2 AA (IHM-61).
+ */
+@theme {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  /* Page, raised surfaces (cards, dialogs) and sunken ones (long texts, skeletons). */
+  --color-canvas: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f4f5;
+  /* Text, and the secondary text of hints and captions. */
+  --color-ink: #18181b;
+  --color-ink-muted: #52525b;
+  /* Decorative separators, and the borders of controls, which must stand out. */
+  --color-line: #e4e4e7;
+  --color-line-strong: #71717a;
+  /* The main action and links, the destructive action, and the focus ring. */
+  --color-accent: #1d4ed8;
+  --color-on-accent: #ffffff;
+  --color-danger: #b91c1c;
+  --color-on-danger: #ffffff;
+  --color-focus: #1d4ed8;
+  /* What dims the page behind a dialog, in both themes. */
+  --color-scrim: #000000;
+  /* The tones of notices, banners and status pills, each also written in words. */
+  --color-info-surface: #eff6ff;
+  --color-info-ink: #1e3a8a;
+  --color-info-line: #93c5fd;
+  --color-success-surface: #f0fdf4;
+  --color-success-ink: #14532d;
+  --color-success-line: #86efac;
+  --color-warning-surface: #fffbeb;
+  --color-warning-ink: #78350f;
+  --color-warning-line: #fcd34d;
+  --color-danger-surface: #fef2f2;
+  --color-danger-ink: #7f1d1d;
+  --color-danger-line: #fca5a5;
+
+  --spacing-touch: 2.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-canvas: #09090b;
+    --color-surface: #18181b;
+    --color-surface-muted: #27272a;
+    --color-ink: #f4f4f5;
+    --color-ink-muted: #a1a1aa;
+    --color-line: #3f3f46;
+    --color-line-strong: #8a8a93;
+    --color-accent: #93c5fd;
+    --color-on-accent: #09090b;
+    --color-danger: #fca5a5;
+    --color-on-danger: #09090b;
+    --color-focus: #93c5fd;
+    --color-info-surface: #172554;
+    --color-info-ink: #dbeafe;
+    --color-info-line: #1e40af;
+    --color-success-surface: #052e16;
+    --color-success-ink: #dcfce7;
+    --color-success-line: #166534;
+    --color-warning-surface: #451a03;
+    --color-warning-ink: #fef3c7;
+    --color-warning-line: #92400e;
+    --color-danger-surface: #450a0a;
+    --color-danger-ink: #fee2e2;
+    --color-danger-line: #991b1b;
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+
+  /*
+   * iOS sizes web text by its own Dynamic Type setting only through this system
+   * font, so the root size, and every rem with it, follows the phone (IHM-60). The
+   * touch-callout test keeps desktop Safari, where the same font is smaller, out.
+   * The shorthand also resets the line height, which gets back the one of every
+   * other platform.
+   */
+  @supports (font: -apple-system-body) and (-webkit-touch-callout: none) {
+    html {
+      font: -apple-system-body;
+      line-height: 1.5;
+    }
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    /* A long word breaks rather than pushing the column sideways (IHM-01). */
+    overflow-wrap: break-word;
+  }
+
+  /* One focus ring everywhere, for keyboard focus, never hidden. */
+  :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* No double-tap zoom delay on what a thumb taps. */
+  a,
+  button,
+  input,
+  label,
+  select,
+  summary,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
