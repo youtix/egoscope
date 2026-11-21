@@ -109,8 +109,9 @@ function asNextGame(
 /**
  * Whether the Finals of `season` are over (CL-STA-02, CL-STA-18, CL-STA-20): a team of
  * theirs has finished the postseason, which only the end of the Finals does for a
- * finalist. Finals that the schedule does not list are over once a game of a later
- * season is stored, as phaseState then says of every team.
+ * finalist, and Finals listed before any game of theirs is stored are not. Finals that the
+ * schedule does not list are over once a game of a later season is stored, as phaseState
+ * then says of every team.
  */
 function areFinalsOver(season: SeasonSchedule): boolean {
   const finals = season.series.find(({ round }) => round === 'finals');
