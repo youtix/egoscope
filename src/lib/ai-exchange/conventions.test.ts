@@ -1,7 +1,14 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { canonicalValue, isAbsent, parseExchangeDate } from './conventions';
+import {
+  canonicalValue,
+  fold,
+  isAbsent,
+  isRecord,
+  parseExchangeDate,
+  valuesOf,
+} from './conventions';
 
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
@@ -152,6 +159,26 @@ describe('canonicalValue', () => {
   );
 });
 
+describe('fold', () => {
+  it.each([
+    [' Média-STORM\t', 'media-storm'],
+    ['RECORD-Approach', 'record-approach'],
+    ['Plàyer conflict', 'player conflict'],
+    ['public_humiliation', 'public_humiliation'],
+  ])('[CL-IMP-22] folds %j to %j: trimmed, without accents and in lowercase', (text, folded) => {
+    expect(fold(text)).toBe(folded);
+  });
+});
+
+describe('valuesOf', () => {
+  it('[CL-IMP-22] gives back the closed list as written, in its order', () => {
+    const values = ['high', 'medium', 'low'];
+
+    expect(valuesOf(values)).toBe(values);
+    expect(valuesOf(values)).toStrictEqual(['high', 'medium', 'low']);
+  });
+});
+
 describe('isAbsent', () => {
   it.each([undefined, null, '', ' '.repeat(3), '\n\t'])(
     '[CL-IMP-06] takes %j for an absent field',
@@ -163,4 +190,20 @@ describe('isAbsent', () => {
   it.each(['x', ' x ', 0, false, [], {}])('[CL-IMP-06] takes %j for a present field', (value) => {
     expect(isAbsent(value)).toBe(false);
   });
+});
+
+describe('isRecord', () => {
+  it.each([{}, { start: '2021-05-16' }, { 0: 'a', length: 1 }])(
+    '[CL-IMP-06] reads the members of the object %j',
+    (value) => {
+      expect(isRecord(value)).toBe(true);
+    },
+  );
+
+  it.each([null, undefined, [], ['2021-05-16'], '2021-05-16', 7, true])(
+    '[CL-IMP-06] reads no member of %j, which is no object',
+    (value) => {
+      expect(isRecord(value)).toBe(false);
+    },
+  );
 });

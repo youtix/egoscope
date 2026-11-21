@@ -28,9 +28,18 @@ import type { ExtractJsonError, ExtractJsonResult, JsonPath } from './extract-js
 /** The answer that a fixture holds, line by line. */
 const answer = (fixture: Readonly<{ pasted: readonly string[] }>): string =>
   fixture.pasted.join('\n');
+type Formats = ExtractJsonError['formats'];
+
 const isolated = (value: unknown): ExtractJsonResult => ({ ok: true, value });
 const refused = (error: ExtractJsonError): ExtractJsonResult => ({ ok: false, error });
-const syntaxError = (path: JsonPath): ExtractJsonResult => refused({ kind: 'syntax_error', path });
+const syntaxError = (path: JsonPath, formats: Formats): ExtractJsonResult =>
+  refused({ kind: 'syntax_error', path, formats });
+
+// The formats that the objects of a text name, in the order of the error.
+const NONE: Formats = [];
+const BACKTEST: Formats = ['egoscope-backtest'];
+const EXPLORATION: Formats = ['egoscope-exploration'];
+const BOTH: Formats = ['egoscope-backtest', 'egoscope-exploration'];
 
 /** A result whose events are numbered facts, a citation marker after the description of one. */
 function resultWithMarker(count: number, marked: number): string {
@@ -94,17 +103,26 @@ describe.each([
   });
 
   it('[IMP-04] refuses two results that differ by one value, so that the owner pastes only one', () => {
-    expect(extract(answer(twoResults))).toStrictEqual(refused({ kind: 'several_results' }));
+    expect(extract(answer(twoResults))).toStrictEqual(
+      refused({ kind: 'several_results', formats: BACKTEST }),
+    );
   });
 
   it.each([
-    ['a citation marker between two tokens', markerBetweenTokens, ['events', 1, 'description']],
-    ['curly quotation marks around keys and texts', curlyQuotes, []],
-    ['a comma after the last event', trailingComma, ['events', 2]],
-    ['a comment between two events', comment, ['events', 1]],
-  ])('[IMP-04] repairs nothing: %s is a syntax error, with its place', (_quirk, fixture, path) => {
-    expect(extract(answer(fixture))).toStrictEqual(syntaxError(path));
-  });
+    [
+      'a citation marker between two tokens',
+      markerBetweenTokens,
+      syntaxError(['events', 1, 'description'], BACKTEST),
+    ],
+    ['curly quotation marks around keys and texts', curlyQuotes, syntaxError([], NONE)],
+    ['a comma after the last event', trailingComma, syntaxError(['events', 2], BACKTEST)],
+    ['a comment between two events', comment, syntaxError(['events', 1], BACKTEST)],
+  ])(
+    '[IMP-04] repairs nothing: %s is a syntax error, with its place',
+    (_quirk, fixture, expected) => {
+      expect(extract(answer(fixture))).toStrictEqual(expected);
+    },
+  );
 
   it.each([
     [
@@ -116,7 +134,8 @@ describe.each([
   ])(
     '[IMP-05] reports an answer cut %s apart from a syntax error, with the partial object',
     (_place, fixture, path) => {
-      const cut = refused({ kind: 'cut', path, partialText: fixture.partialText });
+      const { partialText } = fixture;
+      const cut = refused({ kind: 'cut', path, partialText, formats: BACKTEST });
 
       expect(extract(answer(fixture))).toStrictEqual(cut);
     },
@@ -124,7 +143,7 @@ describe.each([
 
   it('[IMP-04] locates the fault of the 12th event around event 12, at index 11 of the events', () => {
     expect(extract(resultWithMarker(15, 12))).toStrictEqual(
-      syntaxError(['events', 11, 'description']),
+      syntaxError(['events', 11, 'description'], BACKTEST),
     );
   });
 
@@ -136,7 +155,7 @@ describe.each([
     fc.assert(
       fc.property(counted, ([count, marked]) => {
         expect(extract(resultWithMarker(count, marked))).toStrictEqual(
-          syntaxError(['events', marked - 1, 'description']),
+          syntaxError(['events', marked - 1, 'description'], BACKTEST),
         );
       }),
     );
@@ -149,7 +168,7 @@ describe.each([
     expect(extract(text)).toStrictEqual(isolated(JSON.parse(text)));
   });
 
-  it('reads an object nested a hundred thousand levels deep, and two copies of it as one, without overflowing the stack', () => {
+  it('[IMP-04] [CL-IMP-06] reads an object nested a hundred thousand levels deep, and two copies of it as one, without overflowing the stack', () => {
     const depth = 100_000;
     const text = `{"a": ${'['.repeat(depth)}${']'.repeat(depth)}}`;
 
@@ -166,7 +185,7 @@ describe.each([
       'Placeholders like {{PLAYER_NAME}} or {see below}, and [1, 2].',
     ],
   ])('[IMP-04] finds no result in %s', (_kind, text) => {
-    expect(extract(text)).toStrictEqual(refused({ kind: 'no_result_found' }));
+    expect(extract(text)).toStrictEqual(refused({ kind: 'no_result_found', formats: NONE }));
   });
 
   it('[IMP-04] reads an empty object as an object, and the prose after it as prose', () => {
@@ -188,14 +207,21 @@ describe.each([
     expect(extract(text)).toStrictEqual(isolated({ a: 'x\u{00A0}y', b: 1 }));
   });
 
-  it.each(['```', '````', '```json', '  ```json', '~~~', '\t~~~ text'])(
-    '[IMP-04] [BKT-26] strips the code-fence line %j, even inside the object',
-    (fence) => {
-      const text = ['{"format": "egoscope-backtest",', fence, '  "events": []}'].join('\n');
+  it.each([
+    '```',
+    '````',
+    '```json',
+    '  ```json',
+    '~~~',
+    '\t~~~ text',
+    '```json-ld',
+    '~~~ c++',
+    '```objective-c',
+  ])('[IMP-04] [BKT-26] strips the code-fence line %j, even inside the object', (fence) => {
+    const text = ['{"format": "egoscope-backtest",', fence, '  "events": []}'].join('\n');
 
-      expect(extract(text)).toStrictEqual(isolated({ format: 'egoscope-backtest', events: [] }));
-    },
-  );
+    expect(extract(text)).toStrictEqual(isolated({ format: 'egoscope-backtest', events: [] }));
+  });
 
   it.each([
     [
@@ -222,6 +248,17 @@ describe.each([
     expect(extract(text)).toStrictEqual(isolated(value));
   });
 
+  it.each(['`', '``', '~', '~~'])(
+    '[IMP-04] [BKT-26] keeps a line that starts with %j, fewer than three marks, which is no code fence and a syntax error inside the object',
+    (marks) => {
+      const text = ['{"format": "egoscope-backtest",', `${marks}json`, '  "events": []}'].join(
+        '\n',
+      );
+
+      expect(extract(text)).toStrictEqual(syntaxError(['format'], BACKTEST));
+    },
+  );
+
   it('[IMP-04] keeps backticks and tildes inside texts, where they open no line', () => {
     const text = '{"a":"```",\n "b": "x ~~~ y"}';
 
@@ -244,7 +281,7 @@ describe.each([
   it.each(["{'format': 'egoscope-backtest'}", '{‘a’: 1}', '{’a’: 1}', '{“a”: 1}', '{”a”: 1}'])(
     '[IMP-04] reads %s as an object, to refuse its quotation marks at the root',
     (text) => {
-      expect(extract(text)).toStrictEqual(syntaxError([]));
+      expect(extract(text)).toStrictEqual(syntaxError([], NONE));
     },
   );
 
@@ -262,29 +299,87 @@ describe.each([
     ['a brace that closes a list', '{"a": [1}', ['a', 0]],
     ['a bracket that closes an object', '{"a": {"b": 1]}', ['a', 'b']],
   ])('[IMP-04] reports %s as a syntax error at its place', (_fault, text, path) => {
-    expect(extract(text)).toStrictEqual(syntaxError(path));
+    expect(extract(text)).toStrictEqual(syntaxError(path, NONE));
+  });
+
+  it.each([
+    {
+      place: 'inside a literal',
+      text: '{"format": "egoscope-backtest", "events": [{"a": 1}, {"b": tru',
+      path: ['events', 1, 'b'],
+      formats: BACKTEST,
+    },
+    { place: 'inside a number', text: '{"events": [1.', path: ['events', 0], formats: NONE },
+    {
+      place: 'inside an escape',
+      text: '{"events": [{"a": "x\\u00',
+      path: ['events', 0, 'a'],
+      formats: NONE,
+    },
+    { place: 'after a key', text: '{"events": [{"a"', path: ['events', 0, 'a'], formats: NONE },
+    { place: 'after a colon', text: '{"a": {"b":', path: ['a', 'b'], formats: NONE },
+    {
+      place: 'after a complete event',
+      text: '{"events": [{"a": 1}',
+      path: ['events', 0],
+      formats: NONE,
+    },
+    {
+      place: 'after the list of events',
+      text: '{"events": [{"a": 1}]',
+      path: ['events'],
+      formats: NONE,
+    },
+    {
+      place: 'right after the brace of a nested object',
+      text: '{"a": {',
+      path: ['a'],
+      formats: NONE,
+    },
+  ])(
+    '[IMP-05] reports a text that ends $place as cut, where it stops, with the formats that it names',
+    ({ text, path, formats }) => {
+      // These texts hold no space inside a string: the partial object is the text without
+      // its spaces.
+      const partialText = text.replaceAll(/\s+/gu, '');
+
+      expect(extract(`${text}  \n`)).toStrictEqual(
+        refused({ kind: 'cut', path, partialText, formats }),
+      );
+    },
+  );
+
+  it('[IMP-05] [CL-IMP-22] names the format of a cut object as its format member names it, without case, accents or spaces', () => {
+    const partialText = '{"format":" Égoscope-BACKTEST ","events":[';
+
+    expect(extract('{"format": " Égoscope-BACKTEST ", "events": [')).toStrictEqual(
+      refused({ kind: 'cut', path: ['events', 0], partialText, formats: BACKTEST }),
+    );
   });
 
   it.each([
     [
-      'inside a literal',
-      '{"format": "egoscope-backtest", "events": [{"a": 1}, {"b": tru',
-      ['events', 1, 'b'],
+      'a fault before it',
+      '{"covered_types": ["a"] [2], "format": "egoscope-backtest"}',
+      syntaxError(['covered_types'], NONE),
     ],
-    ['inside a number', '{"events": [1.', ['events', 0]],
-    ['inside an escape', '{"events": [{"a": "x\\u00', ['events', 0, 'a']],
-    ['after a key', '{"events": [{"a"', ['events', 0, 'a']],
-    ['after a colon', '{"a": {"b":', ['a', 'b']],
-    ['after a complete event', '{"events": [{"a": 1}', ['events', 0]],
-    ['after the list of events', '{"events": [{"a": 1}]', ['events']],
-    ['right after the brace of a nested object', '{"a": {', ['a']],
-  ])('[IMP-05] reports a text that ends %s as cut, where it stops', (_place, text, path) => {
-    // These texts hold no space inside a string: the partial object is the text without
-    // its spaces.
-    const partialText = text.replaceAll(/\s+/gu, '');
-
-    expect(extract(`${text}  \n`)).toStrictEqual(refused({ kind: 'cut', path, partialText }));
-  });
+    ['a fault at it', '{"format" "egoscope-backtest"}', syntaxError(['format'], NONE)],
+    [
+      'a cut inside its value',
+      '{"format": "egoscope-back',
+      refused({
+        kind: 'cut',
+        path: ['format'],
+        partialText: '{"format":"egoscope-back',
+        formats: NONE,
+      }),
+    ],
+  ])(
+    '[IMP-04] [CL-IMP-06] names no format for an object whose JSON breaks or stops at or before its format member: %s',
+    (_place, text, expected) => {
+      expect(extract(text)).toStrictEqual(expected);
+    },
+  );
 
   it('[IMP-04] keeps the object in a format of Egoscope among others, its name compared without case, accents or spaces', () => {
     const text = '{"x": 1} {"format": " Égoscope-BACKTEST "} {"y": 2}';
@@ -299,7 +394,7 @@ describe.each([
     ['a format inside a list only', '{"format": ["egoscope-backtest"]} {"b": 2}'],
     ['the name of a format under another key', '{"name": "egoscope-backtest"} {"b": 2}'],
   ])('[IMP-04] refuses %s, asking to paste only one', (_kind, text) => {
-    expect(extract(text)).toStrictEqual(refused({ kind: 'several_results' }));
+    expect(extract(text)).toStrictEqual(refused({ kind: 'several_results', formats: NONE }));
   });
 
   it('[IMP-04] reads a lone object without a format, which its reader may still recognize', () => {
@@ -334,7 +429,9 @@ describe.each([
   ])(
     '[IMP-04] refuses two objects that differ by %s, compared value for value',
     (_difference, first, second) => {
-      expect(extract(`${first}\n${second}`)).toStrictEqual(refused({ kind: 'several_results' }));
+      expect(extract(`${first}\n${second}`)).toStrictEqual(
+        refused({ kind: 'several_results', formats: NONE }),
+      );
     },
   );
 
@@ -343,14 +440,16 @@ describe.each([
     const spaced = '{ "format" : "egoscope-backtest" , "a" : 1 , "events" : [ 1 2 ] }';
     const reordered = '{"a": 1, "format": "egoscope-backtest", "events": [1 2]}';
 
-    expect(extract(`${result}\n${spaced}`)).toStrictEqual(syntaxError(['events', 0]));
-    expect(extract(`${result}\n${reordered}`)).toStrictEqual(refused({ kind: 'several_results' }));
+    expect(extract(`${result}\n${spaced}`)).toStrictEqual(syntaxError(['events', 0], BACKTEST));
+    expect(extract(`${result}\n${reordered}`)).toStrictEqual(
+      refused({ kind: 'several_results', formats: BACKTEST }),
+    );
   });
 
   it('[IMP-04] reports the first object that cannot be read when no object names a format', () => {
-    expect(extract('{"a": 1 2} {"b": 1}')).toStrictEqual(syntaxError(['a']));
+    expect(extract('{"a": 1 2} {"b": 1}')).toStrictEqual(syntaxError(['a'], NONE));
     expect(extract('{"events": [{"a": 1} [3], {"b": 2}]}')).toStrictEqual(
-      syntaxError(['events', 0]),
+      syntaxError(['events', 0], NONE),
     );
   });
 
@@ -363,7 +462,7 @@ describe.each([
   it('[IMP-04] refuses a result in its format that cannot be read, whatever follows its fault', () => {
     const text = '{"format": "egoscope-backtest", "events": [{"a": 1} [3], {"b": 2}]}';
 
-    expect(extract(text)).toStrictEqual(syntaxError(['events', 0]));
+    expect(extract(text)).toStrictEqual(syntaxError(['events', 0], BACKTEST));
   });
 });
 
@@ -382,7 +481,7 @@ describe('extractJson, for a reader that names its format', () => {
   );
 
   it('[IMP-04] refuses to a reader that names no format a text that holds a research result and an exploration response, asking to paste only one', () => {
-    expect(extractJson(both)).toStrictEqual(refused({ kind: 'several_results' }));
+    expect(extractJson(both)).toStrictEqual(refused({ kind: 'several_results', formats: BOTH }));
   });
 
   it.each([
@@ -405,11 +504,62 @@ describe('extractJson, for a reader that names its format', () => {
     },
   );
 
+  // A cut exploration response, and the partial object that JSON isolation reports for it.
+  const CUT_RESPONSE = '{"format": "egoscope-exploration", "proposed_types": [';
+  const CUT_RESPONSE_READ = '{"format":"egoscope-exploration","proposed_types":[';
+
+  it.each([
+    {
+      given: 'the research-result reader an exploration response that is cut',
+      format: 'egoscope-backtest',
+      text: CUT_RESPONSE,
+      expected: refused({
+        kind: 'cut',
+        path: ['proposed_types', 0],
+        partialText: CUT_RESPONSE_READ,
+        formats: EXPLORATION,
+      }),
+    },
+    {
+      given: 'the exploration reader a research result that breaks',
+      format: 'egoscope-exploration',
+      text: '{"format": "egoscope-backtest", "covered_types": ["a"] [2]}',
+      expected: syntaxError(['covered_types'], BACKTEST),
+    },
+    {
+      given: 'the exploration reader its cut response after a research result that breaks',
+      format: 'egoscope-exploration',
+      text: `{"format": "egoscope-backtest", "events": [1 2]}\n${CUT_RESPONSE}`,
+      expected: refused({
+        kind: 'cut',
+        path: ['proposed_types', 0],
+        partialText: CUT_RESPONSE_READ,
+        formats: BOTH,
+      }),
+    },
+    {
+      given: 'the research-result reader its cut result after an exploration response that breaks',
+      format: 'egoscope-backtest',
+      text: '{"format": "egoscope-exploration", "proposed_types": [1 2]}\n{"format": "egoscope-backtest", "events": [',
+      expected: refused({
+        kind: 'cut',
+        path: ['events', 0],
+        partialText: '{"format":"egoscope-backtest","events":[',
+        formats: BOTH,
+      }),
+    },
+  ] as const)(
+    '[IMP-04] [IMP-06] [CA-TAX-17] gives $given, with the formats that the objects of the text name, in the order of the formats',
+    ({ format, text, expected }) => {
+      expect(extractJson(text, format)).toStrictEqual(expected);
+    },
+  );
+
   it('[IMP-04] refuses two different results to the research-result reader, and gives its own reader the exploration response that follows them', () => {
     const text = `${answer(twoResults)}\n${answer(explorationResponse)}`;
 
     expect(extractJson(text, 'egoscope-backtest')).toStrictEqual(
-      refused({ kind: 'several_results' }),
+      refused({ kind: 'several_results', formats: BOTH }),
     );
     expect(extractJson(text, 'egoscope-exploration')).toStrictEqual(response);
   });

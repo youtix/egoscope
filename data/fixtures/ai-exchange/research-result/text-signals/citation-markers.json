@@ -13,7 +13,8 @@
     ],
     "citeToken": [
       "[cite_start]The forward asked for a trade after the loss. [cite: 1]",
-      "The forward asked for a trade after the loss [cite[cite: 2]."
+      "The forward asked for a trade after the loss [cite[cite: 2].",
+      "[cite_start]The forward asked for a trade after the loss."
     ],
     "lenticularSpan": ["Opposing coach takes aim at the forward 【3†source】"],
     "superscriptDigit": ["An opposing head coach mocked the forward's defense on television¹."],

@@ -4,6 +4,8 @@
 // result is untrusted text, so a field reads as a text, a value of the format's own list
 // or a date, or as nothing; a key that the format does not define is an unknown field,
 // dropped and counted (IMP-16).
+import { isRecord, valuesOf } from '../conventions';
+
 import type { DateReading } from './dates';
 
 /** The name of the research-result format, the value of its `format` member (BKT-24, IMP-04). */
@@ -13,13 +15,13 @@ export const BACKTEST_FORMAT = 'egoscope-backtest';
 export const FORMAT_VERSION = '1.0';
 
 /** The values of `context.injury_return` (H-BKT-08, SEN-13), glossary section 6.1. */
-export const INJURY_RETURNS = ['yes', 'no', 'unknown'] as const;
+export const INJURY_RETURNS = valuesOf(['yes', 'no', 'unknown']);
 
 /** The values of `context.game_stakes` (H-BKT-08, SEN-14), glossary section 6.1. */
-export const GAME_STAKES = ['high', 'normal', 'unknown'] as const;
+export const GAME_STAKES = valuesOf(['high', 'normal', 'unknown']);
 
 /** The values of `confidence`, the research confidence (H-BKT-07, prompt rule 2.8), glossary section 6.1. */
-export const RESEARCH_CONFIDENCES = ['high', 'medium', 'low'] as const;
+export const RESEARCH_CONFIDENCES = valuesOf(['high', 'medium', 'low']);
 
 /** Whether the player was returning from injury in the first NBA game after the event (SEN-13). */
 export type InjuryReturn = (typeof INJURY_RETURNS)[number];
@@ -138,10 +140,6 @@ export const RESULT_SCHEMA: KeySchema = [
   { key: 'unverified_leads', listOf: LEAD_SCHEMA },
   'limitations',
 ];
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function unknownFieldsOf(values: readonly StrippedValue[]): number {
   return values.reduce((count, value) => count + value.unknownFieldCount, 0);

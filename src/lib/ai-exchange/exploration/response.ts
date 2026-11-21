@@ -10,55 +10,47 @@
 // in a text that a proposal would store is flagged, never rewritten (CL-IMP-07). Nothing
 // else is repaired, and every text stays as written. The source checks of IMP-14 on the
 // illustration sources are the taxonomy's (taxonomy/exploration.ts).
-import { canonicalValue, isAbsent } from '../conventions';
+import { canonicalValue, isAbsent, valuesOf } from '../conventions';
 import { extractJson } from '../extract-json';
-import { checkPastedTextSize } from './pasted-text-size';
+import { checkPastedTextSize } from '../pasted-text-size';
+import {
+  DIFFICULTIES,
+  EXPLORATION_FORMAT,
+  EXPLORATION_FORMAT_VERSION,
+  PROPOSED_TYPE_ELEMENTS,
+  RESPONSE_KEYS,
+  SOURCE_KEYS,
+} from './format';
+import { BACKTEST_FORMAT } from '../research-result/format';
 import { hasPossibleCitationMarker } from '../research-result/text-signals';
 
 import type { ExtractJsonError, JsonPath } from '../extract-json';
-
-// The elements of a proposed type, by their keys, in the order of the format (CL-TAX-04,
-// glossary section 6.2).
-const PROPOSED_TYPE_ELEMENTS = [
-  'name',
-  'definition',
-  'inclusion_criteria',
-  'exclusion_criteria',
-  'dating_rule',
-  'known_in_advance',
-  'generic_example',
-  'documentation_difficulty',
-  'possible_overlaps',
-  'illustration_sources',
-] as const;
 
 /** An element of a proposed type, by its key in the format (CL-TAX-04). */
 export type ProposedTypeElement = (typeof PROPOSED_TYPE_ELEMENTS)[number];
 
 // The elements whose texts a proposal stores in its sheet, in the order of the format,
 // which a citation marker is looked for in (CL-IMP-07).
-const SHEET_TEXTS = [
+const SHEET_TEXTS = valuesOf([
   'name',
   'definition',
   'inclusion_criteria',
   'exclusion_criteria',
   'dating_rule',
   'generic_example',
-] as const;
+]);
 type SheetText = (typeof SHEET_TEXTS)[number];
 
-// How hard a type is to document (TAX-08), in the glossary's values.
-const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 type DocumentationDifficulty = (typeof DIFFICULTIES)[number];
 
 /**
- * An illustration source as the response writes it, with the keys of a research-result
- * source (CL-TAX-04), before the source checks of IMP-14: each field its text, or
- * undefined when it is left out, null, empty or not a text (CL-IMP-06). `citationMarkers`
- * names the outlet or the title when it holds a possible citation marker, kept as written
- * (CL-IMP-07).
+ * An illustration source of a proposed type as the response writes it, with the keys of a
+ * research-result source (CL-TAX-04), before the source checks of IMP-14 and before the
+ * taxonomy stores it as an `IllustrationSource` (TAX-03): each field its text, or undefined
+ * when it is left out, null, empty or not a text (CL-IMP-06). `citationMarkers` names the
+ * outlet or the title when it holds a possible citation marker, kept as written (CL-IMP-07).
  */
-export type IllustrationSource = Readonly<{
+export type ProposedIllustrationSource = Readonly<{
   url: string | undefined;
   outlet: string | undefined;
   title: string | undefined;
@@ -71,9 +63,10 @@ export type IllustrationSource = Readonly<{
  * missing: left out, null, an empty text or a value of another form (CL-IMP-06). Texts
  * stay as written; the documentation difficulty is the glossary's value (CL-IMP-22);
  * `knownInAdvance` is the "known in advance" mark only, never "derived from the calendar"
- * (CL-TAX-20); a list keeps its texts or its sources, and is missing when it keeps none,
- * since the format leaves out an element without content. An item without a name cannot
- * become a proposal. `missingElements` lists the missing elements in the order of the
+ * (CL-TAX-20); a list keeps its texts, or its sources as the response writes them
+ * (`ProposedIllustrationSource`), and is missing when it keeps none, since the format
+ * leaves out an element without content. An item without a name cannot become a
+ * proposal. `missingElements` lists the missing elements in the order of the
  * format, and `citationMarkers` the texts of the sheet that hold a possible citation
  * marker (CL-IMP-07); the possible overlaps, which are never stored, are not looked at.
  */
@@ -90,7 +83,7 @@ export type ProposedType = (
     genericExample: string | undefined;
     documentationDifficulty: DocumentationDifficulty | undefined;
     possibleOverlaps: readonly string[] | undefined;
-    illustrationSources: readonly IllustrationSource[] | undefined;
+    illustrationSources: readonly ProposedIllustrationSource[] | undefined;
     missingElements: readonly ProposedTypeElement[];
     citationMarkers: readonly SheetText[];
   }>;
@@ -148,22 +141,13 @@ type VersionDeviation = Deviation | 'normalized';
 // from the one expected, if it does.
 type Header = Readonly<{ format: Deviation | undefined; version: VersionDeviation | undefined }>;
 
-// The name and the version of the format (TAX-17, CL-TAX-04), and the version written 1,
-// as a text or a number, which reads as 1.0 with a warning (CL-IMP-06); JSON reads the
-// number 1.0 as 1. The research result's format (BKT-24) is the other format of Egoscope,
-// which extractJson knows too.
-const EXPLORATION_FORMAT = 'egoscope-exploration';
-const FORMAT_VERSION = '1.0';
+// The version written 1, as a text or a number, which reads as 1.0 with a warning
+// (CL-IMP-06); JSON reads the number 1.0 as 1.
 const SHORT_VERSION = '1';
 const SHORT_VERSION_NUMBER = 1;
-const BACKTEST_FORMAT = 'egoscope-backtest';
-type EgoscopeFormat = typeof BACKTEST_FORMAT | typeof EXPLORATION_FORMAT;
 
-// The keys of the format at the root and in a source (glossary section 6.2): any other
-// is an unknown field. The outlet and the title are the texts of a source that a
-// proposal stores, which a citation marker is looked for in (CL-IMP-07).
-const RESPONSE_KEYS: readonly string[] = ['format', 'format_version', 'proposed_types'];
-const SOURCE_KEYS: readonly string[] = ['url', 'outlet', 'title', 'publication_date'];
+// The texts of a source that a proposal stores, which a citation marker is looked for in
+// (CL-IMP-07).
 const SOURCE_TEXTS: readonly ('outlet' | 'title')[] = ['outlet', 'title'];
 
 // The plain messages, worded like the import's (glossary section 7.3, CL-IMP-02): the
@@ -231,29 +215,15 @@ function cutMessage(path: JsonPath): string {
 }
 
 /**
- * Says whether the text holds an object that names this format in its own `format`
- * member, read as extractJson reads it: before the object's fault or its cut, compared as
- * CL-IMP-22 says. The errors of extractJson do not say which format the objects that it
- * could not read name, so extractJson is asked rather than redone: an object in this
- * format, put before the text, changes how no object of the text is read, and extractJson
- * keeps it with the objects that name the format (IMP-04), so that it gives it back alone
- * when there are none. A copy of it among them would count as the same object, but this
- * is asked only of a text whose reading failed among them, if any, and copies never make
- * a reading fail.
- */
-function hasObjectInFormat(text: string, format: EgoscopeFormat): boolean {
-  return !extractJson(`${JSON.stringify({ format })}\n${text}`, format).ok;
-}
-
-/**
- * Why no single object could be read, as the refusal of the response. When an object of
- * the text names the research result's format and none the exploration format, which
+ * Why no single object could be read, as the refusal of the response. When the formats
+ * that the error of extractJson names, those that the objects of the text name in their
+ * own `format` member, hold the research result's and not the exploration format, which
  * extractJson would have kept instead, the text is a research result, cut, broken or
  * pasted twice, and so no exploration response (TAX-17, CA-TAX-17). A format written
  * after a fault or a cut is never read, so such an object keeps the refusal of its fault.
  */
-function extractionRefusal(text: string, error: ExtractJsonError): ExplorationResponseResult {
-  if (!hasObjectInFormat(text, EXPLORATION_FORMAT) && hasObjectInFormat(text, BACKTEST_FORMAT)) {
+function extractionRefusal(error: ExtractJsonError): ExplorationResponseResult {
+  if (error.formats.includes(BACKTEST_FORMAT) && !error.formats.includes(EXPLORATION_FORMAT)) {
     return refused('not_an_exploration_response', NOT_AN_EXPLORATION_RESPONSE);
   }
   switch (error.kind) {
@@ -307,7 +277,7 @@ function isMarkedText(value: unknown): boolean {
   return typeof value === 'string' && hasPossibleCitationMarker(value);
 }
 
-function sourceOf(value: unknown): IllustrationSource {
+function sourceOf(value: unknown): ProposedIllustrationSource {
   const fields = fieldsOf(value);
   return {
     url: textOf(fields.get('url')),
@@ -389,7 +359,7 @@ function deviationOf(value: unknown, expected: string): Deviation | undefined {
 function versionDeviationOf(value: unknown): Header['version'] {
   const isShort =
     value === SHORT_VERSION_NUMBER || canonicalValue(value, [SHORT_VERSION]) !== undefined;
-  return isShort ? 'normalized' : deviationOf(value, FORMAT_VERSION);
+  return isShort ? 'normalized' : deviationOf(value, EXPLORATION_FORMAT_VERSION);
 }
 
 /** The warnings on the whole response, each given at most once, in the glossary's order. */
@@ -462,5 +432,5 @@ export function parseExplorationResponse(
   const extracted = extractJson(pastedText, EXPLORATION_FORMAT);
   return extracted.ok
     ? readResponse(fieldsOf(extracted.value))
-    : extractionRefusal(pastedText, extracted.error);
+    : extractionRefusal(extracted.error);
 }

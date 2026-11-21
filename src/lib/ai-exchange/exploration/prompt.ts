@@ -5,6 +5,7 @@
 // to deepen, with the references of the articles behind a detection proposal, never
 // their text. It asks for the exploration response of CL-TAX-04, with the keys of
 // glossary section 6.2.
+import { EXPLORATION_FORMAT, EXPLORATION_FORMAT_VERSION } from './format';
 
 /** The closed list of rejection reasons (TAX-13, H-TAX-04), in the order of glossary section 4.1. */
 export type TypeRejectionReason =
@@ -107,8 +108,8 @@ The documentation difficulty, easy, medium or hard, says how easily a search of 
 const ANSWER_FORMAT = `7. ANSWER FORMAT
 Your answer consists only of one valid JSON object, written in English: no text before or after it, no formatting tags, no footnote calls or citation markers. If your tool still adds a report, the complete JSON must appear in one piece at the very end. Expected structure, where each value describes what to put there:
 {
-  "format": "egoscope-exploration",
-  "format_version": "1.0",
+  "format": "${EXPLORATION_FORMAT}",
+  "format_version": "${EXPLORATION_FORMAT_VERSION}",
   "proposed_types": [
     {
       "name": "short name of the type",
