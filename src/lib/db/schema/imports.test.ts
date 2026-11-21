@@ -82,12 +82,14 @@ const SET_ASIDE = {
   dateAsRead: '2024-12-02',
 } as const;
 // Each reason to ignore or refuse an event, with the type and the date it was read
-// with: a proposed type, one the request leaves out, a date after the request, one
-// before the player's first NBA game, a calendar-derived type, a type a split replaced;
-// no type, an unknown one, no date, a malformed one, one that does not exist (IMP-20).
+// with: a proposed type, a validated one that the request leaves out, a date after the
+// request, one before the player's first NBA game, a calendar-derived type, a type a
+// split replaced; no type, an unknown one, no date, a malformed one (read as 02/12/2024,
+// which has no date shape of the format, so that the trace keeps none: CL-IMP-02), one
+// that does not exist (IMP-20).
 const IGNORED = [
   ['type_not_validated', 'public-feud', '2024-12-02'],
-  ['type_not_requested', 'bereavement', '2024-12-03'],
+  ['type_not_requested', 'contract-dispute', '2024-12-03'],
   ['outside_requested_period', 'media-storm', '2026-11-15'],
   ['before_first_nba_game', 'media-storm', '2009-06-01'],
   ['calendar_derived_type', 'birthday', '2024-12-02'],
@@ -97,7 +99,7 @@ const REFUSED = [
   ['type_missing', null, '2024-12-02'],
   ['type_unknown', 'locker-room-feud', '2024-12-02'],
   ['public_date_missing', 'media-storm', null],
-  ['public_date_malformed', 'media-storm', '02/12/2024'],
+  ['public_date_malformed', 'media-storm', null],
   ['public_date_nonexistent', 'media-storm', '2021-02-30'],
   ['description_missing', 'media-storm', '2024-12-02'],
   ['description_too_long', 'media-storm', '2024-12-02'],
