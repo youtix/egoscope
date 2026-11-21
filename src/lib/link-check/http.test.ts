@@ -7,7 +7,7 @@ import { now, toEpochMs } from '@/lib/time';
 import { createHttpLinkCheck, GENERIC_USER_AGENT } from './http';
 
 import type { CallContext } from './types';
-import type { IncomingHttpHeaders, Server } from 'node:http';
+import type { IncomingHttpHeaders, OutgoingHttpHeaders, Server } from 'node:http';
 
 const FOUND = 302;
 const OK = 200;
@@ -19,22 +19,32 @@ const open = (deadlineMs = DEADLINE_MS): CallContext => ({
   signal: new AbortController().signal,
 });
 
-/** A local server that records the headers of each request in `received` and answers by path. */
+// The answers of the local server, by path: a status and its headers.
+const ANSWERS: ReadonlyMap<
+  string,
+  Readonly<{ status: number; headers: OutgoingHttpHeaders }>
+> = new Map([
+  [
+    '/sets-a-cookie',
+    { status: FOUND, headers: { location: '/echo', 'set-cookie': 'session=made-up; Path=/' } },
+  ],
+  ['/echo', { status: OK, headers: {} }],
+  ['/to-a-file', { status: FOUND, headers: { location: 'ftp://archive.test/report' } }],
+  ['/nowhere', { status: FOUND, headers: {} }],
+]);
+
+/**
+ * A local server that records the headers of each request in `received` and answers
+ * as `ANSWERS` says; a path it does not list stays silent, a page that never answers.
+ */
 function localServer(received: Map<string, IncomingHttpHeaders>): Server {
   return createServer((request, response) => {
-    received.set(request.url ?? '', request.headers);
-    const answers: Readonly<Record<string, () => void>> = {
-      '/sets-a-cookie': () =>
-        response
-          .writeHead(FOUND, { location: '/echo', 'set-cookie': 'session=made-up; Path=/' })
-          .end(),
-      '/echo': () => response.writeHead(OK).end(),
-      '/to-a-file': () =>
-        response.writeHead(FOUND, { location: 'ftp://archive.test/report' }).end(),
-      '/nowhere': () => response.writeHead(FOUND).end(),
-    };
-    // A path the table does not answer stays silent: a page that never answers.
-    answers[request.url ?? '']?.();
+    const path = request.url ?? '';
+    received.set(path, request.headers);
+    const answer = ANSWERS.get(path);
+    if (answer !== undefined) {
+      response.writeHead(answer.status, answer.headers).end();
+    }
   });
 }
 
