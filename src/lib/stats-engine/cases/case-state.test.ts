@@ -136,6 +136,10 @@ const UNREAD: CaseSeasons = { ...SEASONS, readSeasons: [FIRST_READ] };
 const WITHOUT_LINES = [FIRST_READ, { season: '2023-24', hasPlayerLines: false }];
 // 2023-24 over, its games read, none of them with player lines.
 const NOT_COVERED = { ...SEASONS, spans: [CLOSED_SPAN, FIRST_SPAN], readSeasons: WITHOUT_LINES };
+// As an installation stores them: neither the schedule nor the games of the source's first
+// season, which no current player's career reaches (CL-STA-22); and a day of 1990, before it.
+const WITHOUT_FIRST_SPAN: CaseSeasons = { ...SEASONS, spans: [OPEN_SPAN], readSeasons: [] };
+const BEFORE_SOURCE_DAY = '1990-05-01';
 
 /** A historical event's case on game 1, played, with every rule before the walk passed. */
 const inputOf = (overrides: Partial<CaseStateInput> = {}): CaseStateInput => ({
@@ -169,6 +173,7 @@ const notMeasurable = (
   measuredGameId,
   ...NO_GAP,
 });
+const SEASON_NOT_COVERED = notMeasurable('season_not_covered');
 
 /** A calendar-derived event's case on its derived game 3, every rule before the walk failing. */
 const derivedInput = (participation: Participation): CaseStateInput => ({
@@ -257,9 +262,7 @@ describe('caseState', () => {
     const unread = { ...blocked, seasons: UNREAD };
     const established = { ...unread, isDatingToVerify: false, isMappingEstablished: true };
 
-    expect(caseState({ ...blocked, seasons: NOT_COVERED })).toStrictEqual(
-      notMeasurable('season_not_covered'),
-    );
+    expect(caseState({ ...blocked, seasons: NOT_COVERED })).toStrictEqual(SEASON_NOT_COVERED);
     expect(caseState(unread)).toStrictEqual(pending('dating_to_verify'));
     expect(caseState({ ...unread, isDatingToVerify: false })).toStrictEqual(
       pending('mapping_not_established'),
@@ -268,7 +271,7 @@ describe('caseState', () => {
     expect(caseState({ ...established, seasons: SEASONS }).status).toBe('measured');
   });
 
-  it('[STA-45] [CA-STA-19] [CL-STA-22] measures an old season like any other from its first game, its baseline partial, the day before it not covered, and a season not over that has no box score yet', () => {
+  it('[CA-STA-19] [STA-24] [STA-45] [SEN-47] [CL-STA-22] [CL-SEN-05] measures an old season like any other from its first game, its baseline partial; makes the day before it not covered, and a day of an earlier year without its span too, ahead of the mapping; holds a day of its first year until its span is stored; and never uncovers a season not over that has no box score yet', () => {
     const partial: SeasonBaseline = { ...baselineOf('final'), gameCount: 39, isPartial: true };
     const firstGameDay = { origin: 'historical', referenceDayOn: '1993-11-05' } as const;
     const old = inputOf({
@@ -276,10 +279,14 @@ describe('caseState', () => {
       statisticsOf: () => ({ ...COMPLETE, baseline: partial }),
     });
     const dayBefore = { ...old, event: { ...firstGameDay, referenceDayOn: '1993-11-04' } };
+    const noSpan = { ...dayBefore, seasons: WITHOUT_FIRST_SPAN };
+    const early = { ...noSpan, event: { ...firstGameDay, referenceDayOn: BEFORE_SOURCE_DAY } };
     const withoutLinesYet = inputOf({ seasons: { ...SEASONS, readSeasons: WITHOUT_LINES } });
 
     expectMeasured(caseState(old), 1);
-    expect(caseState(dayBefore)).toStrictEqual(notMeasurable('season_not_covered'));
+    expect(caseState(dayBefore)).toStrictEqual(SEASON_NOT_COVERED);
+    expect(caseState({ ...early, isMappingEstablished: false })).toStrictEqual(SEASON_NOT_COVERED);
+    expect(caseState(noSpan)).toStrictEqual(pending('precedence_to_verify'));
     expect(caseState(withoutLinesYet).status).toBe('measured');
   });
 
@@ -394,7 +401,7 @@ type WorldGame = Readonly<{
   participation: WorldParticipation;
   fate: 'played' | 'not_played' | 'unavailable';
 }>;
-type SeasonState = 'read' | 'toRead' | 'unpublished' | 'notCovered';
+type SeasonState = 'read' | 'toRead' | 'unpublished' | 'notCovered' | 'beforeSource';
 /** A situation: the event, the seasons, the mapping, his games, the evaluation's instant. */
 type World = Readonly<{
   origin: 'calendar' | 'historical' | 'detected';
@@ -440,7 +447,12 @@ const SEASONS_OF: Readonly<Record<SeasonState, CaseSeasons>> = {
   toRead: UNREAD,
   unpublished: { ...UNREAD, unpublishedSeason: '2023-24' },
   notCovered: NOT_COVERED,
+  beforeSource: WITHOUT_FIRST_SPAN,
 };
+// The reference day of a world: before the source's first season, which the source never
+// gives, or 10 January 2024.
+const dayOf = (season: SeasonState): string =>
+  season === 'beforeSource' ? BEFORE_SOURCE_DAY : REFERENCE_DAY;
 const STATISTICS: readonly MeasuredGameStatistics[] = [
   ...(['final', 'provisional', 'building', 'insufficient'] as const).map((status) => ({
     ...COMPLETE,
@@ -458,7 +470,7 @@ const worldGame: fc.Arbitrary<WorldGame> = fc.record({
 const world: fc.Arbitrary<World> = fc.record({
   origin: fc.constantFrom<World['origin']>('calendar', 'historical', 'detected'),
   source: fc.constantFrom<World['source']>('early', 'late', 'sameDay'),
-  season: fc.constantFrom<SeasonState>('read', 'read', 'toRead', 'unpublished', 'notCovered'),
+  season: fc.constantFrom('read', 'read', 'toRead', 'unpublished', 'notCovered', 'beforeSource'),
   isDatingToVerify: fc.boolean(),
   isMappingEstablished: fc.boolean(),
   first: worldGame,
@@ -468,12 +480,11 @@ const world: fc.Arbitrary<World> = fc.record({
   baselineFate: fc.constantFrom<World['baselineFate']>('final', 'insufficient'),
 });
 
+/** The instant a world is seen at, and whether his team won its home games. */
+type Seen = Readonly<{ now: number; isHomeWin: boolean }>;
+
 /** The team game `id` of `game` seen at `now`, final only once started, with that result. */
-function worldTeamGame(
-  game: WorldGame,
-  id: number,
-  seen: Readonly<{ now: number; isHomeWin: boolean }>,
-): AttachmentGame {
+function worldTeamGame(game: WorldGame, id: number, seen: Seen): AttachmentGame {
   const startAt = REFERENCE_AT + game.hoursAfter * HOUR;
   const participation = startAt > seen.now ? null : game.participation;
   const known = teamGame(id, startAt, participation === 'unavailable' ? 'unknown' : participation);
@@ -485,26 +496,22 @@ function worldTeamGame(
   };
 }
 
+type Evaluation = Readonly<{ attachment: Attachment; state: CaseState }>;
+
 /** The attachment and the state of the case of `situation`, each game with its result. */
-function evaluate(
-  situation: World,
-  isHomeWin = true,
-): Readonly<{ attachment: Attachment; state: CaseState }> {
+function evaluate(situation: World, isHomeWin = true): Evaluation {
   const seen = { now: REFERENCE_AT + situation.nowHoursAfter * HOUR, isHomeWin };
   const derivedGame = worldTeamGame(situation.first, 1, seen);
   const others = situation.others.map((game, position) => worldTeamGame(game, position + 2, seen));
-  const { origin } = situation;
+  const { origin, season } = situation;
   const sources = origin === 'historical' ? SOURCES[situation.source] : null;
   const event: AttachmentEvent =
     origin === 'calendar' ? { kind: 'calendar_derived', derivedGame } : eventFrom(sources);
-  const attachment = attach(
-    event,
-    situation.season === 'read' ? [derivedGame, ...others] : [],
-    seen.now,
-  );
+  const games = season === 'read' ? [derivedGame, ...others] : [];
+  const attachment = attach(event, games, seen.now);
   const state = caseState({
-    event: origin === 'calendar' ? { origin } : { origin, referenceDayOn: REFERENCE_DAY },
-    seasons: SEASONS_OF[situation.season],
+    event: origin === 'calendar' ? { origin } : { origin, referenceDayOn: dayOf(season) },
+    seasons: SEASONS_OF[season],
     isDatingToVerify: origin === 'detected' && situation.isDatingToVerify,
     isMappingEstablished: situation.isMappingEstablished,
     attachment,

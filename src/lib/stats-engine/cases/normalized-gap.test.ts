@@ -75,7 +75,7 @@ describe('normalizedGap', () => {
     expect(gap.normalizedGap).not.toBeCloseTo(1.16, 4);
   });
 
-  it('[SEN-08] [CA-STA-02] gives 10 games, a mean of 0.554, a deviation of 0.102 and a final gap of 2.41 without the measured game', () => {
+  it('[SEN-08] [CA-STA-02] [STA-16] [STA-17] [STA-19] [STA-20] gives 10 games, a mean of 0.554, a deviation of 0.102 and a final gap of 2.41 without the measured game', () => {
     const left = caSta02Baseline(MEASURED_GAME_ID);
     const gap = normalizedGap(CA_STA_02_MEASURED_INDEX, gapBaselineOf(left));
 
@@ -86,7 +86,7 @@ describe('normalizedGap', () => {
     expect(gap.gapStatus).toBe('final');
   });
 
-  it('[SEN-08] [CA-STA-02] would give 0.576, 0.122 and only 1.83 if the measured game were kept', () => {
+  it('[SEN-08] [CA-STA-02] [STA-16] [STA-17] [STA-19] [STA-20] would give 0.576, 0.122 and only 1.83 if the measured game were kept', () => {
     // A game id that is none of the season's keeps the measured game in its own baseline.
     const kept = caSta02Baseline(0);
     const gap = normalizedGap(CA_STA_02_MEASURED_INDEX, gapBaselineOf(kept));

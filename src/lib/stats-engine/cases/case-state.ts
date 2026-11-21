@@ -170,10 +170,12 @@ function hasEnded(season: string, spans: readonly SeasonSpan[]): boolean {
 
 /**
  * What the seasons say of the reference day `dayOn` (STA-45, STA-48, CL-STA-22, CL-STA-30),
- * null when they let the walk apply. Not covered: a day before the first game of the
- * source's first season, once its span is stored; or a day of a season that has ended,
- * its games read, and none of them with player lines. To read: a day whose season is not
- * known (season_not_read), or a season whose games are not read yet, but the coming
+ * null when they let the walk apply. Not covered: a day before the source's first season,
+ * which needs no span when the day's season is not known (season_not_read) and both of
+ * its candidates are earlier, and otherwise that season's span, the day before its first
+ * game; or a day of a season that has ended, its games read, and none of them with player
+ * lines. To read: a day whose season is not known, one of its candidates the source's
+ * first season or a later one, or a season whose games are not read yet, but the coming
  * season while its schedule is unpublished.
  */
 function seasonReadingOf(dayOn: IsoDate, seasons: CaseSeasons): SeasonReading | null {
@@ -182,9 +184,12 @@ function seasonReadingOf(dayOn: IsoDate, seasons: CaseSeasons): SeasonReading | 
     return 'not_covered';
   }
   const found = seasonOfDate(dayOn, seasons.spans);
-  // Stryker disable next-line ConditionalExpression,BlockStatement: season_not_read carries no season, so without this check no read or unpublished season matches it and the lookups below return 'to_read' as well
   if (!found.ok) {
-    return 'to_read';
+    // Season names compare in their order, their first year written first in four digits.
+    const isBeforeSource = found.error.candidates.every(
+      (season) => season < seasons.firstCoveredSeason,
+    );
+    return isBeforeSource ? 'not_covered' : 'to_read';
   }
   const read = seasons.readSeasons.find(({ season }) => season === found.season);
   if (read === undefined) {
