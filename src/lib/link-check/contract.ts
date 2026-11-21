@@ -4,8 +4,6 @@
 // Never re-exported by index.ts.
 import { now, toEpochMs } from '@/lib/time';
 
-import { MAX_REDIRECTS } from './follow';
-
 import type { LinkCheck } from './port';
 import type { LinkProbe } from './types';
 
@@ -49,7 +47,11 @@ const GONE = 410;
 const TOO_MANY_REQUESTS = 429;
 const SERVER_ERROR = 500;
 const SERVICE_UNAVAILABLE = 503;
-const ALL_REQUESTS = MAX_REDIRECTS + 1;
+// CL-IMP-25 follows up to 5 redirects, so a probe makes 6 requests at most: written
+// here as the ruling says, never read from the adapters, so that a wrong cap fails.
+const REDIRECTS_FOLLOWED = 5;
+const ONE_REDIRECT_TOO_MANY = 6;
+const MOST_REQUESTS = 6;
 
 const row = (title: string, answer: LinkAnswer, expected: LinkObservation): LinkContractCase => ({
   title,
@@ -109,13 +111,13 @@ export const LINK_CHECK_CONTRACT: readonly LinkContractCase[] = [
   ),
   row(
     'follows 5 redirects to the final page',
-    { kind: 'redirects', redirects: MAX_REDIRECTS, status: OK },
-    { answer: { verdict: 'reachable', status: OK }, httpRequests: ALL_REQUESTS },
+    { kind: 'redirects', redirects: REDIRECTS_FOLLOWED, status: OK },
+    { answer: { verdict: 'reachable', status: OK }, httpRequests: MOST_REQUESTS },
   ),
   row(
     'stops at a sixth redirect and reports the page unreachable',
-    { kind: 'redirects', redirects: ALL_REQUESTS, status: OK },
-    { answer: { verdict: 'unreachable', status: FOUND }, httpRequests: ALL_REQUESTS },
+    { kind: 'redirects', redirects: ONE_REDIRECT_TOO_MANY, status: OK },
+    { answer: { verdict: 'unreachable', status: FOUND }, httpRequests: MOST_REQUESTS },
   ),
   {
     title: 'answers aborted, without a request, once the signal has aborted',

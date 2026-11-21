@@ -2,8 +2,11 @@
 // the port's own tests run each case against the fake, and against the recorded
 // fixtures of each real adapter, and expect it to find no problem. A case returns
 // the problems it finds, each naming its offenders, so that a failure says what an
-// adapter got wrong. The cases that read the games are in contract-games.ts. Never
-// re-exported by index.ts.
+// adapter got wrong. The cases that read the games are in contract-games.ts, and the
+// harness with what the cases share in contract-support.ts. Never re-exported by
+// index.ts.
+import { now } from '@/lib/time';
+
 import {
   datesGames,
   listsDirectory,
@@ -22,33 +25,8 @@ import {
   versionOf,
 } from './contract-support';
 
+import type { ContractFault, Problems, StatsSourceHarness } from './contract-support';
 import type { StatsSourceErrorKind } from './errors';
-import type { StatsSource } from './port';
-import type { Season, SourcePlayerId } from './types';
-
-/** A fault that the harness makes the next read of its season's games meet. */
-export type ContractFault = 'outage' | 'rate_limited' | 'schema_changed' | 'slow';
-
-/** An adapter under test, and what its data holds. */
-export type StatsSourceHarness = Readonly<{
-  source: StatsSource;
-  /** A finished season that the source covers. */
-  season: Season;
-  /** The season in progress, whose player file is out. */
-  currentSeason: Season;
-  /** A season that the source does not hold. */
-  missingSeason: Season;
-  /** Players with box scores in `season`, whom the current season's player file lists. */
-  players: readonly SourcePlayerId[];
-  /** A player of an earlier season whom the current season's player file does not list. */
-  formerPlayer: SourcePlayerId;
-  /** A player whom no file of the source lists. */
-  unknownPlayer: SourcePlayerId;
-  inject: (fault: ContractFault) => void;
-}>;
-
-/** What a case finds wrong: one line per broken rule, naming its offenders. */
-export type Problems = readonly string[];
 
 /** One behavior of the contract: its title, and the problems that an adapter shows against it. */
 type ContractCase = Readonly<{
@@ -58,6 +36,10 @@ type ContractCase = Readonly<{
 
 // A deadline that a slow answer outlasts.
 const SHORT_DEADLINE_MS = 20;
+// How much earlier than its deadline the clock may read after a slow answer: a timer
+// of exactly the time left can end a millisecond early by the clock, since the two
+// count whole milliseconds apart.
+const CLOCK_TOLERANCE_MS = 1;
 const FAULTS: readonly (readonly [ContractFault, StatsSourceErrorKind])[] = [
   ['outage', 'unavailable'],
   ['rate_limited', 'rate_limited'],
@@ -190,21 +172,32 @@ async function abortsEveryOperation(harness: StatsSourceHarness): Promise<Proble
   );
 }
 
+/** Each fault answered as the port says, a slow answer no earlier than the call's deadline (CL-STA-15). */
 async function meetsFaults(harness: StatsSourceHarness): Promise<Problems> {
   const answers = [];
   for (const [fault, expected] of FAULTS) {
     harness.inject(fault);
-    const deadlineMs = fault === 'slow' ? SHORT_DEADLINE_MS : DEADLINE_MS;
-    const outcome = await harness.source.getSeasonGames(
-      context(new AbortController().signal, deadlineMs),
-      { season: harness.season, knownVersion: null },
-    );
-    answers.push({ fault, expected, answer: answerOf(outcome) });
+    const isSlow = fault === 'slow';
+    const ctx = context(new AbortController().signal, isSlow ? SHORT_DEADLINE_MS : DEADLINE_MS);
+    const outcome = await harness.source.getSeasonGames(ctx, {
+      season: harness.season,
+      knownVersion: null,
+    });
+    const isEarly = isSlow && now() < ctx.deadline - CLOCK_TOLERANCE_MS;
+    answers.push({ fault, expected, answer: answerOf(outcome), isEarly });
   }
-  return problem(
-    'faults not answered as the port says',
-    answers.filter(({ expected, answer }) => answer !== expected),
-  );
+  return [
+    ...problem(
+      'faults not answered as the port says',
+      answers
+        .filter(({ expected, answer }) => answer !== expected)
+        .map(({ fault, expected, answer }) => ({ fault, expected, answer })),
+    ),
+    ...problem(
+      'slow answers given before the deadline of their call',
+      answers.filter(({ isEarly }) => isEarly).map(({ fault }) => fault),
+    ),
+  ];
 }
 
 async function holdsFirstSeason({ source }: StatsSourceHarness): Promise<Problems> {
@@ -233,7 +226,8 @@ export const STATS_SOURCE_CONTRACT: readonly ContractCase[] = [
     check: placesBoxScores,
   },
   {
-    title: 'lists in the directory every player and team of the box scores',
+    title:
+      'lists in each directory every player of the box scores, each team from his first to his last game day with it',
     check: listsDirectory,
   },
   {
@@ -246,7 +240,8 @@ export const STATS_SOURCE_CONTRACT: readonly ContractCase[] = [
     check: abortsEveryOperation,
   },
   {
-    title: 'answers outages, quota answers, changed layouts and late answers as the port says',
+    title:
+      'answers outages, quota answers, changed layouts and late answers as the port says, a late one not before its deadline',
     check: meetsFaults,
   },
   { title: 'holds the first season that it covers', check: holdsFirstSeason },

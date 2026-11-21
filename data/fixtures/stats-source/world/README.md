@@ -17,7 +17,8 @@ What it holds:
   Eastern, a final game without box scores, a time to be determined, a postponed game and its
   make-up, a row whose status value is not recognized (held back).
 - Ten players: two namesakes (`p02` and `p03`), a trade within 2025-26 (`p02`, which brings a
-  game against his former team), a player who retired after 2024-25 (`p06`), a rookie of 2026-27
+  game against his former team), a player who retired in December 2024, during 2024-25 (`p06`,
+  whom no later player file lists), a rookie of 2026-27
   without a birthday (`p07`), a release in 2026-27 (`p08`, with two did-not-play games), and a
   birthday (`p01`, 26 October) on a game day of his team.
 - The box scores take the five `lines` in turn, and the final scores the six `scores`.

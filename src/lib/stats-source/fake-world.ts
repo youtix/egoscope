@@ -117,11 +117,17 @@ function boxScoresOf(games: readonly SourceGame[], schedule: Schedule): readonly
   );
 }
 
-/** Every player with a box score in `lines`, each team of his lines with its first and last day (STA-03, JOU-13). */
+/**
+ * Every player with a box score in `lines`, each team of his lines with the earliest
+ * and the latest day of his lines with it (STA-03, JOU-13): his lines taken by day,
+ * since a make-up comes after the games of its season in `lines`.
+ */
 function directoryOf(lines: readonly DatedLine[]): readonly DirectoryEntry[] {
   return LEAGUE.players
     .map((player) => {
-      const own = lines.filter(({ line }) => line.player === player.id);
+      const own = lines
+        .filter(({ line }) => line.player === player.id)
+        .toSorted((left, right) => compareIsoDates(left.day, right.day));
       const teams = [...new Set(own.map(({ line }) => line.team))].map((team) => {
         const days = own.filter(({ line }) => line.team === team).map(({ day }) => day);
         return { team, firstGameDay: at(days, 0), lastGameDay: at(days, -1) };

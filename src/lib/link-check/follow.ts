@@ -25,7 +25,7 @@ type Hop = (address: URL, signal: AbortSignal) => HopAnswer | Promise<HopAnswer>
 type Run = Readonly<{ signal: AbortSignal; isCut: () => boolean }>;
 
 /** The most redirects a probe follows. */
-export const MAX_REDIRECTS = 5;
+const MAX_REDIRECTS = 5;
 
 const MOVED_PERMANENTLY = 301;
 const FOUND = 302;

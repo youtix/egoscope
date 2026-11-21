@@ -102,9 +102,13 @@ const keyOf = (resource: FakeResource, season: Season): string => `${resource} $
 /** Says whether `signal` has aborted, which it may have done while a call waited. */
 const isAborted = (signal: AbortSignal): boolean => signal.aborted;
 
-/** Waits until the call's deadline has passed, or until its signal, which has not aborted yet, aborts it. */
+/**
+ * Waits until the call's deadline has passed, or until its signal, which has not
+ * aborted yet, aborts it: a millisecond past the time left, since a timer of exactly
+ * that time can end a millisecond before the deadline by the clock.
+ */
 async function pastDeadline({ deadline, signal }: CallContext): Promise<void> {
-  const waitMs = Math.max(0, deadline - now());
+  const waitMs = Math.max(0, deadline - now()) + 1;
   const ended = AbortSignal.any([signal, AbortSignal.timeout(waitMs)]);
   await new Promise<void>((resolve) => {
     ended.addEventListener(

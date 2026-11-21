@@ -14,8 +14,15 @@ import {
   unreadSchedules,
 } from './contract-support';
 
-import type { Problems, StatsSourceHarness } from './contract';
-import type { DirectoryEntry, SeasonGames, SourceBoxScore } from './types';
+import type { Problems, StatsSourceHarness } from './contract-support';
+import type {
+  DirectoryEntry,
+  Season,
+  SeasonGames,
+  SourceBoxScore,
+  SourcePlayerId,
+  SourceTeamId,
+} from './types';
 
 /** Every game has the US Eastern date of its tip-off, 00:00 US Eastern while its time is to be determined (STA-31, CL-TRV-03). */
 export async function datesGames(harness: StatsSourceHarness): Promise<Problems> {
@@ -108,7 +115,7 @@ export async function scoresGames(harness: StatsSourceHarness): Promise<Problems
 /** Only the requested box scores, each in a final game between the player's team and its opponent (STA-08). */
 export async function placesBoxScores(harness: StatsSourceHarness): Promise<Problems> {
   const requested = harness.players.slice(0, 1);
-  const lines = await linesOf(harness, requested);
+  const lines = await linesOf(harness, harness.season, requested);
   const schedule = await scheduleOf(harness, harness.season);
   const games = new Map(schedule.games.map((game) => [game.game, game]));
   const misplaced = lines.filter((line) => {
@@ -131,12 +138,14 @@ export async function placesBoxScores(harness: StatsSourceHarness): Promise<Prob
   ];
 }
 
+/** A box score with the day of its game, empty when the season's games do not list that game. */
+type DatedLine = Readonly<{ line: SourceBoxScore; day: string }>;
+
+/** A player's team on one day. */
+type TeamDay = Readonly<{ player: SourcePlayerId; team: SourceTeamId; day: string }>;
+
 /** Says whether the directory lists the player of `line` with its team over `day`. */
-const isListedOn = (
-  directory: readonly DirectoryEntry[],
-  line: SourceBoxScore,
-  day: string,
-): boolean =>
+const isListedOn = (directory: readonly DirectoryEntry[], { line, day }: DatedLine): boolean =>
   directory.some(
     (entry) =>
       entry.player === line.player &&
@@ -145,21 +154,62 @@ const isListedOn = (
       ),
   );
 
-/** The directory lists every player of the box scores, with each team over the days of his lines (STA-03, JOU-13). */
-export async function listsDirectory(harness: StatsSourceHarness): Promise<Problems> {
-  const { source, season } = harness;
+/** Says whether `lines` hold a box score of the player with his team on that day. */
+const hasLineOn = (lines: readonly DatedLine[], { player, team, day }: TeamDay): boolean =>
+  lines.some(
+    ({ line, day: lineDay }) => line.player === player && line.team === team && lineDay === day,
+  );
+
+/** The directory teams whose first or last game day is the day of none of the player's box scores with that team. */
+const unboundedTeams = (
+  directory: readonly DirectoryEntry[],
+  lines: readonly DatedLine[],
+): readonly Readonly<{ player: SourcePlayerId; team: SourceTeamId }>[] =>
+  directory.flatMap(({ player, teams }) =>
+    teams
+      .filter(({ team, firstGameDay, lastGameDay }) =>
+        [firstGameDay, lastGameDay].some((day) => !hasLineOn(lines, { player, team, day })),
+      )
+      .map(({ team }) => ({ player, team })),
+  );
+
+/**
+ * One season's directory, against the box scores of every player it lists and of the
+ * harness's players: each team of a player's box scores, from the earliest to the
+ * latest day of his box scores with it (module map §5, STA-03, JOU-13).
+ */
+async function directoryProblems(harness: StatsSourceHarness, season: Season): Promise<Problems> {
+  const { source, players } = harness;
   const directory =
     readOf(await source.getSeasonPlayers(open(), { season, knownVersion: null })) ?? [];
   const schedule = await scheduleOf(harness, season);
   const days = new Map(schedule.games.map((game) => [game.game, game.gameDay]));
-  const lines = await linesOf(harness, harness.players);
-  const unlisted = lines.filter((line) => !isListedOn(directory, line, days.get(line.game) ?? ''));
+  const requested = [...new Set([...players, ...directory.map(({ player }) => player)])];
+  const boxScores = await linesOf(harness, season, requested);
+  const lines = boxScores.map((line) => ({ line, day: days.get(line.game) ?? '' }));
+  const unlisted = lines
+    .filter((dated) => !isListedOn(directory, dated))
+    .map(({ line: { game, player, team } }) => ({ game, player, team }));
   return [
     ...problem('directory not read', directory.length === 0 ? [season] : []),
-    ...problem('box scores not read', lines.length === 0 ? harness.players : []),
+    ...problem('box scores not read', lines.length === 0 ? [season] : []),
     ...problem(
       'box scores whose player and team the directory does not list on that day',
       unlisted,
     ),
+    ...problem(
+      'directory teams whose first or last game day is the day of none of his box scores with it',
+      unboundedTeams(directory, lines).map((team) => ({ season, ...team })),
+    ),
   ];
+}
+
+/** Each season's directory lists every player of its box scores, each team over the days of his box scores with it (STA-03, JOU-13). */
+export async function listsDirectory(harness: StatsSourceHarness): Promise<Problems> {
+  const problems = await Promise.all(
+    [harness.season, harness.currentSeason].map(async (season) =>
+      directoryProblems(harness, season),
+    ),
+  );
+  return problems.flat();
 }

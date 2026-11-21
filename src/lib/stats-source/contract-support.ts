@@ -1,10 +1,9 @@
-// What the cases of the statistics-source contract (contract.ts) share: call
-// contexts, the reads of the harness's seasons, and the way a case names what it
-// finds wrong.
+// What the cases of the statistics-source contract (contract.ts) share: the harness
+// of the adapter under test, call contexts, the reads of the harness's seasons, and
+// the way a case names what it finds wrong.
 import { now, toEpochMs } from '@/lib/time';
 
-import type { Problems, StatsSourceHarness } from './contract';
-import type { StatsSourceOutcome } from './port';
+import type { StatsSource, StatsSourceOutcome } from './port';
 import type {
   CallContext,
   ConditionalRead,
@@ -15,6 +14,30 @@ import type {
   SourcePlayerId,
   SourceVersion,
 } from './types';
+
+/** A fault that the harness makes the next read of its season's games meet. */
+export type ContractFault = 'outage' | 'rate_limited' | 'schema_changed' | 'slow';
+
+/** An adapter under test, and what its data holds. */
+export type StatsSourceHarness = Readonly<{
+  source: StatsSource;
+  /** A finished season that the source covers. */
+  season: Season;
+  /** The season in progress, whose player file is out. */
+  currentSeason: Season;
+  /** A season that the source does not hold. */
+  missingSeason: Season;
+  /** Players with box scores in `season`, whom the current season's player file lists. */
+  players: readonly SourcePlayerId[];
+  /** A player of an earlier season whom the current season's player file does not list. */
+  formerPlayer: SourcePlayerId;
+  /** A player whom no file of the source lists. */
+  unknownPlayer: SourcePlayerId;
+  inject: (fault: ContractFault) => void;
+}>;
+
+/** What a case finds wrong: one line per broken rule, naming its offenders. */
+export type Problems = readonly string[];
 
 /** A read of one season's resource, asked with a version or without one. */
 type Read = (
@@ -93,9 +116,10 @@ export const unreadSchedules = (schedules: readonly (readonly [Season, SeasonGam
     schedules.filter(([, schedule]) => schedule.games.length === 0).map(([season]) => season),
   );
 
-/** The box scores of `players` in the harness's season, none when they cannot be read. */
+/** The box scores of `players` in `season`, none when they cannot be read. */
 export async function linesOf(
-  { source, season }: StatsSourceHarness,
+  { source }: StatsSourceHarness,
+  season: Season,
   players: readonly SourcePlayerId[],
 ): Promise<readonly SourceBoxScore[]> {
   return (

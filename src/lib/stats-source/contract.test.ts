@@ -5,7 +5,7 @@ import { now, toEpochMs, toIsoDate } from '@/lib/time';
 import { STATS_SOURCE_CONTRACT } from './contract';
 import { createFakeStatsSource } from './fake';
 
-import type { ContractFault, StatsSourceHarness } from './contract';
+import type { ContractFault, StatsSourceHarness } from './contract-support';
 import type { FakeFault } from './fake';
 import type { StatsSourceOutcome } from './port';
 import type { CallContext, ConditionalRead, SeasonGames } from './types';
@@ -13,6 +13,7 @@ import type { CallContext, ConditionalRead, SeasonGames } from './types';
 const SEASON = '2025-26';
 // A season that the broken adapter below refuses, which it names as its first covered one.
 const NEVER_HELD = '1990-91';
+const NEVER_PLAYED = toIsoDate('2000-01-01');
 const DEADLINE_MS = 5000;
 
 /** The fault of the fake that meets the contract's `fault` at the next read of the season's games. */
@@ -133,10 +134,15 @@ function brokenHarness(): StatsSourceHarness {
           }),
           (lines) => lines.map((line) => ({ ...line, isHome: !line.isHome })),
         ),
+      // Starts every team of the directory on a day of none of its box scores.
       getSeasonPlayers: async () =>
         changed(
           await source.getSeasonPlayers(anyContext(), { season, knownVersion: null }),
-          () => [],
+          (directory) =>
+            directory.map((entry) => ({
+              ...entry,
+              teams: entry.teams.map((team) => ({ ...team, firstGameDay: NEVER_PLAYED })),
+            })),
         ),
       getPlayerRecords: async (_ctx, { players }) =>
         changed(

@@ -125,6 +125,36 @@ describe('the invented league of the fake', () => {
     ]);
   });
 
+  it('[JOU-13] gives each team of the directory the last game day with it, past a make-up played before', async () => {
+    const fake = createFakeStatsSource();
+    const directory = dataOf(
+      await fake.getSeasonPlayers(open(), { season: CURRENT, knownVersion: null }),
+    );
+    const lines = await linesOf(CURRENT, ['p03', 'p10'], fake);
+
+    // Each player's team met the other in the make-up, then played on.
+    expect(
+      lines.filter(({ game }) => game === '2026-27:r03:h4:make-up').map(({ player }) => player),
+    ).toStrictEqual(['p03', 'p10']);
+    await expect(gameOf(CURRENT, '2026-27:r03:h4:make-up')).resolves.toMatchObject({
+      gameDay: '2026-11-05',
+    });
+    expect(
+      directory
+        .filter(({ player }) => player === 'p03' || player === 'p10')
+        .map(({ player, teams }) => ({ player, teams })),
+    ).toStrictEqual([
+      {
+        player: 'p03',
+        teams: [{ team: '4', firstGameDay: '2026-10-20', lastGameDay: '2026-11-07' }],
+      },
+      {
+        player: 'p10',
+        teams: [{ team: '2', firstGameDay: '2026-10-20', lastGameDay: '2026-11-07' }],
+      },
+    ]);
+  });
+
   it('[STA-08] [JOU-13] has the traded player meet his former team', async () => {
     const lines = await linesOf(LAST, ['p02']);
 
@@ -407,7 +437,8 @@ describe('the faults of the fake', () => {
     const fake = createFakeStatsSource();
     fake.inject({ kind: 'slow', times: 2 });
     const controller = new AbortController();
-    const late = fake.getSeasonGames(open(undefined, 20), { season: LAST, knownVersion: null });
+    const lateContext = open(undefined, 20);
+    const late = fake.getSeasonGames(lateContext, { season: LAST, knownVersion: null });
     const stopped = fake.getSeasonGames(open(controller.signal), {
       season: LAST,
       knownVersion: null,
@@ -424,6 +455,7 @@ describe('the faults of the fake', () => {
       error: { kind: 'unavailable' },
       call: { httpRequests: 1 },
     });
+    expect(now()).toBeGreaterThanOrEqual(lateContext.deadline);
     await expect(gamesOf(LAST, fake)).resolves.toHaveLength(40);
   });
 
