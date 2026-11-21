@@ -101,7 +101,7 @@ export const GLOSSARY = {
   },
   alertSheet: {
     label: 'Alert sheet',
-    text: 'The full write-up the app produces when a profiled player has a new event.',
+    text: 'The full write-up the app produces when a profiled player has a new event, or for an upcoming calendar-derived event.',
   },
   validationTable: {
     label: 'Validation table',
@@ -161,7 +161,7 @@ export const GLOSSARY = {
   },
   alertSheetStatus: {
     label: 'Status',
-    text: 'Open while one of its events awaits its game, closed when their cases are measured, excluded or not measurable, and canceled when all its events are dismissed or a correction leaves it no event for this player; the late mark can come on top.',
+    text: 'Open while one of its events awaits its game, closed when their cases are measured, excluded or not measurable, and canceled when all its events are dismissed, or when a correction or a calendar-derived event that no longer applies leaves it no event for this player; the late mark can come on top.',
   },
   seasonBaselineStatus: {
     label: 'Status',
@@ -194,11 +194,11 @@ export const GLOSSARY = {
   },
   pass: {
     label: 'Pass',
-    text: "One run of a scheduled task, such as the day's collection and detection or the statistics fetched after the games.",
+    text: "One run of a scheduled task plus everything chained to it, such as the day's collection and detection or the statistics fetched after the games.",
   },
   quietHours: {
     label: 'Quiet hours',
-    text: 'Hours you set during which no Telegram message leaves, except an urgent one before a game; the held messages leave together when they end.',
+    text: 'Hours you set during which no Telegram message leaves, except an urgent one before a game; the deferred messages leave together when they end.',
   },
   frozenForecast: {
     label: 'Frozen forecast',
@@ -234,11 +234,11 @@ export const GLOSSARY = {
   },
   fullRedo: {
     label: 'Full redo',
-    text: 'A backtest request that redoes, for a profiled player, every validated type over his whole career; at the import, you can replace what exists.',
+    text: 'A backtest request that redoes, for a profiled player, every validated type that research can look for over his whole career; at the import, you can replace what exists.',
   },
   eventWithdrawal: {
     label: 'Withdraw and erase',
-    text: "Your permanent erasure of an event and its traces, for a sensitivity reason, which only a global counter of withdrawn events records, unlike a dismissal, an exclusion or a player's or type's withdrawal, which erase nothing.",
+    text: "Your permanent erasure of an event and its traces, for a sensitivity reason, of which only a global counter of withdrawn events keeps the number, unlike a dismissal, an exclusion or a player's or type's withdrawal, which erase nothing.",
   },
   playingTimeThreshold: {
     label: 'Playing-time threshold',
@@ -246,7 +246,7 @@ export const GLOSSARY = {
   },
   nameVariants: {
     label: 'Name variants',
-    text: 'The display name, spellings and nicknames under which the press names a followed player.',
+    text: 'The display name, spelling variants and nicknames under which the press names a followed player.',
   },
   fragileVerdict: {
     label: 'Fragile',

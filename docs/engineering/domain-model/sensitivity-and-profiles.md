@@ -120,7 +120,7 @@ Deletion: a trend left with no event by a withdrawal is erased with its verdict 
 
 Every change of verdict level or direction, or of profile confidence, with its cause (SEN-37).
 Written for the default view only, in the transaction that writes the profile's or trend's new
-values, player by player as the job advances; the end of the job only marks it complete (CL-SEN-16,
+values, player by player as the job advances; the job's end writes none and deletes the job (§1.4; CL-SEN-16,
 CL-SEN-19).
 
 | column                   | type        | null | default  | constraint or reference                                                                                                                                                                                          | class | spec IDs                  |
@@ -144,7 +144,9 @@ Indexes: `verdict_history_entries_profile_idx (sensitivity_profile_id, changed_a
 `verdict_history_entries_trend_idx (general_trend_id, changed_at)` serve the history views.
 
 A withdrawal's or a player deletion's changes carry `recalculation` and nothing else (SEN-48,
-CL-SEN-18).
+CL-SEN-18). The entries written earlier for actions on the withdrawn event — `event_dismissed`,
+`event_reinstated`, `manual_decision`, `event_corrected_or_removed` — name no event and stay with
+their profile and date, an accepted residual limit (CL-SEN-18).
 
 ```ts
 type VerdictChangeCause =
@@ -205,17 +207,17 @@ tracking reads to build forecast versions and freeze the last one before tip-off
 CL-SEN-19, CL-SUI-03). The glossary's `ProfileSnapshot` is the alert sheet's frozen copy, hence
 another name.
 
-| column                   | type             | null | default  | constraint or reference                                                                      | class | spec IDs          |
-| ------------------------ | ---------------- | ---- | -------- | -------------------------------------------------------------------------------------------- | ----- | ----------------- |
-| `id`                     | integer          | no   | identity | primary key                                                                                  | EV    | —                 |
-| `sensitivity_profile_id` | integer          | yes  | —        | `REFERENCES sensitivity_profiles(id) ON DELETE CASCADE`; a profile of view `historical_only` | EV    | SUI-08, CL-SEN-19 |
-| `general_trend_id`       | integer          | yes  | —        | `REFERENCES general_trends(id) ON DELETE CASCADE`; a trend of view `historical_only`         | EV    | SUI-09, CL-SEN-19 |
-| `effective_at`           | timestamptz      | no   | —        | the instant the job wrote these values, the row's `computed_at` (CL-SEN-16)                  | EV    | SUI-08, CL-SUI-03 |
-| `valid_count`            | integer          | no   | —        | —                                                                                            | EV    | SUI-08            |
-| `mean_gap`               | double precision | yes  | —        | null when no valid case                                                                      | EV    | SUI-08            |
-| `verdict_level`          | text             | no   | —        | values of `verdict_level`                                                                    | EV    | SUI-08            |
-| `verdict_direction`      | text             | yes  | —        | values of `verdict_direction`                                                                | EV    | SUI-08            |
-| `profile_confidence`     | text             | no   | —        | values of `profile_confidence`                                                               | EV    | SUI-08            |
+| column                   | type             | null | default  | constraint or reference                                                                                                                                                                         | class | spec IDs          |
+| ------------------------ | ---------------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------- |
+| `id`                     | integer          | no   | identity | primary key                                                                                                                                                                                     | EV    | —                 |
+| `sensitivity_profile_id` | integer          | yes  | —        | `REFERENCES sensitivity_profiles(id) ON DELETE CASCADE`; a profile of view `historical_only`                                                                                                    | EV    | SUI-08, CL-SEN-19 |
+| `general_trend_id`       | integer          | yes  | —        | `REFERENCES general_trends(id) ON DELETE CASCADE`; a trend of view `historical_only`                                                                                                            | EV    | SUI-09, CL-SEN-19 |
+| `effective_at`           | timestamptz      | no   | —        | the instant the job wrote these values, the row's `computed_at` (CL-SEN-16), except the single version that replaces all the others, effective as the Deletion paragraph below says (CL-SEN-18) | EV    | SUI-08, CL-SUI-03 |
+| `valid_count`            | integer          | no   | —        | —                                                                                                                                                                                               | EV    | SUI-08            |
+| `mean_gap`               | double precision | yes  | —        | null when no valid case                                                                                                                                                                         | EV    | SUI-08            |
+| `verdict_level`          | text             | no   | —        | values of `verdict_level`                                                                                                                                                                       | EV    | SUI-08            |
+| `verdict_direction`      | text             | yes  | —        | values of `verdict_direction`                                                                                                                                                                   | EV    | SUI-08            |
+| `profile_confidence`     | text             | no   | —        | values of `profile_confidence`                                                                                                                                                                  | EV    | SUI-08            |
 
 Row checks: exactly one of `sensitivity_profile_id` and `general_trend_id` is not null;
 `(verdict_level = 'inconclusive') = (verdict_direction IS NULL)`. The referenced row's view is
@@ -236,12 +238,13 @@ re-application of the withdrawal ledger (CL-TRV-06; operations.md section 2.5) r
 versions of every historical-only profile and trend whose values it changes by one version
 holding the new values, effective at the creation of the earliest tracked case of that pair (for a
 trend, of that type) whose measured game has not started — before the scheduled start of its
-measured game, or of its expected game while no measured game is established —, or at the job's
+measured game, or of its expected game while no measured game is established, or at any time while no game is known —, or at the job's
 instant when there is none; a waiting case whose expected game has started keeps its forecast
 versions, since SUI-09 freezes the last one before that start, and gets a version dated at the
 job's instant when the job changes its forecast (CL-SUI-03; tracking-and-validation.md section
-1.8), unless it has no version, as a case that the operation's rebuild turned tracked at or
-after that start: that case gets none (CL-SUI-17), and CL-SUI-18 freezes « sans pronostic »; so no count or mean gap from before the withdrawal stays to be compared with the new one. Outside a
+1.8), unless it has no version, such as a case that the operation's rebuild turned tracked at or
+after that start: that case gets none (CL-SUI-17) — unless SUI-18 moves its expected game: it then
+gets versions like any waiting case (SUI-09) —, and CL-SUI-18 freezes « sans pronostic »; so no count or mean gap from before the withdrawal stays in the history of the historical-only view to be compared with the new one. Outside a
 withdrawal, versions are kept only while needed: the daily purge deletes every version of a pair or
 trend older than the last one effective before the creation of its earliest tracked case still
 waiting for its measured game, and, with no such case, every version but the latest.
@@ -279,19 +282,19 @@ interface ProfileValueVersion {
 
 ## 3. Invariants
 
-| rule                                                                                                                      | spec IDs                  | enforced by                                                 |
-| ------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------- |
-| Tally invariants: events = cases + grouped events; cases = pending + valid + excluded + not measurable                    | SEN-32                    | row checks                                                  |
-| A direction exists exactly when the level is not inconclusive                                                             | SEN-24                    | row checks                                                  |
-| A recalculation is deterministic: same data, same parameters, same bits (fixed order of sums)                             | SEN-36, CL-STA-09         | pure engine; `parameter_snapshot_id` records the parameters |
-| A recalculation never calls the statistics source and keeps every manual decision on an unchanged game                    | SEN-36, CL-SEN-12         | engine purity; recalculation service                        |
-| A profile or trend is never half updated                                                                                  | CL-SEN-16                 | one transaction per profile or trend write                  |
-| Only the default view enters the verdict history and SEN-41                                                               | CL-SEN-19, CL-SEN-20      | recalculation service                                       |
-| A withdrawal leaves no trace in profiles, trends or the history beyond a `recalculation` entry; an emptied pair is erased | SEN-33, SEN-48, CL-SEN-18 | withdrawal step, then a full job                            |
-| Profiles exist only for validated types and archived withdrawn ones                                                       | SEN-19                    | recalculation service                                       |
-| While the birthday type is validated, every followed player without a recorded birthday has a birthday profile            | CL-SEN-26, CL-JOU-16      | recalculation service                                       |
-| A type with a switched-off criterion shows the confounder warning on every profile and its trend while the switch is on   | ADR 0016, CL-SEN-13       | derived from `event_types.switched_off_criterion`           |
-| Jobs with different causes are never merged; one job runs at a time                                                       | CL-SEN-16                 | job service; unique index on the running job                |
+| rule                                                                                                                                                                                                                                                                           | spec IDs                  | enforced by                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- | ----------------------------------------------------------- |
+| Tally invariants: events = cases + grouped events; cases = pending + valid + excluded + not measurable                                                                                                                                                                         | SEN-32                    | row checks                                                  |
+| A direction exists exactly when the level is not inconclusive                                                                                                                                                                                                                  | SEN-24                    | row checks                                                  |
+| A recalculation is deterministic: same data, same parameters, same bits (fixed order of sums)                                                                                                                                                                                  | SEN-36, CL-STA-09         | pure engine; `parameter_snapshot_id` records the parameters |
+| A recalculation never calls the statistics source and keeps every manual decision on an unchanged game                                                                                                                                                                         | SEN-36, CL-SEN-12         | engine purity; recalculation service                        |
+| A profile or trend is never half updated                                                                                                                                                                                                                                       | CL-SEN-16                 | one transaction per profile or trend write                  |
+| Only the default view enters the verdict history and SEN-41                                                                                                                                                                                                                    | CL-SEN-19, CL-SEN-20      | recalculation service                                       |
+| A withdrawal leaves no trace in profiles, trends or the history beyond a `recalculation` entry and the entries written earlier for actions on the withdrawn event, which name no event and keep their profile and date (an accepted residual limit); an emptied pair is erased | SEN-33, SEN-48, CL-SEN-18 | withdrawal step, then a full job                            |
+| Profiles exist only for validated types and archived withdrawn ones                                                                                                                                                                                                            | SEN-19                    | recalculation service                                       |
+| While the birthday type is validated, every followed player without a recorded birthday has a birthday profile                                                                                                                                                                 | CL-SEN-26, CL-JOU-16      | recalculation service                                       |
+| A type with a switched-off criterion shows the confounder warning on every profile and its trend while the switch is on                                                                                                                                                        | ADR 0016, CL-SEN-13       | derived from `event_types.switched_off_criterion`           |
+| Jobs with different causes are never merged; one job runs at a time                                                                                                                                                                                                            | CL-SEN-16                 | job service; unique index on the running job                |
 
 ## 4. Stored or derived
 
@@ -322,8 +325,8 @@ Profiles appear in the spreadsheet export of profiles and in the full export
 - ADR 0021, CL-SEN-20: editable thresholds; the chance count derived from the parameters in force.
 - CL-SEN-14, CL-SEN-15: the robustness test only from the threshold; nulls below two cases.
 - CL-SEN-16: recalculation jobs recorded with their change, chunked, one at a time. A verdict-history
-  entry is written in the transaction of its profile's new values, player by player; the end of the
-  job only marks it complete (CL-SEN-16).
+  entry is written in the transaction of its profile's new values, player by player; the job's end
+  writes none and deletes the job (§1.4; CL-SEN-16).
 - CL-SEN-17: ten causes, three of them new (`event_corrected_or_removed`, `event_reinstated`,
   `taxonomy_changed`).
 - CL-SEN-18, CL-SEN-26: when a profile exists, the empty birthday profile included, and when it is

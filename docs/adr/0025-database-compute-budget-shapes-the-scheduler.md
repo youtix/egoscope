@@ -40,4 +40,4 @@ The compute allowance is the only tight resource of the free plan, and exceeding
 ### 2026-11-13 — The expected compute use (database service sheet)
 
 - The database sheet now estimates, pass by pass, about 18 to 30 CU-hours a month in Lot 1 and 20 to 45 in Lot 2, against the allowance of 100 (`docs/services/database.md`, "Our expected use and the margin"). These figures replace the 11 to 48 CU-hours of the sheet's first version, which "Why" quoted; the decision is unchanged.
-- The delays that the cadence turns into minimums — TEL-35's retry intervals, and the notification delays of TRV-25 (TEL-10, TEL-20, TEL-35) — are listed in the deviations register, rows TEL-35 and TRV-25; module map §4.1 gives the lateness to expect with each caller.
+- The delays that the cadence turns into minimums — TEL-35's retry intervals, and the notification delays of TRV-25 (TEL-20, TEL-35) — are listed in the deviations register, rows TEL-35 and TRV-25, with the TEL-10 reminder that comes that much closer to tip-off; module map §4.1 gives the lateness to expect with each caller.

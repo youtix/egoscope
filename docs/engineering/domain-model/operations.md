@@ -74,24 +74,24 @@ parameter change, refused login, lockout and, in Lot 2, Telegram message (TRV-41
 fixed message key and references by identifier; the text is built when it is displayed or exported,
 so that an erased item's references disappear at once (CL-TRV-10).
 
-| column                | type        | null | default  | constraint or reference                                                                                                                                                                                         | class | spec IDs                     |
-| --------------------- | ----------- | ---- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------- |
-| `id`                  | integer     | no   | identity | primary key                                                                                                                                                                                                     | —     | —                            |
-| `occurred_at`         | timestamptz | no   | `now()`  | —                                                                                                                                                                                                               | —     | TRV-41                       |
-| `category`            | text        | no   | —        | `CHECK (category IN ('task_pass','profile_recalculation','service_failure','incident','user_action','import_refused','parameter_change','login_refused','login_lockout','telegram_message','trigger_refused'))` | —     | TRV-41, TEL-34, CL-TRV-25    |
-| `level`               | text        | no   | —        | `CHECK (level IN ('info','warning','incident'))`                                                                                                                                                                | —     | TRV-43                       |
-| `message_key`         | text        | no   | —        | the fixed message (TRV-42's four answers), for example `event_withdrawn`                                                                                                                                        | —     | TRV-42, CL-TRV-10            |
-| `message_params`      | jsonb       | no   | `'{}'`   | counts, durations, service roles, task keys; never a player, type, date, description, title, link, birthday value or request reference, each of which the display renders from the entry's references           | —     | CL-TRV-10, DSN-11, CL-DSN-21 |
-| `player_id`           | uuid        | yes  | —        | `REFERENCES followed_players(id) ON DELETE SET NULL`                                                                                                                                                            | PI    | TRV-41, CL-TRV-10            |
-| `player_event_id`     | integer     | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                                                                                                                                                      | EV    | TRV-41, CL-TRV-10            |
-| `event_type_id`       | text        | yes  | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                                                                                                                                 | —     | TRV-41                       |
-| `backtest_request_id` | integer     | yes  | —        | `REFERENCES backtest_requests(id) ON DELETE SET NULL`                                                                                                                                                           | PI    | TRV-41                       |
-| `import_id`           | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`                                                                                                                                                                     | PI    | TRV-41                       |
-| `case_id`             | integer     | yes  | —        | `REFERENCES cases(id) ON DELETE SET NULL`                                                                                                                                                                       | EV    | TRV-41                       |
-| `incident_id`         | integer     | yes  | —        | `REFERENCES incidents(id) ON DELETE SET NULL`                                                                                                                                                                   | —     | TRV-45, TRV-48               |
-| `task_run_id`         | integer     | yes  | —        | `REFERENCES task_runs(id) ON DELETE SET NULL`                                                                                                                                                                   | —     | TRV-26                       |
-| `lot2_object_kind`    | text        | yes  | —        | `CHECK (lot2_object_kind IN ('press_source','article','alert_sheet','notification_message'))`; with `lot2_object_id`, a Lot 2 object, without a foreign key (lot boundary)                                      | EV    | TRV-41, CL-TRV-10            |
-| `lot2_object_id`      | integer     | yes  | —        | set with `lot2_object_kind`; Lot 2's erasers set both to null when they erase the object                                                                                                                        | EV    | TRV-41, CL-TRV-10            |
+| column                | type        | null | default  | constraint or reference                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | class | spec IDs                     |
+| --------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------------------- |
+| `id`                  | integer     | no   | identity | primary key                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | —     | —                            |
+| `occurred_at`         | timestamptz | no   | `now()`  | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | —     | TRV-41                       |
+| `category`            | text        | no   | —        | `CHECK (category IN ('task_pass','profile_recalculation','service_failure','incident','user_action','import_refused','parameter_change','login_refused','login_lockout','telegram_message','trigger_refused'))`                                                                                                                                                                                                                                                                             | —     | TRV-41, TEL-34, CL-TRV-25    |
+| `level`               | text        | no   | —        | `CHECK (level IN ('info','warning','incident'))`                                                                                                                                                                                                                                                                                                                                                                                                                                            | —     | TRV-43                       |
+| `message_key`         | text        | no   | —        | the fixed message (TRV-42's four answers), for example `event_withdrawn`                                                                                                                                                                                                                                                                                                                                                                                                                    | —     | TRV-42, CL-TRV-10            |
+| `message_params`      | jsonb       | no   | `'{}'`   | counts, durations, service roles, task keys, and, for the warning of a schedule row held back with a status value not recognized yet and for it only, that value as the source wrote it, cut to a bounded length (public schedule data, CL-STA-17); never a player, type, date, description, title, link, birthday value or request reference, each of which the display renders from the entry's references, nor a count about an import, which it reads from the import trace (CL-TRV-10) | —     | CL-TRV-10, DSN-11, CL-DSN-21 |
+| `player_id`           | uuid        | yes  | —        | `REFERENCES followed_players(id) ON DELETE SET NULL`                                                                                                                                                                                                                                                                                                                                                                                                                                        | PI    | TRV-41, CL-TRV-10            |
+| `player_event_id`     | integer     | yes  | —        | `REFERENCES events(id) ON DELETE SET NULL`                                                                                                                                                                                                                                                                                                                                                                                                                                                  | EV    | TRV-41, CL-TRV-10            |
+| `event_type_id`       | text        | yes  | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                                                                                                                                                                                                                                                                                                                                                                                                             | —     | TRV-41                       |
+| `backtest_request_id` | integer     | yes  | —        | `REFERENCES backtest_requests(id) ON DELETE SET NULL`                                                                                                                                                                                                                                                                                                                                                                                                                                       | PI    | TRV-41                       |
+| `import_id`           | integer     | yes  | —        | `REFERENCES imports(id) ON DELETE SET NULL`                                                                                                                                                                                                                                                                                                                                                                                                                                                 | PI    | TRV-41                       |
+| `case_id`             | integer     | yes  | —        | `REFERENCES cases(id) ON DELETE SET NULL`                                                                                                                                                                                                                                                                                                                                                                                                                                                   | EV    | TRV-41                       |
+| `incident_id`         | integer     | yes  | —        | `REFERENCES incidents(id) ON DELETE SET NULL`                                                                                                                                                                                                                                                                                                                                                                                                                                               | —     | TRV-45, TRV-48               |
+| `task_run_id`         | integer     | yes  | —        | `REFERENCES task_runs(id) ON DELETE SET NULL`                                                                                                                                                                                                                                                                                                                                                                                                                                               | —     | TRV-26                       |
+| `lot2_object_kind`    | text        | yes  | —        | `CHECK (lot2_object_kind IN ('press_source','article','alert_sheet','notification_message'))`; with `lot2_object_id`, a Lot 2 object, without a foreign key (lot boundary)                                                                                                                                                                                                                                                                                                                  | EV    | TRV-41, CL-TRV-10            |
+| `lot2_object_id`      | integer     | yes  | —        | set with `lot2_object_kind`; Lot 2's erasers set both to null when they erase the object                                                                                                                                                                                                                                                                                                                                                                                                    | EV    | TRV-41, CL-TRV-10            |
 
 A reference the message key expects but finds null reads "an item that no longer exists" or "a
 deleted player" (CL-TRV-10). A Lot 2 object is named by `lot2_object_kind` and `lot2_object_id`, never by a
@@ -99,11 +99,13 @@ foreign key, so that no core table points at a Lot 2 table; a pair that resolves
 the same way. Row checks: `(lot2_object_kind IS NULL) = (lot2_object_id IS NULL)`; `player_event_id IS
 NULL OR (player_id, event_type_id, case_id, backtest_request_id, import_id) IS NULL` — an entry about an
 event names it by that reference alone, and the display reads its player, type, date, request and
-import through the event; `case_id IS NULL OR (player_id, event_type_id) IS NULL` — an entry about a
+import through the event; `case_id IS NULL OR (player_id, event_type_id, backtest_request_id, import_id) IS NULL` — an entry about a
 case names it by that reference alone, and the display reads its player and type through the case.
 So the withdrawal's nulling of `player_event_id`, and the deletion of the withdrawn event's case,
 which nulls `case_id`, leave no mention of the event, its player or its type in the entries that
-concerned it; the same nulling empties the Lot 2 pair of an entry that names the event beside a
+concerned it; a case rebuilt from its other events is not deleted, so the entries that name it keep
+`case_id` and their date, an accepted residual limit, as CL-SUI-17 keeps the case's decisions dated
+before its new creation instant (CL-SEN-18, CL-SUI-17); the same nulling empties the Lot 2 pair of an entry that names the event beside a
 Lot 2 object, an alert sheet for instance (TRV-41, DSN-29; sensitive-data.md section 2.1, step 7).
 An entry never names an event otherwise; a withdrawal is written as `event_withdrawn` with no
 reference (CL-TRV-10).
@@ -122,7 +124,9 @@ incident (TRV-48). Apart from that and the scrubbing, entries never change (CL-T
 Technical details stored apart and hidden by default (TRV-44), limited to the CL-DSN-11 allowlist:
 service, operation, instant, duration, HTTP status or error code, an error object's code and message
 (at most 300 characters, never from a successful response), request identifiers, sizes and counts,
-and a structured response's validation outcome.
+and a structured response's validation outcome; for the warning of a schedule row held back with a
+status value not recognized yet, and for it only, the source's game identifier (CL-STA-17). No
+column and no screen of their own: a waiting case already names its game.
 
 | column             | type    | null | default | constraint or reference                                         | class | spec IDs                  |
 | ------------------ | ------- | ---- | ------- | --------------------------------------------------------------- | ----- | ------------------------- |
@@ -272,7 +276,9 @@ type TaskRunResult = 'succeeded' | 'failed' | 'interrupted' | 'source_late'; // 
 
 Each backup attempt, the stored object it produced and its deletion by rotation (TRV-50, ADR 0018,
 CL-TRV-04). The register also tells the fingerprint purge whether a stored backup is older than a
-fingerprint (CL-DSN-07).
+fingerprint (CL-DSN-07). The release listing decides the rotation, and each rotation first aligns
+the register with it: a row, from its name, for a listed asset the register lacks, and `deleted_at`
+on a row whose asset is gone, so that no backup outlives the count, CL-DSN-07 standing (§2.3).
 
 | column               | type        | null | default  | constraint or reference                                                                                                                      | class | spec IDs                  |
 | -------------------- | ----------- | ---- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------- |
@@ -428,7 +434,11 @@ Owned by module `db`, created by the database task; `backtests` and `imports` dr
 | `last_value` | integer | no   | `0`     | `CHECK (last_value >= 0)`; incremented in the transaction that uses the number          | —     | IMP-31, CL-BKT-11 |
 
 The counters survive the deletion of the rows they numbered, so no reference or import number is
-issued twice (BKT-12, CL-BKT-11).
+issued twice (BKT-12, CL-BKT-11). A restore keeps that true: after the load, each counter, like
+each identity sequence, continues from the larger of the target database's value and the backup's —
+for an identity sequence, the value the backup's manifest records (`identity_sequences`, §5.1),
+never the highest identifier among its rows —, except a restore into a new database without the
+previous one, which continues from the backup's (§2.5 step 3, CL-TRV-06).
 
 ### 1.15 `outbox_facts` — `OutboxFact`
 
@@ -467,7 +477,10 @@ pass by pass.
 Lifetime: deleted by the daily purge once consumed; an unconsumed fact older than
 `journal.retentionDays` is deleted too, since in Lot 1 nothing consumes and the dispatch would drop
 it as stale (TEL-23). A withdrawal removes the facts that designate the event (the foreign key, and
-the Lot 2 erasers for `lot2_subject_id`).
+the Lot 2 erasers for `lot2_subject_id`), and the `alert_sheet_produced` fact, consumed or not, of
+a sheet it initializes again whose new initial section still waits for its profile values, which
+`alerts.completeProfileValues` emits again when they enter (alert-sheets.md §1.9 step 5, §2.2;
+CL-ALE-16).
 
 ```ts
 type OutboxFactKind =
@@ -559,12 +572,14 @@ result.
 
 ### 2.3 Backup (TRV-50, TRV-55, CL-TRV-04, CL-TRV-19)
 
-| from   | to      | trigger                                               | guard                                       | side effects                                                                                             |
-| ------ | ------- | ----------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| (none) | done    | weekly time, manual run, or before a structure change | key and token configured; the space private | object stored and verified; rotation deletes every stored backup beyond `backups.kept`, most recent kept |
-| (none) | failed  | any check or the upload fails                         | —                                           | `backup_failed` incident for that cause; before an update, no structure change is applied (CL-TRV-19)    |
-| done   | deleted | rotation                                              | the deletion verified                       | `deleted_at`                                                                                             |
-| done   | done    | rotation fails or is unverified                       | —                                           | `deletion_failed_at`; `backup_failed` incident; the fingerprint purge waits (CL-DSN-07)                  |
+| from   | to      | trigger                                               | guard                                       | side effects                                                                                                                                                                       |
+| ------ | ------- | ----------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (none) | done    | weekly time, manual run, or before a structure change | key and token configured; the space private | object stored and verified; rotation, the release listing deciding, aligns the register with the listing, then deletes every listed backup beyond `backups.kept`, most recent kept |
+| (none) | failed  | any check or the upload fails                         | —                                           | `backup_failed` incident for that cause; before an update, no structure change is applied (CL-TRV-19)                                                                              |
+| done   | deleted | rotation                                              | the deletion verified                       | `deleted_at`                                                                                                                                                                       |
+| (none) | done    | a rotation lists an asset the register lacks          | —                                           | a row read from the asset's name: its creation instant and kind                                                                                                                    |
+| done   | deleted | a rotation no longer lists the row's asset            | —                                           | `deleted_at`                                                                                                                                                                       |
+| done   | done    | rotation fails or is unverified                       | —                                           | `deletion_failed_at`; `backup_failed` incident; the fingerprint purge waits (CL-DSN-07)                                                                                            |
 
 ### 2.4 Account, login and sessions (TRV-57 to TRV-63, IHM-06 to IHM-09)
 
@@ -582,38 +597,48 @@ result.
    withdrawn and players deleted after the backup's date may come back, and the summary says those
    events must be withdrawn again (CL-TRV-06, CL-JOU-24).
 3. It replaces the application data (every table the backup holds), keeping the target's ledger and
-   account data; with no account, it initializes one from the configured initial password.
-4. It re-applies the ledger without changing the counter or creating a fingerprint: a restored
+   account data; with no account, it initializes one from the configured initial password. After
+   the load, each row of `sequence_counters` and each identity sequence continues from the larger of
+   the target database's value and the backup's (for a new database, the previous database's value
+   when step 2 can still read it); without the previous database, from the backup's, a limit that
+   CL-TRV-06 names. The backup's value of a counter is its loaded row, and that of an identity
+   sequence the one its manifest records (`identity_sequences`, §5.1).
+4. In the transaction of step 3, it re-applies the ledger without changing the counter or creating a fingerprint: a restored
    player matching a deleted-player entry is deleted again (JOU-24 scope, no new Telegram
    deletion); for each live fingerprint, exactly one restored event of that player and type on its
    day is withdrawn again (DSN-27 scope, no new Telegram deletion); several on that day, or none but
    some within the window, are listed for the owner to check.
-5. The counter keeps the larger of the ledger's value and the backup's.
-6. Every draft is erased, every session closed with the reason `restored` and
-   `accounts.all_sessions_ended_at` set (§1.10); a full recalculation runs, with the value-version
-   rewrite and tracking's re-derivation that follow a withdrawal (sensitivity-and-profiles.md
-   section 1.5, CL-SEN-18), and the consistency check runs, which among its checks verifies the
+5. The counter keeps the larger of the ledger's value and the backup's, and the full recalculation
+   is recorded, `sensitivity.requestFullRecalculation('recalculation')`: `withdrawal.reapplyLedger`
+   does both in the transaction of step 3, after every restore, whatever it re-applied (CL-TRV-06,
+   CL-SEN-18).
+6. Then the script, which runs no job, runs the consistency check, which among its checks verifies the
    rules no row check can hold across the two passes of §5.1, such as every type withdrawn with
    `merged_into` naming its surviving type (event-types.md section 1.1);
-   the summary shows the counts, the backup's date, the numbers re-applied, the events to check and
-   the warnings of CL-TRV-06.
+   then every draft is erased, every session closed with the reason `restored` and
+   `accounts.all_sessions_ended_at` set (§1.10); the summary shows the counts, the backup's date, the numbers re-applied, the events to check and
+   the warnings of CL-TRV-06. The `recalculation` task runs the full recalculation of step 5 at the
+   first database pass after the restore, with the value-version rewrite and tracking's
+   re-derivation that follow a withdrawal (sensitivity-and-profiles.md section 1.5, CL-SEN-18), its
+   reactions and, in Lot 2, `game-tracking` chained after it; profiles show "Recalculation in
+   progress" meanwhile (CL-SEN-16).
 
 ## 3. Invariants
 
-| rule                                                                                             | spec IDs                     | enforced by                                                 |
-| ------------------------------------------------------------------------------------------------ | ---------------------------- | ----------------------------------------------------------- |
-| A parameter value outside its allowed values is refused with the bounds                          | TRV-35, CL-TRV-16            | parameter service, against the registry                     |
-| Every parameter change is traced with old and new values and the instant                         | TRV-35                       | `parameter_changes` and a journal entry, in one transaction |
-| Secrets — deployment values, password, tokens, keys — are never displayed, journaled or exported | TRV-64                       | hashes only (`accounts`, `sessions`); journal allowlist     |
-| One open incident per cause                                                                      | TRV-45                       | partial unique index                                        |
-| No run of a task overlaps another                                                                | TRV-28                       | partial unique index                                        |
-| Each run is idempotent and resumable                                                             | TRV-29, TRV-30               | task services; `cursor` and progress marks                  |
-| A journal entry never copies an event's player, type, date, description or source                | TRV-41, DSN-11, CL-TRV-10    | journal writer: message keys and references only            |
-| Rotation really deletes; a backup stays listed until its deletion is verified                    | TRV-50, CL-TRV-04            | backup service                                              |
-| Backups and full exports never hold drafts, ledger entries, account password data or sessions    | TRV-51, CL-TRV-05, CL-DSN-08 | the writers skip those tables by name                       |
-| A structure change never runs without a stored backup first                                      | TRV-55, CL-TRV-19            | update procedure                                            |
-| Every owner-editable row carries a version, and a save sent with an older version is refused     | CL-IHM-18                    | `row_version` compare-and-set in every save                 |
-| References and import numbers are never issued twice                                             | BKT-12, IMP-31, CL-BKT-11    | `sequence_counters`, incremented in the using transaction   |
+| rule                                                                                                                              | spec IDs                             | enforced by                                                                                                                                                                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A parameter value outside its allowed values is refused with the bounds                                                           | TRV-35, CL-TRV-16                    | parameter service, against the registry                                                                                                                                                                                                    |
+| Every parameter change is traced with old and new values and the instant                                                          | TRV-35                               | `parameter_changes` and a journal entry, in one transaction                                                                                                                                                                                |
+| Secrets — deployment values, password, tokens, keys — are never displayed, journaled or exported                                  | TRV-64                               | hashes only (`accounts`, `sessions`); journal allowlist                                                                                                                                                                                    |
+| One open incident per cause                                                                                                       | TRV-45                               | partial unique index                                                                                                                                                                                                                       |
+| No run of a task overlaps another                                                                                                 | TRV-28                               | partial unique index                                                                                                                                                                                                                       |
+| Each run is idempotent and resumable                                                                                              | TRV-29, TRV-30                       | task services; `cursor` and progress marks                                                                                                                                                                                                 |
+| A journal entry never copies an event's player, type, date, description or source                                                 | TRV-41, DSN-11, CL-TRV-10            | journal writer: message keys and references only                                                                                                                                                                                           |
+| Rotation really deletes; a backup stays listed until its deletion is verified                                                     | TRV-50, CL-TRV-04                    | backup service                                                                                                                                                                                                                             |
+| Backups and full exports never hold drafts, ledger entries, account password data or sessions                                     | TRV-51, CL-TRV-05, CL-DSN-08         | the writers skip those tables by name                                                                                                                                                                                                      |
+| A structure change never runs without a stored backup first                                                                       | TRV-55, CL-TRV-19                    | update procedure                                                                                                                                                                                                                           |
+| Every owner-editable row carries a version, and a save sent with an older version is refused                                      | CL-IHM-18                            | `row_version` compare-and-set in every save                                                                                                                                                                                                |
+| References and import numbers are never issued twice, a restore into a new database without the previous one excepted (CL-TRV-06) | BKT-12, IMP-31, CL-BKT-11, CL-TRV-06 | `sequence_counters`, incremented in the using transaction; at a restore, every counter and identity sequence continued from the larger of the target's value and the backup's, the manifest's for an identity sequence (§2.5 step 3, §5.1) |
 
 ## 4. Stored or derived
 
@@ -642,7 +667,8 @@ archive layout the module map gives the export, backup and restore (one format f
   per row and per line, one key per column named as in this model; instants as ISO 8601 UTC strings
   with milliseconds; dates `YYYY-MM-DD`; jsonb columns embedded as JSON; arrays as JSON arrays;
   numbers with a plain decimal point; `null` for a null column.
-- `manifest.json`, the archive's last entry, so that a cut archive is seen as incomplete:
+- `manifest.json`, the archive's last entry, so that a cut archive is seen as incomplete (here a
+  backup's, whose last two keys a full export does not have):
 
 ```json
 {
@@ -653,18 +679,21 @@ archive layout the module map gives the export, backup and restore (one format f
   "tables": [
     { "name": "teams", "file": "teams.jsonl", "rows": 30, "sha256": "…" },
     { "name": "followed_players", "file": "followed_players.jsonl", "rows": 24, "sha256": "…" }
-  ]
+  ],
+  "backup_kind": "weekly",
+  "identity_sequences": { "teams": 30 }
 }
 ```
 
-| key                     | type    | rule                                                                                                           |
-| ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| `format`                | string  | `egoscope-export`                                                                                              |
-| `format_version`        | string  | `1.0`; a new column, table or value changes the version                                                        |
-| `exported_at`           | string  | ISO 8601 instant in UTC with milliseconds                                                                      |
-| `withdrawn_event_count` | integer | the counter's value (CL-DSN-08)                                                                                |
-| `tables`                | array   | every exported table, in the loading order below: `name`, `file`, `rows` (integer), `sha256` (hex of the file) |
-| `backup_kind`           | string  | in a backup only: `weekly`, `manual` or `before_update`                                                        |
+| key                     | type    | rule                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`                | string  | `egoscope-export`                                                                                                                                                                                                                                                                                                                         |
+| `format_version`        | string  | `1.0`; a new column, table or value changes the version                                                                                                                                                                                                                                                                                   |
+| `exported_at`           | string  | ISO 8601 instant in UTC with milliseconds                                                                                                                                                                                                                                                                                                 |
+| `withdrawn_event_count` | integer | the counter's value (CL-DSN-08)                                                                                                                                                                                                                                                                                                           |
+| `tables`                | array   | every exported table, in the loading order below: `name`, `file`, `rows` (integer), `sha256` (hex of the file)                                                                                                                                                                                                                            |
+| `backup_kind`           | string  | in a backup only: `weekly`, `manual` or `before_update`                                                                                                                                                                                                                                                                                   |
+| `identity_sequences`    | object  | in a backup only: for every exported table with an identity column, its name and the last value its sequence has issued, rows erased since included (0 when it has issued none), read after the tables, so that each is at least the highest identifier exported; the value a restore compares with the target's (§2.5 step 3, CL-TRV-06) |
 
 **Loading order.** The manifest lists the tables so that each one comes after every table it
 references, and a restore inserts them in that sequence, in one transaction. The foreign keys of
@@ -690,7 +719,7 @@ name; every other table is exported.
 
 ### 5.2 Backup file
 
-The archive of 5.1, with `backup_kind` in its manifest, encrypted as one object with AES-256-GCM
+The archive of 5.1, with `backup_kind` and `identity_sequences` in its manifest, encrypted as one object with AES-256-GCM
 under the backup key of the deployment configuration (ADR 0018, CL-TRV-04). Layout: the 16 ASCII
 bytes `EGOSCOPE-BACKUP1`, a 12-byte random nonce, the ciphertext, the 16-byte authentication tag.
 Object name `egoscope-backup-<YYYYMMDDTHHMMSSZ>-<kind>.bin`: only the creation instant in UTC and the

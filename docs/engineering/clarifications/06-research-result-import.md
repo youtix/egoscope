@@ -13,12 +13,13 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 
 ## CL-IMP-02 — Error messages: English, location, problem, fix
 
-- **Affects:** IMP-20, IMP-04 to IMP-17, IHM-29, CA-IMP-06, CA-IMP-07, CA-IMP-08
+- **Affects:** IMP-20, IMP-04 to IMP-17, IMP-31, IHM-29, DSN-18, CA-IMP-06, CA-IMP-07, CA-IMP-08
 - **Problem:** IMP-20 requires plain French and a location by position, type and date, while one of its own examples (« 7e événement : … ») omits the type and the date.
 - **Ruling:**
   - Every import message is plain English (ADR 0010), in three parts: location, what is wrong, how to fix it.
   - Location is "the whole result", or the event by its position, its type as read and its date as read. The position is its 1-based place in the events list as pasted, every element counted, refused and ignored ones included. A missing or unreadable type or date is shown with the glossary's placeholder. A source adds its own 1-based position in the event's sources; a lead or a limitation is located by its position in its list.
   - Messages quote dates, identifiers and links as read, never a description or another free text; a length problem gives the length and the maximum instead.
+  - The import trace keeps an ignored or refused event's type as read and date as read, and the slugs of a declared type not requested, only when the trimmed value has the slug shape of an event type's identifier (at most 50 characters) or a date shape of the format, tolerated variants included (CL-IMP-08); otherwise it stores none, which is shown with the glossary's placeholder, as an unreadable type or date is, since DSN-18 forbids a private person's data in any field.
   - The requirement wins over the example: the « 7e événement » message also gives the type and the date. The glossary renders the French examples in this structure.
 - **Why:** IMP-20 asks for the position (« rang »), type and date; not quoting free texts keeps messages short and sensitive wording out of them.
 - **Owner review:** no

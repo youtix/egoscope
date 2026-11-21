@@ -179,8 +179,9 @@ The flow is the design's ([module map](../engineering/module-map.md), section 1.
    [data model](../engineering/domain-model/operations.md), section 1.16), run the due tasks in
    resumable chunks (TRV-28, TRV-30), run the execution check (TRV-31), then rewrite the wake plan.
 
-An idle tick costs a few cache reads and one cache write: about 35,000 reads and 12,000 writes a
-month for both callers, against 1,000,000 and 200,000 ([hosting.md](hosting.md)).
+An idle tick costs a few cache reads and one cache write: about 35,000 reads a month for both
+callers and, with the plan rewrites and the other writes of module map §1.9, about 14,000 writes,
+against 1,000,000 and 200,000 ([hosting.md](hosting.md)).
 
 Use the production domain: Vercel's Standard Protection blocks the generated deployment URLs
 ([Deployment Protection](https://vercel.com/docs/deployment-protection)).

@@ -39,7 +39,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:**
   - The full form is used where one instant is the subject of a block: an alert sheet's expected game and production, a request's deadline, an event's reference date, a case's game.
   - The short form is used in lists, tables and summaries, on screens that state once, at the top, the zone in use ("Times in Paris time").
-  - The zone's name is the owner's zone as "\<city> time" (Paris time, New York time); the glossary gives the exact names.
+  - The zone's name is the one the time module's `formatZoneName` gives the owner's zone: "\<city> time" (Paris time, New York time) or, for a zone without a city, a name such as "UTC-05:00 time"; the glossary gives the exact names.
   - A date without a time shows neither time nor zone ("Wed 18 Nov 2026"); durations and relative times ("in 3 h 20", "12 min ago") show no zone.
   - Telegram messages, which have no screen statement, name the zone after every clock time (CL-TEL-03).
 - **Why:** this names the zone everywhere, as ADR 0010 and TRV-24 require, while keeping the one-column phone layout of IHM-01 readable.
@@ -227,6 +227,14 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Ruling:** the profile list is a screen of its own, Profiles (`/profiles`): every player–type profile with its verdict, profile confidence and case count; filters by verdict, player and type, with the active filter and the total (IHM-49, CA-IHM-12); the evaluated pairs and the verdicts chance alone would produce (SEN-41); the date of the last parameter change (SEN-37). It is reached from the More menu, as its second entry after Backtest requests, in Lot 1 as in Lot 2; the rest of IHM-16's menu stays as written.
 - **Why:** SEN-37, SEN-41 and CA-IHM-12 need a place where all profiles are listed, and a menu entry is the only way to reach a list that no object mentions (IHM-17); the menu keeps its other entries and order.
 - **Owner review:** yes — the More menu gains an entry, Profiles, which IHM-16 does not list.
+
+## CL-IHM-26 — Which words open a one-tap definition
+
+- **Affects:** IHM-15, IHM-37, VUE-08
+- **Problem:** IHM-15 gives every glossary term shown on screen a one-tap definition, but nothing says which occurrence of a term can be tapped when a screen shows it several times, or inside a sentence.
+- **Ruling:** on every screen, the first label of each term of glossary section 7.7 that the screen shows — a heading, a field, column or filter label, a figure's label, the name of a state set — is a `GlossaryTerm` (module map, `ui`) that opens its section 7.7 sentence. Its other occurrences on the screen, and terms inside sentences, values, notices and Telegram texts, stay plain. The components of the figures (`ui/figures`) wrap their own labels, so the screens that use them inherit it. Help lists every sentence.
+- **Why:** the first label is where the owner meets a term on a screen, so one tap there gives its definition, as IHM-15 asks, while a tap target on every occurrence, inside sentences and values too, would clutter the screens; Help keeps every definition at hand.
+- **Owner review:** yes — on each screen, only the first label of each glossary term opens its definition; its other occurrences and the terms inside sentences, values, notices and Telegram texts stay plain, and Help lists every definition.
 
 ## Passed to the glossary
 

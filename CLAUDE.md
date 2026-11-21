@@ -13,10 +13,10 @@ These rules hold for every change. README.md has the overview, the stack and the
 - Owner decisions override the specs where they conflict. Above all, everything is in English,
   including the UI (overriding H-11): code, comments, UI text, docs, commits and PRs, in American
   spelling.
-- The English reference documents arrive by their own pull requests: the glossary of spec terms,
-  the module map, the clarifications and the domain model in `docs/engineering/`, and the decision
-  records in `docs/adr/`. When one is missing from your checkout, your task brief says what to use
-  instead.
+- The English reference documents are on `main`: the glossary of spec terms, the module map, the
+  clarifications and the domain model in `docs/engineering/`, the decision records in `docs/adr/`
+  and the service sheets in `docs/services/`. The section "Reference documents" below gives their
+  reading order and precedence.
 - No real NBA player names anywhere, fixtures included: invent players. No personal names or email
   addresses.
 

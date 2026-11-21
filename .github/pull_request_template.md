@@ -31,7 +31,7 @@ docs/engineering/requirement-waivers.md.
       wrong is raised under "Notes for the reviewer".
 - [ ] No secret, personal data or real player name was added.
 - [ ] README.md, CLAUDE.md and the English reference documents (`docs/engineering/`, `docs/adr/`,
-      once they exist) are updated if a convention changed.
+      `docs/services/`) are updated where this task may change them (module map §9).
 
 ## Notes for the reviewer
 

@@ -78,7 +78,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Problem:** BKT-06 offers the supplement covering what an import left out, including the part a reduction removed, but a reduced request no longer holds that part.
 - **Ruling:**
   - A request stores its planned types: the types at creation, plus those an update adds, minus those an update removes because they are no longer validated. A reduction removes a type from the requested types but not from the planned types.
-  - After an import, the import summary and the player page offer one supplement covering every planned type that still has an uncovered day up to today. Its periods are computed by CL-BKT-05 on the day the owner accepts it, which is also their end. Nothing is created without that acceptance.
+  - After an import, the import summary and the player page offer one supplement covering every planned type that is still validated and still has an uncovered day up to today. Its periods are computed by CL-BKT-05 on the day the owner accepts it, which is also their end. Nothing is created without that acceptance.
   - If the player has a to-do request when the owner accepts, the app offers to update that request instead, as BKT-05 does.
   - `CA-BKT-08` holds: accepted on the import day, the supplement runs from 2022-07-01 to 2026-11-11.
 - **Why:** BKT-15 promises that what a reduction removes comes back as a supplement; BKT-07 allows one open request per player.
@@ -96,7 +96,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
   5. gives each added type the period a new request of the same kind would give it on the update day: BKT-08 for an initial request or a full redo, CL-BKT-05 for a supplement;
   6. keeps the start of the types already requested;
   7. regenerates the prompt under the same reference (BKT-20).
-  - Types validated before the creation but absent from the request are not added.
+  - Types validated before the creation but absent from the request are not added, except the type of an attached detected event (step 1).
 - **Why:** H-BKT-02 freezes the types except through an update; an added type needs the period a new request would give it.
 - **Owner review:** no
 

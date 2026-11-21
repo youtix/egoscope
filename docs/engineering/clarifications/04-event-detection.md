@@ -235,7 +235,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** DET-14, DET-15, DET-16, DET-34, TAX-18; open point 3 of ADR 0015
 - **Problem:** calendar-derived types are not sent as types to classify into (ADR 0015), so the model could report a birthday game or a reunion as a new-type proposal or as an occurrence of a do-not-repropose entry.
 - **Ruling:**
-  - The model also receives a list of the types handled by the calendar: name and definition of every type whose dating rule says "derived from the calendar", whatever its state; such types are never in the do-not-repropose list.
+  - The model also receives a list of the types handled by the calendar: name and definition of every type whose dating rule says "derived from the calendar", whatever its state; such types are never in the classification's do-not-repropose list.
   - The instructions (DET-23) say that a fact matching that list is not to be reported; a fact the model still reports against an entry of that list is dropped, neither unusable nor counted, and a part left without facts gets « aucun fait ».
   - In an article that reports another fact as well, only that other fact is processed (register, DET-15).
   - A fact the model reports as a new-type proposal without naming the list entry goes through DET-34 like any other; the owner rejects it or attaches it as an occurrence (file 02).
@@ -270,7 +270,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** DET-48, CA-DET-28
 - **Problem:** DET-48 lets the owner move the reference date earlier with a dated public source (link, outlet, publication instant), without saying what happens when only the date is known.
-- **Ruling:** the form asks for the publication date and, optionally, the time and its zone. A source with a date only, or a time without zone, gets its instant by COL-21 as CL-COL-02 applies it (end of that day, or that wall time, at UTC−12 when no zone is given) and the precision « approximative ». The change is refused when that instant is not earlier than the current reference date (DET-48).
+- **Ruling:** the form asks for the publication date and, optionally, the time and its zone. A source with a date only, or a time without zone, gets its instant by COL-21 as CL-COL-02 applies it (end of that day, or that wall time, at UTC−12 when no zone is given) and the precision « approximative ». The change is refused when that instant is not earlier than the current reference date (DET-48). CA-DET-28 is tested with a Wednesday source given its time and zone, the publication instant DET-48 names: given as a date alone, it would get 11:59:59.999 UTC on Thursday.
 - **Why:** a source supplied by the owner must be dated as cautiously as a collected one.
 - **Owner review:** no
 

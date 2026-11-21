@@ -77,7 +77,7 @@ Every removal of an event row goes through one step, run in one transaction with
 that calls it; each Lot 2 module adds its own sub-step with a test (CL-DSN-16). Lot 2 tables point
 at detected and calendar-derived events, at `followed_players` and at `backtest_requests` with `ON
 DELETE RESTRICT`, and elsewhere with `SET NULL` or `CASCADE` where nothing a requirement keeps is
-lost — a classification fact's designated or matched event, a tracked case's decision about a
+lost — a classification fact's designated, matched or superseded-into event, a tracked case's decision about a
 historical event, cases, exposure counts, task runs, incidents: collection.md section 1.12 is the
 authority on each reference (CL-TRV-24) — so the Lot 2 sub-steps run first, before the core deletes
 anything, as the event erasers of the module map's reaction lists
@@ -86,16 +86,17 @@ collection, the articles it leaves without a role; every variant below that runs
 order.
 The step never completes with part of the event left. Its variants:
 
-| cause                                                     | fingerprint | counter       | tally exit                        | designating trace rows deleted | Lot 2 sub-steps                                                                                                                                                                                                                                      | spec IDs                              |
-| --------------------------------------------------------- | ----------- | ------------- | --------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| withdrawal, of an event of any origin                     | created     | + 1           | none                              | yes                            | all                                                                                                                                                                                                                                                  | DSN-26 to DSN-29, ADR 0017, CL-DSN-09 |
-| player-data deletion (every origin)                       | none        | + 1 per event | none                              | yes                            | all                                                                                                                                                                                                                                                  | JOU-24, CL-JOU-06, CL-JOU-24          |
-| requalification "does not conform", split erasure         | none        | none          | `erased`                          | yes                            | all                                                                                                                                                                                                                                                  | TAX-25, TAX-29, CL-TAX-09             |
-| manual deletion of a historical event                     | none        | none          | `deleted`, the deletion trace     | no                             | —                                                                                                                                                                                                                                                    | IMP-33                                |
-| replacement at import                                     | none        | none          | `replaced_at_import`              | no                             | —                                                                                                                                                                                                                                                    | IMP-29, CL-IMP-20                     |
-| derivation drop of a calendar-derived event, game started | none        | none          | `no_longer_derived`, a count only | no                             | sheets and tracked case (CL-TAX-19)                                                                                                                                                                                                                  | CL-TAX-19, CL-SEN-25                  |
-| derivation drop of an upcoming calendar-derived event     | none        | none          | none                              | no                             | sheets and tracked case (CL-SUI-14)                                                                                                                                                                                                                  | CL-TAX-19, CL-SEN-25                  |
-| merge of detected events (Lot 2)                          | none        | none          | `merged`                          | no                             | none: called last by `detection.correct`, after the Lot 2 operations moved or deleted every row that points at the absorbed event and its case; deletes that event and, when it was its case's only event, the case, whose tracked-case rows cascade | DET-47, CL-SUI-16                     |
+| cause                                                                                                                                              | fingerprint | counter       | tally exit                        | designating trace rows deleted | Lot 2 sub-steps                                                                                                                                                                                                                                      | spec IDs                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------- | --------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| withdrawal, of an event of any origin                                                                                                              | created     | + 1           | none                              | yes                            | all                                                                                                                                                                                                                                                  | DSN-26 to DSN-29, ADR 0017, CL-DSN-09 |
+| player-data deletion (every origin)                                                                                                                | none        | + 1 per event | none                              | yes                            | all                                                                                                                                                                                                                                                  | JOU-24, CL-JOU-06, CL-JOU-24          |
+| restore's re-application of the ledger (`restore_reapplication`): a restored event withdrawn again, or an event of a restored player deleted again | none        | none          | none                              | yes                            | all, with no Telegram step: the notifications sub-step erases the sent messages the backup brought back without the comparison of CL-TEL-09 (step 5)                                                                                                 | TRV-53, DSN-27, JOU-24, CL-TRV-06     |
+| requalification "does not conform", split erasure                                                                                                  | none        | none          | `erased`                          | yes                            | all                                                                                                                                                                                                                                                  | TAX-25, TAX-29, CL-TAX-09             |
+| manual deletion of a historical event                                                                                                              | none        | none          | `deleted`, the deletion trace     | no                             | —                                                                                                                                                                                                                                                    | IMP-33                                |
+| replacement at import                                                                                                                              | none        | none          | `replaced_at_import`              | no                             | —                                                                                                                                                                                                                                                    | IMP-29, CL-IMP-20                     |
+| derivation drop of a calendar-derived event, game started                                                                                          | none        | none          | `no_longer_derived`, a count only | no                             | messages, sheets and tracked case (CL-TAX-19)                                                                                                                                                                                                        | CL-TAX-19, CL-SEN-25                  |
+| derivation drop of an upcoming calendar-derived event                                                                                              | none        | none          | none                              | no                             | messages, sheets and tracked case (CL-SUI-14)                                                                                                                                                                                                        | CL-TAX-19, CL-SEN-25                  |
+| merge of detected events (Lot 2)                                                                                                                   | none        | none          | `merged`                          | no                             | none: called last by `detection.correct`, after the Lot 2 operations moved or deleted every row that points at the absorbed event and its case; deletes that event and, when it was its case's only event, the case, whose tracked-case rows cascade | DET-47, CL-SUI-16                     |
 
 No Lot 1 operation is ever blocked by a Lot 2 row (CL-TRV-24): the two variants with
 no Lot 2 sub-step, the manual deletion and the replacement at import, delete historical events,
@@ -107,7 +108,7 @@ only through a full derivation run after its fingerprint has expired; the withdr
 and offers the permanent alternative, excluding its case (SEN-17, CL-DSN-19).
 
 Order of a withdrawal of event E. Steps 4 to 12 are the erasure's single transaction, every row
-named being deleted unless stated; no outside call runs inside a transaction (CL-TEL-09):
+named being deleted unless stated; no outside call runs inside a transaction but a message's own send (CL-TEL-09; notifications.md section 2.2):
 
 1. Guards: the owner confirmed after the screen of CL-DSN-19, which lists what disappears and the
    limits, the number of Telegram messages mentioning E included, and says when an import draft of
@@ -115,7 +116,8 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
 2. A first transaction, committed on its own (Lot 2, notifications): it locks the messages
    concerned — those that name E, and those whose fact is E's case or a sheet or update entry the
    alerts sub-step deletes, the entries up to the new production instant of a sheet it initializes
-   again included (CL-ALE-16) — so that a send in progress either commits first, its message being
+   again, but those it keeps, and the expected-game changes it deletes with E's expected games
+   included (CL-ALE-16) — so that a send in progress either commits first, its message being
    then a sent one that this step reads, or finds the message discarded; the unsent messages
    concerned are abandoned, so that none of them can be sent, and the chat and message identifiers
    of the sent ones, digests included, are read (notifications.md section 1.8). A message composed
@@ -132,11 +134,16 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
    own committed step (CL-TEL-09); a restore's re-application, which runs no committed step and
    asks Telegram nothing (CL-TRV-06), erases them without that comparison; alerts — in the sheet holding E, everything about it, or
    the whole sheet and its alert-history entry if E was its only event, and every sheet or section
-   a correction or a merge of E left without an event, each remaining sheet taking the status of its
-   remaining events with no entry, and a sheet produced for E initialized again from its earliest
-   remaining event, its entries up to that event's joining deleted but those about another event a
-   correction or a merge took off it (CL-ALE-16), with the outbox facts of its sheets and update
-   entries; tracking — its tracked-case data, or, when its case
+   a correction or a merge of E left without an event, an initial section going with the event its
+   sheet was produced for, or the kept event of the merge that absorbed it (alert-sheets.md section
+   1.2), a sheet then left with no event included when it was produced for E, or its initial
+   section went with E, or it has no section left, each remaining sheet taking the status and
+   the expected-game block of its remaining events with no entry, and a sheet produced for E, or
+   left with no initial section, initialized again from its earliest remaining event, its entries up to that event's joining deleted but those about another event a
+   correction or a merge took off it before then and the drop of a calendar-derived event before
+   then (CL-ALE-16), with the outbox facts of its sheets and update entries, and the
+   `alert_sheet_produced` fact of a sheet initialized again whose new initial section still waits
+   for its profile values, emitted again when they enter (alert-sheets.md section 1.9, step 5); tracking — its tracked-case data, or, when its case
    keeps other events, the tracked case rebuilt from them (CL-SUI-17), and its regrouping exits, with
    the outbox facts of its tracked game results; detection — the classification results
    of its articles and their attachments, then, through collection's eraser, every article attached
@@ -162,13 +169,15 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
 7. `journal_technical_details` of journal entries that concerned only E; the entries' references
    to E then become null and read "an item that no longer exists" (CL-TRV-10), and so does the Lot 2
    object an entry names beside E, such as an alert sheet that keeps other events; an entry that
-   names E's case loses that reference when step 9 deletes the case. An entry that names an event or
+   names E's case loses that reference when step 9 deletes the case; when step 9 rebuilds it
+   instead, the entries that name it keep that reference and their date, an accepted residual limit
+   (CL-SUI-17). An entry that names an event or
    a case names neither its player nor its type (operations.md section 1.2), so none keeps E's
    player, type, request or import (TRV-41, DSN-29).
 8. The `events` row, which cascades to `event_sources` (with their spot-check verdicts),
    `event_import_warnings`, `event_marks`, `event_status_changes`, `event_corrections` and
    `backtest_request_events`, the outbox facts and restore-report rows that name it.
-9. E's case if it holds no other event, with its criteria, flags, decisions and history; otherwise the case is rebuilt as if E had never been recorded (CL-SUI-17): its `origin` and `created_at` become those of its earliest-recorded remaining event, its `case_history_entries` recorded and its `case_review_flags` raised before that new `created_at` are deleted, and the rebuild writes no history row of its own (the job of step 12 records any change, cause `recalculation`, and raises again the flags that still apply). The case's own manual decisions (`case_manual_decisions`) stay, since they apply to its remaining events too; the decisions about E, tracking's, went in step 5, where tracking also rebuilt, created or deleted its tracked case.
+9. E's case if it holds no other event, with its criteria, flags, decisions and history; otherwise the case is rebuilt as if E had never been recorded (CL-SUI-17): its `origin` and `created_at` become those that SUI-05, SUI-07 and CL-VUE-13 give its earliest-recorded remaining event, its `case_history_entries` recorded and its `case_review_flags` raised before that new `created_at` are deleted, and the rebuild writes no history row of its own (the job of step 12 records any change, cause `recalculation`, and raises again the flags that still apply). The case's own manual decisions (`case_manual_decisions`) stay, since they apply to its remaining events too; the decisions about E, tracking's, went in step 5, where tracking also rebuilt, created or deleted its tracked case.
 10. `withdrawn_event_counter.value + 1`.
 11. A journal entry "an event was withdrawn", with no player, type or date (CL-TRV-10).
 12. A full recalculation job with cause `recalculation` (after an erasure by requalification or
@@ -179,11 +188,12 @@ named being deleted unless stated; no outside call runs inside a transaction (CL
     their versions by one version holding the new values (sensitivity-and-profiles.md section 1.5),
     and tracking derives again, from it alone, the forecast versions of every tracked case whose
     measured game has not started — before the scheduled start of its measured game, or of its
-    expected game while no measured game is established; a waiting case whose expected game has
+    expected game while no measured game is established, or at any time while no game is known; a waiting case whose expected game has
     started keeps its versions, since SUI-09 freezes the last one before that start, and gets a
     version dated at the job's instant when the job changes its forecast (CL-SUI-03;
-    tracking-and-validation.md section 1.8), unless it has no version, as a case that the
-    operation's rebuild turned tracked at or after that start: that case gets none (CL-SUI-17),
+    tracking-and-validation.md section 1.8), unless it has no version, such as a case that the
+    operation's rebuild turned tracked at or after that start: that case gets none (CL-SUI-17) —
+    unless SUI-18 moves its expected game: it then gets versions like any waiting case (SUI-09) —,
     and CL-SUI-18 freezes « sans pronostic ».
 13. The result screen gives the number of messages deleted and lists, from memory, the ones
     Telegram refused or could not be reached for, with their send date and time and whether each
@@ -195,9 +205,12 @@ would instead leave messages in the chat with no record of them if the process s
 requests were sent.
 
 What remains afterwards: the counter and, for the horizon, the fingerprint. Accepted residual
-limits: a `recalculation` verdict-history entry dated that day (CL-SEN-18); for a case rebuilt from
+limits: a `recalculation` verdict-history entry dated that day, and the verdict-history entries
+written earlier for actions on E — its dismissal or reinstatement, a manual decision, a correction —,
+which name no event and keep their profile and date (CL-SEN-18); the journal entries that name a
+case rebuilt from its other events, which keep that reference and their date (CL-SUI-17); for a case rebuilt from
 its other events, its own decisions dated before its new creation instant and its history rows,
-review flags and category changes recorded since that instant while E was in it (CL-SUI-17); in Lot 2, the values in force before the
+review flags and category changes recorded since that instant while E was in it, and a review flag that the job of step 12 raises again, even one the owner had acknowledged (CL-SUI-17); in Lot 2, the values in force before the
 withdrawal wherever a requirement froze them for another event of the same pair or type — the
 forecast frozen at a tip-off on another tracked case and the forecast versions that a waiting
 tracked case whose expected game has started keeps (SUI-09), the profile and trend snapshots and
@@ -206,7 +219,8 @@ messages sent about other events (SUI-19, TEL-11 to TEL-13) — which never chan
 Lot 2, a sheet whose status changed at the withdrawal with no entry, or closed on a day when none
 of its cases changed, and the number of a sheet initialized again from its earliest remaining
 event, with the snapshots and flags of its sections and the corrections of other events it keeps
-from before its new production instant (CL-ALE-16); backups until they
+from before its new production instant, a calendar-derived event's drop included (CL-ALE-16);
+backups until they
 rotate out; exports already downloaded; Telegram messages the bot could not delete; a device left
 offline until its next refresh; in Lot 2, an article still in a feed, collected and classified
 again for at most its maximum age while the fingerprint keeps it from becoming an event
@@ -223,7 +237,7 @@ the refusals from memory. Then, in one transaction:
 1. Each of his events, of every origin and state, through the erasure step with the player-deletion
    variant (no fingerprint, no tally exit); the counter grows by their number (CA-JOU-16).
 2. The player erasers of the module map's reaction lists (section 1.10) — notifications, alerts,
-   tracking, detection, collection — for his remaining rows: his exposure counts, article parts and
+   tracking, then detection, whose step hands collection the articles it leaves with no part and no other role (collection.md section 1.11) — for his remaining rows: his exposure counts, article parts and
    every other Lot 2 row that points at him or at his requests and cases, so that nothing restricts
    the cascades of step 6 (collection.md section 8).
 3. One `deleted_player_entries` row (CL-JOU-24), written by `events.recordDeletedPlayer`.
@@ -246,6 +260,12 @@ the refusals from memory. Then, in one transaction:
    a waiting case whose expected game has started keeping its versions (2.1, step 12;
    sensitivity-and-profiles.md section 1.5).
 
+A restore's re-application deletes a restored player again with this scope (CL-TRV-06;
+operations.md section 2.5, step 4), with four differences: no Telegram step runs before it, his
+events go through the erasure step with the `restore_reapplication` variant, so the counter does
+not grow, step 3 writes no entry, the one he matched staying in the ledger, and step 7 records no
+job of its own, the restore's full recalculation following (CL-TRV-06).
+
 The player directory keeps its rows: public roster data linked to no followed player
 ([games-and-statistics.md](games-and-statistics.md) section 1.12).
 
@@ -257,17 +277,17 @@ downloaded exports keep it, undeletable Telegram messages stay (CL-JOU-06, CL-JO
 
 The daily purge task (`purge`, 04:00 by default, TRV-25) removes:
 
-| what                                                                                                                                                                                                                                                                                       | when                                                                                                                                                                     | spec IDs                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| Journal entries and their technical details                                                                                                                                                                                                                                                | older than `journal.retentionDays` (90), except entries tied to an incident still open                                                                                   | TRV-48, H-TRV-08                                            |
-| Closed incidents                                                                                                                                                                                                                                                                           | closed for longer than `journal.retentionDays`                                                                                                                           | TRV-48                                                      |
-| Withdrawal fingerprints and deleted-player entries                                                                                                                                                                                                                                         | older than the horizon (`backups.kept` × the backup interval, 8 weeks by default) and no backup in the register made before them; nothing while the register is in doubt | CL-DSN-07, ADR 0017                                         |
-| Drafts                                                                                                                                                                                                                                                                                     | `display.draftRetentionDays` (7) after their last change                                                                                                                 | IHM-42, CL-IHM-11                                           |
-| Finished task runs, quota-usage periods, ended sessions and login failures outside the observation period                                                                                                                                                                                  | older than `journal.retentionDays`; an ended session once past its `expires_at` (operations.md section 1.10); login failures outside the observation period              | own choice (store less)                                     |
-| Consumed outbox facts; unconsumed ones older than `journal.retentionDays`                                                                                                                                                                                                                  | at once once consumed; otherwise after `journal.retentionDays`                                                                                                           | TEL-17, own choice (store less)                             |
-| Database activity minutes; database size samples and restore reports                                                                                                                                                                                                                       | before the previous month; older than `journal.retentionDays`                                                                                                            | TRV-03, TRV-08, own choice                                  |
-| Historical-only profile value versions that no waiting tracked case needs: of each pair or trend, every version older than the last one effective before the creation of its earliest tracked case still waiting for its measured game, and with no such case every version but the latest | daily                                                                                                                                                                    | CL-SEN-18, SUI-09 (sensitivity-and-profiles.md section 1.5) |
-| Lot 2: the purge steps of collection.md section 1.11 (non-relevant articles, excerpts, dedup traces) and detection's exposure counts, the three figures journaled                                                                                                                          | per `collection.md` and `detection.md` (COL-34 to COL-39, CL-JOU-19)                                                                                                     | COL-39, CL-JOU-19                                           |
+| what                                                                                                                                                                                                                                                                                                                          | when                                                                                                                                                                     | spec IDs                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Journal entries and their technical details                                                                                                                                                                                                                                                                                   | older than `journal.retentionDays` (90), except entries tied to an incident still open                                                                                   | TRV-48, H-TRV-08                                            |
+| Closed incidents                                                                                                                                                                                                                                                                                                              | closed for longer than `journal.retentionDays`                                                                                                                           | TRV-48                                                      |
+| Withdrawal fingerprints and deleted-player entries                                                                                                                                                                                                                                                                            | older than the horizon (`backups.kept` × the backup interval, 8 weeks by default) and no backup in the register made before them; nothing while the register is in doubt | CL-DSN-07, ADR 0017                                         |
+| Drafts                                                                                                                                                                                                                                                                                                                        | `display.draftRetentionDays` (7) after their last change                                                                                                                 | IHM-42, CL-IHM-11                                           |
+| Finished task runs, quota-usage periods, ended sessions and login failures outside the observation period                                                                                                                                                                                                                     | older than `journal.retentionDays`; an ended session once past its `expires_at` (operations.md section 1.10); login failures outside the observation period              | own choice (store less)                                     |
+| Consumed outbox facts; unconsumed ones older than `journal.retentionDays`                                                                                                                                                                                                                                                     | at once once consumed; otherwise after `journal.retentionDays`                                                                                                           | TEL-17, own choice (store less)                             |
+| Database activity minutes; database size samples and restore reports                                                                                                                                                                                                                                                          | before the previous month; older than `journal.retentionDays`                                                                                                            | TRV-03, TRV-08, own choice                                  |
+| Historical-only profile value versions that no waiting tracked case needs: of each pair or trend, every version older than the last one effective before the creation of its earliest tracked case still waiting for its measured game, and with no such case every version but the latest                                    | daily                                                                                                                                                                    | CL-SEN-18, SUI-09 (sensitivity-and-profiles.md section 1.5) |
+| Lot 2: the purge steps of collection.md section 1.11 (non-relevant articles, excerpts, dedup traces) and detection's exposure counts, the three figures journaled; detection's runs (detection.md section 1.9); notifications' final messages, used or expired link codes and old daily counts (notifications.md section 1.8) | per `collection.md`, `detection.md` and `notifications.md` (COL-34 to COL-39, CL-JOU-19)                                                                                 | COL-39, CL-JOU-19                                           |
 
 Core data — players, types, events, cases, statistics, profiles — is never purged, not even to
 free space (TRV-07); the value versions above are a working copy of the profiles' past values for
@@ -302,21 +322,21 @@ says so.
 
 It grows by one at each withdrawal, by one at each preview decline for sensitive data, and by the
 number of a deleted player's events; it never decreases; a restore keeps the larger of the ledger's
-value and the backup's and does not grow when it re-applies a withdrawal (CL-TRV-06).
+value and the backup's and does not grow when it re-applies the ledger, a player deleted again included (CL-TRV-06).
 
 ## 5. Invariants
 
-| rule                                                                                                          | spec IDs                     | enforced by                                                           |
-| ------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------- |
-| After a withdrawal nothing designates the event but the counter and, for the horizon, the fingerprint         | DSN-27, DSN-29, ADR 0017     | the erasure step, in one transaction                                  |
-| Only a withdrawal creates a fingerprint                                                                       | CL-DSN-06                    | the erasure step's variants                                           |
-| A fingerprint holds only its hash and its creation instant; it is never shown, logged, exported or backed up  | ADR 0017                     | table shape; backup and export writers skip the ledger by name        |
-| The counter never decreases and carries no date                                                               | DSN-29, CL-DSN-04            | `CHECK`; no date column; no service decrements it                     |
-| An event holds the DSN-06 items and no other; none of the DSN-18 items is stored anywhere                     | DSN-06, DSN-18               | table shapes; writing services                                        |
-| The birthday has no year anywhere, and is never sent to an AI or logged as a value                            | JOU-11, CL-DSN-21            | table shape; prompt builder; journal writer                           |
-| The pasted text exists only in the draft store                                                                | DSN-32, CL-DSN-17            | no other column holds it; drafts excluded from backups and exports    |
-| The journal and its technical details hold no description, justification, title, link, excerpt or DSN-18 item | DSN-11, CL-DSN-11, CL-TRV-10 | journal writer (references by identifier, technical-detail allowlist) |
-| A withdrawal is never decided on the game that followed, and no reason selects events by their gap            | DSN-28, H-01                 | no such reason value; the confirmation text                           |
+| rule                                                                                                                                                                                                                                                                                                                               | spec IDs                     | enforced by                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------- |
+| After a withdrawal nothing designates the event but the counter and, for the horizon, the fingerprint, besides the accepted residual limits of section 2.1, the verdict-history entries written earlier for actions on it and the journal entries that name a case rebuilt from its other events among them (CL-SEN-18, CL-SUI-17) | DSN-27, DSN-29, ADR 0017     | the erasure step, in one transaction                                  |
+| Only a withdrawal creates a fingerprint                                                                                                                                                                                                                                                                                            | CL-DSN-06                    | the erasure step's variants                                           |
+| A fingerprint holds only its hash and its creation instant; it is never shown, logged, exported or backed up                                                                                                                                                                                                                       | ADR 0017                     | table shape; backup and export writers skip the ledger by name        |
+| The counter never decreases and carries no date                                                                                                                                                                                                                                                                                    | DSN-29, CL-DSN-04            | `CHECK`; no date column; no service decrements it                     |
+| An event holds the DSN-06 items and no other; none of the DSN-18 items is stored anywhere                                                                                                                                                                                                                                          | DSN-06, DSN-18               | table shapes; writing services                                        |
+| The birthday has no year anywhere, and is never sent to an AI or logged as a value                                                                                                                                                                                                                                                 | JOU-11, CL-DSN-21            | table shape; prompt builder; journal writer                           |
+| The pasted text exists only in the draft store                                                                                                                                                                                                                                                                                     | DSN-32, CL-DSN-17            | no other column holds it; drafts excluded from backups and exports    |
+| The journal and its technical details hold no description, justification, title, link, excerpt or DSN-18 item                                                                                                                                                                                                                      | DSN-11, CL-DSN-11, CL-TRV-10 | journal writer (references by identifier, technical-detail allowlist) |
+| A withdrawal is never decided on the game that followed, and no reason selects events by their gap                                                                                                                                                                                                                                 | DSN-28, H-01                 | no such reason value; the confirmation text                           |
 
 ## 6. Stored or derived
 

@@ -155,7 +155,13 @@ that carries it is passed through `env.redact` before it goes anywhere (TRV-64; 
   In polling mode, the owner's "I tapped Start" action in the linking screen therefore polls at once,
   while the code is still valid. Otherwise polling only catches up later: at a tick's probe while a
   link code is pending, or at the end of a database pass, which comes at least hourly. Messages from
-  other chats are still logged (TEL-31), since Telegram keeps updates for 24 hours.
+  other chats are still logged (TEL-31), since Telegram keeps updates for 24 hours. The tick's probe
+  reads its offset from the wake plan: when a database pass writes the plan, the polling state
+  holds `last_update_id + 1` while `last_update_at` is less than 24 hours old, and no offset
+  otherwise or when no update was ever handled; the probe calls `getUpdates` with that offset as
+  written, or with none, and never applies the 24-hour rule itself, since a plan is at most an hour
+  old when a tick uses it and Telegram restarts its numbering only after a week without updates
+  (module map §1.9).
 - **Deleting after a withdrawal** (TEL-38, H-TEL-04, CL-TEL-09): the application asks Telegram once
   to delete each sent message about the event, one `deleteMessage` call per message, whatever its
   age and even in a chat no longer linked
