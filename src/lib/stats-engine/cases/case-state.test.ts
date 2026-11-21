@@ -87,10 +87,13 @@ function teamGame(
 // A source published at the reference instant, before every game after it.
 const EARLY_SOURCE = { publicationDateOn: REFERENCE_DAY, publicationAt: REFERENCE_AT };
 
-/** A historical event made public at the reference instant, or a detected one with null. */
-const eventFrom = (sources: readonly PrecedenceSource[] | null): AttachmentEvent => ({
+/** A historical event made public at `referenceInstantAt`, or a detected one with null. */
+const eventFrom = (
+  sources: readonly PrecedenceSource[] | null,
+  referenceInstantAt = REFERENCE_AT,
+): AttachmentEvent => ({
   kind: 'reference_instant',
-  referenceInstantAt: REFERENCE_AT,
+  referenceInstantAt,
   referenceInstantOrigin: 'known_instant',
   sources,
 });
@@ -293,7 +296,7 @@ describe('caseState', () => {
   it('[SEN-04] [CA-SEN-04] [CL-STA-30] [CL-SEN-05] walks the coming season while its schedule is unpublished: "game not played yet", then "no game played within the window"', () => {
     // A detected event of 12:00 New York time on 5 July 2024, after the 2023-24 Finals.
     const julyAt = Date.UTC(2024, 6, 5, 16);
-    const event: AttachmentEvent = { ...eventFrom(null), referenceInstantAt: julyAt };
+    const event = eventFrom(null, julyAt);
     const between = { ...NOT_COVERED, readSeasons: [], unpublishedSeason: '2024-25' };
     const julyState = (now: number, seasons: CaseSeasons): CaseState => {
       const july = { origin: 'detected', referenceDayOn: '2024-07-05' } as const;

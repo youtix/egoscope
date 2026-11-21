@@ -55,10 +55,10 @@ function caSta02Baseline(excludedGameId: number): SeasonBaseline {
 
 /** The final or provisional baseline that a gap is computed against, narrowed from `baseline`. */
 function gapBaselineOf(baseline: SeasonBaseline): GapBaseline {
-  if (baseline.status === 'building' || baseline.status === 'insufficient') {
-    throw new Error(`a ${baseline.status} baseline gives no gap`);
+  if (baseline.status === 'final' || baseline.status === 'provisional') {
+    return baseline;
   }
-  return baseline;
+  throw new Error(`a ${baseline.status} baseline gives no gap`);
 }
 
 describe('normalizedGap', () => {

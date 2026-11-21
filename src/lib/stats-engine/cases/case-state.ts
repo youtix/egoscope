@@ -235,18 +235,17 @@ function measuredState(measuredGameId: GameId, statistics: MeasuredGameStatistic
       : notMeasurable(CONSOLIDATED_BOX_SCORE_REASON[statistics.boxScoreStatus], measuredGameId);
   }
   const { baseline, performanceIndex } = statistics;
-  if (baseline.status === 'building') {
-    return awaiting('baseline_building', measuredGameId);
+  if (baseline.status === 'final' || baseline.status === 'provisional') {
+    return {
+      status: 'measured',
+      statusReason: null,
+      measuredGameId,
+      ...normalizedGap(performanceIndex, baseline),
+    };
   }
-  if (baseline.status === 'insufficient') {
-    return notMeasurable('insufficient_baseline', measuredGameId);
-  }
-  return {
-    status: 'measured',
-    statusReason: null,
-    measuredGameId,
-    ...normalizedGap(performanceIndex, baseline),
-  };
+  return baseline.status === 'building'
+    ? awaiting('baseline_building', measuredGameId)
+    : notMeasurable('insufficient_baseline', measuredGameId);
 }
 
 /**
