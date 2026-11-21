@@ -110,8 +110,23 @@ export function parseExchangeDate(text: string): ExchangeDateResult {
   return dateTime === undefined ? refused('malformed') : readDateTime(text, dateTime);
 }
 
-// Trimmed, without accents (Unicode NFD, combining marks removed) and in lowercase.
-function fold(text: string): string {
+/**
+ * The values of a closed list of an exchange format, as written and in their order (glossary
+ * section 6, CL-IMP-22), typed as the list of their literals, so that the type of a value
+ * derives from the list. An `as const` would type it as well, but Stryker plants no mutant
+ * inside an `as` expression, which would leave the list untested.
+ */
+export function valuesOf<const Values extends readonly string[]>(values: Values): Values {
+  return values;
+}
+
+/**
+ * The one spelling by which a closed value is compared (CL-IMP-22): trimmed, without
+ * accents (Unicode NFD, combining marks removed) and in lowercase, inner spaces and
+ * punctuation kept, so that a hyphen differs from an underscore. Two values that fold
+ * alike are the same value.
+ */
+export function fold(text: string): string {
   return text.trim().normalize('NFD').replaceAll(COMBINING_MARK, '').toLowerCase();
 }
 

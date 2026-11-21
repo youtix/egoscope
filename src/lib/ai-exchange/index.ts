@@ -18,6 +18,10 @@ export type { ExtractJsonError, ExtractJsonResult, JsonPath } from './extract-js
 export { checkText, textLength } from './text-rules';
 export type { TextRuleBreach } from './text-rules';
 
+// pasted-text-size.ts
+export { checkPastedTextSize } from './pasted-text-size';
+export type { PastedTextSizeResult } from './pasted-text-size';
+
 // --- research-prompt/ ------------------------------------------------------------
 // template.ts stays internal to the part.
 
@@ -87,7 +91,7 @@ export type {
   ExplorationResponseError,
   ExplorationResponseResult,
   ExplorationWarning,
-  IllustrationSource,
+  ProposedIllustrationSource,
   ProposedType,
   ProposedTypeElement,
 } from './exploration/response';

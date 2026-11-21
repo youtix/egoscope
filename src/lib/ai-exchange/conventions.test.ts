@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { canonicalValue, isAbsent, parseExchangeDate } from './conventions';
+import { canonicalValue, fold, isAbsent, parseExchangeDate, valuesOf } from './conventions';
 
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
@@ -150,6 +150,26 @@ describe('canonicalValue', () => {
       expect(canonicalValue(read, CONFIDENCES)).toBeUndefined();
     },
   );
+});
+
+describe('fold', () => {
+  it.each([
+    [' Média-STORM\t', 'media-storm'],
+    ['RECORD-Approach', 'record-approach'],
+    ['Plàyer conflict', 'player conflict'],
+    ['public_humiliation', 'public_humiliation'],
+  ])('[CL-IMP-22] folds %j to %j: trimmed, without accents and in lowercase', (text, folded) => {
+    expect(fold(text)).toBe(folded);
+  });
+});
+
+describe('valuesOf', () => {
+  it('[CL-IMP-22] gives back the closed list as written, in its order', () => {
+    const values = ['high', 'medium', 'low'];
+
+    expect(valuesOf(values)).toBe(values);
+    expect(valuesOf(values)).toStrictEqual(['high', 'medium', 'low']);
+  });
 });
 
 describe('isAbsent', () => {

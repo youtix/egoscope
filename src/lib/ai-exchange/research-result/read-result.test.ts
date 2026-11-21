@@ -42,6 +42,11 @@ const REQUESTED = ['player-conflict', 'public-humiliation', 'racist-abuse', 'rec
 const PLAYER_ID = '8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f';
 // A place inside the description of the example's third event, written compact.
 const IN_THIRD_EVENT = '"description":"A national outlet notes';
+// An exploration response, whole, cut before its dating rule, and with a citation marker
+// after its name, which makes a syntax error.
+const RESPONSE = explorationResponse.pasted.join('\n');
+const CUT_RESPONSE = RESPONSE.slice(0, RESPONSE.indexOf('"dating_rule"'));
+const BROKEN_RESPONSE = RESPONSE.replace('made public"', 'made public" [1]');
 
 const [HUMILIATION, CONFLICT, RECORD] = example.events;
 const [SNEER, TAUNT] = HUMILIATION?.sources ?? [];
@@ -77,7 +82,7 @@ const SNEER_READ: ResearchSource = {
 const TAUNT_READ: ResearchSource = {
   url: 'https://www.media-national.example/basket/2021/01/15/le-joueur-a-raille',
   outlet: 'A national outlet (fictitious)',
-  title: 'Player A taunted by an opponent',
+  title: 'Le joueur A raillé par un adversaire',
   publicationDate: day('2021-01-15'),
 };
 const CONFLICT_CONTEXT: ContextIndications = {
@@ -106,7 +111,7 @@ const CONFLICT_READ: ResearchEvent = {
     {
       url: 'https://www.quotidien-regional.example/sports/2023/04/26/tension-sur-le-banc-de-l-equipe-x',
       outlet: 'A regional daily (fictitious)',
-      title: 'Tension on the team X bench',
+      title: "Tension sur le banc de l'équipe X",
       publicationDate: day('2023-04-26'),
     },
   ],
@@ -124,7 +129,7 @@ const RECORD_READ: ResearchEvent = {
     {
       url: 'https://www.media-national.example/basket/2025/12/02/le-joueur-a-aux-portes-d-un-record',
       outlet: 'A national outlet (fictitious)',
-      title: 'Player A on the verge of a team X record',
+      title: "Le joueur A aux portes d'un record de l'équipe X",
       publicationDate: day('2025-12-02'),
     },
   ],
@@ -248,13 +253,17 @@ describe('readResult', () => {
     expect(read(text)).toStrictEqual(accepted(resultWith({ coveredPeriod, events: [] })));
   });
 
-  it('[IMP-04] refuses the whole result as JSON isolation reports a text with no JSON object, two different results or a syntax error', () => {
+  it('[IMP-04] [IMP-06] refuses the whole result as JSON isolation reports a text with no JSON object, two different results or a syntax error, a cut exploration response after it included, and an object that breaks before it names the exploration format', () => {
     const twoResults = `${pasted()}\n${pasted({ format: ' egoscope-backtest' })}`;
     const marker = replaced(pasted(), '"high"}', '"high"} [3]');
+    const beforeFormat = '{"proposed_types": [] [2], "format": "egoscope-exploration"}';
+    const inFirstEvent = refusedAt('syntax_error', ['events', 0]);
 
     expect(read('The research found nothing.')).toStrictEqual(refused(['no_result_found']));
     expect(read(twoResults)).toStrictEqual(refused(['several_results']));
-    expect(read(marker)).toStrictEqual(refusedAt('syntax_error', ['events', 0]));
+    expect(read(marker)).toStrictEqual(inFirstEvent);
+    expect(read(`${marker}\n${CUT_RESPONSE}`)).toStrictEqual(inFirstEvent);
+    expect(read(beforeFormat)).toStrictEqual(refusedAt('syntax_error', ['proposed_types']));
   });
 
   it.each(['2.0', '1.1', '1.00', 'v1.0', 2, 1.5, true, { major: 1 }])(
@@ -267,7 +276,10 @@ describe('readResult', () => {
   );
 
   it.each([
-    ['an exploration response', explorationResponse.pasted.join('\n')],
+    ['an exploration response', RESPONSE],
+    ['an exploration response cut before its dating rule', CUT_RESPONSE],
+    ['an exploration response with a citation marker after its name', BROKEN_RESPONSE],
+    ['two different exploration responses', `${RESPONSE}\n${RESPONSE.replace('Trade', 'Loan')}`],
     ['one with the members of a result', pasted({ format: 'egoscope-exploration' })],
     ['another format value', pasted({ format: 'egoscope-backtests' })],
     ['a format with an underscore for its hyphen', pasted({ format: 'egoscope_backtest' })],
@@ -362,6 +374,16 @@ describe('readResult', () => {
   it('[IMP-09] [CL-IMP-23] [CL-IMP-22] counts a covered type listed more than once, in any spelling, once, with a warning, and leaves out an element that is no text', () => {
     const types = [...REQUESTED, ' Record-Approach', 'media-storm', 'Média-Storm', 7, null, '', {}];
     const result = resultWith({ coveredTypes: [...REQUESTED, 'media-storm'] });
+
+    expect(read(pasted({ [COVERED_TYPES]: types }))).toStrictEqual(
+      accepted(result, [{ kind: 'covered_type_repeated' }]),
+    );
+  });
+
+  it('[IMP-09] [CL-IMP-23] [CL-IMP-22] counts once each of 20,001 covered types, in their order, and their two repeats in one warning', () => {
+    const numbered = Array.from({ length: 20_000 }, (_, index) => `type-${String(index + 1)}`);
+    const types = ['record-approach', ...numbered, ' Type-7 ', 'TYPE-20000'];
+    const result = resultWith({ coveredTypes: ['record-approach', ...numbered] });
 
     expect(read(pasted({ [COVERED_TYPES]: types }))).toStrictEqual(
       accepted(result, [{ kind: 'covered_type_repeated' }]),
@@ -482,7 +504,7 @@ describe('readResult', () => {
     },
   );
 
-  it('[IMP-05] [CL-IMP-18] reads a cut answer that the recovery allows like a whole result, with its shortened period, its recovered events and what the recovery says', () => {
+  it('[IMP-05] [IMP-06] [CL-IMP-18] reads a cut answer that the recovery allows like a whole result, with its shortened period, its recovered events and what the recovery says, after an exploration response that breaks as well', () => {
     const answer = ['The backtest:', '```json', JSON.stringify(example, null, 2)].join('\n');
     const cut = cutAfter(answer, '"description": "A national outlet notes');
     const coveredPeriod = { startOn: '2019-10-23', endOn: '2023-04-25' };
@@ -491,8 +513,10 @@ describe('readResult', () => {
       coveredPeriod,
       events: [HUMILIATION_READ, CONFLICT_READ],
     });
+    const recovered = accepted(result, [], recovery({ recoveredEventCount: 2 }));
 
-    expect(read(cut)).toStrictEqual(accepted(result, [], recovery({ recoveredEventCount: 2 })));
+    expect(read(cut)).toStrictEqual(recovered);
+    expect(read(`${BROKEN_RESPONSE}\n${cut}`)).toStrictEqual(recovered);
   });
 
   it('[IMP-05] [CL-IMP-18] refuses a cut answer that the recovery does not allow as cut, at the place of the cut', () => {
@@ -506,8 +530,12 @@ describe('readResult', () => {
   it.each([
     ['covered types that name no requested type', { [COVERED_TYPES]: ['media-storm'] }, TYPES],
     ['an unknown version', { [FORMAT_VERSION]: '2.0' }, 'unknown_version'],
+    ['a covered period without an end', { [COVERED_PERIOD]: { start: '2019-10-23' } }, PERIOD],
+    ['a covered period ending on a nonexistent day', periodOf('2019-10-23', '2026-02-30'), PERIOD],
+    ['a covered period ending on no date', periodOf('2019-10-23', '2026-11-11 or later'), PERIOD],
+    ['a covered period starting after its end', periodOf('2026-06-01', '2026-03-01'), PERIOD],
   ])(
-    '[IMP-05] [CL-IMP-18] [CL-IMP-04] refuses a cut answer that the recovery allows, with %s, as a whole one, and keeps what the recovery says of the cut, which the correction message needs',
+    '[IMP-05] [IMP-09] [CL-IMP-18] [CL-IMP-04] refuses a cut answer that the recovery allows, with %s, as a whole one, and keeps what the recovery says of the cut, which the correction message needs',
     (_case, changes, kind) => {
       const cut = cutAfter(pasted(changes), IN_THIRD_EVENT);
       const cutInThirdEvent = recovery({ recoveredEventCount: 2 });
@@ -541,7 +569,7 @@ describe('readResult', () => {
     expect(read(cut)).toStrictEqual(accepted(result, [], empty));
   });
 
-  it('reads lists nested a hundred thousand levels deep in any member without overflowing the stack', () => {
+  it('[IMP-16] [CL-IMP-06] reads lists nested a hundred thousand levels deep in any member without overflowing the stack', () => {
     const deep = `${'['.repeat(100_000)}${']'.repeat(100_000)}`;
     let text = replaced(pasted(), '"covered_types":[', `"covered_types":[${deep},`);
     text = replaced(text, '"events":[', `"events":[${deep},`);

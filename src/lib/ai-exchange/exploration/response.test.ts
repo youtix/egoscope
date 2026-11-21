@@ -28,7 +28,7 @@ import type {
   ExplorationResponseError,
   ExplorationResponseResult,
   ExplorationWarning,
-  IllustrationSource,
+  ProposedIllustrationSource,
   ProposedType,
   ProposedTypeElement,
 } from './response';
@@ -121,7 +121,7 @@ const unnamed = (elements: Elements = {}): ProposedType => ({
   name: undefined,
 });
 
-const NO_SOURCE_FIELD: IllustrationSource = {
+const NO_SOURCE_FIELD: ProposedIllustrationSource = {
   url: undefined,
   outlet: undefined,
   title: undefined,
@@ -135,7 +135,7 @@ const SOURCE = {
   title: 'Forward asks to be traded, sources say',
   publicationDate: '2024-02-01',
   citationMarkers: [],
-} as const satisfies IllustrationSource;
+} as const satisfies ProposedIllustrationSource;
 
 const TRADE_REQUEST = named('Trade request made public', {
   definition: 'A public report that the player asked his team to trade him.',

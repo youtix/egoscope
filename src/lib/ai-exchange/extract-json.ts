@@ -5,13 +5,25 @@
 // token, no-break and other Unicode spaces counting as spaces between tokens, and
 // nothing else is repaired (CL-IMP-06): a fault is a syntax error at its place, and
 // a text that ends inside the object is cut, which the recovery of IMP-05 reads.
-import { canonicalValue } from './conventions';
+import { canonicalValue, valuesOf } from './conventions';
 
 /**
  * A place inside an object: the keys and array indexes from its root, indexes counted
  * from 0, so that `['events', 11, 'description']` lies in event 12.
  */
 export type JsonPath = readonly (number | string)[];
+
+// The names of the two formats of Egoscope: the research result's (BKT-24) and the
+// exploration response's (TAX-17). A reader may prefer its own.
+const FORMAT_NAMES = valuesOf(['egoscope-backtest', 'egoscope-exploration']);
+type FormatName = (typeof FORMAT_NAMES)[number];
+
+// Why no single object was isolated, before the formats that the text names are added.
+type Fault =
+  | Readonly<{ kind: 'no_result_found' }>
+  | Readonly<{ kind: 'several_results' }>
+  | Readonly<{ kind: 'syntax_error'; path: JsonPath }>
+  | Readonly<{ kind: 'cut'; path: JsonPath; partialText: string }>;
 
 /**
  * Why no single object was isolated:
@@ -23,16 +35,22 @@ export type JsonPath = readonly (number | string)[];
  *   `path`, the value read or last read there;
  * - `cut`: the text ends inside the object, at `path`; `partialText` is the object as
  *   far as it goes, its tokens as written without the spaces between them.
+ *
+ * `formats` names the formats of Egoscope that the objects of the text name in their own
+ * `format` member, whether they can be read or not, each once, in the order of
+ * egoscope-backtest then egoscope-exploration (IMP-06, CA-TAX-17, CL-IMP-22): so a reader
+ * tells a text in the other format, cut, broken or pasted twice, from one in its own. A
+ * member is named only once it is read: an object whose JSON breaks or stops at or before
+ * its `format` member names no format, and neither does a text without an object.
  */
-export type ExtractJsonError =
-  | Readonly<{ kind: 'no_result_found' }>
-  | Readonly<{ kind: 'several_results' }>
-  | Readonly<{ kind: 'syntax_error'; path: JsonPath }>
-  | Readonly<{ kind: 'cut'; path: JsonPath; partialText: string }>;
+export type ExtractJsonError = Fault & Readonly<{ formats: readonly FormatName[] }>;
 
 /** The isolated object, as JSON reads it, or why there is none. */
 export type ExtractJsonResult =
   Readonly<{ ok: true; value: unknown }> | Readonly<{ ok: false; error: ExtractJsonError }>;
+
+// The reading of one object, or of the text, before the formats are added to its fault.
+type Reading = Readonly<{ ok: true; value: unknown }> | Readonly<{ ok: false; error: Fault }>;
 
 // A token as written: a punctuation mark, whose value is itself, or a string, a number,
 // true, false or null, with its value as JSON reads it.
@@ -53,7 +71,7 @@ type Candidate = Readonly<{
   format: unknown;
   // Where the search for the next object goes on: after the object, or at its fault.
   resumeAt: number;
-  result: ExtractJsonResult;
+  result: Reading;
 }>;
 
 // Two values that JSON read, for a comparison of copies.
@@ -65,9 +83,11 @@ const INVISIBLE_CHARACTERS = /[\u{200B}\u{200C}\u{2060}\u{FEFF}\u{200D}]/gu;
 
 // A code fence, three or more backticks or tildes at the start of a line, with the
 // spaces around it and its language tag, which the object may follow on the same line.
-// A line starts where the character before, if any, is a line feed or a carriage
-// return: U+2028 and U+2029, which JSON allows inside a string, start none.
-const CODE_FENCE = /(?<![^\n\r])[ \t]*(?:`{3,}|~{3,})[ \t]*\w*/gu;
+// The tag runs from the fence and the spaces after it up to the first white space or
+// opening brace, so that json-ld, c++ or objective-c is stripped whole. A line starts
+// where the character before, if any, is a line feed or a carriage return: U+2028 and
+// U+2029, which JSON allows inside a string, start none.
+const CODE_FENCE = /(?<![^\n\r])[ \t]*(?:`{3,}|~{3,})[ \t]*[^\s{]*/gu;
 
 // Where the spaces that a text starts with end, JSON's and the Unicode ones.
 const END_OF_SPACES = /\S|$/u;
@@ -83,12 +103,7 @@ const PUNCTUATION = '{}[]:,';
 // so that curly-quoted keys are read, and refused, or the closing brace.
 const OBJECT_START = /\{(?=\s*["'‘’“”}])/gu;
 
-// The names of the two formats of Egoscope: the research result's (BKT-24) and the
-// exploration response's (TAX-17). A reader may prefer its own.
-const FORMAT_NAMES = ['egoscope-backtest', 'egoscope-exploration'] as const;
-type FormatName = (typeof FORMAT_NAMES)[number];
-
-function failure(error: ExtractJsonError): ExtractJsonResult {
+function failure(error: Fault): Reading {
   return { ok: false, error };
 }
 
@@ -229,7 +244,7 @@ class ObjectScanner {
 
   // The search goes on at the fault: what follows may be prose, or other objects.
   #fault(): Candidate {
-    const error: ExtractJsonError = { kind: 'syntax_error', path: this.#path() };
+    const error: Fault = { kind: 'syntax_error', path: this.#path() };
     const compact = this.#compact();
     return { compact, format: this.#format, resumeAt: this.#index, result: failure(error) };
   }
@@ -237,7 +252,7 @@ class ObjectScanner {
   // The object as far as the text goes: the tokens read, then the unfinished one.
   #cut(): Candidate {
     const partialText = this.#compact() + this.#text.slice(this.#index);
-    const error: ExtractJsonError = { kind: 'cut', path: this.#path(), partialText };
+    const error: Fault = { kind: 'cut', path: this.#path(), partialText };
     const resumeAt = this.#text.length;
     return { compact: partialText, format: this.#format, resumeAt, result: failure(error) };
   }
@@ -327,7 +342,7 @@ function copyOf(candidate: Candidate): unknown {
 }
 
 /** The one object of a pool, its copies counting as one, or why there is none. */
-function oneOf(pool: readonly Candidate[]): ExtractJsonResult {
+function oneOf(pool: readonly Candidate[]): Reading {
   const [first, ...others] = pool;
   if (first === undefined) {
     return failure({ kind: 'no_result_found' });
@@ -352,7 +367,7 @@ function formatOf(candidate: Candidate): FormatName | undefined {
 function choose(
   candidates: readonly Candidate[],
   preferredFormat: FormatName | undefined,
-): ExtractJsonResult {
+): Reading {
   const known = candidates.filter((candidate) => formatOf(candidate) !== undefined);
   if (known.length === 0) {
     const unreadable = candidates.find((candidate) => !candidate.result.ok);
@@ -360,6 +375,15 @@ function choose(
   }
   const preferred = known.filter((candidate) => formatOf(candidate) === preferredFormat);
   return oneOf(preferred.length > 0 ? preferred : known);
+}
+
+/**
+ * The formats of Egoscope that the candidates name, read or not, each once and in the
+ * order of the format names (IMP-06, CA-TAX-17).
+ */
+function formatsNamed(candidates: readonly Candidate[]): readonly FormatName[] {
+  const named = new Set(candidates.map((candidate) => formatOf(candidate)));
+  return FORMAT_NAMES.filter((name) => named.has(name));
 }
 
 /**
@@ -374,9 +398,16 @@ function choose(
  * repaired: a fault, a citation marker between tokens included, is a syntax error at
  * its place, and a text that ends inside the object is cut, apart from a syntax error,
  * with the partial text that the recovery of IMP-05 reads. A citation marker inside a
- * text value stays as written (ADR 0013).
+ * text value stays as written (ADR 0013). Whatever the object chosen, the error names the
+ * formats of Egoscope that the objects of the text name, those that cannot be read
+ * included, so that a reader refuses a text in the other format that it was not given,
+ * cut, broken or pasted twice, as of another format (IMP-06, CA-TAX-17).
  */
 export function extractJson(pastedText: string, preferredFormat?: FormatName): ExtractJsonResult {
   const text = pastedText.replaceAll(INVISIBLE_CHARACTERS, '').replaceAll(CODE_FENCE, '');
-  return choose(readCandidates(text.trimEnd()), preferredFormat);
+  const candidates = readCandidates(text.trimEnd());
+  const reading = choose(candidates, preferredFormat);
+  return reading.ok
+    ? reading
+    : { ok: false, error: { ...reading.error, formats: formatsNamed(candidates) } };
 }

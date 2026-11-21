@@ -115,6 +115,25 @@ const refused = (kind: RecoverCutError['kind']): RecoverCutResult => ({
   error: { kind },
 });
 
+/** A covered period declared, and as the recovery of a cut inside the third event leaves it. */
+type PeriodRow = Readonly<{
+  place: string;
+  declared: unknown;
+  period: unknown;
+  retainedCoverageEmpty: boolean;
+}>;
+
+/**
+ * A covered period that the reader refuses in the whole answer, with `kind`, which the
+ * recovery leaves as written for the reader to refuse it again (IMP-09).
+ */
+const keptAsWritten = (kind: string, declared: Readonly<Record<string, unknown>>): PeriodRow => ({
+  place: `nowhere for a period that the reader refuses whole, with ${kind}, kept as written`,
+  declared,
+  period: declared,
+  retainedCoverageEmpty: false,
+});
+
 /** The result with these lists written before its events list, cut inside the third event. */
 const listsFirst = (lists: readonly string[]): string =>
   cutAfter(membersIn([...HEADER_KEYS, ...lists, 'events']), IN_THIRD_EVENT);
@@ -330,15 +349,16 @@ describe('recoverCut', () => {
       retainedCoverageEmpty: false,
     },
     {
-      place: 'on that day when the declared end names no date',
-      declared: { start: '2020-12-22', end: 'end of the season' },
-      period: { start: '2020-12-22', end: '2021-03-01' },
-      retainedCoverageEmpty: false,
-    },
-    {
       place: 'before its start, which leaves the retained coverage empty',
       declared: { start: '2021-03-02T10:00+01:00', end: '2021-05-16' },
       period: { start: '2021-03-02T10:00+01:00', end: '2021-03-01' },
+      retainedCoverageEmpty: true,
+    },
+    {
+      place:
+        'before its start when it starts on its declared end, which leaves the retained coverage empty',
+      declared: { start: '2021-05-16', end: '2021-05-16' },
+      period: { start: '2021-05-16', end: '2021-03-01' },
       retainedCoverageEmpty: true,
     },
     {
@@ -365,8 +385,26 @@ describe('recoverCut', () => {
       period: ['2020-12-22'],
       retainedCoverageEmpty: false,
     },
+    {
+      place: 'nowhere when the period is null, kept as written',
+      declared: null,
+      period: null,
+      retainedCoverageEmpty: false,
+    },
+    keptAsWritten('its end left out', { start: '2020-12-22' }),
+    keptAsWritten('its end null', { start: '2020-12-22', end: null }),
+    keptAsWritten('an end that names no date', { start: '2020-12-22', end: 'end of the season' }),
+    keptAsWritten('an end on a day that does not exist', {
+      start: '2020-12-22',
+      end: '2021-02-30',
+    }),
+    keptAsWritten('an end that readDate does not read', {
+      start: '2020-12-22',
+      end: '2021-05-16 or later',
+    }),
+    keptAsWritten('an end before its start', { start: '2021-05-16', end: '2021-04-01' }),
   ])(
-    '[CL-IMP-18] ends the covered period $place',
+    '[IMP-09] [CL-IMP-18] ends the covered period $place',
     ({ declared, period, retainedCoverageEmpty }) => {
       const text = cutAfter(resultWith({ [COVERED_PERIOD]: declared }), IN_THIRD_EVENT);
       const value = { ...header(period), events: [FIRST, SECOND] };

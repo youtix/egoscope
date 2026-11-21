@@ -1,7 +1,9 @@
-// The size bound of a pasted text (IMP-02, CL-IMP-27), the only bound of an exploration
-// response as a whole (CL-TAX-04): the size of the text's UTF-8 encoding, in bytes,
-// against a limit in MB. The size is counted code point by code point, without encoding
-// the text, so that a large text costs no copy of itself.
+// The size bound of a pasted text (IMP-02, CL-IMP-27), shared by every text that a
+// screen bounds by `imports.maxPastedTextMegabytes`: the text or the file of the research
+// import (IMP-02), its drafts, and an exploration response, whose only bound as a whole
+// it is (CL-TAX-04). It is the size of the text's UTF-8 encoding, in bytes, against a
+// limit in MB, counted code point by code point, without encoding the text, so that a
+// large text costs no copy of itself.
 
 // A megabyte is 1,000,000 bytes of UTF-8 (CL-IMP-27). A size is written in MB to the
 // hundredth above, so that a text over the limit never reads as one at the limit.
@@ -14,8 +16,8 @@ const FIRST_OF_THREE_BYTES = 0x8_00;
 const FIRST_OF_FOUR_BYTES = 0x1_00_00;
 const FOUR_BYTES = 4;
 
-// A text within its bound, or one refused, with the message that gives its size.
-type PastedTextSizeResult =
+/** A pasted text within its bound, or one refused, with the message that gives its size (IMP-02, CL-IMP-27). */
+export type PastedTextSizeResult =
   | Readonly<{ ok: true }>
   | Readonly<{ ok: false; error: Readonly<{ kind: 'text_too_large'; message: string }> }>;
 

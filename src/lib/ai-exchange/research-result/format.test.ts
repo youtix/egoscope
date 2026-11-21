@@ -72,7 +72,7 @@ const isWrittenText = (value: unknown): boolean => typeof value === 'string' && 
 describe('format 1.0', () => {
   // The reader's own test of the example pins the value of every field, so that a field
   // that the example leaves out or writes otherwise fails it (read-result.test.ts).
-  it('[CA-BKT-13] [CL-BKT-02] finds the full example of 05 valid and conforming field by field: only the keys of the format, every value a text with content and none null, each identifier and closed value as the request and glossary 6.1 spell it, each free text within the maximum length of a description and without quotation marks', () => {
+  it('[BKT-24] [CA-BKT-13] [CL-BKT-02] finds the full example of 05 valid and conforming field by field: only the keys of the format, every value a text with content and none null, each identifier and closed value as the request and glossary 6.1 spell it, each free text within the maximum length of a description and without quotation marks', () => {
     const unlisted = CLOSED_VALUES.filter(([value, values]) => !values.includes(value));
     const breaking = FREE_TEXTS.filter(
       (text) => checkText(text, MAX_DESCRIPTION_LENGTH).length > 0,

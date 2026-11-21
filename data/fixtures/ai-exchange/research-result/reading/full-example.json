@@ -20,7 +20,7 @@
         {
           "url": "https://www.media-national.example/basket/2021/01/15/le-joueur-a-raille",
           "outlet": "A national outlet (fictitious)",
-          "title": "Player A taunted by an opponent",
+          "title": "Le joueur A raillé par un adversaire",
           "publication_date": "2021-01-15"
         }
       ],
@@ -38,7 +38,7 @@
         {
           "url": "https://www.quotidien-regional.example/sports/2023/04/26/tension-sur-le-banc-de-l-equipe-x",
           "outlet": "A regional daily (fictitious)",
-          "title": "Tension on the team X bench",
+          "title": "Tension sur le banc de l'équipe X",
           "publication_date": "2023-04-26"
         }
       ],
@@ -58,7 +58,7 @@
         {
           "url": "https://www.media-national.example/basket/2025/12/02/le-joueur-a-aux-portes-d-un-record",
           "outlet": "A national outlet (fictitious)",
-          "title": "Player A on the verge of a team X record",
+          "title": "Le joueur A aux portes d'un record de l'équipe X",
           "publication_date": "2025-12-02"
         }
       ],

@@ -3,7 +3,8 @@
 // the recovery allows (IMP-05), then its format and its version, its members checked as a
 // whole and every field typed. Each event's own checks (IMP-11 to IMP-15) take this
 // output; tying its reference and its player to a request is the import's (IMP-07).
-import { canonicalValue, isAbsent } from '../conventions';
+import { canonicalValue, fold, isAbsent } from '../conventions';
+import { EXPLORATION_FORMAT } from '../exploration/format';
 import { extractJson } from '../extract-json';
 import { calendarDate, firstUnsorted, readDate } from './dates';
 import {
@@ -17,7 +18,7 @@ import {
 } from './format';
 import { recoverCut } from './recover-cut';
 
-import type { JsonPath } from '../extract-json';
+import type { ExtractJsonError, JsonPath } from '../extract-json';
 import type {
   ContextIndications,
   ResearchEvent,
@@ -41,9 +42,11 @@ export type TruncationRecovery = Omit<CutRecovery, 'value'>;
  * Why the whole result is refused, nothing being saved (IMP-04 to IMP-06, IMP-09), a code
  * of the glossary's `BlockingErrorKind`: the text holds no JSON object, several different
  * ones, a syntax error at `path`, or a cut at `path` that allows no recovery (IMP-05);
- * the object is not a backtest result, or of an unknown version (IMP-06); its covered
- * types, its covered period or its events are missing or invalid (IMP-09). The import
- * adds the size of the text (IMP-02) and the request and the player (IMP-07).
+ * the object is not a backtest result, nor is a text whose objects name the exploration
+ * format and not this one, whether cut, broken or pasted twice, or the result is of an
+ * unknown version (IMP-06); its covered types, its covered period or its events are
+ * missing or invalid (IMP-09). It never names the formats that JSON isolation found. The
+ * import adds the size of the text (IMP-02) and the request and the player (IMP-07).
  */
 export type ReadResultError =
   | Readonly<{
@@ -182,8 +185,9 @@ function identify(root: Members): MemberReading<typeof FORMAT_VERSION> {
 /**
  * The covered types (IMP-09, CL-IMP-22, CL-IMP-23): each declared type once, in the
  * request's spelling when it names a requested type and as written otherwise, an
- * element that is no text left out. Missing, empty or holding no requested type, they
- * refuse the result.
+ * element that is no text left out. A type repeats one kept before it when they fold
+ * alike, which one set of the folds kept tells in one pass. Missing, empty or holding no
+ * requested type, they refuse the result.
  */
 function readCoveredTypes(
   value: unknown,
@@ -193,9 +197,13 @@ function readCoveredTypes(
     .map((element) => textOf(element))
     .filter((text) => text !== undefined)
     .map((text) => canonicalValue(text, requestedTypes) ?? text);
-  const types = declared.filter(
-    (type, index) => canonicalValue(type, declared.slice(0, index)) === undefined,
-  );
+  const kept = new Set<string>();
+  const types = declared.filter((type) => {
+    const folded = fold(type);
+    const isFirst = !kept.has(folded);
+    kept.add(folded);
+    return isFirst;
+  });
   if (types.every((type) => !requestedTypes.includes(type))) {
     return { ok: false, error: { kind: 'covered_types_invalid' } };
   }
@@ -207,8 +215,9 @@ function readCoveredTypes(
 /**
  * The covered period (IMP-09, CL-IMP-08): the calendar dates of its bounds as written, a
  * bound written with a time keeping its date, with a warning. Missing, with a bound that
- * is missing or invalid, or starting after its end, it refuses the result, except once
- * the recovery of a cut result has ended it before its start (CL-IMP-18).
+ * is missing or invalid, or starting after its end, it refuses the result, a recovered
+ * one too, whose recovery leaves such a period as written; except once the recovery of a
+ * cut result has ended a valid period before its start (CL-IMP-18).
  */
 function readCoveredPeriod(
   value: unknown,
@@ -372,12 +381,24 @@ function readObject(
 }
 
 /**
+ * Whether no single object was isolated from a text whose objects name the exploration
+ * format and not this one (IMP-06, CL-IMP-06): an exploration response cut, broken or
+ * pasted twice, which is no backtest result, whatever its fault.
+ */
+function isExplorationText(error: ExtractJsonError): boolean {
+  return error.formats.includes(EXPLORATION_FORMAT) && !error.formats.includes(BACKTEST_FORMAT);
+}
+
+/**
  * Reads a research result in format 1.0 from the text pasted for a request (IMP-04 to
  * IMP-06, IMP-09, IMP-16, BKT-23, BKT-24, CL-BKT-02). The JSON object is isolated from the
- * text (IMP-04), a result kept over an exploration response pasted with it, and a cut
- * answer goes to the recovery of IMP-05, which, when it allows, gives the result read like
- * a whole one, every recovered event included, its covered period as the recovery leaves
- * it (CL-IMP-18); read or refused, it keeps what the recovery says of the cut, which the
+ * text (IMP-04), a result kept over an exploration response pasted with it; a text whose
+ * objects name the exploration format and not this one is refused as not a backtest
+ * result before any recovery, cut, broken or pasted twice (IMP-06), as the coordinator
+ * decided on 20 November, ahead of the documents. Otherwise a cut answer goes to the
+ * recovery of IMP-05, which, when it allows, gives the result read like a whole one,
+ * every recovered event included, its covered period as the recovery leaves it
+ * (CL-IMP-18); read or refused, it keeps what the recovery says of the cut, which the
  * correction message needs (IMP-21, CL-IMP-04). The result names format egoscope-backtest
  * and version 1.0; a missing format or version assumes 1.0 with a warning when the
  * structure is recognized (CL-IMP-06), and version 1 does with a warning. Its covered
@@ -399,8 +420,14 @@ export function readResult(
     return readObject(isolated.value, requestedTypes, undefined);
   }
   const { error } = isolated;
+  if (isExplorationText(error)) {
+    return refused([{ kind: 'not_a_backtest_result' }]);
+  }
+  if (error.kind === 'syntax_error') {
+    return refused([{ kind: error.kind, path: error.path }]);
+  }
   if (error.kind !== 'cut') {
-    return refused([error]);
+    return refused([{ kind: error.kind }]);
   }
   const recovered = recoverCut(error.partialText);
   if (!recovered.ok) {
