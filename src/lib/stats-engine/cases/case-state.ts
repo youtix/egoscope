@@ -6,8 +6,8 @@
 // (baseline part); and last its normalized gap. A computed gap makes the case measured:
 // the doubtful-case criteria and the manual decisions that exclude it come after.
 
-import { normalizedGap } from './normalized-gap';
 import { seasonOfDate } from '../schedule/seasons';
+import { normalizedGap } from './normalized-gap';
 
 import type { SeasonBaseline } from '../baseline/season-baseline';
 import type { Attachment } from '../measured-game/attachment';

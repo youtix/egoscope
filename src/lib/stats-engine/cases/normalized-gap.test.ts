@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 
-import { normalizedGap } from './normalized-gap';
 import { seasonBaseline } from '../baseline/season-baseline';
+import { normalizedGap } from './normalized-gap';
 
 import type { BaselineGame, SeasonBaseline } from '../baseline/season-baseline';
 import type { EngineParams } from '../types';

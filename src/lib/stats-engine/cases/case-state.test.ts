@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 
 import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 
-import { caseState } from './case-state';
-import { applyManualDecisions } from './manual-decisions';
 import { attachToMeasuredGame } from '../measured-game/attachment';
 import { generalTrend } from '../profiles/general-trend';
 import { profileVerdict } from '../profiles/verdict';
+import { caseState } from './case-state';
+import { applyManualDecisions } from './manual-decisions';
 
 import type { SeasonBaseline } from '../baseline/season-baseline';
 import type { Attachment, AttachmentEvent, AttachmentGame } from '../measured-game/attachment';
