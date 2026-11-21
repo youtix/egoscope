@@ -1,4 +1,11 @@
+import { connection } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// `connection()` only works inside a Next.js request; here it just records the call.
+vi.mock(import('next/server'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  connection: vi.fn(),
+}));
 
 /** Stubs each of `variables` with its value. */
 function stubVariables(variables: Readonly<Record<string, string>>): void {
@@ -9,17 +16,8 @@ function stubVariables(variables: Readonly<Record<string, string>>): void {
 
 describe('isGalleryOpen', () => {
   beforeEach(() => {
-    // The environment is read once per server process, so each test loads a fresh one,
-    // from every variable of the server environment pinned.
+    // The environment is read once per server process, so each test loads a fresh one.
     vi.resetModules();
-    stubVariables({
-      EGOSCOPE_FAKES: '',
-      DATABASE_URL: '',
-      DATABASE_URL_UNPOOLED: '',
-      VERCEL_ENV: '',
-      LOG_LEVEL: '',
-      NODE_ENV: 'test',
-    });
   });
 
   it.each([
@@ -34,5 +32,36 @@ describe('isGalleryOpen', () => {
     const { isGalleryOpen } = await import('./gallery-access');
 
     expect(isGalleryOpen()).toBe(isOpen);
+  });
+});
+
+describe('isGalleryShown', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.mocked(connection).mockReset();
+  });
+
+  it('says no at once in production, with no request to wait for, as a build prerenders it', async () => {
+    stubVariables({ NODE_ENV: 'production' });
+    vi.mocked(connection).mockReturnValue(Promise.withResolvers<undefined>().promise);
+    const { isGalleryShown } = await import('./gallery-access');
+
+    await expect(isGalleryShown()).resolves.toBe(false);
+    expect(vi.mocked(connection)).not.toHaveBeenCalled();
+  });
+
+  it('says yes in the hermetic mode once the request has come, and not before', async () => {
+    stubVariables({ NODE_ENV: 'production', EGOSCOPE_FAKES: 'all' });
+    const request = Promise.withResolvers<undefined>();
+    vi.mocked(connection).mockReturnValue(request.promise);
+    const { isGalleryShown } = await import('./gallery-access');
+
+    const answer = isGalleryShown();
+    await expect(Promise.race([answer, Promise.resolve('still waiting')])).resolves.toBe(
+      'still waiting',
+    );
+    request.resolve(undefined);
+
+    await expect(answer).resolves.toBe(true);
   });
 });
