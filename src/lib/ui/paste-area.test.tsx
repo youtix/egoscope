@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import axe from 'axe-core';
 import { useState } from 'react';
@@ -118,6 +118,21 @@ describe('PasteArea', () => {
     );
 
     expect(await screen.findByDisplayValue('x'.repeat(MAX_FILE_BYTES))).toBeVisible();
+  });
+
+  it.each([
+    ['an empty list', []],
+    ['no list at all', null],
+  ])('keeps its text when the file picker closes with %s', async (_case, files) => {
+    const user = userEvent.setup();
+    render(<ImportField />);
+    await user.type(screen.getByRole('textbox', { name: 'Research result' }), 'draft');
+
+    // A picker closed without a file changes its selection to none, which no user-event call does.
+    fireEvent.change(screen.getByLabelText('Choose a text file'), { target: { files } });
+
+    expect(screen.getByRole('textbox', { name: 'Research result' })).toHaveValue('draft');
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
   it('says so when a file cannot be read as text', async () => {

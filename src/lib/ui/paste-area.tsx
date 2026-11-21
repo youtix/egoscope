@@ -75,11 +75,10 @@ export function PasteArea({
     }
   };
   const pick = (event: ChangeEvent<HTMLInputElement>): void => {
-    const file = event.currentTarget.files?.[0];
-    if (filePickerRef.current !== null) {
-      // Cleared, so that picking the same file again reads it again.
-      filePickerRef.current.value = '';
-    }
+    const picker = event.currentTarget;
+    const file = picker.files?.[0];
+    // Cleared, so that picking the same file again reads it again.
+    picker.value = '';
     if (file !== undefined) {
       void read(file);
     }

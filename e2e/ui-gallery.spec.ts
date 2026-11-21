@@ -76,7 +76,7 @@ for (const colorScheme of THEMES) {
     });
 
     test('[IHM-39] [IHM-63] unfolds the long text, copies it and shares it', async ({ page }) => {
-      const text = page.getByRole('region', { name: 'Folded text' });
+      const text = page.getByRole('region', { name: 'Folded text', exact: true });
       await page.getByRole('button', { name: 'Show all' }).click();
       await expect(page.getByRole('button', { name: 'Show less' })).toBeVisible();
 
@@ -168,7 +168,7 @@ for (const colorScheme of THEMES) {
       await page.getByRole('tab', { name: 'Second panel' }).click();
       await expect(page.getByRole('tabpanel', { name: 'Second panel' })).toBeVisible();
 
-      const samples = page.getByRole('search', { name: 'Samples' });
+      const samples = page.getByRole('search', { name: 'Samples', exact: true });
       await samples.getByRole('combobox', { name: 'State' }).selectOption('Closed');
       await samples.getByRole('button', { name: 'Apply' }).click();
       await expect(page).toHaveURL(/\/dev\/ui\?state=closed&q=$/u);
