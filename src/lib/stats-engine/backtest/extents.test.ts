@@ -316,7 +316,7 @@ describe('updateExtent', () => {
     firstNbaGameOn: FIRST_GAME,
   } as const;
 
-  it('[CL-BKT-08] ends every planned type on the update day and keeps its start', () => {
+  it('[BKT-15] [CL-BKT-08] ends every planned type on the update day and keeps its start', () => {
     const before = [
       planned('media-storm', FIRST_GAME, CREATED),
       planned('bereavement', undefined, CREATED),
@@ -335,7 +335,7 @@ describe('updateExtent', () => {
   });
 
   it.each<BacktestRequestKind>(['initial', 'full_redo'])(
-    '[CL-BKT-08] gives a type added to a request of kind %s the whole career on the update day, whatever its coverage',
+    '[BKT-15] [CL-BKT-08] gives a type added to a request of kind %s the whole career on the update day, whatever its coverage',
     (requestKind) => {
       const update = {
         ...UPDATE,
@@ -353,7 +353,7 @@ describe('updateExtent', () => {
     },
   );
 
-  it('[CL-BKT-08] gives a type added to a supplement the days from its first uncovered day, unless it is complete', () => {
+  it('[BKT-15] [CL-BKT-08] gives a type added to a supplement the days from its first uncovered day, unless it is complete', () => {
     const update = {
       ...UPDATE,
       plannedTypes: [planned('media-storm', '2025-07-01', CREATED)],
@@ -381,7 +381,7 @@ describe('updateExtent', () => {
     expect(() => updateExtent(update)).toThrow(calendarDerivedRefusal('birthday'));
   });
 
-  it('[CL-BKT-08] [CL-BKT-09] takes a planned type that starts after the update day out of the prompt, with its period', () => {
+  it('[BKT-15] [CL-BKT-08] [CL-BKT-09] takes a planned type that starts after the update day out of the prompt, with its period', () => {
     const before = [
       planned('media-storm', FIRST_GAME, '2026-11-12'),
       planned('bereavement', '2026-11-12', '2026-11-12'),
@@ -411,7 +411,7 @@ describe('updateExtent', () => {
     },
   );
 
-  it('[CL-BKT-08] keeps every start, ends the requested types on the update day and starts no added type before the first NBA game', () => {
+  it('[BKT-15] [CL-BKT-08] keeps every start, ends the requested types on the update day and starts no added type before the first NBA game', () => {
     fc.assert(
       fc.property(updates, (update) => {
         const after = plannedOf(updateExtent(update));
@@ -436,7 +436,7 @@ describe('updateExtent', () => {
 describe('reduceExtent', () => {
   const TO_SEASON = { removedTypeIds: [], seasonEndOn: SEASON_END };
 
-  it('[CL-BKT-09] ends every requested type on the end of the season, the earlier day', () => {
+  it('[BKT-15] [CL-BKT-09] ends every requested type on the end of the season, the earlier day', () => {
     const before = [
       planned('media-storm', FIRST_GAME, CREATED),
       planned('bereavement', undefined, CREATED),
@@ -450,7 +450,7 @@ describe('reduceExtent', () => {
     );
   });
 
-  it('[CL-BKT-09] keeps an end that comes before the end of the season', () => {
+  it('[BKT-15] [CL-BKT-09] keeps an end that comes before the end of the season', () => {
     const before = [
       planned('media-storm', FIRST_GAME, CREATED),
       planned('bereavement', FIRST_GAME, '2022-06-30'),
@@ -464,7 +464,7 @@ describe('reduceExtent', () => {
     );
   });
 
-  it('[CL-BKT-09] [CL-BKT-07] takes a type whose period would hold no day out of the prompt, planned with its period', () => {
+  it('[BKT-15] [CL-BKT-09] [CL-BKT-07] takes a type whose period would hold no day out of the prompt, planned with its period', () => {
     const before = [
       planned('media-storm', FIRST_GAME, CREATED),
       planned('bereavement', '2023-06-15', CREATED),
@@ -478,7 +478,7 @@ describe('reduceExtent', () => {
     );
   });
 
-  it('[CL-BKT-09] keeps the one day of a type that starts on the end of the season', () => {
+  it('[BKT-15] [CL-BKT-09] keeps the one day of a type that starts on the end of the season', () => {
     expect(reduceExtent([planned('media-storm', SEASON_END, CREATED)], TO_SEASON)).toStrictEqual(
       plannedTypes(planned('media-storm', SEASON_END, SEASON_END)),
     );
@@ -488,7 +488,7 @@ describe('reduceExtent', () => {
     ['alone', undefined, CREATED],
     ['with a season', SEASON_END, SEASON_END],
   ])(
-    '[CL-BKT-09] [CL-BKT-07] takes out the types the owner removes, %s, planned with their period',
+    '[BKT-15] [CL-BKT-09] [CL-BKT-07] takes out the types the owner removes, %s, planned with their period',
     (_, seasonEndOn, endOn) => {
       const before = [
         planned('media-storm', FIRST_GAME, CREATED),
@@ -504,7 +504,7 @@ describe('reduceExtent', () => {
     },
   );
 
-  it('[CL-BKT-09] leaves the types already out of the prompt as they are', () => {
+  it('[BKT-15] [CL-BKT-09] leaves the types already out of the prompt as they are', () => {
     const before = [
       planned('media-storm', FIRST_GAME, CREATED),
       takenOut('bereavement', FIRST_GAME, CREATED),
@@ -534,7 +534,7 @@ describe('reduceExtent', () => {
     },
   );
 
-  it('[CL-BKT-09] never moves an end later nor past the end of the season, nor makes a period end before it starts', () => {
+  it('[BKT-15] [CL-BKT-09] never moves an end later nor past the end of the season, nor makes a period end before it starts', () => {
     fc.assert(
       fc.property(
         plannedOnes,

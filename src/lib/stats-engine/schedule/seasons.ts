@@ -41,10 +41,12 @@ export type SeasonOfDateResult = Readonly<{ ok: true; season: string }> | Season
 
 /**
  * What the games module reads of a season whose schedule is stored to build its span
- * (STA-48): a few aggregates of its games, never the games themselves. Each day is a
- * game's US Eastern date (CL-TRV-03), read from the season's stored games, all official
- * since the games that never count are never stored (CL-STA-16), less those that no rule
- * counts: the canceled games and the postponed games without a make-up (CL-STA-17).
+ * (STA-48): a few aggregates of its games, never the games themselves, and one statement
+ * of its Finals, the only input that tells whether it has closed (CL-STA-18, CL-STA-30).
+ * Each day is a game's US Eastern date (CL-TRV-03), read from the season's stored games,
+ * all official since the games that never count are never stored (CL-STA-16), less those
+ * that no rule counts: the canceled games and the postponed games without a make-up
+ * (CL-STA-17).
  */
 export type SeasonSpanInput = Readonly<{
   /** The season, written `2024-25`. */
@@ -56,12 +58,11 @@ export type SeasonSpanInput = Readonly<{
   /** The day of its last game, of any phase. */
   lastGameOn: IsoDate;
   /**
-   * Whether its Finals are over, as `phaseState` says of a team of the Finals when it is
-   * asked with the same `hasLaterSeasonGame`.
+   * Whether its Finals are over: what `phaseState` says of the postseason of a team of its
+   * Finals, `finished`, asked with the season's `hasLaterSeasonGame`; and, when the
+   * schedule lists no Finals, whether a game of a later season is stored.
    */
   isFinalsOver: boolean;
-  /** Whether a game of a later season is stored. */
-  hasLaterSeasonGame: boolean;
 }>;
 
 // A date is written `YYYY-MM-DD`: its year is its first four characters.
@@ -108,22 +109,20 @@ export function seasonOfDate(date: IsoDate, seasons: readonly SeasonSpan[]): Sea
 
 /** The day a season closes, or null while it may still be in progress. */
 function closingDayOf(input: SeasonSpanInput): IsoDate | null {
-  if (input.isFinalsOver) {
-    return input.lastPlayoffGameOn ?? input.lastGameOn;
-  }
-  return input.hasLaterSeasonGame ? input.lastGameOn : null;
+  return input.isFinalsOver ? (input.lastPlayoffGameOn ?? input.lastGameOn) : null;
 }
 
 /**
  * The span of a season whose schedule is stored (STA-48, CL-STA-16, CL-STA-30), built
  * from what the games module reads of it, `SeasonSpanInput`: from the day of its first
- * regular-season game to the day it closes. A season closes when its Finals are over, on
- * its last playoff game, or on its last game when none of its playoff games is final, so
- * that a season whose Finals are over never stays open; or once a game of a later season
- * is stored, on its last game, so that a past season whose last playoff games the source
- * does not list closes all the same. `isFinalsOver` comes from `phaseState` asked with
- * the same `hasLaterSeasonGame`. Until it closes a season may be in progress, and its last
- * day is null. A season without a regular-season game has no span: null.
+ * regular-season game to the day it closes. A season closes once its Finals are over, on
+ * its last final playoff game, or on its last game when none of its playoff games is
+ * final, so that a season whose Finals are over never stays open; one statement of the
+ * Finals, `isFinalsOver`, decides it, so that a season has one closing day. Once a game
+ * of a later season is stored, the caller passes its Finals over, which closes a past
+ * season whose last playoff games the source left unfinished or never listed
+ * (CL-STA-18). Until it closes a season may be in progress, and its last day is null. A
+ * season without a regular-season game has no span: null.
  */
 export function seasonSpan(input: SeasonSpanInput): SeasonSpan | null {
   if (input.firstRegularSeasonGameOn === null) {

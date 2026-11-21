@@ -276,6 +276,18 @@ describe('nextGameOf without a game to play', () => {
     });
   });
 
+  it('[STA-26] [CL-STA-18] [CL-STA-20] reads Finals that the stored series list before any game of theirs is stored as not over', () => {
+    const finalsListedOnly = scheduleOf(
+      [...REGULAR_SEASON, ...FIRST_ROUND],
+      [...FIRST_ROUND_SERIES, seriesOf([7, 8], 'finals')],
+    );
+
+    expect(nextGameOf(PLAYER, finalsListedOnly, utc('2026-06-08', 12))).toStrictEqual({
+      ...NO_GAME,
+      reason: 'team_eliminated',
+    });
+  });
+
   it.each([
     ['X, still in its series', X, 'schedule_not_published'],
     ['team 7, never in the postseason', 7, 'team_eliminated'],

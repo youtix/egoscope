@@ -4,7 +4,7 @@
 // supplements share these rules. Dates are calendar dates written YYYY-MM-DD, compared
 // as written (CL-IMP-09).
 
-import { dayAfter } from './calendar-days';
+import { dayAfter } from '../calendar-days';
 
 import type { IsoDate } from '../types';
 

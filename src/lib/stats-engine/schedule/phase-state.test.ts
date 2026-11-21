@@ -33,11 +33,15 @@ function gameOf(id: number, onDay: number, fields: Partial<PhaseGame> = {}): Pha
 const toPlay = (id: number, onDay: number, fields: Partial<PhaseGame> = {}): PhaseGame =>
   gameOf(id, onDay, { status: 'scheduled', finalScore: null, consolidatedAt: null, ...fields });
 
-const regularSeasonAt = (games: readonly PhaseGame[], at: number): PhaseState | null =>
-  phaseState({ games, series: [], hasLaterSeasonGame: false }, { phase: 'regular_season', at });
+/** The regular season of `games` at `at`, of the latest season unless `hasLaterSeasonGame`. */
+const regularSeasonAt = (
+  games: readonly PhaseGame[],
+  at: number,
+  hasLaterSeasonGame = false,
+): PhaseState => phaseState({ games, series: [], hasLaterSeasonGame }, { regularSeasonAt: at });
 
 const postseasonOf = (schedule: SeasonSchedule, teamId: number): PhaseState | null =>
-  phaseState(schedule, { phase: 'postseason', teamId });
+  phaseState(schedule, { postseasonTeamId: teamId });
 
 type SeriesOptions = Readonly<{
   from?: number;
@@ -330,6 +334,28 @@ describe('phaseState of the regular season', () => {
 
   it('[CL-STA-02] has not finished while the schedule holds none of its games', () => {
     expect(regularSeasonAt([], day(50))).toStrictEqual(RUNNING);
+  });
+
+  it.each(['scheduled', 'in_progress', 'postponed'] as const)(
+    '[STA-20] [STA-21] [CL-STA-02] [CL-STA-18] finishes at every instant once a game of a later season is stored, a game of it still %s',
+    (status) => {
+      const games = [gameOf(1, 1), gameOf(2, 2), toPlay(3, 9, { status })];
+      const inWindow = games.map((game) =>
+        game.id === 2 ? { ...game, consolidatedAt: null } : game,
+      );
+
+      expect(regularSeasonAt(games, day(50), true)).toStrictEqual(FINISHED);
+      expect(regularSeasonAt(games, day(0), true)).toStrictEqual(FINISHED);
+      expect(regularSeasonAt(games, day(50))).toStrictEqual(RUNNING);
+      expect(regularSeasonAt(inWindow, day(50), true)).toStrictEqual(IN_WINDOW);
+    },
+  );
+
+  it('[STA-20] [CL-STA-02] [CL-STA-18] finishes without a last game once a game of a later season is stored, the schedule holding none of its games', () => {
+    expect(regularSeasonAt([], day(50), true)).toStrictEqual({
+      finished: true,
+      lastGameConsolidated: false,
+    });
   });
 });
 

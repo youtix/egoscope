@@ -288,7 +288,6 @@ const FINALS_OVER: SeasonSpanInput = {
   // A seventh game still listed after the deciding win.
   lastGameOn: '2021-07-22',
   isFinalsOver: true,
-  hasLaterSeasonGame: false,
 };
 
 /** What it reads of 2025-26 in progress: its Finals tied two games to two after game 4. */
@@ -298,7 +297,6 @@ const FINALS_UNDER_WAY: SeasonSpanInput = {
   lastPlayoffGameOn: '2026-06-12',
   lastGameOn: '2026-06-12',
   isFinalsOver: false,
-  hasLaterSeasonGame: false,
 };
 
 /** What it reads of a past season whose Finals the source left unfinished. */
@@ -309,15 +307,15 @@ const FINALS_UNFINISHED: SeasonSpanInput = {
   // A fifth Finals game still listed as scheduled.
   lastGameOn: '2003-06-13',
   isFinalsOver: false,
-  hasLaterSeasonGame: false,
 };
 
 describe('seasonSpan', () => {
-  it('[STA-48] [CL-STA-30] closes a season whose Finals are over on its last playoff game, whether a later season has a game or not', () => {
-    const expected = { season: '2020-21', firstGameOn: '2020-12-22', lastGameOn: '2021-07-20' };
-
-    expect(seasonSpan(FINALS_OVER)).toStrictEqual(expected);
-    expect(seasonSpan({ ...FINALS_OVER, hasLaterSeasonGame: true })).toStrictEqual(expected);
+  it('[STA-48] [CL-STA-30] closes a season whose Finals are over on its last final playoff game, never on a game listed after it', () => {
+    expect(seasonSpan(FINALS_OVER)).toStrictEqual({
+      season: '2020-21',
+      firstGameOn: '2020-12-22',
+      lastGameOn: '2021-07-20',
+    });
   });
 
   it('[STA-48] [CL-STA-30] closes a season whose Finals are over on its last game when none of its playoff games is final, never leaving it open', () => {
@@ -327,7 +325,6 @@ describe('seasonSpan', () => {
       lastPlayoffGameOn: null,
       lastGameOn: '2003-04-16',
       isFinalsOver: true,
-      hasLaterSeasonGame: true,
     };
 
     expect(seasonSpan(input)).toStrictEqual({
@@ -354,16 +351,16 @@ describe('seasonSpan', () => {
     },
   );
 
-  it('[STA-48] [CL-STA-18] closes a past season whose stored Finals are unfinished on its last game once a later season has a game', () => {
+  it('[STA-48] [CL-STA-18] leaves open a past season whose stored Finals are unfinished, and closes it on its last final playoff game once they are said over, as the caller says once a later season has a game', () => {
     expect(seasonSpan(FINALS_UNFINISHED)).toStrictEqual({
       season: '2002-03',
       firstGameOn: '2002-10-29',
       lastGameOn: null,
     });
-    expect(seasonSpan({ ...FINALS_UNFINISHED, hasLaterSeasonGame: true })).toStrictEqual({
+    expect(seasonSpan({ ...FINALS_UNFINISHED, isFinalsOver: true })).toStrictEqual({
       season: '2002-03',
       firstGameOn: '2002-10-29',
-      lastGameOn: '2003-06-13',
+      lastGameOn: '2003-06-11',
     });
   });
 
@@ -372,7 +369,7 @@ describe('seasonSpan', () => {
       ...FINALS_UNFINISHED,
       lastPlayoffGameOn: null,
       lastGameOn: '2003-04-16',
-      hasLaterSeasonGame: true,
+      isFinalsOver: true,
     };
 
     expect(seasonSpan(input)?.lastGameOn).toBe('2003-04-16');
@@ -384,7 +381,7 @@ describe('seasonSpan', () => {
       seasonSpan({
         ...FINALS_UNFINISHED,
         firstRegularSeasonGameOn: null,
-        hasLaterSeasonGame: true,
+        isFinalsOver: true,
       }),
     ).toBeNull();
   });

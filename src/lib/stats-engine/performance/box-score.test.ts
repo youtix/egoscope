@@ -232,17 +232,20 @@ describe('verifyBoxScore', () => {
     });
   });
 
-  it.each(TOTALS)('[STA-10] marks a box score without its %s incomplete, naming it', (total) => {
-    expectTypeOf<(typeof TOTALS)[number]>().toEqualTypeOf<keyof GameScoreInput>();
+  it.each(TOTALS)(
+    '[STA-08] [STA-10] marks a box score without its %s incomplete, naming it',
+    (total) => {
+      expectTypeOf<(typeof TOTALS)[number]>().toEqualTypeOf<keyof GameScoreInput>();
 
-    expect(verifyBoxScore(withValue(SPEC_LINE, total, null), 0)).toStrictEqual({
-      status: 'incomplete',
-      hasRoundedMinutes: false,
-      secondsOnCourt: 2070,
-      decimalMinutes: 34.5,
-      missing: [total],
-    });
-  });
+      expect(verifyBoxScore(withValue(SPEC_LINE, total, null), 0)).toStrictEqual({
+        status: 'incomplete',
+        hasRoundedMinutes: false,
+        secondsOnCourt: 2070,
+        decimalMinutes: 34.5,
+        missing: [total],
+      });
+    },
+  );
 
   it('[STA-10] lists every missing element, the time on court first', () => {
     const line: BoxScoreLine = { ...WHOLE_LINE, minutes: null, points: null, personalFouls: null };

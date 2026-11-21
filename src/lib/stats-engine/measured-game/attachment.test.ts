@@ -1,6 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
+
 import { attachToMeasuredGame } from './attachment';
 
 import type { Participation } from '../performance/participation';
@@ -8,51 +10,22 @@ import type { EngineParams } from '../types';
 import type { Attachment, AttachmentContext, AttachmentEvent, AttachmentGame } from './attachment';
 import type { PrecedenceSource } from './precedence';
 
-// The registry's defaults, a window of 10 days among them (SEN-04).
+// The registry's defaults, a window of 10 days among them (SEN-04), all held once in
+// data/fixtures/stats-engine/engine-params.json. JSON gives the baseline phase as a
+// string, which the comparison narrows to a BaselinePhase (types.test.ts).
 const DEFAULTS: EngineParams = {
+  ...engineParams,
   games: {
-    minutesFloor: 15,
-    minutesAverageShare: 50,
-    minBaselineGames: 10,
-    postseasonBaseline: 'postseason',
-    partialBaselineShare: 20,
-    dailyUpdateDelayHours: 3,
-    correctionWindowDays: 7,
-    boxScoreUnavailableAfterDays: 30,
-    retryFirstDelayHours: 1,
-    retryIntervalHours: 4,
-    incidentAfterHours: 12,
-    quotaReserveShare: 10,
+    ...engineParams.games,
+    postseasonBaseline:
+      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
   },
-  sensitivity: {
-    maxAttachmentDays: 10,
-    coOccurringCasesDoubtful: false,
-    injuryReturnMinGamesMissed: 4,
-    injuryReturnFirstGames: 2,
-    allPlayoffGamesUnusualStakes: false,
-    opponentWinShareLow: 25,
-    opponentWinShareHigh: 75,
-    opponentMinGames: 10,
-    minValidCases: 5,
-    possibleSignalToNoise: 2,
-    possibleMeanGap: 0.25,
-    probableSignalToNoise: 3,
-    probableMeanGap: 0.4,
-    confidenceMediumFromCases: 8,
-    confidenceHighFromCases: 15,
-    confidenceDispersionDrop: 1.5,
-    confidenceDoubtfulShareDrop: 30,
-    trendMinPlayers: 3,
-    trendMaxTopShare: 50,
-    countsBelowCases: 20,
-  },
-  tracking: { categoryThreshold: 0.25, minTrackedCasesForAssessment: 10 },
 };
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
-// The default window, 10 days counted in hours (SEN-04).
-const WINDOW = 240 * HOUR;
+// The default window, 10 days counted in hours, 240 (SEN-04).
+const WINDOW = DEFAULTS.sensitivity.maxAttachmentDays * DAY;
 
 // Hours behind UTC of New York and Los Angeles, in winter and in summer.
 type Season = 'winter' | 'summer';

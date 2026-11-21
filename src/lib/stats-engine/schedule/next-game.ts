@@ -16,7 +16,7 @@ import { hasTeam } from './team-record';
 
 import type { DeadlineGame, NoGameScheduled, NoNextGameReason } from '../backtest/deadline';
 import type { EpochMs, GameId, IsoDate, TeamId } from '../types';
-import type { PhaseGame, PhaseOf, SeasonSchedule } from './phase-state';
+import type { PhaseGame, SeasonSchedule } from './phase-state';
 import type { LinesGame, PlayerLine, TeamGame, TeamStint } from './team-membership';
 import type { GamePhase } from './team-record';
 
@@ -63,7 +63,7 @@ export type NextGame = DeadlineGame &
  * The expected game after an instant (STA-27, CL-IMP-17): one of the games given, as his
  * team game, with the team he belonged to at its start, his participation and his minutes.
  */
-export type ExpectedGame<G extends LinesGame> = TeamGame & Readonly<{ game: G }>;
+export type ExpectedGame<G extends LinesGame> = TeamGame<G>;
 
 /** A game whose two teams are set: no placeholder (CL-STA-14). */
 type SetTeams = Readonly<{ homeTeamId: TeamId; awayTeamId: TeamId }>;
@@ -107,30 +107,17 @@ function asNextGame(
 }
 
 /**
- * Whether a phase of `season` is finished (STA-20, CL-STA-02): undefined for the
- * postseason of a team that never entered it.
- */
-function isFinished(season: SeasonSchedule, of: PhaseOf): boolean | undefined {
-  return phaseState(season, of)?.finished;
-}
-
-/** The postseason of `teamId`, as phaseState asks for it (CL-STA-02). */
-function postseasonOf(teamId: TeamId): PhaseOf {
-  // Stryker disable next-line StringLiteral: phaseState tells the regular season from any other value, so any other phase also asks for this team's postseason
-  return { phase: 'postseason', teamId };
-}
-
-/**
  * Whether the Finals of `season` are over (CL-STA-02, CL-STA-18, CL-STA-20): a team of
  * theirs has finished the postseason, which only the end of the Finals does for a
- * finalist. Finals that the schedule does not list are over once a game of a later
- * season is stored, as phaseState then says of every team.
+ * finalist, and Finals listed before any game of theirs is stored are not. Finals that the
+ * schedule does not list are over once a game of a later season is stored, as phaseState
+ * then says of every team.
  */
 function areFinalsOver(season: SeasonSchedule): boolean {
   const finals = season.series.find(({ round }) => round === 'finals');
   return finals === undefined
     ? season.hasLaterSeasonGame
-    : isFinished(season, postseasonOf(finals.teamAId)) === true;
+    : phaseState(season, { postseasonTeamId: finals.teamAId })?.finished === true;
 }
 
 /**
@@ -144,8 +131,8 @@ function areFinalsOver(season: SeasonSchedule): boolean {
  */
 function isSeasonOverFor(season: SeasonSchedule, teamId: TeamId, now: EpochMs): boolean {
   return (
-    isFinished(season, { phase: 'regular_season', at: now }) === true &&
-    isFinished(season, postseasonOf(teamId)) !== false
+    phaseState(season, { regularSeasonAt: now }).finished &&
+    phaseState(season, { postseasonTeamId: teamId })?.finished !== false
   );
 }
 
@@ -216,10 +203,6 @@ export function expectedGameOf<G extends LinesGame>(
   games: readonly G[],
   after: EpochMs,
 ): ExpectedGame<G> | null {
-  const [first] = teamGames(player, games, after);
-  // The first team game is one of `games`: picked out again, as itself, under their type.
-  const [expected = null] = games.flatMap((game) =>
-    game === first?.game ? { ...first, game } : [],
-  );
-  return expected;
+  const [first = null] = teamGames(player, games, after);
+  return first;
 }

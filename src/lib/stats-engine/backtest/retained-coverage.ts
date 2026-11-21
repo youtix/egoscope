@@ -6,7 +6,7 @@
 // Dates are calendar dates written YYYY-MM-DD, compared as written (CL-IMP-09), here as
 // days counted from 1970-01-01.
 
-import { dateOf, dayCount } from './calendar-days';
+import { dateOf, dayCount } from '../calendar-days';
 
 import type { EventTypeId, IsoDate } from '../types';
 import type { TypeCoverage } from './counting';

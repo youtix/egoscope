@@ -38,7 +38,8 @@ export type ConfidenceValues = Readonly<{
   confidenceStepDownReasons: readonly ConfidenceStepDownReason[];
 }>;
 
-// The registry gives the doubtful-share drop in percent.
+// The registry gives in percent the doubtful-share drop and, read through isAbovePercent,
+// the top share of the general trend (sensitivity.trendMaxTopShare).
 const PERCENT = 100;
 
 // One level down, never below low (SEN-25).
