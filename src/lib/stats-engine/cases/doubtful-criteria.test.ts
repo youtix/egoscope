@@ -4,10 +4,12 @@ import { describe, expect, it } from 'vitest';
 import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 
 import { attachToMeasuredGame } from '../measured-game/attachment';
+import { rebuildSeries } from '../schedule/series';
 import { doubtfulCaseCriteria } from './doubtful-criteria';
 
 import type { Attachment, AttachmentEvent } from '../measured-game/attachment';
 import type { Participation } from '../performance/participation';
+import type { SeriesGame } from '../schedule/series';
 import type { TeamGame } from '../schedule/team-membership';
 import type { GamePhase, ScheduleGame } from '../schedule/team-record';
 import type { EngineParams } from '../types';
@@ -207,10 +209,8 @@ const playedAfterRun = (played: number): unknown =>
 const flaggedReturn = (
   values: readonly ContextIndications['injuryReturn'][],
   before = TEN_PLAYED,
-): unknown => {
-  const contextIndications = values.map((value) => indications(value));
-  return triggeredOf(caseAfter(before, { contextIndications }));
-};
+): unknown =>
+  triggeredOf(caseAfter(before, { contextIndications: values.map((value) => indications(value)) }));
 
 /** The criteria of `input` whose events say `values` of the game stakes. */
 const flaggedStakes = (
@@ -300,12 +300,31 @@ describe('doubtfulCaseCriteria: return from injury', () => {
   });
 });
 
-describe('doubtfulCaseCriteria: unusual stakes', () => {
-  it('[CA-SEN-08] [SEN-14] excludes Game 6 of a series that his team trails 2–3, whose loss eliminates it, and not Game 3 at one win apiece without a flag', () => {
-    const tied = inPhase('playoffs', false, { contextIndications: [indications('no', 'normal')] });
+// Games 3 and 6 of a rebuilt 2022-23 first-round series of six final games, two days
+// apart, between his team, at home, and the opponent, which wins Games 1, 3, 5 and 6.
+const [GAME_3, GAME_6] = rebuildSeries(
+  '2022-23',
+  Array.from('ohohoo', (winner, index): SeriesGame => ({
+    ...teamGame(index, 'played').game,
+    phase: 'playoffs',
+    finalScore: winner === 'h' ? { home: 101, away: 99 } : { home: 99, away: 101 },
+    roundLabel: null,
+    sourceGameNumber: null,
+  })),
+  false,
+).flatMap(({ games }) => games.filter(({ gameNumber }) => gameNumber === 3 || gameNumber === 6));
 
-    expect(criteria(inPhase('playoffs', true))).toStrictEqual(result([playoffStakes(true)]));
-    expect(criteria(tied)).toStrictEqual(result([]));
+describe('doubtfulCaseCriteria: unusual stakes', () => {
+  it('[CA-SEN-08] [SEN-14] [STA-07] [CL-STA-18] excludes Game 6 of a rebuilt series that his team trails 2–3, whose loss eliminates it, and not Game 3 at one win apiece without a flag', () => {
+    const normal = { contextIndications: [indications('no', 'normal')] };
+    const game3 = inPhase('playoffs', GAME_3?.isEliminationGame ?? null, normal);
+
+    expect(GAME_3).toMatchObject({ homeSeriesWinsBefore: 1, awaySeriesWinsBefore: 1 });
+    expect(GAME_6).toMatchObject({ homeSeriesWinsBefore: 2, awaySeriesWinsBefore: 3 });
+    expect(criteria(inPhase('playoffs', GAME_6?.isEliminationGame ?? null))).toStrictEqual(
+      result([playoffStakes(true)]),
+    );
+    expect(criteria(game3)).toStrictEqual(result([]));
   });
 
   it.each([null, false, true])(

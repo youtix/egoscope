@@ -202,7 +202,7 @@ function dayNumber(day: IsoDate): number {
   return Number(day.replaceAll('-', ''));
 }
 
-// The earlier of a period's end, the owner's day, and a season's end, a US date, which
+// The earlier of a period's end (the owner's day) and a season's end (a US date), which
 // reduceExtent compares as written (CL-IMP-09), through Math.min of their YYYYMMDD digits:
 // a plain comparison of the two strings would leave an equivalent mutant, `<` and `<=`
 // giving the same day when both are equal.

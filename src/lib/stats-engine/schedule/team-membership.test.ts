@@ -211,6 +211,16 @@ describe('teamMembership from his team history', () => {
   );
 });
 
+/** His lines AT_X and `later`, and his entries to `first` on day 4.5 and `second` on day 6.5. */
+const entries = (
+  first: number | null,
+  second: number,
+  later: readonly PlayerLine[] = [],
+): Readonly<{ lines: PlayerLine[]; history: PlayerTeamChange[] }> => ({
+  lines: [...AT_X, ...later],
+  history: [entered(2, 6.5, second), entered(1, 4.5, first)],
+});
+
 describe('teamMembership after an entered change', () => {
   it.each([
     ['no game played since', [], [stint(X, 1, 4.5), stint(Y, 4.5, null)]],
@@ -250,14 +260,21 @@ describe('teamMembership after an entered change', () => {
     ]);
   });
 
-  it('[CL-JOU-03] judges each of two entries by the first game he plays after both', () => {
-    const history = [entered(2, 6.5, Z), entered(1, 4.5, Y)];
-
-    expect(teamMembership([...AT_X, lineFor(Z, 9)], history)).toStrictEqual([
-      stint(X, 1, 4.5),
-      stint(Z, 6.5, null),
-    ]);
-  });
+  // His stints with X up to the first entry, and with Y from it up to the second.
+  const [WITH_X, WITH_Y] = [stint(X, 1, 4.5), stint(Y, 4.5, 6.5)];
+  it.each([
+    ['to Y then Z, a game for Z', entries(Y, Z, [lineFor(Z, 9)]), [WITH_Y, stint(Z, 6.5, null)]],
+    ['to Y then Z, a game for Y', entries(Y, Z, [lineFor(Y, 8)]), [stint(Y, 4.5, null)]],
+    ['to Y then Z, a game for X', entries(Y, Z, [lineFor(X, 9)]), [WITH_Y, stint(X, 9, null)]],
+    ['to Y then X, a game for X', entries(Y, X, [lineFor(X, 9)]), [WITH_Y, stint(X, 6.5, null)]],
+    ['a release then Y, a game for X', entries(null, Y, [lineFor(X, 9)]), [stint(X, 9, null)]],
+    ['to Y then Z, no game since', entries(Y, Z), [WITH_Y, stint(Z, 6.5, null)]],
+  ])(
+    '[CL-STA-05] [CL-JOU-03] judges by his first game after two entries only the latest, the team he leaves at it being that of the earlier one, whose membership ends at the latest: %s',
+    (_, { lines, history }, expected) => {
+      expect(teamMembership(lines, history)).toStrictEqual([WITH_X, ...expected]);
+    },
+  );
 
   it('[CL-JOU-03] judges an entry by a game that starts after it, never by one that starts at its instant', () => {
     const lines = [...AT_X, lineFor(Y, 8)];
@@ -323,7 +340,7 @@ describe('teamGames', () => {
     expect(listed.map(({ game }) => game.id)).toStrictEqual([1003, 1005, 1007, 2008, 2010]);
   });
 
-  it('[STA-27] [CL-STA-04] gives each final team game his participation and his minutes, and neither before it is final', () => {
+  it('[STA-27] [STA-09] [CL-STA-04] gives each final team game his participation and his minutes, a suspect line included, and neither before it is final', () => {
     const away = (onDay: number, fields: Partial<LinesGame>): LinesGame => ({
       ...gameOf(X, onDay),
       homeTeamId: OPPONENT,
@@ -343,6 +360,8 @@ describe('teamGames', () => {
       lineFor(X, 2, IN_SECONDS),
       lineFor(X, 3, WITHOUT_MINUTES),
       lineFor(X, 4, NOT_PLAYED),
+      // 40 points for 5 field goals: a suspect line, with its 30 minutes (STA-09).
+      lineFor(X, 5, { ...PLAYED, points: 40 }),
     ];
     const listed = teamGames({ stints: [stint(X, 0, null)], lines }, games, day(0));
 
@@ -351,7 +370,7 @@ describe('teamGames', () => {
       ['played', 34.5],
       ['played', null],
       ['not_played', null],
-      ['not_played', null],
+      ['played', 30],
       ['unknown', null],
       ['unknown', null],
       ['not_played', null],
@@ -399,6 +418,16 @@ describe('teamGames', () => {
       [1009, X, 'not_played', null],
       [2010, Y, 'played', 30],
       [2012, Y, 'not_played', null],
+    ]);
+  });
+
+  it('[STA-27] [CL-STA-05] [CL-JOU-03] counts as missed the games of an earlier entered team up to the latest entry, which his first game after both verifies', () => {
+    const history = [entered(1, 4.5, Y), entered(2, 6.5, Z)];
+
+    expect(listedAfterDay3([...AT_X, lineFor(Z, 9)], history)).toStrictEqual([
+      [2006, Y, 'not_played', null],
+      [3009, Z, 'played', 30],
+      [3012, Z, 'not_played', null],
     ]);
   });
 

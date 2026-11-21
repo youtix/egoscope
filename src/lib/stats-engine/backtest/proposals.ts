@@ -29,9 +29,11 @@ export function isTypeSupplementNeeded(coverage: TypeCoverage): boolean {
  * imported request, those that a reduction took out of its prompt included, that still
  * has an uncovered day up to the day the owner accepts it, each from its first
  * uncovered day to that day, his calendar date (CL-BKT-05, CL-BKT-10); a type complete
- * by then is left out, and `coverage_complete` means that there is nothing left to
- * offer. Nothing exists before the acceptance, whose day ends the periods. Throws a
- * RangeError for a calendar-derived type, which no request plans (CL-BKT-03).
+ * by then is left out, and so is a planned type no longer validated (CL-BKT-07): since
+ * the engine knows no type status, the caller passes the planned types still validated.
+ * `coverage_complete` means that there is nothing left to offer. Nothing exists before
+ * the acceptance, whose day ends the periods. Throws a RangeError for a calendar-derived
+ * type, which no request plans (CL-BKT-03).
  */
 export function incompleteImportSupplement(
   plannedTypes: readonly CoveredResearchType[],

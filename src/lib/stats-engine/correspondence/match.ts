@@ -7,6 +7,8 @@
 // of one type correspond, and are duplicates; close events of different types are a
 // possible duplicate (CL-IMP-13). A calendar-derived event is close to none (CL-IMP-29).
 
+import { dayCount, MS_PER_DAY } from '../calendar-days';
+
 import type { EpochMs, EventTypeId, IsoDate, PlayerId } from '../types';
 
 /** The origin of an event, the glossary's `EventOrigin`, fixed at creation (DSN-06, CL-VUE-12). */
@@ -43,8 +45,6 @@ export type ComparedEvent = Readonly<{
 export type DuplicateKind = 'duplicate' | 'none' | 'possible_duplicate';
 
 const MS_PER_HOUR = 3_600_000;
-const HOURS_PER_DAY = 24;
-const MS_PER_DAY = HOURS_PER_DAY * MS_PER_HOUR;
 // The zones furthest west and furthest east (CL-IMP-12): between them, an instant has
 // every calendar date it has anywhere, two or three consecutive ones.
 const WESTMOST_OFFSET_HOURS = -12;
@@ -59,17 +59,11 @@ function dayOf(instant: EpochMs): number {
   return Math.floor(instant / MS_PER_DAY);
 }
 
-// The day number of a date written YYYY-MM-DD.
-function dayNumber(day: IsoDate): number {
-  const [year = NaN, month = NaN, date = NaN] = day.split('-').map(Number);
-  return dayOf(Date.UTC(year, month - 1, date));
-}
-
 // A date without a time stands for its own day; an instant, for the dates it has from
 // UTC−12 to UTC+14, whatever date it was written with (CL-IMP-12).
 function daySpan(date: ReferenceDate): DaySpan {
   if (date.at === undefined) {
-    const day = dayNumber(date.on);
+    const day = dayCount(date.on);
     return { first: day, last: day };
   }
   return {

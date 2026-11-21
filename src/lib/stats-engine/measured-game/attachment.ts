@@ -6,6 +6,7 @@
 // team games come from teamGames (schedule part), each with the marks that the caller
 // adds, since this part reads no clock and converts no time zone.
 
+import { dayCount, MS_PER_DAY } from '../calendar-days';
 import { byScheduledStart } from '../schedule/series';
 import { classifyPrecedence, precedenceOver } from './precedence';
 
@@ -130,10 +131,6 @@ type Walk = Readonly<{
   measuredGame: AttachmentGame | undefined;
 }>;
 
-const MS_PER_HOUR = 3_600_000;
-const HOURS_PER_DAY = 24;
-const MS_PER_DAY = HOURS_PER_DAY * MS_PER_HOUR;
-
 const NO_GAME_WITHIN_WINDOW: AttachmentEnd = {
   status: 'not_measurable',
   reason: 'no_game_within_window',
@@ -149,12 +146,6 @@ const PRECEDENCE_NOT_ESTABLISHED: AttachmentEnd = {
   reason: 'precedence_not_established',
   measuredGameId: null,
 };
-
-/** The day of a date written YYYY-MM-DD, counted from 1970-01-01 in the same calendar. */
-function dayNumber(date: IsoDate): number {
-  const [year = NaN, month = NaN, day = NaN] = date.split('-').map(Number);
-  return Date.UTC(year, month - 1, day) / MS_PER_DAY;
-}
 
 /**
  * A walk from `reference.referenceInstantAt` (SEN-03, SEN-04): over the games that start
@@ -186,13 +177,13 @@ function fromInstant(
  * calendar days after it, a window that has passed once the US date of now is later.
  */
 function fromDate(eventOn: IsoDate, nowGameDayOn: IsoDate, params: EngineParams): WalkStart {
-  const lastDay = dayNumber(eventOn) + params.sensitivity.maxAttachmentDays;
+  const lastDay = dayCount(eventOn) + params.sensitivity.maxAttachmentDays;
   return {
     referenceInstantAt: null,
     referenceInstantOrigin: 'known_in_advance',
     isCandidate: ({ gameDayOn }) => gameDayOn >= eventOn,
-    isPastWindow: ({ gameDayOn }) => dayNumber(gameDayOn) > lastDay,
-    hasWindowPassed: dayNumber(nowGameDayOn) > lastDay,
+    isPastWindow: ({ gameDayOn }) => dayCount(gameDayOn) > lastDay,
+    hasWindowPassed: dayCount(nowGameDayOn) > lastDay,
   };
 }
 

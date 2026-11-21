@@ -412,11 +412,8 @@ describe('formerTeamGames', () => {
 
 describe('gamesToDerive', () => {
   // The previous run came at the tip-off of 10 March, this one comes at that of 20 March.
-  const started = gamesOn(
-    ['2024-03-01', X, OTHER],
-    ['2024-03-10', X, OTHER],
-    ['2024-03-15', X, OTHER],
-    ['2024-03-20', X, OTHER],
+  const started = ['2024-03-01', '2024-03-10', '2024-03-15', '2024-03-20'].map((day) =>
+    gameOn(day, X, OTHER),
   );
   const toCome = gamesOn(['2024-03-25', X, OTHER], ['2024-04-05', X, OTHER]);
   const qualifying = [...started, ...toCome.map((game) => upcoming(game))].map(
@@ -465,9 +462,8 @@ const anyDay: fc.Arbitrary<IsoDate> = fc.oneof(
   fc.constant('2024-02-29'),
 );
 const anySide = fc.constantFrom<'away' | 'home'>('home', 'away');
-const anyLine = fc.option(fc.record({ side: anySide, box: fc.constantFrom(PLAYED, NOT_PLAYED) }), {
-  nil: null,
-});
+const anyBox = fc.record({ side: anySide, box: fc.constantFrom(PLAYED, NOT_PLAYED) });
+const anyLine = fc.option(anyBox, { nil: null });
 const anyRows = fc.uniqueArray(
   fc
     .record({ day: anyDay, home: anyTeam, away: anyTeam, line: anyLine })
@@ -502,6 +498,13 @@ const anyData = fc
     const games = played.map(({ game }) => game);
     return { player: playerOf(lines, history), schedule: scheduleOf(games, covered) };
   });
+// The data, and his birthday: in most samples the day and month of one of its games, so
+// that the properties reach birthday games, and otherwise any day of their months.
+const anyWithBirthday = anyData.chain((data) => {
+  const days = data.schedule.games.map(({ gameDayOn }) => gameDayOn.split('-').map(Number));
+  const ofGames = days.map(([, month = 0, day = 0]) => fc.constant({ month, day }));
+  return fc.tuple(fc.constant(data), fc.oneof(anyBirthday, ...ofGames));
+});
 
 /** His stint at `at`, by the oracle of the tests. */
 const stintAt = (stints: readonly TeamStint[], at: number): TeamStint | undefined =>
@@ -540,10 +543,8 @@ function isBirthdayOracle(day: IsoDate, birthday: Birthday): boolean {
 }
 
 /** The season of a day of the first three months of a year: 2024-02-10 is in 2023-24. */
-const seasonOracle = (day: IsoDate): string => {
-  const year = Number(day.slice(0, 4));
-  return `${String(year - 1)}-${twoDigits(year % 100)}`;
-};
+const seasonOracle = (day: IsoDate): string =>
+  `${String(Number(day.slice(0, 4)) - 1)}-${day.slice(2, 4)}`;
 
 /** The games of his team on `birthday` in a covered season, in scheduled-start order. */
 function birthdayGamesOracle(
@@ -563,7 +564,7 @@ function birthdayGamesOracle(
 describe('the calendar games over any data', () => {
   it('[CL-TAX-18] [CL-STA-05] derives only games of the team he belonged to at their start', () => {
     fc.assert(
-      fc.property(anyData, anyBirthday, ({ player, schedule }, birthday) => {
+      fc.property(anyWithBirthday, ([{ player, schedule }, birthday]) => {
         const birthdays = gamesIn(birthdayGames({ ...player, birthday }, schedule));
         const derived = [...birthdays, ...gamesIn(formerTeamGames(player, schedule))];
 
@@ -590,7 +591,7 @@ describe('the calendar games over any data', () => {
 
   it('[CL-TAX-18] [CL-JOU-17] [CL-STA-24] lists every game of his team on his birthday in a covered season, in scheduled-start order, and no other', () => {
     fc.assert(
-      fc.property(anyData, anyBirthday, ({ player, schedule }, birthday) => {
+      fc.property(anyWithBirthday, ([{ player, schedule }, birthday]) => {
         const found = gamesIn(birthdayGames({ ...player, birthday }, schedule));
 
         expect(found.map(({ game }) => game)).toStrictEqual(

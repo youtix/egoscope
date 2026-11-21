@@ -4,7 +4,7 @@
 // to be determined included (STA-31, CL-STA-14): this part only compares instants and
 // dates.
 
-import { daysBetween } from './calendar-days';
+import { daysBetween } from '../calendar-days';
 
 import type { BacktestRequestId, EpochMs, IsoDate } from '../types';
 

@@ -8,9 +8,7 @@
 // module turns these games into events.
 
 import { seasonOfDate } from '../schedule/seasons';
-import { byScheduledStart } from '../schedule/series';
 import { teamGames } from '../schedule/team-membership';
-import { hasTeam } from '../schedule/team-record';
 
 import type { SeasonNotRead, SeasonSpan } from '../schedule/seasons';
 import type { LinesGame, PlayerLine, TeamGame, TeamStint } from '../schedule/team-membership';
@@ -52,7 +50,7 @@ export type CalendarSchedule = Readonly<{
  * A game that the derivation turns into an event, its derived game (CL-TAX-18): one of his
  * team games, with its day.
  */
-export type DerivedGame = TeamGame & Readonly<{ game: CalendarGame }>;
+export type DerivedGame = TeamGame<CalendarGame>;
 
 /**
  * A first game against a former team (CL-TAX-18, CL-JOU-18): the former team, and his
@@ -166,21 +164,15 @@ function coveredOnly<Candidate>(
 }
 
 /**
- * His team games among `games`, each with its day, in scheduled-start order (STA-27,
- * CL-STA-05, CL-STA-09): teamGames says which games are his team's, and his team and his
- * participation at each.
+ * His team games among `games`, each with its day, in scheduled-start order, ties by game
+ * id (STA-27, CL-STA-05, CL-STA-09), as teamGames lists them: which games are his team's,
+ * and his team and his participation at each.
  */
 function datedTeamGames(
   player: Membership,
   games: readonly CalendarGame[],
 ): readonly DerivedGame[] {
-  const listed = new Map(
-    teamGames(player, games, FROM_THE_START).map((teamGame) => [teamGame.game.id, teamGame]),
-  );
-  return games.toSorted(byScheduledStart).flatMap((game) => {
-    const teamGame = listed.get(game.id);
-    return teamGame === undefined ? [] : { ...teamGame, game };
-  });
+  return teamGames(player, games, FROM_THE_START);
 }
 
 /**
@@ -228,20 +220,20 @@ export function formerTeamGames(
   player: Membership,
   schedule: CalendarSchedule,
 ): CalendarGamesResult<FormerTeamGame> {
-  // For each team, the last game he played for it, while he has not met it since.
-  const departures = new Map<TeamId, CalendarGame>();
+  // For each team, his departure from it, the last game he played for it, while he has
+  // not met it since. A team game is no placeholder: its other team is set (CL-STA-14).
+  const departures = new Map<TeamId | null, Pick<FormerTeamGame, 'formerTeamId' | 'departure'>>();
   const reunions: FormerTeamGame[] = [];
   for (const teamGame of datedTeamGames(player, schedule.games)) {
-    const met = [...departures].find(
-      ([teamId]) => teamId !== teamGame.teamId && hasTeam(teamGame.game, teamId),
-    );
-    if (met !== undefined) {
-      const [formerTeamId, departure] = met;
-      departures.delete(formerTeamId);
-      reunions.push({ ...teamGame, formerTeamId, departure });
+    const { game, teamId } = teamGame;
+    const otherTeamId = game.homeTeamId === teamId ? game.awayTeamId : game.homeTeamId;
+    const former = departures.get(otherTeamId);
+    if (former !== undefined) {
+      departures.delete(otherTeamId);
+      reunions.push({ ...teamGame, ...former });
     }
     if (teamGame.participation === 'played') {
-      departures.set(teamGame.teamId, teamGame.game);
+      departures.set(teamId, { formerTeamId: teamId, departure: game });
     }
   }
   const coverage = coverageOf(schedule);

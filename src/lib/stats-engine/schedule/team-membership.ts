@@ -54,12 +54,16 @@ export type LinesGame = ScheduleGame &
   Readonly<{ scheduledStartAt: EpochMs; homeLinesPublished: boolean; awayLinesPublished: boolean }>;
 
 /**
- * One of his team games (STA-27): the game; the team he belonged to at its start; his
- * participation once the game is final, null before (CL-STA-04); and his decimal minutes
- * when he played it with a time on court above zero, null otherwise (STA-12).
+ * One of his team games (STA-27): the game, as the caller gave it, of the game type `G`;
+ * the team he belonged to at its start; his participation once the game is final, null
+ * before (CL-STA-04); and his decimal minutes when he played it with a time on court
+ * above zero, null otherwise (STA-12). The minutes are those that verifyBoxScore reads of
+ * his line whatever its checks find (STA-09, CL-STA-06), so that a line found suspect or
+ * incomplete still gives its time on court when it is known: a rule that needs checked
+ * minutes, as the average of the indicators does, reads the check itself.
  */
-export type TeamGame = Readonly<{
-  game: LinesGame;
+export type TeamGame<G extends LinesGame = LinesGame> = Readonly<{
+  game: G;
   teamId: TeamId;
   participation: Participation | null;
   minutes: number | null;
@@ -139,24 +143,27 @@ function withSwitch(
 }
 
 /**
- * The game that judges the entry at `index` (CL-JOU-03): the first game he played after
- * it. There is none while he has played none since, nor when an observed change, such
- * as one read from the player file, comes first: that change is applied as every
- * recorded change is, and the game is then compared with the team the file gives, as
- * any game with his team. Other entries in between wait for the same game.
+ * The game that judges the entry at `index` (CL-JOU-03): the next fact of the walk when
+ * it is a game he played, since a first game judges only his latest entered row. There
+ * is none while he has played none since, nor when another row comes first: a later
+ * entry leaves this one "not yet verified", its membership ending at that entry; an
+ * observed change, such as one read from the player file, is applied as every recorded
+ * change is, and the game is then compared with the team the file gives, as any game
+ * with his team.
  */
 function judgingGame(evidence: readonly Evidence[], index: number): Evidence | undefined {
-  const next = evidence.slice(index + 1).find((fact) => fact.kind !== 'entered');
+  const next = evidence[index + 1];
   return next?.kind === 'played' ? next : undefined;
 }
 
 /**
  * His switches after an entry (CL-JOU-03, CL-STA-05): at its instant, it ends his stint
- * with the team he leaves, his membership then, and, unless it is a release, starts the
- * entered team's. The game that judges it confirms the entered team when it is for that
- * team; for the team he left, when that is not the entered team, it makes the entry
- * void, so that stint never ended; for a third team, the entered stint ends unconfirmed:
- * he belongs to no team from the entry to that game, whose team his line then gives him.
+ * with the team he leaves, his membership then, the team of an earlier entry included,
+ * and, unless it is a release, starts the entered team's. The game that judges it
+ * confirms the entered team when it is for that team; for the team he left, when that is
+ * not the entered team, it makes the entry void, so that stint never ended; for a third
+ * team, the entered stint ends unconfirmed: he belongs to no team from the entry to that
+ * game, whose team his line then gives him.
  */
 function afterEntry(
   switches: readonly Switch[],
@@ -182,12 +189,15 @@ function stintsOf(switches: readonly Switch[]): readonly TeamStint[] {
  * observed change or release, read from a game he played or from the player file, ends
  * his stint and starts the new team's at its instant, none for a release. A change or a
  * release the owner entered does so at its entry, the team he leaves being his
- * membership then, and the first game he plays after it judges it: for the entered
- * team, it confirms the stint; for the team he left, when that team is not the entered
- * one, the entry is void; for a third team, the entered stint ends unconfirmed, so that
- * he belongs to no team until that game, and the entered team's games count neither as
- * played nor as missed. A change read from the player file between the entry and that
- * game is applied first, and the entry is not judged. The team chosen at his addition is
+ * membership then, the team of an earlier entry included, and the first game he plays
+ * after it judges it: for the entered team, it confirms the stint; for the team he left,
+ * when that team is not the entered one, the entry is void; for a third team, the
+ * entered stint ends unconfirmed, so that he belongs to no team until that game, and the
+ * entered team's games count neither as played nor as missed. A first game judges only
+ * his latest entered row: an earlier entry stays not yet verified, no game judges it,
+ * and its membership, none for a release, ends at the next row. A change read from the
+ * player file between the entry and that game is applied first, and the entry is not
+ * judged. The team chosen at his addition is
  * the first row: an observed one when the player file gave the same team, and otherwise
  * an entered change that leaves the team of his last game played before it, none if he
  * has played none, so that when he was added with that team, his first game for it
@@ -222,7 +232,11 @@ function memberTeamOf(game: LinesGame, stints: readonly TeamStint[]): TeamId | n
   return stint !== undefined && !isPlaceholder && hasTeam(game, stint.teamId) ? stint.teamId : null;
 }
 
-function teamGameOf(game: LinesGame, teamId: TeamId, line: BoxScoreLine | null): TeamGame {
+function teamGameOf<G extends LinesGame>(
+  game: G,
+  teamId: TeamId,
+  line: BoxScoreLine | null,
+): TeamGame<G> {
   if (game.status !== 'final') {
     return { game, teamId, participation: null, minutes: null };
   }
@@ -241,15 +255,16 @@ function teamGameOf(game: LinesGame, teamId: TeamId, line: BoxScoreLine | null):
  * game id (STA-27, CL-STA-05, CL-STA-09): the official games among `games` of the team
  * he belonged to at their scheduled start, under his `stints` from teamMembership, each
  * with his participation, read from his `lines` and the lines the source published for
- * his team (CL-STA-04), and his minutes. A postponed game that no make-up was linked to,
- * a canceled game and a placeholder whose teams are still to be determined are no team
- * games (CL-STA-14, CL-STA-17).
+ * his team (CL-STA-04), and his minutes. Each lists one of `games` as itself, of the
+ * caller's game type. A postponed game that no make-up was linked to, a canceled game
+ * and a placeholder whose teams are still to be determined are no team games (CL-STA-14,
+ * CL-STA-17).
  */
-export function teamGames(
+export function teamGames<G extends LinesGame>(
   player: Readonly<{ stints: readonly TeamStint[]; lines: readonly PlayerLine[] }>,
-  games: readonly LinesGame[],
+  games: readonly G[],
   after: EpochMs,
-): readonly TeamGame[] {
+): readonly TeamGame<G>[] {
   const lineOf = new Map(player.lines.map(({ gameId, line }) => [gameId, line]));
   return games
     .filter((game) => game.scheduledStartAt > after && isCounted(game))

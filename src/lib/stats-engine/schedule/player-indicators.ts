@@ -160,7 +160,12 @@ function averageMinutes(lines: readonly IndicatorLine[]): number | null {
  * of a game he played (CL-STA-28). So that it does not occur, `schedule.seasons` holds
  * the span of every stored season, never only those his lines fall in: without the
  * season in progress, for a player who has not played in it, the indicators would cover
- * an older season.
+ * an older season. An accepted limit: the stored spans alone frame the season, since no
+ * calendar rule replaces a span (CL-STA-28), so between the last game of a stored season
+ * and the first stored game of the next, a schedule never fetched reads as the
+ * off-season, and keeping the season in progress stored is the ingest's matter. With only
+ * 2024-25 stored, its last game on 22 June 2025, the indicators of 15 December 2025 cover
+ * 2024-25, although seasonOfDate files that day under 2025-26.
  */
 export function indicatorsOf(
   player: Readonly<{ stints: readonly TeamStint[]; lines: readonly IndicatorLine[] }>,
