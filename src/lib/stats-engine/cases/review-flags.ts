@@ -5,8 +5,8 @@
 // decision made on another measured game than the case's. Storing a flag with the game it
 // is about, and its acknowledgment, are the sensitivity module's.
 
-import { latestDecision } from './manual-decisions';
 import { byScheduledStart } from '../schedule/series';
+import { latestDecision } from './manual-decisions';
 
 import type { TeamGame } from '../schedule/team-membership';
 import type { GameId } from '../types';

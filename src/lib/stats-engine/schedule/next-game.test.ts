@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { expectedGameOf, nextGameOf } from './next-game';
 import { teamMembership } from './team-membership';
 
+import type { BoxScoreLine } from '../performance/box-score';
 import type { NextGameCandidate, NextGameSchedule } from './next-game';
 import type { PhaseSeries } from './phase-state';
 import type { SeriesRound } from './series';
 import type { LinesGame, PlayerLine, PlayerTeamChange } from './team-membership';
-import type { BoxScoreLine } from '../performance/box-score';
 
 const HOUR = 3_600_000;
 // From mid-March, games tip off at 19:30 New York time, 23:30 UTC under daylight saving

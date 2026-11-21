@@ -6,12 +6,12 @@
 // team games come from teamGames (schedule part), each with the marks that the caller
 // adds, since this part reads no clock and converts no time zone.
 
-import { classifyPrecedence, precedenceOver } from './precedence';
 import { byScheduledStart } from '../schedule/series';
+import { classifyPrecedence, precedenceOver } from './precedence';
 
-import type { Precedence, PrecedenceGame, PrecedenceSource } from './precedence';
 import type { TeamGame } from '../schedule/team-membership';
 import type { EngineParams, EpochMs, GameId, IsoDate } from '../types';
+import type { Precedence, PrecedenceGame, PrecedenceSource } from './precedence';
 
 /**
  * One of his team games as the attachment reads it: the team game that teamGames gives,

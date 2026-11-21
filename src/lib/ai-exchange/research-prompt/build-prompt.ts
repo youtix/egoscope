@@ -1,6 +1,7 @@
 // The research prompt of a backtest request (BKT-20 to BKT-22): the template of
 // template.ts with every placeholder filled from the request's data, and its type block
 // written once per requested type. The request operations only gather that data.
+import { FORMAT_VERSION } from '../research-result/format';
 import {
   coverageThresholdSentence,
   NOT_PROVIDED,
@@ -9,7 +10,6 @@ import {
   RESEARCH_PROMPT_TEMPLATE,
   withKnownInAdvanceMark,
 } from './template';
-import { FORMAT_VERSION } from '../research-result/format';
 
 /**
  * The period of a request or of one of its types, both days included (BKT-08, BKT-09):

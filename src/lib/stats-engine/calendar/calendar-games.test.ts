@@ -1,11 +1,15 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { birthdayGames, formerTeamGames, gamesToDerive } from './calendar-games';
 import { byScheduledStart } from '../schedule/series';
 import { teamMembership } from '../schedule/team-membership';
 import { hasTeam } from '../schedule/team-record';
+import { birthdayGames, formerTeamGames, gamesToDerive } from './calendar-games';
 
+import type { BoxScoreLine } from '../performance/box-score';
+import type { SeasonSpan } from '../schedule/seasons';
+import type { PlayerLine, PlayerTeamChange, TeamStint } from '../schedule/team-membership';
+import type { GameId, IsoDate, TeamId } from '../types';
 import type {
   Birthday,
   CalendarGame,
@@ -15,10 +19,6 @@ import type {
   DerivedGame,
   FormerTeamGame,
 } from './calendar-games';
-import type { BoxScoreLine } from '../performance/box-score';
-import type { SeasonSpan } from '../schedule/seasons';
-import type { PlayerLine, PlayerTeamChange, TeamStint } from '../schedule/team-membership';
-import type { GameId, IsoDate, TeamId } from '../types';
 
 // His teams, as the rulings name them, and two teams he never plays for.
 const X = 1;

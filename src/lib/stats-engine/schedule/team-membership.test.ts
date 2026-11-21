@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 
 import { teamGames, teamMembership } from './team-membership';
 
-import type { LinesGame, PlayerLine, PlayerTeamChange, TeamStint } from './team-membership';
 import type { BoxScoreLine } from '../performance/box-score';
 import type { Participation } from '../performance/participation';
+import type { LinesGame, PlayerLine, PlayerTeamChange, TeamStint } from './team-membership';
 
 const DAY = 86_400_000;
 // 2023-10-01T00:00:00Z: day 0. Instants are counted in days from it: every game tips off

@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { applyManualDecisions } from './manual-decisions';
 import { caseReviewFlags } from './review-flags';
 
+import type { TeamGame } from '../schedule/team-membership';
 import type { ManualDecision } from './manual-decisions';
 import type { ReviewFlag } from './review-flags';
-import type { TeamGame } from '../schedule/team-membership';
 
 const HOUR = 3_600_000;
 // 19:30 in New York in winter, 00:30 UTC on the next day.

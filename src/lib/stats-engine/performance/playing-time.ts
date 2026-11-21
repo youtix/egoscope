@@ -4,8 +4,8 @@
 
 import { SECONDS_PER_MINUTE } from './box-score';
 
-import type { BoxScoreCheck } from './box-score';
 import type { EngineParams, EpochMs, GameId } from '../types';
+import type { BoxScoreCheck } from './box-score';
 
 // games.minutesAverageShare is a percentage.
 const PERCENT = 100;
