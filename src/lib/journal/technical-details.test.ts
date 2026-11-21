@@ -21,6 +21,7 @@ async function journalWith(variables: Readonly<Record<string, string>>) {
   vi.stubEnv('VERCEL_ENV', '');
   vi.stubEnv('DATABASE_URL', '');
   vi.stubEnv('DATABASE_URL_UNPOOLED', '');
+  vi.stubEnv('EGOSCOPE_FAKES', '');
   for (const [name, value] of Object.entries(variables)) {
     vi.stubEnv(name, value);
   }

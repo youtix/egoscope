@@ -22,9 +22,69 @@ const databaseUrl = z
   .refine(hasVerifyFull)
   .transform((value) => new Secret(value));
 
+// The real credentials: the values that let this server reach the database or an
+// outside service. The schema declares each one with this mark, by which alone a
+// new credential joins the fakes rule below: there is no list to update. The mark
+// counts before or after a check, a wrapper or a pipe, at either end of the pipe.
+export const realCredentials = z.registry();
+
+/**
+ * The schemas that `schema` was made from: the one that a check such as `.min()`,
+ * `.trim()` or `.refine()`, or `.describe()`, copied, which zod keeps as the copy's
+ * parent; the one under `.optional()`, `.default()` and every other wrapper of
+ * zod; and both ends of a pipe, which `.transform()`, `.pipe()` and
+ * `z.preprocess()` make.
+ */
+function sourceSchemas({ _zod: { def, parent } }: z.core.$ZodType): readonly unknown[] {
+  return [
+    parent,
+    'innerType' in def ? def.innerType : undefined,
+    'in' in def ? def.in : undefined,
+    'out' in def ? def.out : undefined,
+  ];
+}
+
+/**
+ * Says whether `schema` carries the mark of a real credential, on itself or on a
+ * schema that it was made from (TRV-64): zod keeps a mark on the one schema it was
+ * registered on, which `.min()`, `.optional()`, `.transform()` or any other call
+ * after `.register()` would otherwise hide from the fakes rule.
+ */
+export function isCredential(schema: z.core.$ZodType): boolean {
+  return (
+    realCredentials.has(schema) ||
+    sourceSchemas(schema).some(
+      (source) => source instanceof z.core.$ZodType && isCredential(source),
+    )
+  );
+}
+
+// The outside services that a fake can replace, one port each (module map §5).
+const PORTS = [
+  'stats-source',
+  'link-check',
+  'backup-storage',
+  'runtime-cache',
+  'language-model',
+  'press-feeds',
+  'telegram',
+] as const;
+
+const ports = z.array(z.enum(PORTS));
+
+// The fakes switch: `all`, the hermetic mode of the end-to-end tests, in which
+// every outside service is a fake, or a comma-separated list of ports.
+const fakesSwitch = z.union([
+  z.literal('all'),
+  z
+    .string()
+    .transform((list) => list.split(',').map((port) => port.trim()))
+    .pipe(ports),
+]);
+
 // Every variable the server reads, and its rules. Secrets join this schema,
 // and only this schema, as the features that need them land (TRV-37, TRV-64).
-const serverEnvSchema = z.object({
+const serverEnvShape = {
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   // Set by Next.js and Vitest, never by hand: `next dev` keeps its database on disk.
   NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
@@ -32,9 +92,19 @@ const serverEnvSchema = z.object({
   VERCEL_ENV: z.enum(['production', 'preview', 'development']).optional(),
   // Neon's pooled connection string, for the application, and its direct one,
   // for migrations and long reads. Both are optional: previews carry neither.
-  DATABASE_URL: databaseUrl.optional(),
-  DATABASE_URL_UNPOOLED: databaseUrl.optional(),
-});
+  DATABASE_URL: databaseUrl.optional().register(realCredentials),
+  DATABASE_URL_UNPOOLED: databaseUrl.optional().register(realCredentials),
+  // Outside services replaced with fakes, for development and the end-to-end tests only.
+  EGOSCOPE_FAKES: fakesSwitch.optional(),
+};
+
+const serverEnvSchema = z.object(serverEnvShape);
+
+const VARIABLES = Object.keys(serverEnvShape);
+const CREDENTIALS = Object.entries(serverEnvShape)
+  .filter(([, schema]) => isCredential(schema))
+  .map(([name]) => name);
+const FAKES = 'EGOSCOPE_FAKES';
 
 export type ServerEnv = Readonly<z.infer<typeof serverEnvSchema>>;
 
@@ -50,21 +120,45 @@ export type ServerEnvResult =
 type EnvSource = Readonly<Record<string, string | undefined>>;
 
 /**
+ * The variables that refuse the fakes switch, then the switch itself: every real
+ * credential set beside it, and `VERCEL_ENV` on a production deployment. Fakes
+ * never serve where a credential could reach a real service, and a credential
+ * refuses them on its own, since the host's system variables exist only while a
+ * project setting is on. Read from the values as given, so that the rule holds
+ * whatever else is invalid, a malformed connection string included.
+ */
+function refusedBesideFakes(defined: EnvSource): readonly string[] {
+  if (defined[FAKES] === undefined) {
+    return [];
+  }
+  const refusing = [
+    ...(defined['VERCEL_ENV'] === 'production' ? ['VERCEL_ENV'] : []),
+    ...CREDENTIALS.filter((name) => defined[name] !== undefined),
+  ];
+  return refusing.length === 0 ? [] : [...refusing, FAKES];
+}
+
+/**
  * Validates a server environment (TRV-64). An empty value counts as unset. The
- * error names the invalid variables but never echoes a value, so it is safe to
- * log.
+ * fakes switch is refused beside a real credential or on a production
+ * deployment. The error names the invalid variables but never echoes a value,
+ * so it is safe to log.
  */
 export function parseServerEnv(source: EnvSource): ServerEnvResult {
-  const definedEntries = Object.entries(source).filter(
-    ([, value]) => value !== undefined && value !== '',
+  const defined: EnvSource = Object.fromEntries(
+    Object.entries(source).filter(([, value]) => value !== undefined && value !== ''),
   );
-  const parsed = serverEnvSchema.safeParse(Object.fromEntries(definedEntries));
-  if (parsed.success) {
+  const parsed = serverEnvSchema.safeParse(defined);
+  // One variable can fail several checks.
+  const invalid = new Set([
+    ...(parsed.success ? [] : parsed.error.issues.map((issue) => issue.path.map(String).join('.'))),
+    ...refusedBesideFakes(defined),
+  ]);
+  if (parsed.success && invalid.size === 0) {
     return { ok: true, env: parsed.data };
   }
-  // Zod reports issues in schema order; one variable can fail several checks.
-  const names = new Set(parsed.error.issues.map((issue) => issue.path.map(String).join('.')));
-  return { ok: false, error: { kind: 'invalid-server-env', variables: [...names] } };
+  const variables = VARIABLES.filter((name) => invalid.has(name));
+  return { ok: false, error: { kind: 'invalid-server-env', variables } };
 }
 
 const processEnvResult = parseServerEnv(process.env);

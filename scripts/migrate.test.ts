@@ -20,15 +20,17 @@ const PINNED_SERVER_ENV = {
   VERCEL_ENV: undefined,
   DATABASE_URL: undefined,
   DATABASE_URL_UNPOOLED: undefined,
+  EGOSCOPE_FAKES: undefined,
 } as const;
 
 /**
  * Exports what a developer's shell may: the production connection strings, for
- * example to run pg_dump, with VERCEL_ENV=production, and a LOG_LEVEL and a
- * NODE_ENV that the schema refuses, each of which makes the whole environment
- * invalid. CI exports none of these, so every test here starts as if the shell
- * did, and a deploy step that inherited them would migrate the database they
- * name or stop on an invalid environment (TRV-76).
+ * example to run pg_dump, with VERCEL_ENV=production, the fakes switch of
+ * .env.example, which no database URL may join, and a LOG_LEVEL and a NODE_ENV
+ * that the schema refuses, each of which makes the whole environment invalid. CI
+ * exports none of these, so every test here starts as if the shell did, and a
+ * deploy step that inherited them would migrate the database they name or stop
+ * on an invalid environment (TRV-76).
  */
 function exportShellVariables(): void {
   vi.stubEnv('DATABASE_URL', POOLED_URL);
@@ -36,6 +38,7 @@ function exportShellVariables(): void {
   vi.stubEnv('VERCEL_ENV', 'production');
   vi.stubEnv('LOG_LEVEL', 'INFO');
   vi.stubEnv('NODE_ENV', 'staging');
+  vi.stubEnv('EGOSCOPE_FAKES', 'all');
 }
 
 /** Runs the deploy step as the production build does, with these deployment variables only. */

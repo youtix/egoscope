@@ -1,0 +1,69 @@
+# End-to-end tests (CLAUDE.md, "End-to-end tests"): Playwright runs the specs of e2e/ in
+# Chromium, on a desktop and on a phone, against the production build of the app in the
+# hermetic mode, where every outside service is a fake and no credential exists. The
+# workflow always starts, with no path filter, and its final job, `e2e`, always reports a
+# result, because `main` requires it by name.
+name: E2E
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  playwright:
+    name: playwright
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Read the Playwright version, which names the browsers it needs
+        id: playwright
+        run: echo "version=$(jq --raw-output '.devDependencies["@playwright/test"]' package.json)" >> "$GITHUB_OUTPUT"
+      - name: Restore the browsers of this Playwright version
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium, unless restored, and the system libraries it needs
+        run: bun x --no-install playwright install --with-deps --only-shell chromium
+      - name: Build the app and run the end-to-end tests
+        run: bun run e2e
+      - name: Upload the report and the traces of the failed tests
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: reports/e2e/
+          retention-days: 14
+
+  e2e:
+    name: e2e
+    if: ${{ always() }}
+    needs: [playwright]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci-ok.sh
+          sparse-checkout-cone-mode: false
+      - name: Require the end-to-end tests to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
+        run: sh scripts/ci-ok.sh

@@ -127,6 +127,73 @@ gives no difference.
   condition, an inline callback) goes untested, so keep it trivial; `route.ts` handlers are
   covered.
 
+## End-to-end tests
+
+- `bun run e2e` builds the app and runs `e2e/` with Playwright in Chromium, on a desktop in the
+  light theme and on a phone in the dark one, against `next start`, never `next dev`. Each lot
+  has its own hermetic server, with `EGOSCOPE_LOT` set, on a port that the system picks
+  (`playwright.config.ts`). `bun run e2e:ui` opens Playwright's UI, without the lock. Install
+  the browser once with `bun x playwright install chromium`. The report and the traces of the
+  failed tests land in `reports/e2e/`.
+- One journey per screen task, in `e2e/<screen>.spec.ts` (`e2e/lot2/` for Lot 2), its titles
+  citing the requirement IDs it verifies, as in unit tests.
+- Take `test` and `expect` from `e2e/fixtures/test.ts`, which bring the accessibility watch of
+  the next section.
+- Locate elements by role and label (`getByRole`, `getByLabel`), as a person and a screen
+  reader find them, never by CSS, XPath or a test id, and act on them as a person does, never
+  with `dispatchEvent`, before which the watch cannot check the page. No sleeps and no waiting
+  for the network to go quiet: wait with web-first assertions for what the owner would see.
+- The hermetic mode, `EGOSCOPE_FAKES=all`: every outside service is a fake, and without a
+  database URL the database is PGlite in memory, fresh at each start. `EGOSCOPE_FAKES` beside
+  a real credential, which `src/lib/env/server-env.ts` marks as such, or on a production
+  deployment makes the configuration invalid, and the server refuses to start. `isHermetic()`
+  from `@/lib/env` says whether the mode is on.
+- `/api/test/*` controls the running app from the specs, in the hermetic mode only: every route
+  there calls `isHermetic()` first, after `await connection()`, and answers 404 otherwise, as
+  `/api/test/ping` does. A new control is a coordinator decision.
+
+### The accessibility watch
+
+The watch of `e2e/fixtures/test.ts` checks the document of a watched page with axe's WCAG 2.2 A
+and AA rules:
+
+1. before every action and every web-first assertion on a locator, and before each of their
+   retries, when the document changed since its last check;
+2. before every navigation that the test itself starts on the page (`goto`, `reload`, `goBack`,
+   `goForward`) and before `close`, of the page or of its browser context, when it changed since
+   its last check;
+3. when the test ends, whatever changed.
+
+- A change is one of these signals: a new document or a new address, a new fragment included; a
+  DOM mutation of any kind (child list, attributes, character data); an `input` or `change`
+  event; the top layer opening or closing (the toggle events of a popover or of a dialog); a new
+  viewport size; new emulated media (color scheme, reduced motion, forced colors); a move of the
+  focus.
+- Each check first lets the page's animations end, for a second at most, and clears the mark of
+  a change before axe runs, so that a change made during the check is not lost.
+- The watch does not see a state that shows by CSS alone with none of these signals, such as a
+  hover style or the end of an animation that the one-second wait did not cover. Check such a
+  state, or any state at a moment of your choosing, with `await accessibility.check()`, or
+  `accessibility.check(otherPage)` for another page.
+- A check that a new document interrupts is dropped: the state that it was reading is gone, and
+  the new document is checked in its turn. A document that the app leaves by itself before the
+  test acts on it is not reported as unchecked. Only a violation, or a document that the test
+  itself left unchecked, fails the test: a document on which no check began, whose departure
+  raw keyboard, mouse or touch input of the test began. The input begins a departure that starts
+  while the browser itself dispatches an event of the input (a key going down or up, a button
+  pressed or released, a click, a touch beginning or ending) or the `beforeinput`, `input`,
+  `change` or `submit` event that it fires in response, whether a handler of the event leaves or
+  the browser does, as it follows a link; and the navigation that the browser then queues for a
+  submission of a form that the input made, itself or through such a handler (`requestSubmit()`,
+  `submit()` or a click of a submit button). Any other departure is the app's own, such as one
+  that begins after a timer or a request, even one that a handler of the input started or one of
+  a form that the input submitted before, or one that a script of the test starts.
+- Playwright runs the checks of point 1 only while the body of the page has a box, which the root
+  layout's `min-h-dvh` gives it: a check of a loaded page reports a body that has none.
+- A page that the test opens beside its `page`, such as a popup or the page of a second browser
+  context for another device, is watched once the test passes it to
+  `await accessibility.watch(otherPage)`.
+
 ## Mutation testing
 
 - Stryker mutates the non-test files of the pure core (`src/lib/stats-engine/` and

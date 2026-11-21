@@ -39,11 +39,14 @@ const LIB = 'src/lib/';
 // A file sits at most in src/lib/<module>/<sub>/.
 const MAX_SEGMENTS_BELOW_LIB = 3;
 
+// The test of a Next.js root file sits beside it, as every test does.
+const TEST_SUFFIX = /\.test(?=\.tsx?$)/u;
+
 const checkSrcRoot: Check = (path) =>
   path.startsWith('src/') &&
   !path.startsWith('src/app/') &&
   !path.startsWith(LIB) &&
-  !NEXT_ROOT_FILES.has(path)
+  !NEXT_ROOT_FILES.has(path.replace(TEST_SUFFIX, ''))
     ? ['src/ holds only app/ and lib/, plus the Next.js root files (instrumentation.ts, proxy.ts).']
     : [];
 
