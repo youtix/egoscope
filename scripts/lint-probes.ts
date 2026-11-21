@@ -74,12 +74,15 @@ const PROBE_FILES: readonly string[] = [
   'src/lib/probe/probe.test.ts',
   'src/lib/probe/probe.ts',
   'src/lib/probe/use-probe.ts',
+  'src/lib/runtime-cache/probe.ts',
   'src/lib/stats-engine/probe.cts',
   'src/lib/stats-engine/probe.mts',
   'src/lib/stats-engine/probe.test.ts',
   'src/lib/stats-engine/probe.ts',
   'src/lib/stats-engine/view-probe.tsx',
   'src/lib/time/probe.ts',
+  'src/lib/wake-plan/probe.test.ts',
+  'src/lib/wake-plan/probe.ts',
 ];
 
 // Two modules that import each other: a cycle needs real files.
