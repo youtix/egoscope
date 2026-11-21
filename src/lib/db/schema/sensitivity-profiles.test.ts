@@ -106,49 +106,133 @@ const FOREIGN_KEYS = [
   'sensitivity_profiles FOREIGN KEY (player_id) REFERENCES followed_players(id) ON DELETE CASCADE',
 ];
 
-// Nine events in eight cases, seven of them valid at a mean gap of +0.40: a possible
-// increase, its control the same over eight cases.
-const SEVEN_VALID = {
+// The calculation a profile and a trend share, without what names its subject.
+type Calculation = Omit<
+  PgInsertValue<typeof sensitivityProfiles>,
+  'playerId' | 'eventTypeId' | 'view'
+>;
+// The tally reasons of a calculation whose excluded cases were all excluded for their
+// playing time, keyed by the stored values as the engine counts them.
+const excludedForPlayingTime = (count: number): Readonly<Record<string, unknown>> => ({
+  awaitingGame: {},
+  notMeasurable: {},
+  excluded: Object.fromEntries([['playing_time_too_low', count]]),
+});
+
+// Three calculations whose figures follow from their gaps by SEN-20 and SEN-22 to SEN-27,
+// rounded to three decimals, each excluded case for its playing time. Twelve events in
+// eleven cases: seven valid of gaps −0.3, −0.1, 0.6, 0.9, 1.1, 1.4 and 2.0, four excluded
+// of 0.2, 0.5, 1.6 and −0.4. Mean +0.80, noise 1 ÷ √7 = 0.378, ratio 2.117: a possible
+// increase, which the 2.0 alone holds up (a ratio of 1.470 without it), so fragile; low
+// below eight valid cases, with 4 doubtful cases in 11 noted too. Its control over the
+// eleven gaps is a possible increase as well.
+const SEVEN_VALID: Calculation = {
   ...EMPTY_CALCULATION,
-  eventCount: 9,
-  caseCount: 8,
+  eventCount: 12,
+  caseCount: 11,
   groupedEventCount: 1,
   validCount: 7,
-  excludedCount: 1,
+  excludedCount: 4,
   historicalValidCount: 7,
-  meanGap: 0.4,
-  gapDispersion: 0.9,
+  tallyReasons: excludedForPlayingTime(4),
+  meanGap: 0.8,
+  gapDispersion: 0.812,
   retainedDispersion: 1,
   expectedNoise: 0.378,
-  signalToNoise: 1.058,
-  rangeLow: -0.356,
-  rangeHigh: 1.156,
+  signalToNoise: 2.117,
+  rangeLow: 0.044,
+  rangeHigh: 1.556,
   aboveZeroCount: 5,
   belowZeroCount: 2,
   verdictLevel: 'possible',
   verdictDirection: 'increase',
-  profileConfidence: 'medium',
-  controlCaseCount: 8,
-  controlMeanGap: 0.35,
-  controlRangeLow: -0.36,
-  controlRangeHigh: 1.06,
+  isFragile: true,
+  confidenceStepDownReasons: ['high_doubtful_share', 'fragile_verdict'],
+  controlCaseCount: 11,
+  controlMeanGap: 0.682,
+  controlRangeLow: 0.079,
+  controlRangeHigh: 1.285,
   controlVerdictLevel: 'possible',
   controlVerdictDirection: 'increase',
-} as const;
-// The first player's profile of the media storm in the default view, and its trend.
-const PROFILE = {
+};
+// Sixteen valid cases of gaps −2.0, −1.9, −1.7, −1.5, −1.4, −1.2, −1.1, −1.0, −0.9, −0.9,
+// −0.8, −0.7, −0.5, −0.4, −0.2 and 0.2, two excluded of −0.6 and 0.4. Mean −1.00, noise
+// 1 ÷ √16 = 0.25, ratio −4: a probable decrease, still probable without the −2.0, and
+// high from fifteen valid cases.
+const SIXTEEN_DECREASING: Calculation = {
+  ...EMPTY_CALCULATION,
+  eventCount: 18,
+  caseCount: 18,
+  validCount: 16,
+  excludedCount: 2,
+  historicalValidCount: 16,
+  tallyReasons: excludedForPlayingTime(2),
+  meanGap: -1,
+  gapDispersion: 0.611,
+  retainedDispersion: 1,
+  expectedNoise: 0.25,
+  signalToNoise: -4,
+  rangeLow: -1.5,
+  rangeHigh: -0.5,
+  aboveZeroCount: 1,
+  belowZeroCount: 15,
+  verdictLevel: 'probable',
+  verdictDirection: 'decrease',
+  profileConfidence: 'high',
+  controlCaseCount: 18,
+  controlMeanGap: -0.9,
+  controlRangeLow: -1.371,
+  controlRangeHigh: -0.429,
+  controlVerdictLevel: 'probable',
+  controlVerdictDirection: 'decrease',
+};
+// Sixteen valid cases of gaps −1.6, −1.2, −0.8, −0.4, 0.1, 0.4, 0.7, 0.9, 1.1, 1.3, 1.6,
+// 1.9, 2.4, 2.8, 3.2 and 3.6, three excluded of 0.5, −0.2 and 1.2. Mean +1.00, dispersion
+// 1.552, retained as it is, noise 0.388, ratio 2.577: a possible increase, still possible
+// without the 3.6; a dispersion above 1.5 takes the confidence down from high to medium.
+const SIXTEEN_DISPERSED: Calculation = {
+  ...EMPTY_CALCULATION,
+  eventCount: 19,
+  caseCount: 19,
+  validCount: 16,
+  excludedCount: 3,
+  historicalValidCount: 16,
+  tallyReasons: excludedForPlayingTime(3),
+  meanGap: 1,
+  gapDispersion: 1.552,
+  retainedDispersion: 1.552,
+  expectedNoise: 0.388,
+  signalToNoise: 2.577,
+  rangeLow: 0.224,
+  rangeHigh: 1.776,
+  aboveZeroCount: 12,
+  belowZeroCount: 4,
+  verdictLevel: 'possible',
+  verdictDirection: 'increase',
+  profileConfidence: 'medium',
+  confidenceStepDownReasons: ['high_dispersion'],
+  controlCaseCount: 19,
+  controlMeanGap: 0.921,
+  controlRangeLow: 0.257,
+  controlRangeHigh: 1.586,
+  controlVerdictLevel: 'possible',
+  controlVerdictDirection: 'increase',
+};
+// The other player's profile of the media storm in the default view. Its cases are all
+// historical, so its historical-only view is the same and its tracked-only view empty.
+const OTHER_STORM = { playerId: PARENTS.otherPlayerId, eventTypeId: 'media-storm' } as const;
+const PROFILE = { ...SEVEN_VALID, ...OTHER_STORM, view: 'all_cases' } as const;
+// The trend of the death of a loved one, of the same figures over the cases of three
+// players, the one who brings the most giving four of the seven valid ones: more than
+// half, which the confidence notes (SEN-29).
+const TREND: PgInsertValue<typeof generalTrends> = {
   ...SEVEN_VALID,
-  playerId: PARENTS.playerId,
-  eventTypeId: 'media-storm',
+  eventTypeId: 'bereavement',
   view: 'all_cases',
-} as const;
-const TREND = {
-  ...SEVEN_VALID,
-  eventTypeId: 'media-storm',
-  view: 'all_cases',
-  distinctPlayerCount: 1,
-  topContributorValidCount: 7,
-} as const;
+  confidenceStepDownReasons: ['high_doubtful_share', 'fragile_verdict', 'dominant_player'],
+  distinctPlayerCount: 3,
+  topContributorValidCount: 4,
+};
 // A value that no stored set of the model holds.
 const OUTSIDE = sql`'outside'`;
 // Each change breaks one clause of one check that a profile and a trend share.
@@ -176,8 +260,8 @@ const BROKEN = [
     { controlVerdictDirection: OUTSIDE },
     'control_verdict_direction',
   ],
-  ['counting more events than cases and grouped events', { eventCount: 10 }, 'event_count'],
-  ['counting more cases than its states', { caseCount: 9, eventCount: 10 }, 'case_count'],
+  ['counting more events than cases and grouped events', { eventCount: 13 }, 'event_count'],
+  ['counting more cases than its states', { caseCount: 12, eventCount: 13 }, 'case_count'],
   ['counting more valid cases than its origins', { historicalValidCount: 6 }, 'valid_count'],
   ['inconclusive with a direction', { verdictLevel: 'inconclusive' }, 'verdict'],
   ['possible without a direction', { verdictDirection: null }, 'verdict'],
@@ -194,13 +278,13 @@ const BROKEN = [
   ['of valid cases without a mean gap', { meanGap: null }, 'mean_gap'],
   [
     'of no valid case with a mean gap',
-    { validCount: 0, historicalValidCount: 0, excludedCount: 8, gapDispersion: null },
+    { validCount: 0, historicalValidCount: 0, excludedCount: 11, gapDispersion: null },
     'mean_gap',
   ],
   ['of seven valid cases without a dispersion', { gapDispersion: null }, 'gap_dispersion'],
   [
     'of one valid case with a dispersion',
-    { validCount: 1, historicalValidCount: 1, excludedCount: 7 },
+    { validCount: 1, historicalValidCount: 1, excludedCount: 10 },
     'gap_dispersion',
   ],
   ['of a control range without its low end', { controlRangeLow: null }, 'control_range'],
@@ -229,74 +313,92 @@ describe('the profile, trend and recalculation tables', { timeout: 60_000 }, () 
     await expect(describeForeignKeys(db, TABLES)).resolves.toStrictEqual(FOREIGN_KEYS);
   });
 
-  it('[SEN-20] [SEN-21] [SEN-23] [SEN-24] [SEN-25] [CL-SEN-26] stores every view, verdict and confidence of a profile and a trend, an empty birthday profile included', async () => {
+  it('[SEN-21] [SEN-24] [CL-SEN-26] stores every view, verdict and confidence of a profile, an empty birthday profile included', async () => {
+    const bereavement = { eventTypeId: 'bereavement', view: 'all_cases' } as const;
     await db.insert(sensitivityProfiles).values([
-      {
-        ...PROFILE,
-        confidenceStepDownReasons: ['high_dispersion', 'high_doubtful_share', 'fragile_verdict'],
-      },
-      {
-        ...PROFILE,
-        view: 'historical_only',
-        verdictLevel: 'probable',
-        verdictDirection: 'decrease',
-        profileConfidence: 'high',
-        controlVerdictLevel: 'probable',
-        controlVerdictDirection: 'decrease',
-      },
-      { ...PROFILE, view: 'tracked_only', isFragile: true },
+      PROFILE,
+      { ...PROFILE, view: 'historical_only' },
+      { ...EMPTY_CALCULATION, ...OTHER_STORM, view: 'tracked_only' },
+      { ...SIXTEEN_DECREASING, ...bereavement, playerId: PARENTS.playerId },
+      { ...SIXTEEN_DISPERSED, ...bereavement, playerId: PARENTS.otherPlayerId },
+      // The first player has no birthday recorded.
       {
         ...EMPTY_CALCULATION,
-        playerId: PARENTS.otherPlayerId,
+        playerId: PARENTS.playerId,
         eventTypeId: 'birthday',
         view: 'all_cases',
-      },
-    ]);
-    await db.insert(generalTrends).values([
-      {
-        ...TREND,
-        confidenceStepDownReasons: [
-          'high_dispersion',
-          'high_doubtful_share',
-          'fragile_verdict',
-          'dominant_player',
-        ],
-      },
-      {
-        ...TREND,
-        view: 'historical_only',
-        verdictLevel: 'probable',
-        verdictDirection: 'decrease',
-        profileConfidence: 'high',
-        controlVerdictLevel: 'probable',
-        controlVerdictDirection: 'decrease',
-      },
-      { ...TREND, view: 'tracked_only', isFragile: true },
-      {
-        ...EMPTY_CALCULATION,
-        eventTypeId: 'birthday',
-        view: 'all_cases',
-        distinctPlayerCount: 0,
-        topContributorValidCount: 0,
       },
     ]);
 
-    const views = await db
-      .select({ view: sensitivityProfiles.view, level: sensitivityProfiles.verdictLevel })
+    const stored = await db
+      .select({
+        view: sensitivityProfiles.view,
+        level: sensitivityProfiles.verdictLevel,
+        confidence: sensitivityProfiles.profileConfidence,
+      })
       .from(sensitivityProfiles)
       .orderBy(sensitivityProfiles.id);
 
-    expect(views).toStrictEqual([
-      { view: 'all_cases', level: 'possible' },
-      { view: 'historical_only', level: 'probable' },
-      { view: 'tracked_only', level: 'possible' },
-      { view: 'all_cases', level: 'inconclusive' },
+    expect(stored).toStrictEqual([
+      { view: 'all_cases', level: 'possible', confidence: 'low' },
+      { view: 'historical_only', level: 'possible', confidence: 'low' },
+      { view: 'tracked_only', level: 'inconclusive', confidence: 'low' },
+      { view: 'all_cases', level: 'probable', confidence: 'high' },
+      { view: 'all_cases', level: 'possible', confidence: 'medium' },
+      { view: 'all_cases', level: 'inconclusive', confidence: 'low' },
     ]);
-    await expect(db.$count(generalTrends)).resolves.toBe(4);
+  });
+
+  it('[SEN-21] [SEN-24] [CL-SEN-19] stores every view, verdict and confidence of a trend, a dominant player included', async () => {
+    await db.insert(generalTrends).values([
+      TREND,
+      { ...TREND, view: 'historical_only' },
+      {
+        ...EMPTY_CALCULATION,
+        eventTypeId: 'bereavement',
+        view: 'tracked_only',
+        distinctPlayerCount: 0,
+        topContributorValidCount: 0,
+      },
+      // The historical cases of the media storm, without the tracked one that waits for
+      // its game.
+      {
+        ...SIXTEEN_DECREASING,
+        eventTypeId: 'media-storm',
+        view: 'historical_only',
+        distinctPlayerCount: 4,
+        topContributorValidCount: 5,
+      },
+      // Eight of the sixteen valid cases make half, not more: no step down for them.
+      {
+        ...SIXTEEN_DISPERSED,
+        eventTypeId: 'birthday',
+        view: 'all_cases',
+        distinctPlayerCount: 3,
+        topContributorValidCount: 8,
+      },
+    ]);
+
+    const stored = await db
+      .select({
+        view: generalTrends.view,
+        level: generalTrends.verdictLevel,
+        confidence: generalTrends.profileConfidence,
+      })
+      .from(generalTrends)
+      .orderBy(generalTrends.id);
+
+    expect(stored).toStrictEqual([
+      { view: 'all_cases', level: 'possible', confidence: 'low' },
+      { view: 'historical_only', level: 'possible', confidence: 'low' },
+      { view: 'tracked_only', level: 'inconclusive', confidence: 'low' },
+      { view: 'historical_only', level: 'probable', confidence: 'high' },
+      { view: 'all_cases', level: 'possible', confidence: 'medium' },
+    ]);
   });
 
   it.each(BROKEN)(
-    '[SEN-24] [SEN-32] [SEN-38] [CL-SEN-15] refuses a profile %s',
+    '[SEN-20] [SEN-21] [SEN-24] [SEN-32] [SEN-38] [CL-SEN-15] refuses a profile %s',
     async (_case, change, check) => {
       const insert = db.insert(sensitivityProfiles).values({ ...PROFILE, ...change });
 
@@ -307,7 +409,7 @@ describe('the profile, trend and recalculation tables', { timeout: 60_000 }, () 
   );
 
   it.each(BROKEN)(
-    '[SEN-24] [SEN-32] [SEN-38] [CL-SEN-15] refuses a trend %s',
+    '[SEN-20] [SEN-21] [SEN-24] [SEN-32] [SEN-38] [CL-SEN-15] refuses a trend %s',
     async (_case, change, check) => {
       const insert = db.insert(generalTrends).values({ ...TREND, ...change });
 
@@ -315,14 +417,14 @@ describe('the profile, trend and recalculation tables', { timeout: 60_000 }, () 
     },
   );
 
-  it('[SEN-25] [SEN-29] keeps the dominant player to a trend, and one profile or trend per view', async () => {
+  it('[SEN-21] [CL-SEN-19] keeps one profile or trend per view, and the dominant player to a trend', async () => {
     await db.insert(sensitivityProfiles).values(PROFILE);
     await db.insert(generalTrends).values(TREND);
 
     const dominant = db.insert(sensitivityProfiles).values({
       ...PROFILE,
-      view: 'tracked_only',
-      confidenceStepDownReasons: sql`ARRAY['dominant_player']`,
+      view: 'historical_only',
+      confidenceStepDownReasons: sql`ARRAY['high_doubtful_share', 'fragile_verdict', 'dominant_player']`,
     });
     const profileTwice = db.insert(sensitivityProfiles).values(PROFILE);
     const trendTwice = db.insert(generalTrends).values(TREND);
@@ -338,7 +440,7 @@ describe('the profile, trend and recalculation tables', { timeout: 60_000 }, () 
     });
   });
 
-  it('[CL-JOU-06] [SEN-36] deletes the profiles of a player with him, and keeps the snapshot a result was computed with', async () => {
+  it('[CL-JOU-06] deletes the profiles of a player with him, and keeps the snapshot a result was computed with', async () => {
     await db.insert(sensitivityProfiles).values({
       ...EMPTY_CALCULATION,
       playerId: PARENTS.otherPlayerId,
@@ -358,19 +460,18 @@ describe('the profile, trend and recalculation tables', { timeout: 60_000 }, () 
   });
 
   it('[SEN-34] [CL-SEN-16] [CL-SEN-17] records each job with its scope and its cause, one running at a time', async () => {
-    const causes = [
-      'new_cases',
-      'stats_correction',
-      'baseline_updated',
+    // Each cause under the item of SEN-34 whose changes give it (CL-SEN-17): a statistics
+    // update, then the changes to events, cases and decisions, then the full recalculation.
+    const statistics = ['stats_correction', 'baseline_updated'] as const;
+    const changes = [
       'manual_decision',
       'event_dismissed',
-      'parameter_change',
-      'recalculation',
       'event_corrected_or_removed',
       'event_reinstated',
-      'taxonomy_changed',
     ] as const;
+    const full = ['parameter_change', 'recalculation', 'taxonomy_changed'] as const;
     const players = { playerIds: [PARENTS.playerId] };
+    type Job = PgInsertValue<typeof recalculationJobs>;
     await db.insert(recalculationJobs).values([
       {
         ...players,
@@ -378,21 +479,21 @@ describe('the profile, trend and recalculation tables', { timeout: 60_000 }, () 
         cause: 'new_cases',
         status: 'running',
         startedAt: EMPTY_CALCULATION.computedAt,
-        parameterSnapshotId: 1,
+        parameterSnapshotId: PARENTS.parameterSnapshotId,
       },
-      {
+      ...statistics.map((cause): Job => ({
         ...players,
         scope: 'statistics_update',
-        cause: 'stats_correction',
+        cause,
         gameIds: [PARENTS.gameId],
-      },
-      {
+      })),
+      ...changes.map((cause): Job => ({
         ...players,
         scope: 'event_or_case_change',
-        cause: 'event_dismissed',
+        cause,
         eventTypeIds: ['media-storm'],
-      },
-      ...causes.map((cause) => ({ scope: 'full', cause }) as const),
+      })),
+      ...full.map((cause): Job => ({ scope: 'full', cause })),
     ]);
 
     const secondRunning = db
@@ -405,7 +506,7 @@ describe('the profile, trend and recalculation tables', { timeout: 60_000 }, () 
     });
     await expect(
       db.$count(recalculationJobs, eq(recalculationJobs.status, 'pending')),
-    ).resolves.toBe(12);
+    ).resolves.toBe(9);
   });
 
   it.each<readonly [string, Partial<PgInsertValue<typeof recalculationJobs>>, string]>([
@@ -414,7 +515,7 @@ describe('the profile, trend and recalculation tables', { timeout: 60_000 }, () 
     ['of a status the model does not list', { status: sql`'done'` }, 'status'],
     [
       'of the whole base naming its players',
-      { scope: 'full', playerIds: [PARENTS.playerId] },
+      { scope: 'full', cause: 'recalculation', playerIds: [PARENTS.playerId] },
       'full_scope',
     ],
     ['of an import naming no player', { scope: 'import', playerIds: null }, 'full_scope'],

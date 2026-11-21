@@ -142,7 +142,7 @@ describe('the tables that hang off a case', { timeout: 60_000 }, () => {
     await expect(describeForeignKeys(db, TABLES)).resolves.toStrictEqual(FOREIGN_KEYS);
   });
 
-  it('[SEN-11] [SEN-13] [SEN-14] [SEN-17] keeps each triggered criterion once, a context one by its condition', async () => {
+  it('[SEN-11] [SEN-13] [SEN-14] keeps each triggered criterion once, a context one by its condition', async () => {
     const values = { minutes: 14, threshold: 17.5 };
     await db.insert(caseTriggeredCriteria).values([
       ...(['playing_time_too_low', 'opponent_strength', 'co_occurring', 'manual'] as const).map(
@@ -284,7 +284,7 @@ describe('the tables that hang off a case', { timeout: 60_000 }, () => {
     await expect(insert).rejects.toMatchObject(violationOf(`case_manual_decisions_${check}_check`));
   });
 
-  it('[SEN-07] [SEN-37] [CL-SEN-17] records each change of a case with the cause of its recalculation', async () => {
+  it('[SEN-07] [CL-SEN-17] records each change of a case with the cause of its recalculation', async () => {
     const causes = [
       'new_cases',
       'stats_correction',
@@ -345,7 +345,7 @@ describe('the tables that hang off a case', { timeout: 60_000 }, () => {
     ['a gap status', { gapStatus: OUTSIDE }, 'gap_status'],
     ['a cause', { cause: OUTSIDE }, 'cause'],
   ] as const)(
-    '[SEN-37] refuses a case history entry with %s that the glossary does not list',
+    '[SEN-07] [CL-SEN-17] refuses a case history entry with %s that the glossary does not list',
     async (_value, change, column) => {
       const insert = db
         .insert(caseHistoryEntries)

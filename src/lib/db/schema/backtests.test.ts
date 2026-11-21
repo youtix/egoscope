@@ -170,7 +170,11 @@ describe('the backtest request and import tables', { timeout: 60_000 }, () => {
     await expect(describeForeignKeys(db, TABLES)).resolves.toStrictEqual(FOREIGN_KEYS);
   });
 
-  it('[BKT-01] [BKT-13] [BKT-14] stores each kind, trigger and status of a request, a canceled one imported later included', async () => {
+  it('[BKT-13] [BKT-14] stores each kind, trigger and status of a request, a canceled one imported later included', async () => {
+    // A supplement comes of a detection, of a type validated, reactivated or broadened, or
+    // of an incomplete import of the player's, a full redo of the owner's action (BKT-04
+    // to BKT-06, BKT-09).
+    const supplement = { ...CANCELED, kind: 'supplement' } as const;
     await db
       .update(backtestRequests)
       .set({ status: 'canceled', canceledAt: PRODUCED_AT })
@@ -178,34 +182,35 @@ describe('the backtest request and import tables', { timeout: 60_000 }, () => {
     await db.insert(backtestRequests).values([
       { ...REQUEST, kind: 'supplement', trigger: 'detection' },
       {
-        ...CANCELED,
+        ...supplement,
         reference: 'REQ-2026-0003',
-        kind: 'full_redo',
         trigger: 'type_validated',
         triggerEventTypeId: 'media-storm',
       },
       {
-        ...CANCELED,
+        ...supplement,
         reference: 'REQ-2026-0004',
         trigger: 'type_reactivated',
         triggerEventTypeId: 'bereavement',
         cancellationReasonCode: 'player_withdrawn',
       },
       {
-        ...CANCELED,
+        ...supplement,
         reference: 'REQ-2026-0005',
         trigger: 'type_broadened',
         triggerEventTypeId: 'media-storm',
         cancellationReasonText: 'Done elsewhere.',
       },
       {
-        ...CANCELED,
+        ...supplement,
         reference: 'REQ-2027-12345',
+        playerId: PARENTS.playerId,
         trigger: 'incomplete_import',
         triggerImportId: PARENTS.importId,
         status: 'imported',
         importedAt: NEXT_DAY,
       },
+      { ...CANCELED, reference: 'REQ-2026-0006', kind: 'full_redo' },
     ]);
 
     const [created] = await db
@@ -221,7 +226,7 @@ describe('the backtest request and import tables', { timeout: 60_000 }, () => {
       rowVersion: 1,
       lastCopiedAt: null,
     });
-    await expect(db.$count(backtestRequests)).resolves.toBe(6);
+    await expect(db.$count(backtestRequests)).resolves.toBe(7);
   });
 
   it.each(['REQ-26-0001', 'REQ-2026-001', 'req-2026-0001', 'REQ-2026-0001 ', 'REQ-2026'])(
@@ -280,13 +285,13 @@ describe('the backtest request and import tables', { timeout: 60_000 }, () => {
       { triggerImportId: PARENTS.importId },
       'trigger_import',
     ],
-  ] as const)('[BKT-01] [BKT-13] [BKT-14] refuses a request %s', async (_case, change, check) => {
+  ] as const)('[BKT-13] [BKT-14] refuses a request %s', async (_case, change, check) => {
     const insert = db.insert(backtestRequests).values({ ...REQUEST, ...change });
 
     await expect(insert).rejects.toMatchObject(violationOf(`backtest_requests_${check}_check`));
   });
 
-  it('[BKT-08] [BKT-15] [CL-BKT-07] plans each type once per request, under an existing sheet version and a period', async () => {
+  it('[CL-BKT-07] plans each type once per request, under an existing sheet version and a period', async () => {
     await db.insert(backtestRequestTypes).values([
       REQUEST_TYPE,
       {
@@ -398,11 +403,12 @@ describe('the backtest request and import tables', { timeout: 60_000 }, () => {
     await expect(version).rejects.toMatchObject(violationOf('imports_format_version_check'));
   });
 
-  it('[CL-JOU-06] [BKT-06] deletes with a player his requests, their types, imports and coverage, a supplement keeping its trigger when its import goes', async () => {
+  it('[CL-JOU-06] deletes with a player his requests, their types, imports and coverage, a supplement keeping its trigger when its import goes', async () => {
     await db.insert(backtestRequests).values({
       ...REQUEST,
       reference: 'REQ-2026-0003',
       playerId: PARENTS.playerId,
+      kind: 'supplement',
       status: 'canceled',
       canceledAt: NEXT_DAY,
       trigger: 'incomplete_import',

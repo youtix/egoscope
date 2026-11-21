@@ -53,7 +53,7 @@ describe('the detected events attached to a request', { timeout: 60_000 }, () =>
     await expect(describeForeignKeys(db, table)).resolves.toStrictEqual(FOREIGN_KEYS);
   });
 
-  it('[BKT-07] [BKT-18] attaches an event once to a request, a dismissal keeping the link', async () => {
+  it('[BKT-07] attaches an event once to a request, a dismissal keeping the link', async () => {
     await db
       .insert(backtestRequestEvents)
       .values([LINK, { ...LINK, playerEventId: SECOND_EVENT_ID }]);

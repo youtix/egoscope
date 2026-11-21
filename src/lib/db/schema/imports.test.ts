@@ -1,9 +1,11 @@
 import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { toEpochMs } from '@/lib/time';
+
 import { describeColumns, describeForeignKeys, describeIndexes } from '../catalog';
 import { createTestDatabase } from '../test-database';
-import { DETECTED_EVENT, insertParents, PARENTS } from '../test-parents';
+import { DETECTED_EVENT, HISTORICAL_EVENT, insertParents, PARENTS } from '../test-parents';
 import { imports } from './backtests';
 import { events } from './events';
 import { importEventOutcomes, importPossibleDuplicates } from './imports';
@@ -50,12 +52,28 @@ const FOREIGN_KEYS = [
   'import_possible_duplicates FOREIGN KEY (result_player_event_id) REFERENCES events(id) ON DELETE SET NULL',
 ];
 
+// The second detected event of the first player, of 2 December 2024 at 07:15 UTC, which
+// events of the parent import's result matched.
+const EXISTING_EVENT_ID = 2;
+const DETECTED_AT = new Date(toEpochMs(Date.UTC(2024, 11, 2, 7, 15)));
+// The historical events that the parent import recorded from its result, the third and
+// the fourth: a media storm of 20 November 2024, and a bereavement of 3 December, the day
+// after the detected media storm.
+const RECORDED_EVENT_ID = 3;
+const RECORDED_WITH_WARNING_ID = 4;
+const BEREAVEMENT = {
+  ...HISTORICAL_EVENT,
+  eventTypeId: 'bereavement',
+  sheetEventTypeId: 'bereavement',
+  referenceDateOn: '2024-12-03',
+  description: 'The player lost his grandfather.',
+} as const;
 // The outcome of an event the parent import added, and of one it set aside, keeping
 // its rank, its type and its date as read.
 const ADDED = {
   importId: PARENTS.importId,
   outcome: 'added',
-  playerEventId: PARENTS.eventId,
+  playerEventId: RECORDED_EVENT_ID,
 } as const;
 const SET_ASIDE = {
   importId: PARENTS.importId,
@@ -63,28 +81,30 @@ const SET_ASIDE = {
   eventTypeAsRead: 'media-storm',
   dateAsRead: '2024-12-02',
 } as const;
-const IGNORE_REASONS = [
-  'type_not_validated',
-  'type_not_requested',
-  'outside_requested_period',
-  'before_first_nba_game',
-  'calendar_derived_type',
-  'split_type_ignored',
+// Each reason to ignore or refuse an event, with the type and the date it was read
+// with: a proposed type, one the request leaves out, a date after the request, one
+// before the player's first NBA game, a calendar-derived type, a type a split replaced;
+// no type, an unknown one, no date, a malformed one, one that does not exist (IMP-20).
+const IGNORED = [
+  ['type_not_validated', 'public-feud', '2024-12-02'],
+  ['type_not_requested', 'bereavement', '2024-12-03'],
+  ['outside_requested_period', 'media-storm', '2026-11-15'],
+  ['before_first_nba_game', 'media-storm', '2009-06-01'],
+  ['calendar_derived_type', 'birthday', '2024-12-02'],
+  ['split_type_ignored', 'press-pressure', '2024-12-02'],
 ] as const;
-const REFUSAL_REASONS = [
-  'type_missing',
-  'type_unknown',
-  'public_date_missing',
-  'public_date_malformed',
-  'public_date_nonexistent',
-  'description_missing',
-  'description_too_long',
-  'description_quotation_mark',
-  'no_valid_source',
-  'source_before_public_date',
+const REFUSED = [
+  ['type_missing', null, '2024-12-02'],
+  ['type_unknown', 'locker-room-feud', '2024-12-02'],
+  ['public_date_missing', 'media-storm', null],
+  ['public_date_malformed', 'media-storm', '02/12/2024'],
+  ['public_date_nonexistent', 'media-storm', '2021-02-30'],
+  ['description_missing', 'media-storm', '2024-12-02'],
+  ['description_too_long', 'media-storm', '2024-12-02'],
+  ['description_quotation_mark', 'media-storm', '2024-12-02'],
+  ['no_valid_source', 'media-storm', '2024-12-02'],
+  ['source_before_public_date', 'media-storm', '2024-12-02'],
 ] as const;
-// The second detected event of the player, which a result event duplicated.
-const EXISTING_EVENT_ID = 2;
 // A value that no stored set of the model holds.
 const OUTSIDE = sql`'outside'`;
 
@@ -100,7 +120,9 @@ describe('the outcomes and possible duplicates of an import', { timeout: 60_000 
     const database = await createTestDatabase();
     db = database.db;
     await insertParents(db);
-    await db.insert(events).values(DETECTED_EVENT);
+    await db
+      .insert(events)
+      .values([{ ...DETECTED_EVENT, referenceAt: DETECTED_AT }, HISTORICAL_EVENT, BEREAVEMENT]);
     return database.close;
   }, 60_000);
 
@@ -111,22 +133,35 @@ describe('the outcomes and possible duplicates of an import', { timeout: 60_000 
   });
 
   it('[IMP-19] [IMP-20] [CL-IMP-02] keeps the outcome of each event, a rank and a reason for those set aside only', async () => {
-    await db
-      .insert(importEventOutcomes)
-      .values([
-        ADDED,
-        { ...ADDED, outcome: 'added_with_warning' },
-        { ...ADDED, outcome: 'duplicate_not_added', playerEventId: EXISTING_EVENT_ID },
-        ...IGNORE_REASONS.map(
-          (reason, index) =>
-            ({ ...SET_ASIDE, outcome: 'ignored', reason, position: index + 1 }) as const,
-        ),
-        ...REFUSAL_REASONS.map(
-          (reason, index) =>
-            ({ ...SET_ASIDE, outcome: 'refused', reason, position: index + 7 }) as const,
-        ),
-        { importId: PARENTS.importId, outcome: 'refused', reason: 'type_missing', position: 17 },
-      ]);
+    await db.insert(importEventOutcomes).values([
+      ADDED,
+      { ...ADDED, outcome: 'added_with_warning', playerEventId: RECORDED_WITH_WARNING_ID },
+      { ...ADDED, outcome: 'duplicate_not_added', playerEventId: EXISTING_EVENT_ID },
+      ...IGNORED.map(
+        ([reason, eventTypeAsRead, dateAsRead], index) =>
+          ({
+            ...SET_ASIDE,
+            outcome: 'ignored',
+            reason,
+            eventTypeAsRead,
+            dateAsRead,
+            position: index + 1,
+          }) as const,
+      ),
+      ...REFUSED.map(
+        ([reason, eventTypeAsRead, dateAsRead], index) =>
+          ({
+            ...SET_ASIDE,
+            outcome: 'refused',
+            reason,
+            eventTypeAsRead,
+            dateAsRead,
+            position: index + 7,
+          }) as const,
+      ),
+      // An event of which neither a type nor a date could be read.
+      { importId: PARENTS.importId, outcome: 'refused', reason: 'type_missing', position: 17 },
+    ]);
 
     const ranks = await db
       .select({ position: importEventOutcomes.position })
@@ -204,15 +239,15 @@ describe('the outcomes and possible duplicates of an import', { timeout: 60_000 
     await db
       .insert(importEventOutcomes)
       .values([
-        { ...SET_ASIDE, outcome: 'refused', reason: 'type_missing' },
-        { ...SET_ASIDE, importId: 2, outcome: 'refused', reason: 'type_missing' },
+        { ...SET_ASIDE, outcome: 'refused', reason: 'description_missing' },
+        { ...SET_ASIDE, importId: 2, outcome: 'refused', reason: 'description_missing' },
         ADDED,
-        ADDED,
+        { ...ADDED, outcome: 'duplicate_not_added', playerEventId: EXISTING_EVENT_ID },
       ]);
 
     const again = db
       .insert(importEventOutcomes)
-      .values({ ...SET_ASIDE, outcome: 'ignored', reason: 'type_not_requested' });
+      .values({ ...SET_ASIDE, outcome: 'refused', reason: 'no_valid_source' });
 
     await expect(again).rejects.toMatchObject({
       cause: { code: '23505', constraint: 'import_event_outcomes_position_key' },
@@ -220,24 +255,29 @@ describe('the outcomes and possible duplicates of an import', { timeout: 60_000 
   });
 
   it('[IMP-25] [IMP-26] [IMP-37] keeps the answers on possible duplicates by event, letting go of an erased one', async () => {
+    // A media storm of 19 November 2024, listed before the third event in the same result.
+    const earlierEventId = 5;
+    await db.insert(events).values({ ...HISTORICAL_EVENT, referenceDateOn: '2024-11-19' });
+    const answer = { importId: PARENTS.importId } as const;
     await db.insert(importPossibleDuplicates).values([
-      { importId: PARENTS.importId, existingPlayerEventId: EXISTING_EVENT_ID, answer: 'same_fact' },
+      // A result event of another type than the detected media storm, close in date: the
+      // same fact, which the import did not add (IMP-27); or another fact, added.
+      { ...answer, existingPlayerEventId: EXISTING_EVENT_ID, answer: 'same_fact' },
       {
-        importId: PARENTS.importId,
-        resultPlayerEventId: PARENTS.eventId,
+        ...answer,
+        resultPlayerEventId: RECORDED_WITH_WARNING_ID,
         existingPlayerEventId: EXISTING_EVENT_ID,
         answer: 'distinct_facts',
       },
+      // Two media storms a day apart, kept as distinct events (IMP-26).
       {
-        importId: PARENTS.importId,
-        resultPlayerEventId: PARENTS.eventId,
-        existingPlayerEventId: EXISTING_EVENT_ID,
+        ...answer,
+        resultPlayerEventId: RECORDED_EVENT_ID,
+        existingPlayerEventId: earlierEventId,
         answer: 'keep_as_distinct',
       },
     ]);
-    const unknown = db
-      .insert(importPossibleDuplicates)
-      .values({ importId: PARENTS.importId, answer: OUTSIDE });
+    const unknown = db.insert(importPossibleDuplicates).values({ ...answer, answer: OUTSIDE });
 
     await db.delete(events).where(eq(events.id, EXISTING_EVENT_ID));
 
@@ -254,8 +294,8 @@ describe('the outcomes and possible duplicates of an import', { timeout: 60_000 
         .orderBy(importPossibleDuplicates.id),
     ).resolves.toStrictEqual([
       { result: null, existing: null },
-      { result: PARENTS.eventId, existing: null },
-      { result: PARENTS.eventId, existing: null },
+      { result: RECORDED_WITH_WARNING_ID, existing: null },
+      { result: RECORDED_EVENT_ID, existing: earlierEventId },
     ]);
   });
 
@@ -265,6 +305,8 @@ describe('the outcomes and possible duplicates of an import', { timeout: 60_000 
       .insert(importPossibleDuplicates)
       .values({ importId: PARENTS.importId, answer: 'same_fact' });
 
+    // A player-data deletion withdraws the events an import recorded before it goes.
+    await db.delete(events).where(eq(events.originImportId, PARENTS.importId));
     await db.delete(imports).where(eq(imports.id, PARENTS.importId));
 
     await expect(

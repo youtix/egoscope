@@ -117,7 +117,8 @@ describe('the tally exits and the withdrawal ledger', { timeout: 60_000 }, () =>
       { ...EXIT, exitReason: 'merged' },
       { ...EXIT, exitReason: 'replaced_at_import', importId: PARENTS.importId },
       { ...EXIT, exitReason: 'erased' },
-      { ...EXIT, exitReason: 'no_longer_derived' },
+      // Only a calendar-derived type's event stops being derived (CL-SEN-25).
+      { ...EXIT, eventTypeId: 'birthday', exitReason: 'no_longer_derived' },
       { ...DELETED, publicAt: PUBLIC_AT },
       { ...DELETED, deletionReason: 'inaccurate_fact_or_false_source' },
       { ...DELETED, deletionReason: 'outside_type_criteria' },

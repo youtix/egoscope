@@ -1,11 +1,11 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, isNotNull, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { toEpochMs } from '@/lib/time';
 
 import { describeColumns, describeForeignKeys, describeIndexes } from '../catalog';
 import { createTestDatabase } from '../test-database';
-import { DETECTED_EVENT, insertParents, PARENTS } from '../test-parents';
+import { DETECTED_EVENT, HISTORICAL_EVENT, insertParents, PARENTS } from '../test-parents';
 import { imports } from './backtests';
 import { backtestRequestEvents } from './backtests-events';
 import { restoreReportEvents, restoreReports } from './backups';
@@ -127,6 +127,8 @@ const TIMED_SOURCE = {
 const WARNING = { playerEventId: PARENTS.eventId, importId: PARENTS.importId } as const;
 // The other event that cites a shared link.
 const OTHER_EVENT_ID = 2;
+// The historical media storm of the first player, when a test writes it: the third event.
+const HISTORICAL_EVENT_ID = 3;
 // A restore that left the parent event for the owner to check.
 const REPORT = {
   backupCreatedAt: PUBLISHED_AT,
@@ -386,35 +388,55 @@ describe('the tables that hang off an event', { timeout: 60_000 }, () => {
     await expect(insert).rejects.toMatchObject(violationOf(`event_status_changes_${check}_check`));
   });
 
-  it('[IMP-32] [DET-52] [CA-DET-27] traces each field a correction changes, with the values of a structured one', async () => {
-    const structured = [
-      'player',
+  it('[IMP-32] [DET-52] traces each field a correction changes, and the values of the structured fields of a detected event', async () => {
+    // A historical event keeps the fields corrected and never a value (IMP-32, D-20).
+    const historical = [
       'event_type',
       'reference_date',
+      'description',
+      'sources',
       'injury_return',
       'game_stakes',
       'research_confidence',
+      'unverified_note',
     ] as const;
-    const bare = [
+    // A detected event keeps its structured fields' values before and after, here those
+    // of the second one, moved to the first player, its type and its date corrected
+    // (CL-DSN-15), and notes its other corrections and actions without a value.
+    const detected = { playerEventId: OTHER_EVENT_ID } as const;
+    const noted = [
       'description',
       'sources',
-      'unverified_note',
       'article_detached',
       'event_merged_in',
       'player_added',
       'rescued',
     ] as const;
+    await db.insert(events).values(HISTORICAL_EVENT);
     await db.insert(eventCorrections).values([
-      ...structured.map((field) => ({
-        playerEventId: PARENTS.eventId,
-        field,
-        beforeValue: 'unknown',
-        afterValue: 'yes',
-      })),
-      ...bare.map((field) => ({ playerEventId: PARENTS.eventId, field })),
+      ...historical.map((field) => ({ playerEventId: HISTORICAL_EVENT_ID, field })),
+      {
+        ...detected,
+        field: 'player',
+        beforeValue: PARENTS.otherPlayerId,
+        afterValue: PARENTS.playerId,
+      },
+      { ...detected, field: 'event_type', beforeValue: 'bereavement', afterValue: 'media-storm' },
+      {
+        ...detected,
+        field: 'reference_date',
+        beforeValue: '2024-12-03T07:15:00.000Z',
+        afterValue: '2024-12-02T07:15:00.000Z',
+      },
+      { ...detected, field: 'injury_return', beforeValue: 'yes', afterValue: 'unknown' },
+      { ...detected, field: 'game_stakes', beforeValue: 'high', afterValue: 'unknown' },
+      ...noted.map((field) => ({ ...detected, field })),
     ]);
 
-    await expect(db.$count(eventCorrections)).resolves.toBe(13);
+    await expect(
+      db.$count(eventCorrections, isNotNull(eventCorrections.beforeValue)),
+    ).resolves.toBe(5);
+    await expect(db.$count(eventCorrections)).resolves.toBe(19);
   });
 
   it.each([
@@ -442,13 +464,16 @@ describe('the tables that hang off an event', { timeout: 60_000 }, () => {
       { field: 'description', afterValue: 'A later text.' },
       'values',
     ],
-  ] as const)('[CL-DSN-15] [D-20] refuses a correction %s', async (_case, correction, check) => {
-    const insert = db
-      .insert(eventCorrections)
-      .values({ playerEventId: PARENTS.eventId, ...correction });
+  ] as const)(
+    '[DET-52] [CL-DSN-15] [D-20] refuses a correction %s',
+    async (_case, correction, check) => {
+      const insert = db
+        .insert(eventCorrections)
+        .values({ playerEventId: PARENTS.eventId, ...correction });
 
-    await expect(insert).rejects.toMatchObject(violationOf(`event_corrections_${check}_check`));
-  });
+      await expect(insert).rejects.toMatchObject(violationOf(`event_corrections_${check}_check`));
+    },
+  );
 
   it('[DSN-27] [IMP-37] [CL-TRV-10] erases with an event every row that designates it, and empties the references of the trace and the journal', async () => {
     const event = { playerEventId: PARENTS.eventId } as const;

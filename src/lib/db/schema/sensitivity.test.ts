@@ -98,6 +98,25 @@ const NOT_MEASURABLE = {
   status: 'not_measurable',
   statusReason: 'season_not_covered',
 } as const;
+// The reasons of a case that has its measured game, and those of a case that has none,
+// each with a case of the status it belongs to (CL-SEN-05); a derived game is missed only
+// by a calendar-derived case (CL-SEN-03).
+const GAME_REASONS = [
+  ['box_score_incomplete', NOT_MEASURABLE],
+  ['box_score_suspect', NOT_MEASURABLE],
+  ['box_score_unavailable', NOT_MEASURABLE],
+  ['insufficient_baseline', NOT_MEASURABLE],
+  ['derived_game_missed', { ...NOT_MEASURABLE, eventTypeId: 'birthday' }],
+  ['baseline_building', AWAITING],
+] as const;
+const GAMELESS_REASONS = [
+  ['season_not_covered', NOT_MEASURABLE],
+  ['no_game_within_window', NOT_MEASURABLE],
+  ['precedence_not_established', NOT_MEASURABLE],
+  ['mapping_not_established', AWAITING],
+  ['precedence_to_verify', AWAITING],
+  ['dating_to_verify', AWAITING],
+] as const;
 // The measurement items that a measured or excluded case has.
 const MEASUREMENT = [
   ['game', { measuredGameId: null }],
@@ -255,16 +274,22 @@ describe('the cases table', { timeout: 60_000 }, () => {
       { ...NOT_MEASURABLE, statusReason: 'statistics_pending' },
       'awaiting_reason',
     ],
-    [
-      'whose game is missing for a reason that needs one',
-      { ...NOT_MEASURABLE, statusReason: 'box_score_incomplete' },
-      'game_reason',
-    ],
-    [
-      'with a game for a reason that has none',
-      { ...NOT_MEASURABLE, measuredGameId: PARENTS.gameId },
-      'gameless_reason',
-    ],
+    ...GAME_REASONS.map(
+      ([statusReason, aCase]) =>
+        [
+          `without its game, which the reason ${statusReason} needs`,
+          { ...aCase, statusReason },
+          'game_reason',
+        ] as const,
+    ),
+    ...GAMELESS_REASONS.map(
+      ([statusReason, aCase]) =>
+        [
+          `with a game, which the reason ${statusReason} excludes`,
+          { ...aCase, statusReason, measuredGameId: PARENTS.gameId },
+          'gameless_reason',
+        ] as const,
+    ),
     [
       'known in advance with an instant',
       { ...AWAITING, referenceInstantOrigin: 'known_in_advance' },

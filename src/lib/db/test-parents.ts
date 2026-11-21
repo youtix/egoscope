@@ -123,6 +123,23 @@ const PENDING_CASE = {
   referenceInstantAt: NOW,
   referenceInstantOrigin: 'known_instant',
 } as const;
+/**
+ * A historical media storm of the first player, of 20 November 2024, that the parent
+ * import recorded, for the tests that need one: `insertParents` does not write it.
+ */
+export const HISTORICAL_EVENT = {
+  playerId: PARENTS.playerId,
+  eventTypeId: 'media-storm',
+  sheetEventTypeId: 'media-storm',
+  sheetVersionNumber: 1,
+  origin: 'historical',
+  referenceDateOn: '2024-11-20',
+  referenceDatePrecision: 'approximate',
+  description: 'Every outlet covered the player on the same day.',
+  researchConfidence: 'medium',
+  precedence: 'established',
+  originImportId: PARENTS.importId,
+} as const;
 
 // The valid-case threshold in force at a calculation (sensitivity.minValidCases).
 const VALID_CASE_THRESHOLD = 5;
@@ -157,7 +174,7 @@ export const EMPTY_CALCULATION = {
   controlVerdictLevel: 'inconclusive',
   dependsOnManualExclusions: false,
   validCaseThreshold: VALID_CASE_THRESHOLD,
-  parameterSnapshotId: 1,
+  parameterSnapshotId: PARENTS.parameterSnapshotId,
   computedAt: NOW,
 } as const;
 
@@ -165,7 +182,7 @@ export const EMPTY_CALCULATION = {
  * Writes into a test's own database the rows that the tables of the events, backtests,
  * imports, sensitivity and calendar-events modules reference, under the identifiers
  * of `PARENTS`: two invented followed players, two validated research types and the
- * birthday type with their first sheet versions, a final game between two invented
+ * birthday type with their first sheet versions, a scheduled game between two invented
  * teams, a request to do for the first player with its first import, a detected event
  * of his with the case that waits for its game, and a snapshot of parameter values,
  * so that each test of the schema proves the model's rules on rows of its own

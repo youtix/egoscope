@@ -57,26 +57,71 @@ const FOREIGN_KEYS = [
   'verdict_history_entries FOREIGN KEY (sensitivity_profile_id) REFERENCES sensitivity_profiles(id) ON DELETE CASCADE',
 ];
 
-// The first profile and the first trend, both of the media storm.
+// The other player's profile of the death of a loved one and the type's trend, all of
+// whose events were dismissed or deleted since: they keep showing those exits by reason,
+// with their histories (CL-SEN-26). Their default view, whose changes the verdict history
+// records, then their historical-only view, whose values the versions keep (CL-SEN-19):
+// profiles and trends 1 and 2. The one dismissed event was a detected one, outside the
+// historical-only view; the trend held the events of other players too.
+const VIEWS = [
+  {
+    view: 'all_cases',
+    profileExits: { dismissed: 1, deleted: 15 },
+    trendExits: { dismissed: 2, deleted: 40 },
+  },
+  { view: 'historical_only', profileExits: { deleted: 15 }, trendExits: { deleted: 40 } },
+] as const;
 const OF_PROFILE = { sensitivityProfileId: 1 } as const;
 const OF_TREND = { generalTrendId: 1 } as const;
-// A first possible increase, after an inconclusive verdict of low confidence.
-const ENTRY = {
-  ...OF_PROFILE,
+const OF_HISTORICAL_PROFILE = { sensitivityProfileId: 2 } as const;
+const OF_HISTORICAL_TREND = { generalTrendId: 2 } as const;
+// A possible increase of medium confidence after an inconclusive verdict of low
+// confidence, the way back, and a probable decrease of high confidence after it.
+const RISE = {
   oldVerdictLevel: 'inconclusive',
+  oldVerdictDirection: null,
   oldProfileConfidence: 'low',
   newVerdictLevel: 'possible',
   newVerdictDirection: 'increase',
   newProfileConfidence: 'medium',
-  cause: 'new_cases',
 } as const;
-// The values in force from 18 November 2026, 06:00 UTC: seven valid cases at +0.40.
+const FALL = {
+  oldVerdictLevel: 'possible',
+  oldVerdictDirection: 'increase',
+  oldProfileConfidence: 'medium',
+  newVerdictLevel: 'inconclusive',
+  newVerdictDirection: null,
+  newProfileConfidence: 'low',
+} as const;
+const TO_PROBABLE = {
+  ...RISE,
+  newVerdictLevel: 'probable',
+  newVerdictDirection: 'decrease',
+  newProfileConfidence: 'high',
+} as const;
+const ENTRY = { ...OF_PROFILE, ...RISE, cause: 'new_cases' } as const;
+// The values of the historical-only profile in force from 16, 17 and 18 November 2026,
+// 06:00 UTC, and the instant of the full job that followed a withdrawal, a day later.
+const TWO_DAYS_BEFORE = new Date(toEpochMs(Date.UTC(2026, 10, 16, 6)));
+const DAY_BEFORE = new Date(toEpochMs(Date.UTC(2026, 10, 17, 6)));
 const EFFECTIVE_AT = new Date(toEpochMs(Date.UTC(2026, 10, 18, 6)));
+const WITHDRAWAL_JOB_AT = new Date(toEpochMs(Date.UTC(2026, 10, 19, 6)));
+// Seven valid cases at +0.40 give a ratio of 1.06 at most, inconclusive, and a low
+// confidence below eight valid cases (SEN-22, SEN-23, SEN-25); five at +0.20 and six
+// at +0.30 too.
+const INCONCLUSIVE = {
+  verdictLevel: 'inconclusive',
+  verdictDirection: null,
+  profileConfidence: 'low',
+} as const;
+const SEVEN_AT_040 = { ...INCONCLUSIVE, validCount: 7, meanGap: 0.4 } as const;
+// Ten valid cases at +0.85, up to a ratio of 2.69: a possible increase, medium from
+// eight valid cases.
 const VERSION = {
-  ...OF_PROFILE,
+  ...OF_HISTORICAL_PROFILE,
   effectiveAt: EFFECTIVE_AT,
-  validCount: 7,
-  meanGap: 0.4,
+  validCount: 10,
+  meanGap: 0.85,
   verdictLevel: 'possible',
   verdictDirection: 'increase',
   profileConfidence: 'medium',
@@ -96,19 +141,31 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
     const database = await createTestDatabase();
     db = database.db;
     await insertParents(db);
-    await db.insert(sensitivityProfiles).values({
-      ...EMPTY_CALCULATION,
-      playerId: PARENTS.playerId,
-      eventTypeId: 'media-storm',
-      view: 'historical_only',
-    });
-    await db.insert(generalTrends).values({
-      ...EMPTY_CALCULATION,
-      eventTypeId: 'media-storm',
-      view: 'historical_only',
-      distinctPlayerCount: 0,
-      topContributorValidCount: 0,
-    });
+    await db.insert(sensitivityProfiles).values(
+      VIEWS.map(
+        ({ view, profileExits }) =>
+          ({
+            ...EMPTY_CALCULATION,
+            exitCounts: profileExits,
+            playerId: PARENTS.otherPlayerId,
+            eventTypeId: 'bereavement',
+            view,
+          }) as const,
+      ),
+    );
+    await db.insert(generalTrends).values(
+      VIEWS.map(
+        ({ view, trendExits }) =>
+          ({
+            ...EMPTY_CALCULATION,
+            exitCounts: trendExits,
+            eventTypeId: 'bereavement',
+            view,
+            distinctPlayerCount: 0,
+            topContributorValidCount: 0,
+          }) as const,
+      ),
+    );
     return database.close;
   }, 60_000);
 
@@ -119,46 +176,37 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
   });
 
   it('[SEN-37] [CL-SEN-17] records each change of a profile or a trend with its cause', async () => {
-    const causes = [
-      'new_cases',
-      'stats_correction',
-      'baseline_updated',
-      'manual_decision',
-      'event_dismissed',
-      'parameter_change',
-      'recalculation',
-      'event_corrected_or_removed',
-      'event_reinstated',
-      'taxonomy_changed',
+    // Each cause once, the profile rising and falling back in turn, so that each change
+    // starts from the values the one before it left; then the trend there and back.
+    const cycles = [
+      ['new_cases', 'stats_correction'],
+      ['baseline_updated', 'manual_decision'],
+      ['event_dismissed', 'parameter_change'],
+      ['recalculation', 'event_corrected_or_removed'],
+      ['event_reinstated', 'taxonomy_changed'],
     ] as const;
+    const fromProbable = {
+      ...FALL,
+      oldVerdictLevel: 'probable',
+      oldVerdictDirection: 'decrease',
+      oldProfileConfidence: 'high',
+    } as const;
     await db.insert(verdictHistoryEntries).values([
-      ...causes.map((cause) => ({ ...ENTRY, cause })),
-      {
-        ...ENTRY,
-        sensitivityProfileId: null,
-        ...OF_TREND,
-        oldVerdictLevel: 'probable',
-        oldVerdictDirection: 'decrease',
-        oldProfileConfidence: 'high',
-        newVerdictLevel: 'probable',
-        newVerdictDirection: 'decrease',
-      },
-      {
-        ...ENTRY,
-        oldVerdictLevel: 'possible',
-        oldVerdictDirection: 'increase',
-        oldProfileConfidence: 'medium',
-        newVerdictLevel: 'inconclusive',
-        newVerdictDirection: null,
-        newProfileConfidence: 'low',
-      },
-      { ...ENTRY, newProfileConfidence: 'high' },
+      ...cycles.flatMap(
+        ([rise, fall]) =>
+          [
+            { ...OF_PROFILE, ...RISE, cause: rise },
+            { ...OF_PROFILE, ...FALL, cause: fall },
+          ] as const,
+      ),
+      { ...OF_TREND, ...TO_PROBABLE, cause: 'new_cases' },
+      { ...OF_TREND, ...fromProbable, cause: 'recalculation' },
     ]);
 
     const [first] = await db.select().from(verdictHistoryEntries).orderBy(verdictHistoryEntries.id);
 
-    expect(first).toMatchObject({ ...ENTRY, generalTrendId: null, oldVerdictDirection: null });
-    await expect(db.$count(verdictHistoryEntries)).resolves.toBe(13);
+    expect(first).toMatchObject({ ...ENTRY, generalTrendId: null });
+    await expect(db.$count(verdictHistoryEntries)).resolves.toBe(12);
   });
 
   it.each([
@@ -200,33 +248,39 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
     );
   });
 
-  it('[SUI-08] [SUI-09] [CL-SEN-19] keeps the values of a historical-only profile or trend as they change', async () => {
+  it('[CL-SEN-19] keeps the values of a historical-only profile or trend as they change', async () => {
     await db.insert(profileValueVersions).values([
-      {
-        ...VERSION,
-        validCount: 0,
-        meanGap: null,
-        verdictLevel: 'inconclusive',
-        verdictDirection: null,
-        profileConfidence: 'low',
-      },
+      { ...VERSION, ...INCONCLUSIVE, effectiveAt: TWO_DAYS_BEFORE, validCount: 0, meanGap: null },
+      { ...VERSION, ...SEVEN_AT_040, effectiveAt: DAY_BEFORE },
       VERSION,
+      // Sixteen valid cases of the type at −1.00, up to a ratio of −4: a probable decrease,
+      // high from fifteen valid cases.
       {
-        ...VERSION,
+        ...OF_HISTORICAL_TREND,
+        effectiveAt: EFFECTIVE_AT,
+        validCount: 16,
+        meanGap: -1,
         verdictLevel: 'probable',
         verdictDirection: 'decrease',
         profileConfidence: 'high',
       },
-      { ...VERSION, sensitivityProfileId: null, ...OF_TREND },
     ]);
 
     await expect(
-      db.$count(profileValueVersions, eq(profileValueVersions.sensitivityProfileId, 1)),
-    ).resolves.toBe(3);
+      db
+        .select({ effectiveAt: profileValueVersions.effectiveAt })
+        .from(profileValueVersions)
+        .where(eq(profileValueVersions.sensitivityProfileId, 2))
+        .orderBy(profileValueVersions.effectiveAt),
+    ).resolves.toStrictEqual([
+      { effectiveAt: TWO_DAYS_BEFORE },
+      { effectiveAt: DAY_BEFORE },
+      { effectiveAt: EFFECTIVE_AT },
+    ]);
   });
 
   it.each([
-    ['naming both a profile and a trend', { ...OF_TREND }, 'subject'],
+    ['naming both a profile and a trend', { ...OF_HISTORICAL_TREND }, 'subject'],
     ['naming neither a profile nor a trend', { sensitivityProfileId: null }, 'subject'],
     ['inconclusive with a direction', { verdictLevel: 'inconclusive' }, 'verdict'],
     ['possible without a direction', { verdictDirection: null }, 'verdict'],
@@ -241,7 +295,7 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
       { profileConfidence: OUTSIDE },
       'profile_confidence',
     ],
-  ] as const)('[SUI-08] [SEN-24] refuses a value version %s', async (_case, change, check) => {
+  ] as const)('[SEN-24] [CL-SEN-19] refuses a value version %s', async (_case, change, check) => {
     const insert = db.insert(profileValueVersions).values({ ...VERSION, ...change });
 
     await expect(insert).rejects.toMatchObject(
@@ -250,45 +304,53 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
   });
 
   it('[CL-SEN-18] lets the daily purge prune the versions, and a withdrawal replace them by one', async () => {
-    const earlier = new Date(toEpochMs(Date.UTC(2026, 10, 17, 6)));
-    await db
-      .insert(profileValueVersions)
-      .values([
-        { ...VERSION, effectiveAt: earlier },
-        VERSION,
-        { ...VERSION, ...OF_TREND, sensitivityProfileId: null },
-      ]);
+    // The pair has no tracked case waiting for its game: the purge keeps the latest
+    // version, and the version that replaces them all takes effect at the job's instant.
+    const version = { ...OF_HISTORICAL_PROFILE, ...INCONCLUSIVE } as const;
+    await db.insert(profileValueVersions).values([
+      { ...version, effectiveAt: DAY_BEFORE, validCount: 5, meanGap: 0.2 },
+      { ...version, ...SEVEN_AT_040, effectiveAt: EFFECTIVE_AT },
+      { ...OF_HISTORICAL_TREND, ...SEVEN_AT_040, effectiveAt: EFFECTIVE_AT },
+    ]);
 
     await db.delete(profileValueVersions).where(lt(profileValueVersions.effectiveAt, EFFECTIVE_AT));
     const pruned = await db
       .select({ effectiveAt: profileValueVersions.effectiveAt })
       .from(profileValueVersions)
-      .where(eq(profileValueVersions.sensitivityProfileId, 1));
-    await db.delete(profileValueVersions).where(eq(profileValueVersions.sensitivityProfileId, 1));
-    await db.insert(profileValueVersions).values({ ...VERSION, validCount: 6, meanGap: 0.3 });
+      .where(eq(profileValueVersions.sensitivityProfileId, 2));
+    // Seven valid cases at +0.40 before the withdrawal, six at +0.30 after it.
+    await db.delete(profileValueVersions).where(eq(profileValueVersions.sensitivityProfileId, 2));
+    await db
+      .insert(profileValueVersions)
+      .values({ ...version, effectiveAt: WITHDRAWAL_JOB_AT, validCount: 6, meanGap: 0.3 });
 
     expect(pruned).toStrictEqual([{ effectiveAt: EFFECTIVE_AT }]);
     await expect(
       db
-        .select({ validCount: profileValueVersions.validCount })
+        .select({
+          effectiveAt: profileValueVersions.effectiveAt,
+          validCount: profileValueVersions.validCount,
+        })
         .from(profileValueVersions)
-        .where(eq(profileValueVersions.sensitivityProfileId, 1)),
-    ).resolves.toStrictEqual([{ validCount: 6 }]);
+        .where(eq(profileValueVersions.sensitivityProfileId, 2)),
+    ).resolves.toStrictEqual([{ effectiveAt: WITHDRAWAL_JOB_AT, validCount: 6 }]);
   });
 
   it('[CL-SEN-18] erases with a profile or a trend its whole verdict history and its versions', async () => {
     await db
       .insert(verdictHistoryEntries)
-      .values([ENTRY, { ...ENTRY, sensitivityProfileId: null, ...OF_TREND }]);
+      .values([ENTRY, { ...OF_TREND, ...RISE, cause: 'new_cases' }]);
     await db
       .insert(profileValueVersions)
-      .values([VERSION, { ...VERSION, sensitivityProfileId: null, ...OF_TREND }]);
+      .values([VERSION, { ...VERSION, sensitivityProfileId: null, ...OF_HISTORICAL_TREND }]);
 
-    await db.delete(sensitivityProfiles).where(eq(sensitivityProfiles.id, 1));
+    await db
+      .delete(sensitivityProfiles)
+      .where(eq(sensitivityProfiles.playerId, PARENTS.otherPlayerId));
     const left = await Promise.all(
       [verdictHistoryEntries, profileValueVersions].map(async (table) => db.$count(table)),
     );
-    await db.delete(generalTrends).where(eq(generalTrends.id, 1));
+    await db.delete(generalTrends).where(eq(generalTrends.eventTypeId, 'bereavement'));
 
     expect(left).toStrictEqual([1, 1]);
     await expect(
