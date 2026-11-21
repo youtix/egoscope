@@ -145,6 +145,11 @@ export type { PrecedenceSource } from './measured-game/precedence';
 // cases/normalized-gap.ts
 
 // cases/doubtful-criteria.ts
+export { doubtfulCaseCriteria } from './cases/doubtful-criteria';
+export type { ContextIndications } from './cases/doubtful-criteria';
+export type { DoubtfulCaseCriteria } from './cases/doubtful-criteria';
+export type { DoubtfulCaseCriteriaInput } from './cases/doubtful-criteria';
+export type { TriggeredCriterion } from './cases/doubtful-criteria';
 
 // cases/grouping.ts
 export { groupCases } from './cases/grouping';
