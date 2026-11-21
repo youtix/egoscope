@@ -23,6 +23,15 @@ updates:
       # task at the end of the build moves CI and production to a newer LTS.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      # TypeScript 7, the native compiler, drops the JavaScript compiler API that
+      # typescript-eslint (typescript <6.1.0) and the repository's scripts and tests call;
+      # it waits for a planned migration of that tooling (pull request #317 shows what breaks).
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # jsdom 31 rewrites CSS parsing, computed styles, script-blocked parsing and focus
+      # handling under the component tests; it waits for a planned migration of those tests.
+      - dependency-name: jsdom
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: build
       include: scope
