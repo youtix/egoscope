@@ -1,6 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
+
 import { doubtfulCaseCriteria } from './doubtful-criteria';
 import { attachToMeasuredGame } from '../measured-game/attachment';
 
@@ -13,45 +15,16 @@ import type { EngineParams } from '../types';
 
 // The registry's defaults. For a return from injury, a run of 4 team games missed, then the
 // first 2 games played (SEN-13); for the opponent, shares of 25 % and 75 % of at least 10
-// games (SEN-15).
+// games (SEN-15); neither co-occurrence nor every playoff game doubtful (SEN-06, SEN-14),
+// all held once in data/fixtures/stats-engine/engine-params.json. JSON gives the
+// baseline phase as a string, which the comparison narrows to a BaselinePhase (types.test.ts).
 const PARAMS: EngineParams = {
+  ...engineParams,
   games: {
-    minutesFloor: 15,
-    minutesAverageShare: 50,
-    minBaselineGames: 10,
-    postseasonBaseline: 'postseason',
-    partialBaselineShare: 20,
-    dailyUpdateDelayHours: 3,
-    correctionWindowDays: 7,
-    boxScoreUnavailableAfterDays: 30,
-    retryFirstDelayHours: 1,
-    retryIntervalHours: 4,
-    incidentAfterHours: 12,
-    quotaReserveShare: 10,
+    ...engineParams.games,
+    postseasonBaseline:
+      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
   },
-  sensitivity: {
-    maxAttachmentDays: 10,
-    coOccurringCasesDoubtful: false,
-    injuryReturnMinGamesMissed: 4,
-    injuryReturnFirstGames: 2,
-    allPlayoffGamesUnusualStakes: false,
-    opponentWinShareLow: 25,
-    opponentWinShareHigh: 75,
-    opponentMinGames: 10,
-    minValidCases: 5,
-    possibleSignalToNoise: 2,
-    possibleMeanGap: 0.25,
-    probableSignalToNoise: 3,
-    probableMeanGap: 0.4,
-    confidenceMediumFromCases: 8,
-    confidenceHighFromCases: 15,
-    confidenceDispersionDrop: 1.5,
-    confidenceDoubtfulShareDrop: 30,
-    trendMinPlayers: 3,
-    trendMaxTopShare: 50,
-    countsBelowCases: 20,
-  },
-  tracking: { categoryThreshold: 0.25, minTrackedCasesForAssessment: 10 },
 };
 
 const withSensitivity = (sensitivity: Partial<EngineParams['sensitivity']>): EngineParams => ({
@@ -402,6 +375,17 @@ describe('doubtfulCaseCriteria: opponent strength', () => {
     expect(criteria(nineGames)).toStrictEqual(result([], { opponentStrengthNotEvaluable: true }));
   });
 
+  it('[SEN-15] [CL-SEN-10] judges an opponent on a previous regular season of even one or two final games, which sensitivity.opponentMinGames does not concern', () => {
+    const nineGames = { ...BASE, seasonSchedule: seasonWith(2, 7) };
+
+    expect(criteria({ ...nineGames, previousSeasonSchedule: resultsOf(1, 0, 3000) })).toStrictEqual(
+      result([opponentAt(1, 0, true)]),
+    );
+    expect(criteria({ ...nineGames, previousSeasonSchedule: resultsOf(1, 1, 3000) })).toStrictEqual(
+      result([]),
+    );
+  });
+
   it('[SEN-15] [CL-SEN-10] judges an opponent on its own season from sensitivity.opponentMinGames games on', () => {
     const previousSeasonSchedule = resultsOf(41, 41, 3000);
     const tenGames = { ...BASE, seasonSchedule: seasonWith(1, 9), previousSeasonSchedule };
@@ -423,22 +407,49 @@ describe('doubtfulCaseCriteria: opponent strength', () => {
     ).toStrictEqual([opponentAt(18, 58)]);
   });
 
-  it('[SEN-15] [CL-SEN-10] retains the opponent strength exactly when its share of wins without the measured game is strictly below 25 % or above 75 %', () => {
-    // The three shares of exactly 25 % or 75 % among them stay normal.
-    const anyRecord = fc.oneof(
-      fc.constantFrom({ wins: 19, losses: 57 }, { wins: 3, losses: 9 }, { wins: 57, losses: 19 }),
-      fc
+  // At shares of 30 % and 60 %, the defaults (25 % and 75 %) and the mirror of either share
+  // (100 % less the other one) each judge one of these records otherwise; the records at
+  // exactly 30 % and 60 % are not retained.
+  it.each([
+    { wins: 7, losses: 18, judged: 'retained' },
+    { wins: 3, losses: 7, judged: 'not retained' },
+    { wins: 6, losses: 4, judged: 'not retained' },
+    { wins: 13, losses: 7, judged: 'retained' },
+  ])(
+    '[SEN-15] [CL-SEN-10] compares an opponent at $wins–$losses with sensitivity.opponentWinShareLow and sensitivity.opponentWinShareHigh, each strictly: $judged at 30 % and 60 %',
+    ({ wins, losses, judged }) => {
+      const shares = withSensitivity({ opponentWinShareLow: 30, opponentWinShareHigh: 60 });
+      const input = { ...BASE, seasonSchedule: seasonWith(wins, losses) };
+      const expected = judged === 'retained' ? [opponentAt(wins, losses)] : [];
+
+      expect(triggeredOf(input, shares)).toStrictEqual(expected);
+    },
+  );
+
+  it('[SEN-15] [CL-SEN-10] retains the opponent strength exactly when its share of wins without the measured game is strictly below sensitivity.opponentWinShareLow or above sensitivity.opponentWinShareHigh, whatever their values', () => {
+    // Both shares over the registry's ranges, and a record either at exactly one of them or
+    // of any 10 games or more. A record at exactly a share is not retained.
+    const anyOpponent = fc.record({
+      low: fc.integer({ min: 0, max: 49 }),
+      high: fc.integer({ min: 51, max: 100 }),
+      atShare: fc.constantFrom('low', 'high', null),
+      record: fc
         .record({ wins: fc.nat({ max: 82 }), losses: fc.nat({ max: 82 }) })
         .filter(({ wins, losses }) => wins + losses >= 10),
-    );
+    });
     fc.assert(
-      fc.property(anyRecord, ({ wins, losses }) => {
-        const share = wins / (wins + losses);
-        const expected = share < 0.25 || share > 0.75 ? [opponentAt(wins, losses)] : [];
+      fc.property(anyOpponent, ({ low, high, atShare, record }) => {
+        const shares = { low, high };
+        // In 100 games, every whole percentage is a whole number of wins.
+        const { wins, losses } =
+          atShare === null ? record : { wins: shares[atShare], losses: 100 - shares[atShare] };
+        const share = (100 * wins) / (wins + losses);
+        const expected = share < low || share > high ? [opponentAt(wins, losses)] : [];
+        const params = withSensitivity({ opponentWinShareLow: low, opponentWinShareHigh: high });
 
-        expect(triggeredOf({ ...BASE, seasonSchedule: seasonWith(wins, losses) })).toStrictEqual(
-          expected,
-        );
+        expect(
+          triggeredOf({ ...BASE, seasonSchedule: seasonWith(wins, losses) }, params),
+        ).toStrictEqual(expected);
       }),
     );
   });
