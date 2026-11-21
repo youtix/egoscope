@@ -71,6 +71,14 @@ const MISSING_DATE: DateReading = { ok: false, error: { kind: 'missing' } };
 const NO_CONTEXT = { injuryReturn: undefined, gameStakes: undefined, detail: undefined };
 const NO_TEXT = { url: undefined, outlet: undefined, title: undefined };
 
+// The test of lists nested a hundred thousand levels deep takes about half a second in a
+// plain run, and 7 to 8 seconds in the dry run of the mutation tests: there, Stryker has
+// instrumented the code, so that every statement it runs also records the mutants that the
+// current test covers, and isolating then reading the four deep lists makes millions of such
+// records. A busy machine slows both runs further, hence the wide margin over Vitest's
+// default of 5 seconds.
+const DEEP_NESTING_TIMEOUT_MS = 60_000;
+
 // The example as read, every text written out as the example writes it (CL-BKT-02), so
 // that a text that the example leaves out or changes fails the tests.
 const SNEER_READ: ResearchSource = {
@@ -569,26 +577,25 @@ describe('readResult', () => {
     expect(read(cut)).toStrictEqual(accepted(result, [], empty));
   });
 
-  it('[IMP-16] [CL-IMP-06] reads lists nested a hundred thousand levels deep in any member without overflowing the stack', () => {
-    const deep = `${'['.repeat(100_000)}${']'.repeat(100_000)}`;
-    let text = replaced(pasted(), '"covered_types":[', `"covered_types":[${deep},`);
-    text = replaced(text, '"events":[', `"events":[${deep},`);
-    text = replaced(text, '"limitations":[', `"stats":${deep},"limitations":[${deep},`);
-    const noEvent: ResearchEvent = {
-      ...HUMILIATION_READ,
-      eventType: undefined,
-      publicDate: MISSING_DATE,
-      description: undefined,
-      sources: [],
-      context: NO_CONTEXT,
-      researchConfidence: undefined,
-    };
-    const events = [noEvent, ...EXAMPLE_RESULT.events];
-    const declaredLimitations = [undefined, ...EXAMPLE_RESULT.declaredLimitations];
-    const warning: ReadResultWarning = { kind: 'unknown_fields', detail: 1 };
+  it(
+    '[IMP-16] [CL-IMP-06] reads lists nested a hundred thousand levels deep in any member without overflowing the stack',
+    { timeout: DEEP_NESTING_TIMEOUT_MS },
+    () => {
+      const deep = `${'['.repeat(100_000)}${']'.repeat(100_000)}`;
+      let text = replaced(pasted(), '"covered_types":[', `"covered_types":[${deep},`);
+      text = replaced(text, '"events":[', `"events":[${deep},`);
+      text = replaced(text, '"limitations":[', `"stats":${deep},"limitations":[${deep},`);
+      // The deep list in place of the first event reads as an event without any member.
+      const none = { eventType: undefined, description: undefined, researchConfidence: undefined };
+      const empty = { publicDate: MISSING_DATE, sources: [], context: NO_CONTEXT };
+      const noEvent: ResearchEvent = { ...HUMILIATION_READ, ...none, ...empty };
+      const events = [noEvent, ...EXAMPLE_RESULT.events];
+      const declaredLimitations = [undefined, ...EXAMPLE_RESULT.declaredLimitations];
+      const warning: ReadResultWarning = { kind: 'unknown_fields', detail: 1 };
 
-    expect(read(text)).toStrictEqual(
-      accepted(resultWith({ events, declaredLimitations }), [warning]),
-    );
-  });
+      expect(read(text)).toStrictEqual(
+        accepted(resultWith({ events, declaredLimitations }), [warning]),
+      );
+    },
+  );
 });

@@ -43,6 +43,10 @@ const NESTED_CLOSE = '- -->';
 const UNCLOSED = '<!--';
 // Capitals chained with hyphens and no number: `A-A-A-`.
 const CHAIN_LINK = 'A-';
+// Reading every test title of the repository takes 1 to 1.5 seconds locally and 3 to 3.5
+// seconds on an idle CI runner, grows with the repository, and a busy machine slows it
+// past Vitest's default of 5 seconds.
+const REPOSITORY_TIMEOUT_MS = 30_000;
 
 /** The waiver register, with these rows in its table. */
 const register = (...rows: readonly string[]): string =>
@@ -484,26 +488,30 @@ describe('claimedIds', () => {
 });
 
 describe('runTrace on the repository', () => {
-  it('passes the typo guard on the test titles of the repository, STA-11 and H-13 included', async () => {
-    const lines: string[] = [];
-    const io: TraceIo = {
-      ...systemIo(),
-      write: () => undefined,
-      info: (line) => {
-        lines.push(line);
-      },
-      error: (line) => {
-        lines.push(line);
-      },
-    };
-    const cited = io.paths
-      .filter((file) => isTestFile(file))
-      .flatMap((file) => findTitleTags(file, io.read(file)).cited.map((tag) => tag.id));
+  it(
+    'passes the typo guard on the test titles of the repository, STA-11 and H-13 included',
+    { timeout: REPOSITORY_TIMEOUT_MS },
+    async () => {
+      const lines: string[] = [];
+      const io: TraceIo = {
+        ...systemIo(),
+        write: () => undefined,
+        info: (line) => {
+          lines.push(line);
+        },
+        error: (line) => {
+          lines.push(line);
+        },
+      };
+      const cited = io.paths
+        .filter((file) => isTestFile(file))
+        .flatMap((file) => findTitleTags(file, io.read(file)).cited.map((tag) => tag.id));
 
-    const code = await runTrace([], io);
+      const code = await runTrace([], io);
 
-    expect(cited).toStrictEqual(expect.arrayContaining(['STA-11', 'H-13']));
-    expect(lines).toContain('Requirement traceability passed.');
-    expect(code).toBe(0);
-  });
+      expect(cited).toStrictEqual(expect.arrayContaining(['STA-11', 'H-13']));
+      expect(lines).toContain('Requirement traceability passed.');
+      expect(code).toBe(0);
+    },
+  );
 });
