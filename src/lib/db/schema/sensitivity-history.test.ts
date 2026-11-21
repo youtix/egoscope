@@ -76,7 +76,7 @@ const OF_TREND = { generalTrendId: 1 } as const;
 const OF_HISTORICAL_PROFILE = { sensitivityProfileId: 2 } as const;
 const OF_HISTORICAL_TREND = { generalTrendId: 2 } as const;
 // A possible increase of medium confidence after an inconclusive verdict of low
-// confidence, the way back, and a probable decrease of high confidence after it.
+// confidence, and the way back.
 const RISE = {
   oldVerdictLevel: 'inconclusive',
   oldVerdictDirection: null,
@@ -93,11 +93,27 @@ const FALL = {
   newVerdictDirection: null,
   newProfileConfidence: 'low',
 } as const;
-const TO_PROBABLE = {
-  ...RISE,
-  newVerdictLevel: 'probable',
+// Changes of one value alone, each of which SEN-37 records: a statistics correction
+// reversing a possible increase of medium confidence into a decrease, new cases raising
+// that decrease's confidence at fifteen valid cases (SEN-25), then its level, at a ratio
+// of 3 (SEN-23).
+const REVERSED = {
+  oldVerdictLevel: 'possible',
+  oldVerdictDirection: 'increase',
+  oldProfileConfidence: 'medium',
+  newVerdictLevel: 'possible',
   newVerdictDirection: 'decrease',
+  newProfileConfidence: 'medium',
+} as const;
+const MORE_CONFIDENT = {
+  ...REVERSED,
+  oldVerdictDirection: 'decrease',
   newProfileConfidence: 'high',
+} as const;
+const TO_PROBABLE = {
+  ...MORE_CONFIDENT,
+  oldProfileConfidence: 'high',
+  newVerdictLevel: 'probable',
 } as const;
 const ENTRY = { ...OF_PROFILE, ...RISE, cause: 'new_cases' } as const;
 // The values of the historical-only profile in force from 16, 17 and 18 November 2026,
@@ -177,7 +193,8 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
 
   it('[SEN-37] [CL-SEN-17] records each change of a profile or a trend with its cause', async () => {
     // Each cause once, the profile rising and falling back in turn, so that each change
-    // starts from the values the one before it left; then the trend there and back.
+    // starts from the values the one before it left; then the trend there and back, by
+    // a change of its direction alone, of its confidence alone and of its level alone.
     const cycles = [
       ['new_cases', 'stats_correction'],
       ['baseline_updated', 'manual_decision'],
@@ -199,6 +216,9 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
             { ...OF_PROFILE, ...FALL, cause: fall },
           ] as const,
       ),
+      { ...OF_TREND, ...RISE, cause: 'new_cases' },
+      { ...OF_TREND, ...REVERSED, cause: 'stats_correction' },
+      { ...OF_TREND, ...MORE_CONFIDENT, cause: 'new_cases' },
       { ...OF_TREND, ...TO_PROBABLE, cause: 'new_cases' },
       { ...OF_TREND, ...fromProbable, cause: 'recalculation' },
     ]);
@@ -206,7 +226,7 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
     const [first] = await db.select().from(verdictHistoryEntries).orderBy(verdictHistoryEntries.id);
 
     expect(first).toMatchObject({ ...ENTRY, generalTrendId: null });
-    await expect(db.$count(verdictHistoryEntries)).resolves.toBe(12);
+    await expect(db.$count(verdictHistoryEntries)).resolves.toBe(15);
   });
 
   it.each([
