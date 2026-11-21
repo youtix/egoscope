@@ -197,12 +197,12 @@ function stintsOf(switches: readonly Switch[]): readonly TeamStint[] {
  * his latest entered row: an earlier entry stays not yet verified, no game judges it,
  * and its membership, none for a release, ends at the next row. A change read from the
  * player file between the entry and that game is applied first, and the entry is not
- * judged. The team chosen at his addition is
- * the first row: an observed one when the player file gave the same team, and otherwise
- * an entered change that leaves the team of his last game played before it, none if he
- * has played none, so that when he was added with that team, his first game for it
- * confirms the choice and nothing can be void. He has no team before his first game,
- * unless a row gave him one, nor while he belongs to no team.
+ * judged. The team chosen at his addition is the first row: an observed one when the
+ * player file gave the same team, and otherwise an entered change that leaves the team
+ * of his last game played before it, none if he has played none, so that when he was
+ * added with that team, his first game for it confirms the choice and nothing can be
+ * void. He has no team before his first game, unless a row gave him one, nor while he
+ * belongs to no team.
  */
 export function teamMembership(
   lines: readonly PlayerLine[],

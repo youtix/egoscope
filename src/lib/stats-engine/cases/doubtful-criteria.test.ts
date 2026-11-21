@@ -302,6 +302,8 @@ describe('doubtfulCaseCriteria: return from injury', () => {
 
 // Games 3 and 6 of a rebuilt 2022-23 first-round series of six final games, two days
 // apart, between his team, at home, and the opponent, which wins Games 1, 3, 5 and 6.
+// The games keep the January 2025 dates of teamGame: the rebuild reads the season only
+// for the length of the round, best of seven in 2022-23.
 const [GAME_3, GAME_6] = rebuildSeries(
   '2022-23',
   Array.from('ohohoo', (winner, index): SeriesGame => ({
