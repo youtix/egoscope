@@ -140,7 +140,9 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
   });
 
   it('report "database not configured" on Vercel without a URL, and start no PGlite', async () => {
+    // A preview with the fakes switch: the one valid Vercel configuration without a URL.
     vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('EGOSCOPE_FAKES', 'all');
     const { getDb, getDirectDb } = await import('.');
 
     const results = await Promise.all([getDb(), getDirectDb()]);

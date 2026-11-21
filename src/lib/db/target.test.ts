@@ -60,15 +60,29 @@ describe('databaseTarget', () => {
     expect(reached({ DATABASE_URL: POOLED }, 'direct')).toBe('not-configured');
   });
 
-  it.each(['production', 'preview', 'development'])(
-    'is "not configured" on Vercel (%s) without a URL, and never falls back to PGlite',
+  it.each(['preview', 'development'])(
+    'is "not configured" on a Vercel %s deployment without a URL, and never falls back to PGlite',
     (vercelEnv) => {
-      const env = parseServerEnv({ VERCEL_ENV: vercelEnv, DATABASE_URL_UNPOOLED: DIRECT });
+      // The one valid configuration of a Vercel deployment without a URL: the
+      // fakes switch, which refuses every credential and the production deployment.
+      const env = parseServerEnv({ VERCEL_ENV: vercelEnv, EGOSCOPE_FAKES: 'all' });
 
+      expect(env.ok).toBe(true);
       expect(databaseTarget(env, 'pooled')).toStrictEqual(NOT_CONFIGURED);
       expect(databaseTarget(env, 'direct')).toStrictEqual(NOT_CONFIGURED);
     },
   );
+
+  it('is "not configured" on a production deployment without a URL, which the environment refuses', () => {
+    const env = parseServerEnv({
+      ...REST_OF_DEPLOYMENT,
+      VERCEL_ENV: 'production',
+      DATABASE_URL_UNPOOLED: DIRECT,
+    });
+
+    expect(databaseTarget(env, 'pooled')).toStrictEqual(NOT_CONFIGURED);
+    expect(databaseTarget(env, 'direct')).toStrictEqual(NOT_CONFIGURED);
+  });
 
   it('keeps the database of `next dev` on disk, outside Vercel without a URL', () => {
     const env = parseServerEnv({ NODE_ENV: 'development' });

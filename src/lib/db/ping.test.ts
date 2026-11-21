@@ -197,7 +197,9 @@ describe('ping', { timeout: 60_000 }, () => {
   });
 
   it('reports the database not configured on Vercel without a URL', async () => {
-    vi.stubEnv('VERCEL_ENV', 'production');
+    // A preview with the fakes switch: the one valid Vercel configuration without a URL.
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('EGOSCOPE_FAKES', 'all');
     const { ping } = await import('./ping');
 
     await expect(ping()).resolves.toStrictEqual({
