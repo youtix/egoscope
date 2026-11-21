@@ -104,6 +104,31 @@ gives no difference.
 - People read dates through the `time` formatters, machines in ISO 8601. Nowhere does code call
   `toLocale*`, `localeCompare` or an `Intl` constructor without an explicit locale.
 
+## Design system
+
+- Screens are built from `@/lib/ui` (decision record 0029), never from raw `<button>`, `<input>`,
+  `<select>`, `<textarea>` or `<dialog>` elements, nor from another component library. Colors are
+  the tokens of `src/app/globals.css` (`bg-canvas`, `text-ink`, `text-ink-muted`, `bg-accent`…):
+  Tailwind's palette is removed, and no screen writes a `dark:` variant, since the tokens follow
+  the phone's theme. Targets are at least `min-h-touch`; no text is truncated (`truncate`,
+  `line-clamp`) and labels wrap (IHM-60, IHM-61).
+- A form is a `Form` around `FormField`s, wired to a Server Action through `useActionState`: it
+  shows the errors in its summary and beside each field, keeps the owner's input when the action
+  refuses it, and its submit `Button` waits while the action runs. A confirmation is a
+  `ConfirmDialog` inside the `Form` it submits, with `secondStep` for what cannot be undone. A save
+  refused because the object changed meanwhile shows a `ChangedElsewhereNotice` (CL-IHM-18).
+- Every visible text is a prop, taken from `@/lib/wording`; numbers and dates come written by its
+  formatters and those of `@/lib/time`. A label names the thing, in sentence case and without a
+  colon; a button starts with a verb and says what it does ("Copy the prompt", never "OK"); an
+  unavailable action says why (`disabledReason`); an error says what is wrong and how to put it
+  right, in one sentence without jargon; an empty state says why it is empty and which action fills
+  it (IHM-56); a state is always written, its color and icon only add to it (IHM-61).
+- A new component is one kebab-case file in `src/lib/ui/`, exported by name from its group in
+  `index.ts`, with no `className` prop and no text of its own. Its test beside it drives it with
+  user-event as a person does and runs axe on each state; the gallery, `src/app/dev/ui/`, shows it
+  in every state, and `e2e/ui-gallery.spec.ts` drives the states that need an action, which the
+  accessibility watch then checks in both themes.
+
 ## Tests
 
 - A test sits beside the file it tests: `foo.test.ts` next to `foo.ts`. Component tests are

@@ -18,11 +18,12 @@ them in reading order.
 ## Stack
 
 - [Next.js](https://nextjs.org) 16 with the App Router, React Server Components, Server Actions and
-  Cache Components; React 19; Tailwind CSS 4.
+  Cache Components; React 19; Tailwind CSS 4, with Base UI for the dialogs and tabs of the design
+  system (decision record 0029).
 - TypeScript 6 at its strictest settings.
 - [Bun](https://bun.com) 1.4 installs dependencies and runs the scripts; Node.js 22 is the runtime,
   locally, in CI and in production.
-- Vitest 5 with V8 coverage, Testing Library and fast-check.
+- Vitest 5 with V8 coverage, Testing Library with user-event, axe-core and fast-check.
 - ESLint 10 with type-aware rules, Prettier, markdownlint and knip; lefthook and commitlint for git
   hooks; GitHub Actions for CI.
 - Planned hosting: Vercel Hobby with Neon Postgres, on free tiers only.
