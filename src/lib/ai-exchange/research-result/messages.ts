@@ -47,12 +47,15 @@ type OtherRefusal = Exclude<ImportRefusal, Readonly<{ sourcePosition: number }>>
 type OtherWarning = Exclude<ImportWarning, FieldWarning | SourceWarning>;
 type LinkCause = Extract<SourceDropCause, 'incomplete_address' | 'home_page' | 'disallowed_domain'>;
 
-// The placeholders of a type or a date missing or unreadable (glossary section 7.3).
+// The placeholders of a type or a date missing or unreadable, without their parentheses
+// inside those of the location (glossary section 7.3).
 const NO_TYPE = 'no type';
 const NO_DATE = 'no date';
 // A type as read is quoted when, trimmed, it has the shape of an event type's identifier
-// (CL-IMP-02, CL-IMP-22): letters and digits in groups joined by single hyphens.
-const TYPE_SHAPE = /^[\da-z]+(?:-[\da-z]+)*$/iu;
+// (CL-IMP-02, CL-IMP-22): ASCII letters of either case and digits, in groups joined by
+// single hyphens. The ranges name both cases, since under the `i` flag case folding
+// would let [a-z] match the long s and the Kelvin sign.
+const TYPE_SHAPE = /^[\dA-Za-z]+(?:-[\dA-Za-z]+)*$/u;
 const MAX_TYPE_LENGTH = 50;
 const LEFT_OUT = 'Nothing to correct: the event is left out of this import.';
 const GIVE_PUBLIC_DATE = 'Give the public date as YYYY-MM-DD.';

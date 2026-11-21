@@ -421,6 +421,9 @@ describe('eventMessage', () => {
       'public-',
       'humiliation-publiqué',
       'The coach said player A is soft!',
+      // The long s and the Kelvin sign, letters that only case folding turns into s and k.
+      'ſcandal',
+      'public-Keepsake',
     ];
     expect(new Set(types.map((type) => locationOf(type)))).toStrictEqual(
       new Set(['Event 2 (no type, 2021-01-14)']),
