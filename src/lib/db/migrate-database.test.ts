@@ -34,26 +34,24 @@ async function serverWithoutTls(): Promise<string> {
   return urlOf(typeof address === 'object' && address !== null ? address.port : 0);
 }
 
-// Where the shell's connection strings lead in these tests: a port where nothing listens.
-const SHELL_DATABASE_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full';
 // Where every copy of the db module keeps the databases that the process opened.
 const OPENED_DATABASES = Symbol.for('egoscope.db.opened-databases');
 
-/**
- * Exports what a developer's shell may: the production connection strings, for
- * example to run pg_dump, the fakes switch of .env.example, which no database URL
- * may join, and a LOG_LEVEL and a NODE_ENV that the schema refuses, each of which
- * makes the whole environment invalid. CI exports none of these, so every test
- * here starts as if the shell did, and a test that read them would fail instead
- * of migrating the database they name (TRV-76).
- */
-function exportShellVariables(): void {
-  vi.stubEnv('DATABASE_URL', SHELL_DATABASE_URL);
-  vi.stubEnv('DATABASE_URL_UNPOOLED', SHELL_DATABASE_URL);
+// The values that a Lot 1 deployment requires besides its database
+// (accounts-and-keys sheet), all made up.
+const REST_OF_DEPLOYMENT = {
+  APP_BASE_URL: 'https://egoscope.example.invalid',
+  CRON_SECRET: 'k'.repeat(43),
+  INITIAL_PASSWORD: 'p'.repeat(12),
+  FINGERPRINT_KEY: 'k'.repeat(43),
+};
+
+/** Plays a production deployment: every value that it requires, those of its database aside. */
+function onProduction(): void {
   vi.stubEnv('VERCEL_ENV', 'production');
-  vi.stubEnv('LOG_LEVEL', 'INFO');
-  vi.stubEnv('NODE_ENV', 'staging');
-  vi.stubEnv('EGOSCOPE_FAKES', 'all');
+  for (const [name, value] of Object.entries(REST_OF_DEPLOYMENT)) {
+    vi.stubEnv(name, value);
+  }
 }
 
 /** An empty project root of its own as the working directory, and its drizzle/ folder. */
@@ -84,21 +82,10 @@ describe('migrateDatabase', { timeout: 60_000 }, () => {
     // environment, and it has opened no database yet.
     vi.resetModules();
     vi.stubGlobal(OPENED_DATABASES, undefined);
-    exportShellVariables();
-    // Whatever the shell exports, each test starts from every variable of the
-    // server environment pinned: outside Vercel with no database configured and
-    // no fakes, at the default log level, and with NODE_ENV as Vitest sets it.
-    // Then it stubs what it needs.
-    vi.stubEnv('DATABASE_URL', '');
-    vi.stubEnv('DATABASE_URL_UNPOOLED', '');
-    vi.stubEnv('VERCEL_ENV', '');
-    vi.stubEnv('LOG_LEVEL', '');
-    vi.stubEnv('NODE_ENV', 'test');
-    vi.stubEnv('EGOSCOPE_FAKES', '');
   });
 
   it('[TRV-76] migrates through the direct connection string, never the pooled one', async () => {
-    vi.stubEnv('VERCEL_ENV', 'production');
+    onProduction();
     vi.stubEnv('DATABASE_URL', urlOf(await closedPort()));
     vi.stubEnv('DATABASE_URL_UNPOOLED', await serverWithoutTls());
     const { migrateDatabase } = await import('./migrate-database');
@@ -114,7 +101,7 @@ describe('migrateDatabase', { timeout: 60_000 }, () => {
 
   it('[TRV-64] reports a connection that fails by its code, never by the host and port it names', async () => {
     const url = urlOf(await closedPort());
-    vi.stubEnv('VERCEL_ENV', 'production');
+    onProduction();
     vi.stubEnv('DATABASE_URL', url);
     vi.stubEnv('DATABASE_URL_UNPOOLED', url);
     const { migrateDatabase } = await import('./migrate-database');
@@ -126,7 +113,7 @@ describe('migrateDatabase', { timeout: 60_000 }, () => {
   });
 
   it('[TRV-76] reports the database not configured on Vercel without a URL', async () => {
-    vi.stubEnv('VERCEL_ENV', 'production');
+    onProduction();
     const { migrateDatabase } = await import('./migrate-database');
 
     await expect(migrateDatabase()).resolves.toStrictEqual({
@@ -136,7 +123,7 @@ describe('migrateDatabase', { timeout: 60_000 }, () => {
   });
 
   it('[TRV-76] reports the database not configured without the direct URL', async () => {
-    vi.stubEnv('VERCEL_ENV', 'production');
+    onProduction();
     vi.stubEnv('DATABASE_URL', urlOf(await closedPort()));
     const { migrateDatabase } = await import('./migrate-database');
 
@@ -148,7 +135,7 @@ describe('migrateDatabase', { timeout: 60_000 }, () => {
 
   it('[TRV-76] fails, before connecting, when the migrations are missing', async () => {
     projectFolder();
-    vi.stubEnv('VERCEL_ENV', 'production');
+    onProduction();
     vi.stubEnv('DATABASE_URL', urlOf(await closedPort()));
     vi.stubEnv('DATABASE_URL_UNPOOLED', urlOf(await closedPort()));
     const { migrateDatabase } = await import('./migrate-database');

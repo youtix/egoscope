@@ -298,13 +298,16 @@ touches it and its prefix, its letters before the first hyphen, is that of an ID
   shell exports. The environment is read once, when `@/lib/env` loads, and is valid or invalid as
   one whole: one refused value, such as a connection string with `sslmode=require` or
   `LOG_LEVEL=INFO`, invalidates all of it, and a valid one, such as `LOG_LEVEL=error`, changes
-  what the logger writes. So a test that loads `@/lib/env` afresh, directly or through a module
-  that reads it such as `@/lib/log` or `@/lib/db`, stubs every variable of the schema in
-  `src/lib/env/server-env.ts` before loading it: to what the test needs, and otherwise `NODE_ENV`
-  to `test` and the others to `''`, which leaves them unset. The tests of `src/lib/db/`, of the
-  logger and of `/api/health` do so. A test that starts a script that loads `@/lib/env` pins them
-  the same way in the script's environment, `NODE_ENV` to `test` and the others left out, then
-  adds what it needs, as `scripts/migrate.test.ts` does. `createTestDatabase()` reads no variable.
+  what the logger writes. So every test starts from every variable of the schema in
+  `src/lib/env/server-env.ts` pinned, whatever the shell exports: `test.env` in `vitest.config.ts`
+  sets `NODE_ENV` to `test` and the others to `''`, which leaves them unset, and a test of
+  `src/lib/env/` fails when a variable of the schema is missing there, so a new variable joins
+  that list in the same change. A test that loads `@/lib/env` afresh, directly or through a module
+  that reads it such as `@/lib/log` or `@/lib/db`, stubs only what it needs before loading it; a
+  test that starts a script that loads `@/lib/env` passes its own environment on, then adds what it
+  needs, as `scripts/migrate.test.ts` does. A Vercel deployment must carry every value that its lot
+  requires, so a test that plays one, with `VERCEL_ENV` set, stubs them all. `createTestDatabase()`
+  reads no variable.
 - The databases that `getDb()`, `getDirectDb()`, `ping()` and `migrateDatabase()` open stay on
   `globalThis` for the life of the process, so a test that plays a fresh server also stubs that
   registry away, as the tests of `src/lib/db/` do.

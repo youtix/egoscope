@@ -7,6 +7,14 @@ import { databaseTarget } from './target';
 const POOLED = 'postgresql://app@pooled.example.invalid/egoscope?sslmode=verify-full';
 const DIRECT = 'postgresql://app@direct.example.invalid/egoscope?sslmode=verify-full';
 const NOT_CONFIGURED = { kind: 'not-configured' };
+// The values that a Lot 1 deployment requires besides its database
+// (accounts-and-keys sheet), all made up.
+const REST_OF_DEPLOYMENT = {
+  APP_BASE_URL: 'https://egoscope.example.invalid',
+  CRON_SECRET: 'k'.repeat(43),
+  INITIAL_PASSWORD: 'p'.repeat(12),
+  FINGERPRINT_KEY: 'k'.repeat(43),
+};
 
 /** The connection string a target reaches, or its kind when it reaches none. */
 function reached(
@@ -22,6 +30,7 @@ describe('databaseTarget', () => {
     '[TRV-14] reaches Neon through the pooled URL for the application, on %s',
     (vercelEnv) => {
       const variables = {
+        ...REST_OF_DEPLOYMENT,
         VERCEL_ENV: vercelEnv,
         DATABASE_URL: POOLED,
         DATABASE_URL_UNPOOLED: DIRECT,
@@ -33,6 +42,7 @@ describe('databaseTarget', () => {
 
   it('[TRV-14] reaches Neon through the direct URL for migrations and long reads', () => {
     const variables = {
+      ...REST_OF_DEPLOYMENT,
       VERCEL_ENV: 'production',
       DATABASE_URL: POOLED,
       DATABASE_URL_UNPOOLED: DIRECT,
@@ -46,9 +56,8 @@ describe('databaseTarget', () => {
   });
 
   it('gives no direct connection when only the pooled URL is set', () => {
-    expect(reached({ VERCEL_ENV: 'production', DATABASE_URL: POOLED }, 'direct')).toBe(
-      'not-configured',
-    );
+    // Outside Vercel: there, a deployment without the direct URL is an invalid configuration.
+    expect(reached({ DATABASE_URL: POOLED }, 'direct')).toBe('not-configured');
   });
 
   it.each(['production', 'preview', 'development'])(

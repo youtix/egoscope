@@ -15,13 +15,6 @@ const DAY_18 = { from: toEpochMs(Date.UTC(2026, 10, 18)), to: toEpochMs(Date.UTC
  * modules load afresh and read that configuration, with a database of their own.
  */
 async function journalWith(variables: Readonly<Record<string, string>>) {
-  // Every variable of the schema, pinned whatever the shell exports, then the test's own.
-  vi.stubEnv('LOG_LEVEL', '');
-  vi.stubEnv('NODE_ENV', 'test');
-  vi.stubEnv('VERCEL_ENV', '');
-  vi.stubEnv('DATABASE_URL', '');
-  vi.stubEnv('DATABASE_URL_UNPOOLED', '');
-  vi.stubEnv('EGOSCOPE_FAKES', '');
   for (const [name, value] of Object.entries(variables)) {
     vi.stubEnv(name, value);
   }

@@ -1,46 +1,16 @@
 import { z } from 'zod';
 
 import { incidents } from '@/lib/db';
-import { readServerEnv } from '@/lib/env';
+import { redact } from '@/lib/env';
 import { toEpochMs } from '@/lib/time';
-
-import type { Secret } from '@/lib/env';
 
 // The longest error message kept from a service's error object (CL-DSN-11).
 const MAX_ERROR_MESSAGE_LENGTH = 300;
 
-/** Says whether a value of the configuration is a secret: the one kind of value that reveals one. */
-const isSecretValue = (value: unknown): value is Secret =>
-  value instanceof Object && 'reveal' in value;
-
-/**
- * The secrets of the deployment configuration (TRV-64), longest first, so that a secret
- * that holds another goes whole. None while the configuration is invalid: nothing then
- * reached a service or the database with one.
- */
-function configuredSecrets(): readonly Secret[] {
-  const configuration = readServerEnv();
-  const values: readonly unknown[] = configuration.ok ? Object.values(configuration.env) : [];
-  return values
-    .filter((value) => isSecretValue(value))
-    .toSorted((left, right) => right.reveal().length - left.reveal().length);
-}
-
-/**
- * `text` with every secret of the configuration replaced by its mask, "[secret]", so
- * that the details never hold a password, a key or a token (TRV-44, TRV-64): each value
- * that the configuration holds as a `Secret`, until F-env's `redact` takes this place.
- */
-function withoutSecrets(text: string): string {
-  let kept = text;
-  for (const secret of configuredSecrets()) {
-    kept = kept.replaceAll(secret.reveal(), () => secret.toString());
-  }
-  return kept;
-}
-
-// A text of the details, which no secret of the configuration ever reaches (TRV-44).
-const detailText = z.string().transform((text) => withoutSecrets(text));
+// A text of the details, which no secret of the configuration ever reaches: each one
+// is replaced by its mask, "[secret]", so that the details never hold a password, a
+// key or a token (TRV-44, TRV-64).
+const detailText = z.string().transform((text) => redact(text));
 
 /**
  * The technical details of an entry, stored apart and hidden unless asked for, for

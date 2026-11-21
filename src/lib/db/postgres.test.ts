@@ -1,30 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * Exports what a developer's shell may: LOG_LEVEL=error, one of the levels that
- * .env.example documents, under which the logger drops the warning that a test
- * here expects. CI exports no LOG_LEVEL, so every test here starts as if the
- * shell did, and a test that read it would fail.
- */
-function exportShellVariables(): void {
-  vi.stubEnv('LOG_LEVEL', 'error');
-}
-
 describe('createPool', () => {
   beforeEach(() => {
     // The logger of ./postgres reads the environment once, when its module
     // loads, so each test loads the module afresh.
     vi.resetModules();
-    exportShellVariables();
-    // Whatever the shell exports, each test starts from every variable of the
-    // server environment pinned: at the default log level, info, outside Vercel
-    // with no database configured and no fakes, and with NODE_ENV as Vitest sets it.
-    vi.stubEnv('LOG_LEVEL', '');
-    vi.stubEnv('NODE_ENV', 'test');
-    vi.stubEnv('VERCEL_ENV', '');
-    vi.stubEnv('DATABASE_URL', '');
-    vi.stubEnv('DATABASE_URL_UNPOOLED', '');
-    vi.stubEnv('EGOSCOPE_FAKES', '');
   });
 
   it('opens no connection until a query needs one', async () => {

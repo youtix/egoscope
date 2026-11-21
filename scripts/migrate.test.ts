@@ -2,60 +2,40 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 const ROOT = path.join(import.meta.dirname, '..');
 // Ports where nothing listens, so that a connection is refused at once.
 const POOLED_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full';
 const DIRECT_URL = 'postgresql://app@127.0.0.1:2/egoscope?sslmode=verify-full';
 
+// A production deployment, with every value that it requires but those of its
+// database (accounts-and-keys sheet), all made up.
+const PRODUCTION = {
+  VERCEL_ENV: 'production',
+  APP_BASE_URL: 'https://egoscope.example.invalid',
+  CRON_SECRET: 'k'.repeat(43),
+  INITIAL_PASSWORD: 'p'.repeat(12),
+  FINGERPRINT_KEY: 'k'.repeat(43),
+};
+
 type Outcome = Readonly<{ status: number | null; output: string }>;
 
-// Every variable of the server environment (src/lib/env/server-env.ts), which the
-// deploy step validates as one whole, pinned whatever the shell that runs the
-// tests exports: NODE_ENV as Vitest sets it, and the others left out.
-const PINNED_SERVER_ENV = {
-  LOG_LEVEL: undefined,
-  NODE_ENV: 'test',
-  VERCEL_ENV: undefined,
-  DATABASE_URL: undefined,
-  DATABASE_URL_UNPOOLED: undefined,
-  EGOSCOPE_FAKES: undefined,
-} as const;
-
 /**
- * Exports what a developer's shell may: the production connection strings, for
- * example to run pg_dump, with VERCEL_ENV=production, the fakes switch of
- * .env.example, which no database URL may join, and a LOG_LEVEL and a NODE_ENV
- * that the schema refuses, each of which makes the whole environment invalid. CI
- * exports none of these, so every test here starts as if the shell did, and a
- * deploy step that inherited them would migrate the database they name or stop
- * on an invalid environment (TRV-76).
+ * Runs the deploy step as the production build does, with these deployment
+ * variables only: it inherits the environment of the test, where every variable
+ * of the server environment starts unset (vitest.config.ts).
  */
-function exportShellVariables(): void {
-  vi.stubEnv('DATABASE_URL', POOLED_URL);
-  vi.stubEnv('DATABASE_URL_UNPOOLED', POOLED_URL);
-  vi.stubEnv('VERCEL_ENV', 'production');
-  vi.stubEnv('LOG_LEVEL', 'INFO');
-  vi.stubEnv('NODE_ENV', 'staging');
-  vi.stubEnv('EGOSCOPE_FAKES', 'all');
-}
-
-/** Runs the deploy step as the production build does, with these deployment variables only. */
 function migrate(variables: Readonly<Record<string, string>>): Outcome {
   const result = spawnSync('bun', ['run', 'db:migrate'], {
     cwd: ROOT,
     encoding: 'utf8',
-    env: { ...process.env, ...PINNED_SERVER_ENV, ...variables },
+    env: { ...process.env, ...variables },
   });
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
 describe('the deploy step', { timeout: 60_000 }, () => {
-  beforeEach(() => {
-    exportShellVariables();
-  });
-
   it.each([
     ['a preview', { VERCEL_ENV: 'preview' }],
     ['a local run', {}],
@@ -67,17 +47,15 @@ describe('the deploy step', { timeout: 60_000 }, () => {
   });
 
   it('[TRV-76] fails the build when the production database is not configured', () => {
-    const { status, output } = migrate({ VERCEL_ENV: 'production', DATABASE_URL: POOLED_URL });
+    const { status, output } = migrate({ ...PRODUCTION, DATABASE_URL: POOLED_URL });
 
     expect(status).toBe(1);
-    expect(output).toContain(
-      'DATABASE_URL and DATABASE_URL_UNPOOLED must both be set for Production in Vercel.',
-    );
+    expect(output).toContain('the server environment is invalid: DATABASE_URL_UNPOOLED.');
   });
 
   it('[TRV-76] [TRV-64] fails the build when the migrations cannot be applied, and never names the database host', () => {
     const { status, output } = migrate({
-      VERCEL_ENV: 'production',
+      ...PRODUCTION,
       DATABASE_URL: POOLED_URL,
       DATABASE_URL_UNPOOLED: DIRECT_URL,
     });
@@ -91,7 +69,7 @@ describe('the deploy step', { timeout: 60_000 }, () => {
 
   it('[TRV-14] [TRV-64] refuses a connection string without sslmode=verify-full, and never prints it', () => {
     const { status, output } = migrate({
-      VERCEL_ENV: 'production',
+      ...PRODUCTION,
       DATABASE_URL: 'postgresql://app:hunter2-value@127.0.0.1:1/egoscope',
       DATABASE_URL_UNPOOLED: DIRECT_URL,
     });
