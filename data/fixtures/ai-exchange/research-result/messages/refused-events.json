@@ -1,0 +1,106 @@
+{
+  "format": "egoscope-backtest",
+  "format_version": "1.0",
+  "request_reference": "REQ-2026-0007",
+  "player": { "id": "8b2e4f6a-1c3d-4a5b-9e7f-0a1b2c3d4e5f", "name": "Player A" },
+  "covered_types": ["public-humiliation", "player-conflict"],
+  "covered_period": { "start": "2019-10-23", "end": "2026-11-11" },
+  "events": [
+    {
+      "event_type": "public-humiliation",
+      "public_date": "2021-01-14",
+      "description": "An opposing player publicly mocks player A at a press conference.",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2021/01/14/player-a-taunted",
+          "outlet": "A national outlet (fictitious)",
+          "title": "Player A taunted by an opponent",
+          "publication_date": "2021-01-14"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" }
+    },
+    {
+      "event_type": "racist-abuse",
+      "public_date": "2021-01-20",
+      "description": "A spectator directs racist abuse at player A during a game; a national outlet reports it.",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2021/01/20/abuse-in-the-stands",
+          "outlet": "A national outlet (fictitious)",
+          "title": "Abuse in the stands",
+          "publication_date": "2021-01-20"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": "high"
+    },
+    {
+      "event_type": "player-conflict",
+      "public_date": "2021-02-10",
+      "description": "An opponent publicly calls player A “soft” after a game against team X.",
+      "sources": [
+        {
+          "url": "https://www.site-basket.example/news/2021/02/10/opponent-calls-player-a-soft",
+          "outlet": "A specialist basketball site (fictitious)",
+          "title": "Opponent calls Player A soft",
+          "publication_date": "2021-02-10"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" }
+    },
+    {
+      "event_type": "public-humiliation",
+      "public_date": "2021-02-30",
+      "description": "A teammate publicly blames player A for a loss in a post-game interview.",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2021/02/28/teammate-blames-player-a",
+          "outlet": "A national outlet (fictitious)",
+          "title": "Teammate blames Player A",
+          "publication_date": "2021-02-28"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": "high"
+    },
+    {
+      "event_type": "public-humiliation",
+      "public_date": "2021-03-05",
+      "description": "An executive of the team publicly questions the effort of player A; a national outlet reports it.",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2021/03/05/executive-questions-player-a",
+          "outlet": "A national outlet (fictitious)",
+          "title": "Executive questions Player A",
+          "publication_date": "2021-03-05"
+        },
+        {
+          "url": "https://www.site-basket.example/news/2021/02/28/rumors-around-player-a",
+          "outlet": "A specialist basketball site (fictitious)",
+          "title": "Rumors around Player A",
+          "publication_date": "2021-02-28"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": "high"
+    },
+    {
+      "public_date": "2021-03-20",
+      "description": "After a game against team Y, an opposing coach publicly criticizes player A at length in a press conference, and several national outlets then report the remarks the same evening and over the next two days.",
+      "sources": [
+        {
+          "url": "https://www.media-national.example/basket/2021/03/20/coach-criticizes-player-a",
+          "outlet": "A national outlet (fictitious)",
+          "title": "Coach criticizes Player A",
+          "publication_date": "2021-03-20"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": "low",
+      "unverified_note": "One outlet calls the coach's remarks «unfair»; no second source confirms it."
+    }
+  ],
+  "unverified_leads": [],
+  "limitations": []
+}
