@@ -4,10 +4,10 @@
 import type { RuntimeCache } from './types';
 
 /** A fresh cache to hold to the contract, and the way to make it fail. */
-export type ContractSubject = Readonly<{ cache: RuntimeCache; breakCache: () => void }>;
+type ContractSubject = Readonly<{ cache: RuntimeCache; breakCache: () => void }>;
 
 /** One behavior of the contract: what `run` gives back on a fresh subject. */
-export type ContractCase = Readonly<{
+type ContractCase = Readonly<{
   title: string;
   run: (subject: ContractSubject) => Promise<unknown>;
   expected: unknown;
