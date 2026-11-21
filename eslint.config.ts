@@ -35,7 +35,6 @@ import testingLibrary from 'eslint-plugin-testing-library';
 import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 
-import { IDLE_TICK_ZONE } from './scripts/eslint-idle-tick-zone';
 import { E2E_SYNTAX, E2E_TEST_IMPORT } from './scripts/eslint-playwright';
 import { egoscopePlugin } from './scripts/eslint-plugin';
 import { GENERATED_FOLDERS } from './scripts/generated-files';
@@ -354,7 +353,6 @@ export function layerZones(basePath: string): Linter.RuleEntry {
           except: ['./lib/ai-exchange'],
           message: NO_SRC_FROM_AI_EXCHANGE.message,
         },
-        IDLE_TICK_ZONE,
       ],
     },
   ];
