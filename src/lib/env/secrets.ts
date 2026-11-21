@@ -30,23 +30,46 @@ export function isSecret(name: string): boolean {
   return SECRET_VARIABLES.has(name);
 }
 
+/** `text` with its percent-encoded characters decoded, or as it is when they encode no text. */
+function decoded(text: string): string {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
+}
+
 /**
- * One pattern that finds every secret value of the configuration, the longest
- * first, so that a secret that holds another goes whole; none while the
- * configuration holds no secret, or is invalid: nothing then reached a service
- * or the database with one.
+ * The password of the connection string `url`, as the string writes it and
+ * decoded, which a database library may print on its own; none when it has none.
+ */
+function passwordsOf(url: Secret | undefined): readonly string[] {
+  // The schema accepts only a URL as a connection string.
+  const password = url === undefined ? '' : new URL(url.reveal()).password;
+  return password === '' ? [] : [password, decoded(password)];
+}
+
+/**
+ * One pattern that finds every secret value of the configuration, and the
+ * password of each connection string, the longest first, so that a secret that
+ * holds another goes whole; none while the configuration holds no secret, or is
+ * invalid: nothing then reached a service or the database with one.
  */
 function secretsPattern(): RegExp | undefined {
   const env = readServerEnv();
   const values = env.ok
-    ? Object.values(env.env)
-        .filter((value) => value instanceof Secret)
-        .map((value) => value.reveal())
-    : [];
-  if (values.length === 0) {
+    ? new Set([
+        ...Object.values(env.env)
+          .filter((value) => value instanceof Secret)
+          .map((value) => value.reveal()),
+        ...passwordsOf(env.env.DATABASE_URL),
+        ...passwordsOf(env.env.DATABASE_URL_UNPOOLED),
+      ])
+    : new Set<string>();
+  if (values.size === 0) {
     return undefined;
   }
-  const alternatives = values
+  const alternatives = [...values]
     .toSorted((left, right) => right.length - left.length)
     .map((value) => value.replaceAll(SYNTAX_CHARACTERS, String.raw`\$&`));
   return new RegExp(alternatives.join('|'), 'gu');
@@ -107,7 +130,8 @@ function redactValue(value: unknown, ancestors: ReadonlySet<object>): Redacted {
 
 /**
  * `value` without any secret value of the deployment configuration (TRV-64):
- * a text with each secret replaced by "[secret]"; any other value in its JSON
+ * a text with each secret replaced by "[secret]", and so is the password of a
+ * connection string, as written and decoded, found alone; any other value in its JSON
  * form, with every text at any depth masked the same way, keys included, an
  * error with its name, message, stack, cause and own fields, and an object
  * found inside itself replaced by "[circular]". Call it on every text, error or

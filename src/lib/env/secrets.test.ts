@@ -77,6 +77,28 @@ describe('redact, examples', () => {
     expect(redact(`${password} is not pXsswwrd1`)).toBe('[secret] is not pXsswwrd1');
   });
 
+  it('[TRV-64] masks the password of each connection string on its own, as written and decoded', async () => {
+    const pooled = 'p'.repeat(12);
+    const direct = 'd'.repeat(12);
+    const redact = await redactOf({
+      DATABASE_URL: `postgresql://app:pooled%2F${pooled}@pooled.example.invalid/egoscope?sslmode=verify-full`,
+      DATABASE_URL_UNPOOLED: `postgresql://app:direct%2F${direct}@direct.example.invalid/egoscope?sslmode=verify-full`,
+    });
+
+    expect(
+      redact(`refused pooled%2F${pooled}, pooled/${pooled}, direct%2F${direct}, direct/${direct}.`),
+    ).toBe('refused [secret], [secret], [secret], [secret].');
+  });
+
+  it('[TRV-64] masks as written the password of a connection string whose percent signs encode no text', async () => {
+    const password = `100%${'z'.repeat(12)}`;
+    const redact = await redactOf({
+      DATABASE_URL: `postgresql://app:${password}@pooled.example.invalid/egoscope?sslmode=verify-full`,
+    });
+
+    expect(redact(`refused ${password}.`)).toBe('refused [secret].');
+  });
+
   it('[TRV-64] masks an error, with its name, message, stack, cause and own fields', async () => {
     const redact = await redactOf({ TELEGRAM_BOT_TOKEN: BOT_TOKEN });
     const refused = Object.assign(new Error(`connect ECONNREFUSED bot${BOT_TOKEN}`), {
