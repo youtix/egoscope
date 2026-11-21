@@ -1,7 +1,14 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { canonicalValue, fold, isAbsent, parseExchangeDate, valuesOf } from './conventions';
+import {
+  canonicalValue,
+  fold,
+  isAbsent,
+  isRecord,
+  parseExchangeDate,
+  valuesOf,
+} from './conventions';
 
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
@@ -183,4 +190,20 @@ describe('isAbsent', () => {
   it.each(['x', ' x ', 0, false, [], {}])('[CL-IMP-06] takes %j for a present field', (value) => {
     expect(isAbsent(value)).toBe(false);
   });
+});
+
+describe('isRecord', () => {
+  it.each([{}, { start: '2021-05-16' }, { 0: 'a', length: 1 }])(
+    '[CL-IMP-06] reads the members of the object %j',
+    (value) => {
+      expect(isRecord(value)).toBe(true);
+    },
+  );
+
+  it.each([null, undefined, [], ['2021-05-16'], '2021-05-16', 7, true])(
+    '[CL-IMP-06] reads no member of %j, which is no object',
+    (value) => {
+      expect(isRecord(value)).toBe(false);
+    },
+  );
 });

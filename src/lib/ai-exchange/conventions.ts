@@ -156,3 +156,12 @@ export function isAbsent(value: unknown): boolean {
     value === undefined || value === null || (typeof value === 'string' && value.trim() === '')
   );
 }
+
+/**
+ * Says whether a value read from JSON is an object, whose members a reader reads by their
+ * keys: neither `null`, a list nor a value of another kind, whose fields are all missing
+ * (CL-IMP-06).
+ */
+export function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}

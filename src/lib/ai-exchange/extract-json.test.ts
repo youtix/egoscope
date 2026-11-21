@@ -248,6 +248,17 @@ describe.each([
     expect(extract(text)).toStrictEqual(isolated(value));
   });
 
+  it.each(['`', '``', '~', '~~'])(
+    '[IMP-04] [BKT-26] keeps a line that starts with %j, fewer than three marks, which is no code fence and a syntax error inside the object',
+    (marks) => {
+      const text = ['{"format": "egoscope-backtest",', `${marks}json`, '  "events": []}'].join(
+        '\n',
+      );
+
+      expect(extract(text)).toStrictEqual(syntaxError(['format'], BACKTEST));
+    },
+  );
+
   it('[IMP-04] keeps backticks and tildes inside texts, where they open no line', () => {
     const text = '{"a":"```",\n "b": "x ~~~ y"}';
 

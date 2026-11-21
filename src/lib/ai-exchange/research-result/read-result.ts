@@ -3,7 +3,7 @@
 // the recovery allows (IMP-05), then its format and its version, its members checked as a
 // whole and every field typed. Each event's own checks (IMP-11 to IMP-15) take this
 // output; tying its reference and its player to a request is the import's (IMP-07).
-import { canonicalValue, fold, isAbsent } from '../conventions';
+import { canonicalValue, fold, isAbsent, isRecord } from '../conventions';
 import { EXPLORATION_FORMAT } from '../exploration/format';
 import { extractJson } from '../extract-json';
 import { calendarDate, firstUnsorted, readDate } from './dates';
@@ -120,10 +120,6 @@ const RESULT_LISTS: TruncationRecovery['lostLists'] = ['unverified_leads', 'limi
 // Version 1.0 written as 1, as a text or as a number, as which JSON also reads 1.0 (CL-IMP-06).
 const VERSION_ONE_TEXT = '1';
 const VERSION_ONE_NUMBER = 1;
-
-function isRecord(value: unknown): value is Members {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** The members of an object; a value of another kind has none, so all its fields are missing. */
 function membersOf(value: unknown): Members {

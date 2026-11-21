@@ -4,7 +4,7 @@
 // result is untrusted text, so a field reads as a text, a value of the format's own list
 // or a date, or as nothing; a key that the format does not define is an unknown field,
 // dropped and counted (IMP-16).
-import { valuesOf } from '../conventions';
+import { isRecord, valuesOf } from '../conventions';
 
 import type { DateReading } from './dates';
 
@@ -140,10 +140,6 @@ export const RESULT_SCHEMA: KeySchema = [
   { key: 'unverified_leads', listOf: LEAD_SCHEMA },
   'limitations',
 ];
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function unknownFieldsOf(values: readonly StrippedValue[]): number {
   return values.reduce((count, value) => count + value.unknownFieldCount, 0);

@@ -4,6 +4,7 @@
 // scanner keeps what that partial text holds in full and decides whether the import can
 // offer to recover it. It checks nothing else: the reader checks the recovered result
 // like a whole one, so that every recovered event goes through every check.
+import { isRecord } from '../conventions';
 import { calendarDate, isSorted, readDate } from './dates';
 
 // The two lists of a result that its events list may come before (IMP-05).
@@ -211,10 +212,6 @@ function readMembers(partialText: string): MemberReader {
     reader.read(match[0], end);
   }
   return reader;
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function publicDay(event: unknown): string | undefined {
