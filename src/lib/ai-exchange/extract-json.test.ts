@@ -41,6 +41,13 @@ const BACKTEST: Formats = ['egoscope-backtest'];
 const EXPLORATION: Formats = ['egoscope-exploration'];
 const BOTH: Formats = ['egoscope-backtest', 'egoscope-exploration'];
 
+// The test of an object nested a hundred thousand levels deep takes about half a second in
+// a plain run, and 2 to 2.5 seconds in the dry run of the mutation tests: there, Stryker has
+// instrumented the code, so that every statement it runs also records the mutants that the
+// current test covers, and the scan makes millions of such records. A busy machine slows
+// both runs further, hence the wide margin over Vitest's default of 5 seconds.
+const DEEP_NESTING_TIMEOUT_MS = 30_000;
+
 /** A result whose events are numbered facts, a citation marker after the description of one. */
 function resultWithMarker(count: number, marked: number): string {
   const events = Array.from({ length: count }, (_, index) => {
@@ -168,13 +175,17 @@ describe.each([
     expect(extract(text)).toStrictEqual(isolated(JSON.parse(text)));
   });
 
-  it('[IMP-04] [CL-IMP-06] reads an object nested a hundred thousand levels deep, and two copies of it as one, without overflowing the stack', () => {
-    const depth = 100_000;
-    const text = `{"a": ${'['.repeat(depth)}${']'.repeat(depth)}}`;
+  it(
+    '[IMP-04] [CL-IMP-06] reads an object nested a hundred thousand levels deep, and two copies of it as one, without overflowing the stack',
+    { timeout: DEEP_NESTING_TIMEOUT_MS },
+    () => {
+      const depth = 100_000;
+      const text = `{"a": ${'['.repeat(depth)}${']'.repeat(depth)}}`;
 
-    expect(nestingOfA(extract(text))).toBe(depth);
-    expect(nestingOfA(extract(`${text}\n${text}`))).toBe(depth);
-  });
+      expect(nestingOfA(extract(text))).toBe(depth);
+      expect(nestingOfA(extract(`${text}\n${text}`))).toBe(depth);
+    },
+  );
 
   it.each([
     ['an empty text', ''],
