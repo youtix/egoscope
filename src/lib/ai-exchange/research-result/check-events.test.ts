@@ -225,19 +225,19 @@ describe('checkEvents', () => {
     );
   });
 
-  it('[IMP-15] [CL-IMP-05] ignores with a warning an unverified note too long or holding a quotation mark, and keeps another trimmed', () => {
+  it('[IMP-15] [CL-IMP-02] [CL-IMP-05] ignores with a warning an unverified note too long, with its length and the maximum, or holding a quotation mark, naming it, and keeps another trimmed', () => {
     const field = 'unverified_note';
     expect(noteCheck(TOO_LONG)).toStrictEqual({
       note: undefined,
-      warnings: [{ kind: 'text_too_long_ignored', field }],
+      warnings: [{ kind: 'text_too_long_ignored', field, length: 201, maxLength: 200 }],
     });
     expect(noteCheck('The «exact» words are not confirmed.')).toStrictEqual({
       note: undefined,
-      warnings: [{ kind: 'text_quotation_mark_ignored', field }],
+      warnings: [{ kind: 'text_quotation_mark_ignored', field, character: '«' }],
     });
     expect(noteCheck(`"${LONGEST}"`).warnings).toStrictEqual([
-      { kind: 'text_too_long_ignored', field },
-      { kind: 'text_quotation_mark_ignored', field },
+      { kind: 'text_too_long_ignored', field, length: 202, maxLength: 200 },
+      { kind: 'text_quotation_mark_ignored', field, character: '"' },
     ]);
     expect(noteCheck(' The date of the remark is not confirmed. ')).toStrictEqual({
       note: 'The date of the remark is not confirmed.',
@@ -249,7 +249,7 @@ describe('checkEvents', () => {
     ]);
   });
 
-  it('[IMP-15] sets a missing confidence to low and a missing context value to unknown, each with a warning, and ignores a detail too long', () => {
+  it('[IMP-15] [CL-IMP-02] sets a missing confidence to low and a missing context value to unknown, each with a warning, and ignores a detail too long, with its length and the maximum', () => {
     const missing = checkOne({
       researchConfidence: undefined,
       context: { injuryReturn: undefined, gameStakes: undefined, detail: TOO_LONG },
@@ -260,7 +260,7 @@ describe('checkEvents', () => {
     });
     expect(warningsOf(missing)).toStrictEqual([
       { kind: 'context_defaulted' },
-      { kind: 'text_too_long_ignored', field: 'detail' },
+      { kind: 'text_too_long_ignored', field: 'detail', length: 201, maxLength: 200 },
       { kind: 'confidence_defaulted' },
     ]);
     const onlyStakes = checkOne({

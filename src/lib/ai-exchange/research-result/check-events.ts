@@ -53,20 +53,21 @@ type TextField = 'description' | 'unverified_note' | 'detail' | 'outlet' | 'titl
 /**
  * A warning on an event (IMP-11 to IMP-17), an event-scope code of the glossary's
  * `ImportWarningKind`, with the surviving type, the source, the text or the other event
- * citing the same link that it names.
+ * citing the same link that it names, and what its message needs (CL-IMP-02, CL-IMP-05):
+ * the length and the maximum of a text too long, the quotation mark found.
  */
 export type ImportWarning =
   | ScopeWarning
   | SourceWarning
   | Readonly<{ kind: 'confidence_defaulted' | 'context_defaulted' }>
+  | Readonly<{ kind: 'possible_statistics' | 'possible_citation_marker'; field: TextField }>
   | Readonly<{
-      kind:
-        | 'possible_statistics'
-        | 'possible_citation_marker'
-        | 'text_too_long_ignored'
-        | 'text_quotation_mark_ignored';
-      field: TextField;
+      kind: 'text_too_long_ignored';
+      field: 'unverified_note' | 'detail';
+      length: number;
+      maxLength: number;
     }>
+  | Readonly<{ kind: 'text_quotation_mark_ignored'; field: 'unverified_note'; character: string }>
   | Readonly<{ kind: 'shared_link'; otherPosition: number }>;
 
 /** An event that its checks accept: its type, its values with their defaults, its texts trimmed and its sources kept, oldest first (IMP-13 to IMP-15). */
@@ -168,10 +169,12 @@ function checkDescription(text: string | undefined, maxLength: number): Descript
 function checkNote(text: string | undefined, maxLength: number): PartCheck<string | undefined> {
   const breaches = text === undefined ? [] : checkText(text, maxLength);
   if (text === undefined || breaches.length > 0) {
-    const warnings = breaches.map((breach): ImportWarning => ({
-      kind: breach.kind === 'too_long' ? 'text_too_long_ignored' : 'text_quotation_mark_ignored',
-      field: 'unverified_note',
-    }));
+    const field = 'unverified_note';
+    const warnings = breaches.map((breach): ImportWarning =>
+      breach.kind === 'too_long'
+        ? { kind: 'text_too_long_ignored', field, length: breach.length, maxLength }
+        : { kind: 'text_quotation_mark_ignored', field, character: breach.character },
+    );
     return { value: undefined, warnings };
   }
   const warnings = [
@@ -191,11 +194,17 @@ function checkContext(
   maxLength: number,
 ): PartCheck<AcceptedEvent['context']> {
   const { injuryReturn, gameStakes, detail } = context;
-  const isDetailTooLong = detail !== undefined && textLength(detail) > maxLength;
+  const length = detail === undefined ? 0 : textLength(detail);
+  const isDetailTooLong = length > maxLength;
   const isDefaulted = injuryReturn === undefined || gameStakes === undefined;
-  const warnings: readonly ImportWarning[] = [
-    ...when(isDefaulted, { kind: 'context_defaulted' } as const),
-    ...when(isDetailTooLong, { kind: 'text_too_long_ignored', field: 'detail' } as const),
+  const warnings = [
+    ...when<ImportWarning>(isDefaulted, { kind: 'context_defaulted' }),
+    ...when<ImportWarning>(isDetailTooLong, {
+      kind: 'text_too_long_ignored',
+      field: 'detail',
+      length,
+      maxLength,
+    }),
   ];
   const value = {
     injuryReturn: injuryReturn ?? 'unknown',

@@ -84,8 +84,17 @@ export type {
 } from './research-result/check-sources';
 
 // research-result/messages.ts
+export { eventMessage } from './research-result/messages';
+export type {
+  EventAsRead,
+  EventProblem,
+  ImportMessage,
+  MessageContext,
+} from './research-result/messages';
 
 // research-result/correction-message.ts
+export { composeCorrectionMessage } from './research-result/correction-message';
+export type { CorrectionMessageInput } from './research-result/correction-message';
 
 // research-result/check-scope.ts
 export type {
@@ -102,6 +111,10 @@ export type {
   ResultTextChecks,
   ResultTextWarning,
 } from './research-result/check-leads-and-limitations';
+
+// research-result/result-messages.ts
+export { blockingErrorMessage, resultWarningMessage } from './research-result/result-messages';
+export type { BlockingError, ResultWarning } from './research-result/result-messages';
 
 // --- exploration/ ----------------------------------------------------------------
 
