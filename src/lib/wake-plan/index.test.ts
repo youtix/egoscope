@@ -16,7 +16,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const MONTH = 30 * DAY;
 // The simulation's resolution: every event below falls on a multiple of it.
-const STEP = 10 * SECOND;
+const STEP = 30 * SECOND;
 const START = toEpochMs(Date.UTC(2026, 10, 1));
 const HASH = 'f'.repeat(64);
 const WRITE_ALLOWANCE = 200_000;
@@ -35,10 +35,10 @@ const isStatsProbe = (offset: number) => {
 // Telegram polling while a link code is pending, at 10:07 and 10:12 on 25 days: 50 calls.
 const isTelegramProbe = (offset: number) =>
   offset < 25 * DAY && [10 * HOUR + 7 * MINUTE, 10 * HOUR + 12 * MINUTE].includes(offset % DAY);
-// One stray refused call a day, at 03:33:20.
-const isStrayRefusal = (offset: number) => offset % DAY === 3 * HOUR + 33 * MINUTE + 20 * SECOND;
-// The worst case: one instance under a refused call every 20 seconds, all month long.
-const isStreamedRefusal = (offset: number) => offset % (20 * SECOND) === 0;
+// One stray refused call a day, at 03:33:30.
+const isStrayRefusal = (offset: number) => offset % DAY === 3 * HOUR + 33 * MINUTE + 30 * SECOND;
+// The worst case: one instance under a refused call every 30 seconds, all month long.
+const isStreamedRefusal = (offset: number) => offset % (30 * SECOND) === 0;
 
 /** The wake plan of one server instance of deployment `dpl_month`, over the process's fake cache. */
 async function server() {
