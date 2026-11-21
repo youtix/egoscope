@@ -141,8 +141,20 @@ export type { PrecedenceSource } from './measured-game/precedence';
 // --- cases/ ----------------------------------------------------------------------
 
 // cases/case-state.ts
+export { caseState } from './cases/case-state';
+export type { CaseSeasons } from './cases/case-state';
+export type { CaseState } from './cases/case-state';
+export type { CaseStateEvent } from './cases/case-state';
+export type { CaseStateInput } from './cases/case-state';
+export type { CaseStatus } from './cases/case-state';
+export type { CaseStatusReason } from './cases/case-state';
+export type { MeasuredGameStatistics } from './cases/case-state';
 
 // cases/normalized-gap.ts
+export { normalizedGap } from './cases/normalized-gap';
+export type { GapBaseline } from './cases/normalized-gap';
+export type { GapStatus } from './cases/normalized-gap';
+export type { NormalizedGap } from './cases/normalized-gap';
 
 // cases/doubtful-criteria.ts
 export { doubtfulCaseCriteria } from './cases/doubtful-criteria';

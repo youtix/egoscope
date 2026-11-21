@@ -19,7 +19,9 @@ export type ReviewFlag = 'first_game_with_new_team' | 'ejection' | 'manual_decis
  * What the review flags of a case read: its measured game, the game its walk stopped at,
  * null when it reached none, with whether the source reports him ejected from that game,
  * null when it does not say, which the chosen source never does (CL-SEN-11); his team
- * games, from teamGames, in any order; and the case's manual decisions, in any order.
+ * games, from teamGames, in any order, reaching back to his previous game played before
+ * the measured game, the previous season included (CL-SEN-11); and the case's manual
+ * decisions, in any order.
  */
 export type ReviewFlagInput = Readonly<{
   measuredGame: Readonly<{ id: GameId; ejected: boolean | null }> | null;
