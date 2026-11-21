@@ -12,10 +12,14 @@
  *   machine.
  * - `no-ad-hoc-format`, in eslint-format-rule.ts: numbers and dates written by
  *   anything but the formatters of the wording and time modules (IHM-13).
+ * - `module-order` and `lot-boundary`, in eslint-module-order.ts: an import of a module
+ *   that comes later in the allowed order of the module map, and an import of Lot 2
+ *   from the code below the lot boundary (module map, section 1.2, rules 3 and 9).
  */
 import { AST_NODE_TYPES, AST_TOKEN_TYPES, ESLintUtils } from '@typescript-eslint/utils';
 
 import { noAdHocFormat } from './eslint-format-rule';
+import { lotBoundary, moduleOrder } from './eslint-module-order';
 import { noAmbientTime, noDefaultLocale, noLocalTime } from './eslint-time-rules';
 import { contextPart, vitestNames } from './vitest-names';
 
@@ -258,6 +262,8 @@ const noSkippedTests = createRule({
 });
 
 const rules = {
+  'lot-boundary': lotBoundary,
+  'module-order': moduleOrder,
   'no-ad-hoc-format': noAdHocFormat,
   'no-ambient-time': noAmbientTime,
   'no-coverage-hints': noCoverageHints,

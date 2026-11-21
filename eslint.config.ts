@@ -951,6 +951,27 @@ const composed = defineConfig(
     },
   },
 
+  // --- Module order and lot boundary (module map, section 1.2, rules 3 and 9) -----
+  {
+    // A module imports only the modules before it in the allowed order of section 1.3,
+    // and nothing below the lot boundary imports Lot 2 (ADR 0001); the routes may
+    // import any module (scripts/eslint-module-order.ts).
+    name: 'egoscope/module-order',
+    files: [`src/lib/**/*.${TS}`],
+    rules: {
+      'egoscope/module-order': 'error',
+      'egoscope/lot-boundary': 'error',
+    },
+  },
+  {
+    // Tests may also import the shared test support (module map, section 1.1).
+    name: 'egoscope/module-order/tests',
+    files: [`src/lib/**/*.test.${TS}`],
+    rules: {
+      'egoscope/module-order': ['error', { allowTestSupport: true }],
+    },
+  },
+
   {
     // Coverage leaves route shells out (scripts/route-shells.ts), so lint keeps them
     // thin: SHELL_SYNTAX refuses loops, top-level helpers and stray exports, and
