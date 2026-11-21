@@ -44,8 +44,9 @@ function submitOwnForm(event: MouseEvent<HTMLButtonElement>): void {
  * Asks before a Form's submission: a button opens a dialog that asks the question
  * and says what follows, and only its confirm button submits the form; Cancel,
  * where the focus starts, or Escape closes it without acting. With `secondStep`,
- * the question is asked twice, the focus moving to the second one. Renders only
- * inside a Form, whose fields, errors and kept input it shares.
+ * the question is asked twice, the focus moving to the second one, as erasing a
+ * player's data asks (JOU-24). Every button says what it does (IHM-62). Renders
+ * only inside a Form, whose fields, errors and kept input it shares.
  */
 export function ConfirmDialog({
   triggerLabel,

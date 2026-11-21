@@ -94,10 +94,13 @@
    * iOS sizes web text by its own Dynamic Type setting only through this system
    * font, so the root size, and every rem with it, follows the phone (IHM-60). The
    * touch-callout test keeps desktop Safari, where the same font is smaller, out.
+   * The shorthand also resets the line height, which gets back the one of every
+   * other platform.
    */
   @supports (font: -apple-system-body) and (-webkit-touch-callout: none) {
     html {
       font: -apple-system-body;
+      line-height: 1.5;
     }
   }
 

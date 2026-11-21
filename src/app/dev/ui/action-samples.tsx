@@ -11,6 +11,8 @@ import {
   TextLink,
 } from '@/lib/ui';
 
+import { PendingSample } from './form-samples';
+
 import type { ReactNode } from 'react';
 
 // An outside address, as the research tool's is (IHM-44).
@@ -26,7 +28,7 @@ const SAMPLE_TEXT = [
   'A_single_token_without_any_space_that_would_push_the_column_sideways_if_it_did_not_break_anywhere',
 ].join('\n');
 
-/** Every kind of action, in each of its states. */
+/** Every kind of action, in each of its states: available, unavailable, and waiting for its action. */
 export function ButtonSamples(): ReactNode {
   return (
     <div className="flex flex-col gap-4">
@@ -37,6 +39,7 @@ export function ButtonSamples(): ReactNode {
         <Button label="Later" variant="quiet" />
       </div>
       <Button label="Save" variant="primary" disabledReason="Saving needs a connection." />
+      <PendingSample />
       <div className="flex flex-wrap gap-3">
         <LinkButton href="/" label="Open Home" variant="primary" />
         <LinkButton href={OUTSIDE} label="Open the outside tool" />

@@ -16,7 +16,8 @@ export type NoticeProps = Readonly<{
  * The result of an action, where the action was taken: saved, refused, copied.
  * Render it before any result, with no message: screen readers announce the
  * changes of a region that was already there, so the message is heard when it
- * comes, and the empty region takes no room.
+ * comes, and the empty region takes no room. The message says the result in
+ * words, which its tone's color and icon only add to (IHM-61).
  */
 export function Notice({ tone, message }: NoticeProps): ReactNode {
   return (

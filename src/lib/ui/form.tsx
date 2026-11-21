@@ -11,7 +11,12 @@ import type { ReactNode, SubmitEvent } from 'react';
 export type FormProps = Readonly<{
   /** The action: a Server Action, or the dispatch function that `useActionState` returns for one. */
   action: (formData: FormData) => void | Promise<void>;
-  /** The error of each field that the last submission refused, by field name, in the order of the fields. */
+  /**
+   * The error of each field that the last submission refused, by field name, in the
+   * order of the fields. The summary takes the focus whenever a new object arrives,
+   * so pass the action state's own object, never one built anew at each render,
+   * which would pull the focus to the summary at every keystroke.
+   */
   errors?: FieldErrors | undefined;
   /** One message about the last submission as a whole, such as a server error that no field explains. */
   message?: string | undefined;

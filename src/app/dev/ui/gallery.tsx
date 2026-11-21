@@ -1,6 +1,6 @@
 import { useId } from 'react';
 
-import { PageHeader } from '@/lib/ui';
+import { LinkButton, PageHeader } from '@/lib/ui';
 
 import { ButtonSamples, NoticeSamples, TextSamples } from './action-samples';
 import { BlockSamples, ListSamples } from './content-samples';
@@ -35,6 +35,7 @@ export function Gallery(): ReactNode {
       <PageHeader
         title="Component gallery"
         description="Every component of the design system, in each of its states."
+        actions={<LinkButton href="/" label="Back to Home" />}
       />
       <Section title="Actions">
         <ButtonSamples />

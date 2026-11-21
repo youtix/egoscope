@@ -23,7 +23,8 @@ export type DialogProps = Readonly<{
 /**
  * A modal dialog that a button opens: the focus moves into it and stays there,
  * Escape and its close button close it, and the focus then returns to the button
- * that opened it. Screen readers name it by its title.
+ * that opened it. Screen readers name it by its title, and its close button by
+ * its label (IHM-61, IHM-62).
  */
 export function Dialog({
   triggerLabel,

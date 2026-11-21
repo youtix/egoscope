@@ -84,7 +84,10 @@ export function BlockSamples(): ReactNode {
   );
 }
 
-/** The table, the tabs, the paged list with its filter and its pages, and an empty one. */
+/**
+ * The table, the tabs, the paged list with its filter and its pages, the first and
+ * the last slice of a list, and an empty list.
+ */
 export function ListSamples(): ReactNode {
   return (
     <div className="flex flex-col gap-6">
@@ -112,6 +115,16 @@ export function ListSamples(): ReactNode {
             next={{ href: '/dev/ui?page=3', label: 'Next page' }}
           />
         }
+      />
+      <Pagination
+        label="The first slice"
+        status="Page 1 of 3"
+        next={{ href: '/dev/ui?page=2', label: 'Next page' }}
+      />
+      <Pagination
+        label="The last slice"
+        status="Page 3 of 3"
+        previous={{ href: '/dev/ui?page=2', label: 'Previous page' }}
       />
       <PagedList
         label="Closed samples"

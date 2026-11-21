@@ -22,7 +22,8 @@ export type FormFieldProps = Readonly<{
 /**
  * A labeled field: its label, its hint, the error that its form holds for it and
  * its control, which screen readers name by the label and describe by the hint and
- * the error. Inside a Form, the error summary links to the control.
+ * the error (IHM-62), and whose error is written, never shown by color alone
+ * (IHM-61). Inside a Form, the error summary links to the control.
  */
 export function FormField({
   name,

@@ -9,7 +9,10 @@ export type PageHeaderProps = Readonly<{
   actions?: ReactNode;
 }>;
 
-/** The top of a screen: its title, what it is about, and its main actions within a thumb's reach. */
+/**
+ * The top of a screen: its title, what it is about, and its main actions within a
+ * thumb's reach, in one column on a phone (IHM-01).
+ */
 export function PageHeader({ title, description, actions }: PageHeaderProps): ReactNode {
   return (
     <header className="flex flex-col gap-3">

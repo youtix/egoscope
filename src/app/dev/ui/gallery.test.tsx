@@ -12,6 +12,7 @@ describe('Gallery', () => {
     render(<Gallery />);
 
     expect(screen.getByRole('heading', { level: 1, name: 'Component gallery' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Back to Home' })).toHaveAttribute('href', '/');
     expect(
       screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent),
     ).toStrictEqual([
@@ -35,8 +36,17 @@ describe('Gallery', () => {
       within(actions)
         .getAllByRole('button')
         .map((button) => button.textContent),
-    ).toStrictEqual(['Main action', 'Other action', 'Erase', 'Later', 'Save']);
+    ).toStrictEqual([
+      'Main action',
+      'Other action',
+      'Erase',
+      'Later',
+      'Save',
+      'Send the sample',
+      'End the wait',
+    ]);
     expect(within(actions).getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(within(actions).getByRole('button', { name: 'Send the sample' })).toBeEnabled();
     expect(
       within(actions)
         .getAllByRole('link')
@@ -71,6 +81,18 @@ describe('Gallery', () => {
     expect(within(lists).getByRole('list', { name: 'Samples' })).toBeVisible();
     expect(within(lists).getByRole('navigation', { name: 'Pages of the samples' })).toBeVisible();
     expect(within(lists).getByRole('heading', { name: 'No closed sample' })).toBeVisible();
+  });
+
+  it('shows the first and the last slice of a list, each with its one link', () => {
+    render(<Gallery />);
+
+    const lists = screen.getByRole('region', { name: 'Lists' });
+    const slices = ['The first slice', 'The last slice'].map((name) =>
+      within(within(lists).getByRole('navigation', { name }))
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    );
+    expect(slices).toStrictEqual([['Next page'], ['Previous page']]);
   });
 
   it('[IHM-61] passes the WCAG 2.2 AA rules as a whole', async () => {
