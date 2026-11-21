@@ -8,6 +8,7 @@
 // module's.
 
 import type { EpochMs, GameId } from '../types';
+import type { CaseStatus } from './case-state';
 
 /**
  * A manual decision as the engine reads it (SEN-17, CL-SEN-12): its id, which orders two
@@ -20,9 +21,6 @@ export type ManualDecision = Readonly<{
   decidedAt: EpochMs;
   measuredGameId: GameId;
 }>;
-
-/** The state of a case (SEN-07), as it is stored. */
-type CaseStatus = 'awaiting_game' | 'excluded' | 'measured' | 'not_measurable';
 
 /**
  * A case as its manual decisions read it: the status that its automatic rules give it
@@ -62,7 +60,10 @@ export function latestDecision<D extends ManualDecision>(decisions: readonly D[]
 /**
  * The decision that rules a case on its measured game `measuredGameId` (SEN-17,
  * CL-SEN-12): the latest of its `decisions` made on that game, whatever was decided on
- * another game since; null when none was, as for a case whose walk reached no game.
+ * another game since; null when none was, as for a case whose walk reached no game. It
+ * reads no status, while applyManualDecisions returns no decision for a case awaiting its
+ * game or not measurable: a page shows the decision in force from applyManualDecisions'
+ * result.
  */
 export function effectiveDecision<D extends ManualDecision>(
   decisions: readonly D[],
