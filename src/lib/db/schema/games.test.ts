@@ -489,8 +489,8 @@ describe('the league tables', { timeout: 60_000 }, () => {
     await expect(allStar).rejects.toMatchObject(violationOf('seasons_phases_with_lines_check'));
   });
 
-  it.each(['2024-2025', '24-25', '2024/25', 'season 2024-25'])(
-    '[CL-STA-28] refuses the season label %s, which is not written 2024-25',
+  it.each(['2024-2025', '24-25', '2024/25', 'season 2024-25', '2024-23', '2024-24', '1999-01'])(
+    '[CL-STA-28] refuses the season label %s, which is no season written 2024-25',
     async (season) => {
       const insert = db.insert(seasons).values({ ...SOURCE, season });
 

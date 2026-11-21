@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, pgTable, smallint, text } from 'drizzle-orm/pg-core';
 
-import { oneOf, timestamptz } from './builders';
+import { notBlank, oneOf, timestamptz } from './builders';
 
 import type { AnyPgColumn, CheckBuilder } from 'drizzle-orm/pg-core';
 
@@ -84,14 +84,16 @@ function stateChecks(table: StateColumns): CheckBuilder[] {
       sql`(${table.status} = 'withdrawn') = (${table.withdrawalReasonKind} IS NOT NULL)`,
     ),
     // The converse, that a type merged into another names it, is the taxonomy
-    // service's: a restore loads merged_into_type_id in a second pass.
+    // service's: a restore loads merged_into_type_id in a second pass. Compared with
+    // IS NOT DISTINCT FROM, a type that is not withdrawn has no reason kind to let a
+    // merge or a reason through.
     check(
       'event_types_merged_into_check',
-      sql`${table.mergedIntoTypeId} IS NULL OR ${table.withdrawalReasonKind} = 'merged_into'`,
+      sql`${table.mergedIntoTypeId} IS NULL OR ${table.withdrawalReasonKind} IS NOT DISTINCT FROM 'merged_into'`,
     ),
     check(
       'event_types_entered_reason_check',
-      sql`(${table.withdrawalReasonKind} = 'entered') = (${table.withdrawalReason} IS NOT NULL)`,
+      sql`(${table.withdrawalReasonKind} IS NOT DISTINCT FROM 'entered') = (${table.withdrawalReason} IS NOT NULL)`,
     ),
     check(
       'event_types_coverage_threshold_check',
@@ -156,7 +158,7 @@ export const eventTypes = pgTable(
     ),
     check('event_types_status_check', oneOf(table.status, EVENT_TYPE_STATUSES)),
     check('event_types_origin_check', oneOf(table.origin, EVENT_TYPE_ORIGINS)),
-    check('event_types_name_check', sql`btrim(${table.name}) <> ''`),
+    check('event_types_name_check', notBlank(table.name)),
     check(
       'event_types_calendar_derivation_check',
       oneOf(table.calendarDerivation, CALENDAR_DERIVATIONS),

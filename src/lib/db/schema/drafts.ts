@@ -2,7 +2,9 @@ import { sql } from 'drizzle-orm';
 import { check, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 import { outsideArchive } from './archive';
+import { backtestRequests } from './backtests';
 import { oneOf, timestamptz } from './builders';
+import { eventTypes } from './taxonomy';
 
 // DraftKind (IHM-42, DSN-32).
 const DRAFT_KINDS = ['research_result', 'exploration_response'] as const;
@@ -19,10 +21,13 @@ export const drafts = outsideArchive(
     {
       id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
       kind: text('kind', { enum: DRAFT_KINDS }).notNull(),
-      // The deferred foreign keys to the domain tables come with those tables: ON
-      // DELETE CASCADE, so that a draft goes with its request or its proposal.
-      backtestRequestId: integer('backtest_request_id'),
-      explorationEventTypeId: text('exploration_event_type_id'),
+      // A draft goes with its request or its proposal.
+      backtestRequestId: integer('backtest_request_id').references(() => backtestRequests.id, {
+        onDelete: 'cascade',
+      }),
+      explorationEventTypeId: text('exploration_event_type_id').references(() => eventTypes.id, {
+        onDelete: 'cascade',
+      }),
       text: text('text').notNull(),
       updatedAt: timestamptz('updated_at').notNull().defaultNow(),
       originDevice: text('origin_device').notNull(),

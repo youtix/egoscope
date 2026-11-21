@@ -11,7 +11,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-import { oneOf, timestamptz } from './builders';
+import { notBlank, oneOf, timestamptz } from './builders';
 import { games, teams } from './games';
 
 // PlayerStatus (JOU-15).
@@ -54,7 +54,7 @@ export const followedPlayers = pgTable(
     rowVersion: integer('row_version').notNull().default(1),
   },
   (table) => [
-    check('followed_players_display_name_check', sql`btrim(${table.displayName}) <> ''`),
+    check('followed_players_display_name_check', notBlank(table.displayName)),
     check('followed_players_status_check', oneOf(table.status, PLAYER_STATUSES)),
     check('followed_players_birthday_month_check', sql`${table.birthdayMonth} BETWEEN 1 AND 12`),
     // The longest day of each month, 29 February included (CL-JOU-17).
@@ -93,7 +93,7 @@ export const playerNameVariants = pgTable(
   },
   (table) => [
     check('player_name_variants_kind_check', oneOf(table.kind, NAME_VARIANT_KINDS)),
-    check('player_name_variants_text_check', sql`btrim(${table.text}) <> ''`),
+    check('player_name_variants_text_check', notBlank(table.text)),
     unique('player_name_variants_player_normalized_key').on(table.playerId, table.normalizedText),
     index('player_name_variants_normalized_idx').on(table.normalizedText),
   ],

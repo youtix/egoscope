@@ -1,8 +1,12 @@
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
 
+import { backtestRequests } from './backtests';
 import { oneOf, timestamptz } from './builders';
+import { events } from './events';
+import { games } from './games';
 import { incidents } from './incidents';
+import { eventTypes } from './taxonomy';
 
 import type { SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
@@ -39,12 +43,15 @@ export const outboxFacts = pgTable(
   {
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     kind: text('kind', { enum: OUTBOX_FACT_KINDS }).notNull(),
-    // The deferred foreign keys to the domain tables come with those tables: ON
-    // DELETE CASCADE for the request and the event, RESTRICT for the game and the type.
-    backtestRequestId: integer('backtest_request_id'),
-    deadlineGameId: integer('deadline_game_id'),
-    playerEventId: integer('player_event_id'),
-    eventTypeId: text('event_type_id'),
+    // A fact goes with its request or its event; a game or a type is never deleted.
+    backtestRequestId: integer('backtest_request_id').references(() => backtestRequests.id, {
+      onDelete: 'cascade',
+    }),
+    deadlineGameId: integer('deadline_game_id').references(() => games.id, {
+      onDelete: 'restrict',
+    }),
+    playerEventId: integer('player_event_id').references(() => events.id, { onDelete: 'cascade' }),
+    eventTypeId: text('event_type_id').references(() => eventTypes.id, { onDelete: 'restrict' }),
     incidentId: integer('incident_id').references(() => incidents.id, { onDelete: 'cascade' }),
     lot2SubjectId: integer('lot2_subject_id'),
     passId: uuid('pass_id'),

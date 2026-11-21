@@ -309,6 +309,25 @@ describe('the tables that hang off an event type', { timeout: 60_000 }, () => {
     await expect(db.select().from(typeIllustrationSources)).resolves.toStrictEqual([]);
   });
 
+  it.each([
+    ['a time without its offset', { publicationAt: ARTICLE.articlePublishedAt }],
+    ['an offset without its time', { publicationOffsetMinutes: -300 }],
+  ])('[CL-IMP-09] refuses an illustration source dated with %s', async (_case, date) => {
+    await db.insert(eventTypes).values(PROPOSAL);
+
+    const insert = db.insert(typeIllustrationSources).values({
+      eventTypeId: PROPOSAL.id,
+      position: 1,
+      url: 'https://news.example.org/a',
+      publicationDateOn: '2026-11-17',
+      ...date,
+    });
+
+    await expect(insert).rejects.toMatchObject(
+      violationOf('type_illustration_sources_publication_check'),
+    );
+  });
+
   it('[VUE-04] attaches each fact of a type to exactly one followed player, and to none once he is deleted', async () => {
     await db.insert(eventTypes).values({ ...PROPOSAL, origin: 'detection' });
     const [player] = await db.insert(followedPlayers).values(PLAYER).returning();

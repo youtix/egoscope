@@ -525,14 +525,27 @@ describe('the tables of the followed players statistics', { timeout: 60_000 }, (
     );
   });
 
-  it('[CL-STA-28] refuses a candidate whose first or last season is not written 2024-25', async () => {
+  it('[CL-STA-28] refuses a candidate whose first or last season is not written 2024-25, or runs backwards', async () => {
     await db.insert(statsSourceMappings).values({ playerId, ...SOURCE });
 
     const first = db.insert(mappingCandidates).values({ ...CANDIDATE, firstSeason: '2019-2020' });
     const last = db.insert(mappingCandidates).values({ ...CANDIDATE, lastSeason: '25' });
+    // The second year of a season follows the first.
+    const firstBackwards = db
+      .insert(mappingCandidates)
+      .values({ ...CANDIDATE, firstSeason: '2024-23' });
+    const lastBackwards = db
+      .insert(mappingCandidates)
+      .values({ ...CANDIDATE, lastSeason: '2024-23' });
 
     await expect(first).rejects.toMatchObject(violationOf('mapping_candidates_first_season_check'));
     await expect(last).rejects.toMatchObject(violationOf('mapping_candidates_last_season_check'));
+    await expect(firstBackwards).rejects.toMatchObject(
+      violationOf('mapping_candidates_first_season_check'),
+    );
+    await expect(lastBackwards).rejects.toMatchObject(
+      violationOf('mapping_candidates_last_season_check'),
+    );
   });
 
   it('[CL-JOU-06] deletes the mapping, candidates, lines, corrections and indicators of a player with him', async () => {

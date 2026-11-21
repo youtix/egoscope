@@ -22,6 +22,13 @@
       "when": 1795171865139,
       "tag": "0002_players_games_and_event_types",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795185615623,
+      "tag": "0003_events_backtests_imports_and_sensitivity",
+      "breakpoints": true
     }
   ]
 }

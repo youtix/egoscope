@@ -1,9 +1,14 @@
 import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 
+import { backtestRequests, imports } from './backtests';
 import { oneOf, timestamptz } from './builders';
+import { events } from './events';
 import { incidents } from './incidents';
+import { followedPlayers } from './players';
 import { taskRuns } from './scheduler';
+import { cases } from './sensitivity';
+import { eventTypes } from './taxonomy';
 
 // JournalEntryCategory (TRV-41, TEL-34, CL-TRV-25).
 const JOURNAL_ENTRY_CATEGORIES = [
@@ -33,8 +38,8 @@ const LOT2_OBJECT_KINDS = [
  * The activity journal (TRV-41): a fixed message key and references by
  * identifier, the text built when the entry is displayed or exported, so that an
  * erased item's references disappear at once (CL-TRV-10). An entry about an event
- * names it alone, and one about a case names neither its player nor its type: the
- * display reads them through the event or the case.
+ * names it alone, and one about a case names neither its player, its type, a request
+ * nor an import: the display reads them through the event or the case.
  */
 export const journalEntries = pgTable(
   'journal_entries',
@@ -45,14 +50,17 @@ export const journalEntries = pgTable(
     level: text('level', { enum: JOURNAL_LEVELS }).notNull(),
     messageKey: text('message_key').notNull(),
     messageParams: jsonb('message_params').notNull().default({}),
-    // The deferred foreign keys to the domain tables come with those tables:
-    // ON DELETE SET NULL for each of these references, RESTRICT for the event type.
-    playerId: uuid('player_id'),
-    playerEventId: integer('player_event_id'),
-    eventTypeId: text('event_type_id'),
-    backtestRequestId: integer('backtest_request_id'),
-    importId: integer('import_id'),
-    caseId: integer('case_id'),
+    // An erased item's reference becomes null at once; a type is never deleted.
+    playerId: uuid('player_id').references(() => followedPlayers.id, { onDelete: 'set null' }),
+    playerEventId: integer('player_event_id').references(() => events.id, {
+      onDelete: 'set null',
+    }),
+    eventTypeId: text('event_type_id').references(() => eventTypes.id, { onDelete: 'restrict' }),
+    backtestRequestId: integer('backtest_request_id').references(() => backtestRequests.id, {
+      onDelete: 'set null',
+    }),
+    importId: integer('import_id').references(() => imports.id, { onDelete: 'set null' }),
+    caseId: integer('case_id').references(() => cases.id, { onDelete: 'set null' }),
     incidentId: integer('incident_id').references(() => incidents.id, { onDelete: 'set null' }),
     taskRunId: integer('task_run_id').references(() => taskRuns.id, { onDelete: 'set null' }),
     lot2ObjectKind: text('lot2_object_kind', { enum: LOT2_OBJECT_KINDS }),
@@ -72,7 +80,7 @@ export const journalEntries = pgTable(
     ),
     check(
       'journal_entries_case_reference_check',
-      sql`${table.caseId} IS NULL OR (${table.playerId}, ${table.eventTypeId}) IS NULL`,
+      sql`${table.caseId} IS NULL OR (${table.playerId}, ${table.eventTypeId}, ${table.backtestRequestId}, ${table.importId}) IS NULL`,
     ),
     index('journal_entries_occurred_idx').on(table.occurredAt),
     index('journal_entries_category_idx').on(table.category, table.occurredAt),

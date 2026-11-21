@@ -178,6 +178,35 @@ describe('the players tables', { timeout: 60_000 }, () => {
     expect(new Set(ids.map((row) => row.id)).size).toBe(2);
   });
 
+  it.each([
+    ['tabs', '\t\t'],
+    ['line breaks', ' \r\n'],
+    ['a vertical tab and a form feed', '\v\f'],
+    ['non-breaking spaces', String.fromCodePoint(0xa0, 0x20_2f)],
+    ['typographic and ideographic spaces', String.fromCodePoint(0x20_02, 0x20_09, 0x30_00)],
+    ['line and paragraph separators', String.fromCodePoint(0x85, 0x20_28, 0x20_29)],
+    ['a byte order mark', String.fromCodePoint(0xfe_ff)],
+  ])('refuses a display name or a name variant made of %s alone', async (_spaces, text) => {
+    const playerId = await followPlayer(db);
+
+    const name = db.insert(followedPlayers).values({ ...PLAYER, displayName: text });
+    const variant = db
+      .insert(playerNameVariants)
+      .values({ playerId, kind: 'nickname', text, normalizedText: 'blank' });
+
+    await expect(name).rejects.toMatchObject(violationOf('followed_players_display_name_check'));
+    await expect(variant).rejects.toMatchObject(violationOf('player_name_variants_text_check'));
+  });
+
+  it('keeps a name that holds white space beside its letters, as typed', async () => {
+    const displayName = `\tTobin${String.fromCodePoint(0xa0)}Marlowe\n`;
+    await db.insert(followedPlayers).values({ ...PLAYER, displayName });
+
+    await expect(
+      db.select({ displayName: followedPlayers.displayName }).from(followedPlayers),
+    ).resolves.toStrictEqual([{ displayName }]);
+  });
+
   it('accepts each player status of the glossary, and refuses another or a blank name', async () => {
     const statuses = ['active', 'paused', 'withdrawn'] as const;
     await db.insert(followedPlayers).values(statuses.map((status) => ({ ...PLAYER, status })));

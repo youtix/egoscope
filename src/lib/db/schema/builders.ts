@@ -36,3 +36,20 @@ export function oneOf(column: PgColumn, values: readonly string[]): SQL {
 export function subsetOf(column: PgColumn, values: readonly string[]): SQL {
   return sql`${column} <@ ARRAY[${literals(values)}]`;
 }
+
+// White space of every kind, as escapes of a regular expression: the tab, the line
+// breaks and the space, then the Unicode spaces and separators, the non-breaking
+// ones and the byte order mark included.
+const WHITE_SPACE = String.raw`\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff`;
+// A character other than white space, as an SQL literal of a regular expression.
+const NOT_ONLY_WHITE_SPACE = sql.raw(`'[^${WHITE_SPACE}]'`);
+
+/**
+ * The condition of a CHECK that `column` holds something other than white space,
+ * of whatever kind: btrim removes spaces only, so a text of tabs or line breaks
+ * alone would pass it. A player's name, a name variant and a type's name are
+ * never blank (JOU-08, JOU-09, TAX-01).
+ */
+export function notBlank(column: PgColumn): SQL {
+  return sql`${column} ~ ${NOT_ONLY_WHITE_SPACE}`;
+}

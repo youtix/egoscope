@@ -1,7 +1,7 @@
 import { getTableConfig, PgDialect, pgTable, text } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
-import { bytea, oneOf, subsetOf, timestamptz } from './builders';
+import { bytea, notBlank, oneOf, subsetOf, timestamptz } from './builders';
 
 import type { SQL } from 'drizzle-orm';
 
@@ -27,6 +27,12 @@ describe('the schema builders', () => {
   it('hold every element of an array column to the values of a stored set', () => {
     expect(sqlOf(subsetOf(probes.causes, ['limit_reached', 'not_answering']))).toBe(
       `"probes"."causes" <@ ARRAY['limit_reached', 'not_answering']`,
+    );
+  });
+
+  it('hold a text to a character other than white space of any kind, which btrim alone misses', () => {
+    expect(sqlOf(notBlank(probes.kind))).toBe(
+      String.raw`"probes"."kind" ~ '[^\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]'`,
     );
   });
 
