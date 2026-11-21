@@ -57,11 +57,11 @@ export type CaseStateEvent =
 /**
  * What the state of a case reads of the seasons (STA-45, STA-48, CL-STA-22, CL-STA-30).
  * The source's first season, as the stats-source port gives it (1993-94 for the chosen
- * source); the spans of the seasons whose schedule is stored (seasonSpan); the seasons
- * whose games have been read, `coverage_fetched_at` set, each with whether one of its
- * games has player lines, `phases_with_lines` not empty (games-and-statistics 1.10); and,
- * between seasons, the coming season while the source has not published its schedule,
- * null otherwise.
+ * source); the spans of the seasons whose schedule is stored (seasonSpan), in any order;
+ * the seasons whose games have been read, `coverage_fetched_at` set, in any order, each
+ * with whether one of its games has player lines, `phases_with_lines` not empty
+ * (games-and-statistics 1.10); and, between seasons, the coming season while the source
+ * has not published its schedule, null otherwise.
  */
 export type CaseSeasons = Readonly<{
   firstCoveredSeason: string;
@@ -182,6 +182,7 @@ function seasonReadingOf(dayOn: IsoDate, seasons: CaseSeasons): SeasonReading | 
     return 'not_covered';
   }
   const found = seasonOfDate(dayOn, seasons.spans);
+  // Stryker disable next-line ConditionalExpression,BlockStatement: season_not_read carries no season, so without this check no read or unpublished season matches it and the lookups below return 'to_read' as well
   if (!found.ok) {
     return 'to_read';
   }

@@ -120,17 +120,19 @@ const byGame = (gameId: GameId): MeasuredGameStatistics =>
 const FIRST_SPAN = { season: '1993-94', firstGameOn: '1993-11-05', lastGameOn: '1994-06-22' };
 const OPEN_SPAN: SeasonSpan = { season: '2023-24', firstGameOn: '2023-10-24', lastGameOn: null };
 const CLOSED_SPAN: SeasonSpan = { ...OPEN_SPAN, lastGameOn: '2024-06-17' };
-// 2023-24 read and covered, in progress.
+// The first season read, then 2023-24 read and covered, in progress; spans and seasons
+// come in any order, the first season's last.
+const FIRST_READ = { season: '1993-94', hasPlayerLines: true };
 const SEASONS: CaseSeasons = {
   firstCoveredSeason: '1993-94',
-  spans: [FIRST_SPAN, OPEN_SPAN],
-  readSeasons: [{ season: '2023-24', hasPlayerLines: true }],
+  spans: [OPEN_SPAN, FIRST_SPAN],
+  readSeasons: [FIRST_READ, { season: '2023-24', hasPlayerLines: true }],
   unpublishedSeason: null,
 };
-const UNREAD: CaseSeasons = { ...SEASONS, readSeasons: [] };
-const WITHOUT_LINES = [{ season: '2023-24', hasPlayerLines: false }];
+const UNREAD: CaseSeasons = { ...SEASONS, readSeasons: [FIRST_READ] };
+const WITHOUT_LINES = [FIRST_READ, { season: '2023-24', hasPlayerLines: false }];
 // 2023-24 over, its games read, none of them with player lines.
-const NOT_COVERED = { ...SEASONS, spans: [FIRST_SPAN, CLOSED_SPAN], readSeasons: WITHOUT_LINES };
+const NOT_COVERED = { ...SEASONS, spans: [CLOSED_SPAN, FIRST_SPAN], readSeasons: WITHOUT_LINES };
 
 /** A historical event's case on game 1, played, with every rule before the walk passed. */
 const inputOf = (overrides: Partial<CaseStateInput> = {}): CaseStateInput => ({
@@ -268,7 +270,6 @@ describe('caseState', () => {
     const firstGameDay = { origin: 'historical', referenceDayOn: '1993-11-05' } as const;
     const old = inputOf({
       event: firstGameDay,
-      seasons: { ...SEASONS, readSeasons: [{ season: '1993-94', hasPlayerLines: true }] },
       statisticsOf: () => ({ ...COMPLETE, baseline: partial }),
     });
     const dayBefore = { ...old, event: { ...firstGameDay, referenceDayOn: '1993-11-04' } };
