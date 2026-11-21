@@ -6,10 +6,10 @@
 // are counted across seasons and trades under his membership, none while he has no team
 // (CL-STA-05). No cause of absence is read, since none is ever stored (JOU-21).
 
-import { seasonOfDate } from './seasons';
-import { teamGames } from './team-membership';
 import { verifyBoxScore } from '../performance/box-score';
 import { participationOf } from '../performance/participation';
+import { seasonOfDate } from './seasons';
+import { teamGames } from './team-membership';
 
 import type { GameId, IsoDate } from '../types';
 import type { SeasonNotRead, SeasonOfDateResult, SeasonSpan } from './seasons';

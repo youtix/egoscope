@@ -6,10 +6,10 @@
 // team games feed the attachment walk (SEN-03), the absence counts (STA-46, SEN-13) and
 // the calendar derivation (CL-TAX-18).
 
-import { byScheduledStart, isCounted } from './series';
-import { hasTeam } from './team-record';
 import { verifyBoxScore } from '../performance/box-score';
 import { participationOf } from '../performance/participation';
+import { byScheduledStart, isCounted } from './series';
+import { hasTeam } from './team-record';
 
 import type { BoxScoreLine } from '../performance/box-score';
 import type { Participation } from '../performance/participation';

@@ -1,9 +1,9 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { groupCases } from './grouping';
 import { attachToMeasuredGame } from '../measured-game/attachment';
 import { tallyProfile } from '../profiles/tally';
+import { groupCases } from './grouping';
 
 import type {
   Attachment,

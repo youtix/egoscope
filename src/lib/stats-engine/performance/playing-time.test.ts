@@ -6,9 +6,9 @@ import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 import { verifyBoxScore } from './box-score';
 import { classifyGame, playingTimeThreshold } from './playing-time';
 
+import type { EngineParams } from '../types';
 import type { BoxScoreCheck, BoxScoreLine } from './box-score';
 import type { PlayerGame } from './playing-time';
-import type { EngineParams } from '../types';
 
 // The registry's defaults: a 15-minute floor and 50 % of the average (STA-14). JSON gives
 // the baseline phase as a string, which the comparison narrows to a BaselinePhase

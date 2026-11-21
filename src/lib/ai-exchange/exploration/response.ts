@@ -13,6 +13,8 @@
 import { canonicalValue, isAbsent, valuesOf } from '../conventions';
 import { extractJson } from '../extract-json';
 import { checkPastedTextSize } from '../pasted-text-size';
+import { BACKTEST_FORMAT } from '../research-result/format';
+import { hasPossibleCitationMarker } from '../research-result/text-signals';
 import {
   DIFFICULTIES,
   EXPLORATION_FORMAT,
@@ -21,8 +23,6 @@ import {
   RESPONSE_KEYS,
   SOURCE_KEYS,
 } from './format';
-import { BACKTEST_FORMAT } from '../research-result/format';
-import { hasPossibleCitationMarker } from '../research-result/text-signals';
 
 import type { ExtractJsonError, JsonPath } from '../extract-json';
 

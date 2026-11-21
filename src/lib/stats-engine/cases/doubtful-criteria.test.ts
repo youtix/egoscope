@@ -3,15 +3,15 @@ import { describe, expect, it } from 'vitest';
 
 import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 
-import { doubtfulCaseCriteria } from './doubtful-criteria';
 import { attachToMeasuredGame } from '../measured-game/attachment';
+import { doubtfulCaseCriteria } from './doubtful-criteria';
 
-import type { ContextIndications, DoubtfulCaseCriteriaInput as Input } from './doubtful-criteria';
 import type { Attachment, AttachmentEvent } from '../measured-game/attachment';
 import type { Participation } from '../performance/participation';
 import type { TeamGame } from '../schedule/team-membership';
 import type { GamePhase, ScheduleGame } from '../schedule/team-record';
 import type { EngineParams } from '../types';
+import type { ContextIndications, DoubtfulCaseCriteriaInput as Input } from './doubtful-criteria';
 
 // The registry's defaults. For a return from injury, a run of 4 team games missed, then the
 // first 2 games played (SEN-13); for the opponent, shares of 25 % and 75 % of at least 10
