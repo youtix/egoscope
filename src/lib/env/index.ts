@@ -1,5 +1,11 @@
+export { activeLot, adapterFor } from './adapters';
+export type { AdapterKind } from './adapters';
 export { checkFakesSwitch, isHermetic } from './hermetic';
 export type { FakesSwitchCheck, FakesSwitchError } from './hermetic';
+export { deploymentId, hostCheck } from './host';
+export type { HostCheck, HostCheckError } from './host';
+export type { Secret } from './secret-value';
+export { isSecret, redact } from './secrets';
+export type { Redacted } from './secrets';
 export { parseServerEnv, readServerEnv } from './server-env';
-export type { Secret } from './secrets';
-export type { ServerEnv, ServerEnvError, ServerEnvResult } from './server-env';
+export type { Lot, Port, ServerEnv, ServerEnvError, ServerEnvResult } from './server-env';

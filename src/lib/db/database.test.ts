@@ -46,27 +46,8 @@ vi.mock(import('./pglite'), async (importOriginal) => {
 
 type Server = Readonly<{ url: string; connections: () => number }>;
 
-// Where the shell's connection strings lead in these tests: a port where nothing listens.
-const SHELL_DATABASE_URL = 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full';
 // Where every copy of the module keeps the databases that the process opened.
 const OPENED_DATABASES = Symbol.for('egoscope.db.opened-databases');
-
-/**
- * Exports what a developer's shell may: the production connection strings, for
- * example to run pg_dump, the fakes switch of .env.example, which no database URL
- * may join, and a LOG_LEVEL and a NODE_ENV that the schema refuses, each of which
- * makes the whole environment invalid. CI exports none of these, so every test
- * here starts as if the shell did, and a test that read them would fail instead
- * of reaching the database they name (TRV-76).
- */
-function exportShellVariables(): void {
-  vi.stubEnv('DATABASE_URL', SHELL_DATABASE_URL);
-  vi.stubEnv('DATABASE_URL_UNPOOLED', SHELL_DATABASE_URL);
-  vi.stubEnv('VERCEL_ENV', 'production');
-  vi.stubEnv('LOG_LEVEL', 'INFO');
-  vi.stubEnv('NODE_ENV', 'staging');
-  vi.stubEnv('EGOSCOPE_FAKES', 'all');
-}
 
 /** The database of a result, or undefined when there is none. */
 const dbOf = <T>(result: Readonly<{ ok: true; db: T }> | Readonly<{ ok: false }>): T | undefined =>
@@ -114,17 +95,6 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
     created.pools = 0;
     created.pglites = 0;
     closed.pglites = 0;
-    exportShellVariables();
-    // Whatever the shell exports, each test starts from every variable of the
-    // server environment pinned: outside Vercel with no database configured and
-    // no fakes, at the default log level, and with NODE_ENV as Vitest sets it.
-    // Then it stubs what it needs.
-    vi.stubEnv('DATABASE_URL', '');
-    vi.stubEnv('DATABASE_URL_UNPOOLED', '');
-    vi.stubEnv('VERCEL_ENV', '');
-    vi.stubEnv('LOG_LEVEL', '');
-    vi.stubEnv('NODE_ENV', 'test');
-    vi.stubEnv('EGOSCOPE_FAKES', '');
   });
 
   it('[D-23] create no pool and open no connection when the module is imported', async () => {
@@ -170,7 +140,9 @@ describe('getDb and getDirectDb', { timeout: 60_000 }, () => {
   });
 
   it('report "database not configured" on Vercel without a URL, and start no PGlite', async () => {
+    // A preview with the fakes switch: the one valid Vercel configuration without a URL.
     vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('EGOSCOPE_FAKES', 'all');
     const { getDb, getDirectDb } = await import('.');
 
     const results = await Promise.all([getDb(), getDirectDb()]);

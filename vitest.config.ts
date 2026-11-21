@@ -17,6 +17,41 @@ const isCi = process.env['CI'] === 'true';
 // anyway; this says so explicitly.
 const exclude = [...configDefaults.exclude, ...IGNORED_FOLDERS.map((folder) => `${folder}**`)];
 
+// The variables of the server environment (src/lib/env/server-env.ts) that every
+// test starts without, whatever the shell exports: it may export the production
+// connection strings (TRV-76), and the environment is valid or invalid as one
+// whole. Empty, which the schema reads as unset; a test stubs what it needs. A
+// test of src/lib/env fails when a variable of the schema is missing here.
+const UNSET_SERVER_VARIABLES = [
+  'LOG_LEVEL',
+  'VERCEL_ENV',
+  'VERCEL_DEPLOYMENT_ID',
+  'APP_BASE_URL',
+  'DATABASE_URL',
+  'DATABASE_URL_UNPOOLED',
+  'CRON_SECRET',
+  'INITIAL_PASSWORD',
+  'FINGERPRINT_KEY',
+  'BACKUP_GITHUB_REPOSITORY',
+  'BACKUP_GITHUB_TOKEN',
+  'BACKUP_ENCRYPTION_KEY',
+  'STATS_SOURCE_BASE_URL',
+  'CLOUDFLARE_ACCOUNT_ID',
+  'CLOUDFLARE_AI_API_TOKEN',
+  'GROQ_API_KEY',
+  'TELEGRAM_BOT_TOKEN',
+  'TELEGRAM_WEBHOOK_SECRET',
+  'EGOSCOPE_LOT',
+  'EGOSCOPE_FAKES',
+];
+
+// The environment that every test starts from: no variable of the server set,
+// and NODE_ENV as Vitest sets it.
+const serverEnvironment = {
+  ...Object.fromEntries(UNSET_SERVER_VARIABLES.map((name) => [name, ''])),
+  NODE_ENV: 'test' as const,
+};
+
 const config: ViteUserConfig = defineConfig({
   resolve: {
     tsconfigPaths: true,
@@ -28,6 +63,7 @@ const config: ViteUserConfig = defineConfig({
   test: {
     ...(!isCi && { maxWorkers: '50%' }),
     allowOnly: false,
+    env: serverEnvironment,
     restoreMocks: true,
     unstubEnvs: true,
     unstubGlobals: true,

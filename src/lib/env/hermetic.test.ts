@@ -3,18 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // A connection string that the schema accepts, which a server must never use beside fakes.
 const DATABASE_URL = 'postgresql://app@db.example.invalid/egoscope?sslmode=verify-full';
 
-/**
- * Exports what a developer's shell may: the fakes switch of .env.example, and a
- * connection string and a log level that the schema refuses. The environment is
- * valid or invalid as one whole, so every test here starts as if the shell did,
- * and fails if it reads them.
- */
-function exportShellVariables(): void {
-  vi.stubEnv('EGOSCOPE_FAKES', 'all');
-  vi.stubEnv('DATABASE_URL', 'postgresql://app@db.example.invalid/egoscope?sslmode=require');
-  vi.stubEnv('LOG_LEVEL', 'INFO');
-}
-
 /** Stubs each of `variables` with its value. */
 function stubVariables(variables: Readonly<Record<string, string>>): void {
   for (const [name, value] of Object.entries(variables)) {
@@ -26,16 +14,6 @@ describe('the hermetic mode', () => {
   beforeEach(() => {
     // The environment is read once per server process, so each test loads a fresh one.
     vi.resetModules();
-    exportShellVariables();
-    // Whatever the shell exports, each test starts from every variable of the
-    // server environment pinned: no fakes, outside Vercel with no database, at
-    // the default log level, with NODE_ENV as Vitest sets it.
-    vi.stubEnv('EGOSCOPE_FAKES', '');
-    vi.stubEnv('DATABASE_URL', '');
-    vi.stubEnv('DATABASE_URL_UNPOOLED', '');
-    vi.stubEnv('VERCEL_ENV', '');
-    vi.stubEnv('LOG_LEVEL', '');
-    vi.stubEnv('NODE_ENV', 'test');
   });
 
   describe('isHermetic', () => {
