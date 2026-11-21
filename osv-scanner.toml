@@ -6,7 +6,7 @@
 [[IgnoredVulns]]
 id = "GHSA-g3hv-75wg-m249"
 ignoreUntil = 2027-02-13
-reason = "minimatch 10.2.6, moderate: denial of service through crafted glob patterns. Development only: typescript-eslint, the ESLint plugins and Stryker match this repository's own glob patterns with it; a pull request could at worst slow down its own lint or mutation job. ESLint 10.15.0 itself has moved to the fixed minimatch 11.0.8. The fix exists only in minimatch 11, outside the ^10 range of typescript-eslint, Stryker, eslint-plugin-jsx-a11y-x and eslint-plugin-sonarjs; eslint-plugin-import-x accepts ^11 but shares the hoisted 10.2.6."
+reason = "minimatch 10.2.6, moderate: denial of service through crafted glob patterns. Development only: typescript-eslint, the ESLint plugins and Stryker match this repository's own glob patterns with it; a pull request could at worst slow down its own lint or mutation job. ESLint 10.15.0 and eslint-plugin-import-x 4.18.1 have moved to the fixed minimatch 11.0.8. The fix exists only in minimatch 11, outside the ^10 range of typescript-eslint, Stryker, eslint-plugin-jsx-a11y-x and eslint-plugin-sonarjs."
 
 [[IgnoredVulns]]
 id = "GHSA-238p-pmpm-9mq7"
