@@ -1,0 +1,264 @@
+{
+  "firstCoveredSeason": "2024-25",
+  "refresh": { "on": "2026-11-08", "time": "07:30" },
+  "calendar": {
+    "tipOff": "19:30",
+    "tipOffAbroad": "14:00",
+    "daysBetweenRounds": 3,
+    "daysBetweenPostseasonGames": 2
+  },
+  "scores": [
+    { "home": 104, "away": 99 },
+    { "home": 97, "away": 101 },
+    { "home": 112, "away": 108 },
+    { "home": 95, "away": 103 },
+    { "home": 110, "away": 96 },
+    { "home": 101, "away": 98 }
+  ],
+  "lines": [
+    {
+      "minutes": 34,
+      "seconds": 12,
+      "points": 21,
+      "fieldGoalsMade": 8,
+      "fieldGoalsAttempted": 17,
+      "threePointersMade": 2,
+      "freeThrowsMade": 3,
+      "freeThrowsAttempted": 4,
+      "offensiveRebounds": 1,
+      "defensiveRebounds": 6,
+      "assists": 5,
+      "steals": 1,
+      "blocks": 0,
+      "turnovers": 2,
+      "personalFouls": 3
+    },
+    {
+      "minutes": 28,
+      "seconds": 45,
+      "points": 15,
+      "fieldGoalsMade": 5,
+      "fieldGoalsAttempted": 12,
+      "threePointersMade": 1,
+      "freeThrowsMade": 4,
+      "freeThrowsAttempted": 5,
+      "offensiveRebounds": 2,
+      "defensiveRebounds": 4,
+      "assists": 3,
+      "steals": 2,
+      "blocks": 1,
+      "turnovers": 1,
+      "personalFouls": 2
+    },
+    {
+      "minutes": 22,
+      "seconds": 3,
+      "points": 8,
+      "fieldGoalsMade": 3,
+      "fieldGoalsAttempted": 9,
+      "threePointersMade": 0,
+      "freeThrowsMade": 2,
+      "freeThrowsAttempted": 2,
+      "offensiveRebounds": 0,
+      "defensiveRebounds": 3,
+      "assists": 1,
+      "steals": 0,
+      "blocks": 2,
+      "turnovers": 3,
+      "personalFouls": 4
+    },
+    {
+      "minutes": 38,
+      "seconds": 30,
+      "points": 32,
+      "fieldGoalsMade": 11,
+      "fieldGoalsAttempted": 21,
+      "threePointersMade": 4,
+      "freeThrowsMade": 6,
+      "freeThrowsAttempted": 7,
+      "offensiveRebounds": 1,
+      "defensiveRebounds": 8,
+      "assists": 7,
+      "steals": 3,
+      "blocks": 1,
+      "turnovers": 4,
+      "personalFouls": 2
+    },
+    {
+      "minutes": 15,
+      "seconds": 51,
+      "points": 5,
+      "fieldGoalsMade": 2,
+      "fieldGoalsAttempted": 6,
+      "threePointersMade": 1,
+      "freeThrowsMade": 0,
+      "freeThrowsAttempted": 0,
+      "offensiveRebounds": 1,
+      "defensiveRebounds": 2,
+      "assists": 2,
+      "steals": 1,
+      "blocks": 0,
+      "turnovers": 0,
+      "personalFouls": 1
+    }
+  ],
+  "teams": [
+    {
+      "id": "1",
+      "names": [
+        { "from": "2023-24", "location": "Harbor City", "name": "Herons", "abbreviation": "HCH" }
+      ]
+    },
+    {
+      "id": "2",
+      "names": [
+        { "from": "2023-24", "location": "Pine Valley", "name": "Lynx", "abbreviation": "PVL" }
+      ]
+    },
+    {
+      "id": "3",
+      "names": [
+        { "from": "2023-24", "location": "Redstone", "name": "Comets", "abbreviation": "RSC" }
+      ]
+    },
+    {
+      "id": "4",
+      "names": [
+        { "from": "2023-24", "location": "Lakeport", "name": "Otters", "abbreviation": "LPO" }
+      ]
+    },
+    {
+      "id": "5",
+      "names": [
+        { "from": "2023-24", "location": "Granite Falls", "name": "Bison", "abbreviation": "GFB" }
+      ]
+    },
+    {
+      "id": "6",
+      "names": [
+        { "from": "2023-24", "location": "Seaport", "name": "Gulls", "abbreviation": "SPG" },
+        { "from": "2025-26", "location": "Ridgeview", "name": "Gulls", "abbreviation": "RVG" }
+      ]
+    }
+  ],
+  "seasons": [
+    { "season": "2023-24", "start": "2023-10-24", "hasBoxScores": false, "hasWholeMinutes": true },
+    {
+      "season": "2024-25",
+      "start": "2024-10-22",
+      "hasBoxScores": true,
+      "hasWholeMinutes": true,
+      "playIn": { "home": "4", "away": "5", "winner": "4" },
+      "series": [
+        { "round": "first_round", "high": "1", "low": "4", "winners": ["1", "4", "1"] },
+        { "round": "first_round", "high": "2", "low": "3", "winners": ["2", "2"] },
+        { "round": "finals", "high": "1", "low": "2", "winners": ["2", "1", "1"] }
+      ]
+    },
+    {
+      "season": "2025-26",
+      "start": "2025-10-21",
+      "hasBoxScores": true,
+      "hasWholeMinutes": false,
+      "allStarDay": "2025-11-09",
+      "playIn": { "home": "5", "away": "6", "winner": "6" },
+      "series": [
+        { "round": "first_round", "high": "1", "low": "6", "winners": ["1", "1"] },
+        { "round": "first_round", "high": "3", "low": "2", "winners": ["2", "3", "3"] },
+        { "round": "finals", "high": "3", "low": "1", "winners": ["3", "1", "3"] }
+      ]
+    },
+    {
+      "season": "2026-27",
+      "start": "2026-10-20",
+      "hasBoxScores": true,
+      "hasWholeMinutes": false,
+      "playedBefore": "2026-11-08",
+      "playInToBeDeterminedOn": "2026-11-19"
+    }
+  ],
+  "games": {
+    "overtimes": { "2024-25:r09:h6": 2, "2025-26:r02:h2": 1, "2025-26:s2g3": 1 },
+    "abroad": ["2025-26:r08:h6"],
+    "withoutBoxScores": ["2025-26:r04:h4"],
+    "timeToBeDetermined": ["2026-27:r10:h5"],
+    "postponed": [{ "game": "2026-27:r03:h4", "makeUpOn": "2026-11-05" }],
+    "heldBack": [{ "game": "2026-27:r09:h6", "status": "Suspended" }]
+  },
+  "players": [
+    {
+      "id": "p01",
+      "name": "Ansel Varga",
+      "shortName": "A. Varga",
+      "birthday": { "month": 10, "day": 26 },
+      "stints": [{ "team": "1", "from": "2023-10-24" }]
+    },
+    {
+      "id": "p02",
+      "name": "Dario Castell",
+      "shortName": "D. Castell",
+      "birthday": { "month": 3, "day": 14 },
+      "stints": [
+        { "team": "2", "from": "2023-10-24", "to": "2025-11-02" },
+        { "team": "3", "from": "2025-11-03" }
+      ]
+    },
+    {
+      "id": "p03",
+      "name": "Dario Castell",
+      "shortName": "D. Castell",
+      "birthday": { "month": 7, "day": 2 },
+      "stints": [{ "team": "4", "from": "2024-10-22" }]
+    },
+    {
+      "id": "p04",
+      "name": "Corwin Ashgrove",
+      "shortName": "C. Ashgrove",
+      "birthday": { "month": 12, "day": 9 },
+      "stints": [{ "team": "5", "from": "2023-10-24" }]
+    },
+    {
+      "id": "p05",
+      "name": "Ilias Brenner",
+      "shortName": "I. Brenner",
+      "birthday": { "month": 2, "day": 29 },
+      "stints": [{ "team": "6", "from": "2023-10-24" }]
+    },
+    {
+      "id": "p06",
+      "name": "Teodor Quill",
+      "shortName": "T. Quill",
+      "birthday": { "month": 5, "day": 21 },
+      "stints": [{ "team": "1", "from": "2023-10-24", "to": "2024-12-31" }]
+    },
+    {
+      "id": "p07",
+      "name": "Rafe Lindqvist",
+      "shortName": "R. Lindqvist",
+      "birthday": null,
+      "stints": [{ "team": "5", "from": "2026-10-20" }]
+    },
+    {
+      "id": "p08",
+      "name": "Bram Heller",
+      "shortName": "B. Heller",
+      "birthday": { "month": 9, "day": 30 },
+      "stints": [{ "team": "4", "from": "2025-10-21", "to": "2026-11-01" }],
+      "didNotPlay": ["2025-11-08", "2026-10-29"]
+    },
+    {
+      "id": "p09",
+      "name": "Soren Vail",
+      "shortName": "S. Vail",
+      "birthday": { "month": 1, "day": 17 },
+      "stints": [{ "team": "3", "from": "2023-10-24" }]
+    },
+    {
+      "id": "p10",
+      "name": "Elio Marsh",
+      "shortName": "E. Marsh",
+      "birthday": { "month": 6, "day": 5 },
+      "stints": [{ "team": "2", "from": "2024-10-22" }]
+    }
+  ]
+}

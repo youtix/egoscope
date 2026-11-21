@@ -52,6 +52,10 @@ const serverEnvironment = {
   NODE_ENV: 'test' as const,
 };
 
+// Refuses every connection a test would make to the network (module map §5), before
+// any test of either project runs.
+const NETWORK_GUARD = './vitest.network-guard.ts';
+
 const config: ViteUserConfig = defineConfig({
   resolve: {
     tsconfigPaths: true,
@@ -74,6 +78,7 @@ const config: ViteUserConfig = defineConfig({
           environment: 'node',
           include: ['src/**/*.test.ts', 'scripts/**/*.test.ts', '*.test.ts'],
           exclude,
+          setupFiles: [NETWORK_GUARD],
         },
       },
       {
@@ -82,7 +87,7 @@ const config: ViteUserConfig = defineConfig({
           environment: 'jsdom',
           include: ['src/**/*.test.tsx'],
           exclude,
-          setupFiles: ['./vitest.dom-setup.ts'],
+          setupFiles: [NETWORK_GUARD, './vitest.dom-setup.ts'],
         },
       },
     ],
