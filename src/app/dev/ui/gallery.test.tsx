@@ -7,6 +7,11 @@ import { Gallery } from './gallery';
 // The WCAG 2.2 A and AA rules, as the end-to-end watch runs them (CL-IHM-08).
 const WCAG_22_AA = { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] };
 
+// Axe reads every element of the whole gallery, which takes a few seconds in jsdom,
+// grows with the gallery, and exceeds Vitest's default of 5 seconds under coverage
+// on a busy machine.
+const WHOLE_GALLERY_TIMEOUT_MS = 30_000;
+
 describe('Gallery', () => {
   it('shows every part of the design system, each under its own heading', () => {
     render(<Gallery />);
@@ -95,9 +100,13 @@ describe('Gallery', () => {
     expect(slices).toStrictEqual([['Next page'], ['Previous page']]);
   });
 
-  it('[IHM-61] passes the WCAG 2.2 AA rules as a whole', async () => {
-    const { container } = render(<Gallery />);
+  it(
+    '[IHM-61] passes the WCAG 2.2 AA rules as a whole',
+    { timeout: WHOLE_GALLERY_TIMEOUT_MS },
+    async () => {
+      const { container } = render(<Gallery />);
 
-    await expect(axe.run(container, WCAG_22_AA)).resolves.toHaveProperty('violations', []);
-  });
+      await expect(axe.run(container, WCAG_22_AA)).resolves.toHaveProperty('violations', []);
+    },
+  );
 });
