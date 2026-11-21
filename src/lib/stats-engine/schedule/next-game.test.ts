@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { expectedGame, nextGame } from './next-game';
+import { expectedGameOf, nextGameOf } from './next-game';
 import { teamMembership } from './team-membership';
 
 import type { NextGameCandidate, NextGameSchedule } from './next-game';
@@ -94,9 +94,9 @@ const TBD: NextGameCandidate = {
   scheduledStartAt: utc('2026-04-09', DEEMED_START_HOUR),
 };
 
-describe('nextGame', () => {
+describe('nextGameOf', () => {
   it('[STA-26] [CL-STA-14] [CL-STA-17] gives the first game of his current team still to play after now, with its start, opponent, venue, phase and the date of his last game played, passing over the games of other teams, games not scheduled, placeholders and a game at now', () => {
-    expect(nextGame(PLAYER, APRIL, NOW)).toStrictEqual({
+    expect(nextGameOf(PLAYER, APRIL, NOW)).toStrictEqual({
       kind: 'game',
       gameId: 102,
       scheduledStartAt: utc('2026-04-07', TIP_OFF_HOUR),
@@ -112,7 +112,7 @@ describe('nextGame', () => {
   it('[STA-26] [STA-31] [CL-STA-14] gives a game whose time is to be determined with its deemed start and the mark', () => {
     const schedule = scheduleOf([TBD, won(102, '2026-04-07', [4, X])]);
 
-    expect(nextGame(PLAYER, schedule, utc('2026-04-08', 12))).toMatchObject({
+    expect(nextGameOf(PLAYER, schedule, utc('2026-04-08', 12))).toMatchObject({
       gameId: 103,
       scheduledStartAt: utc('2026-04-09', DEEMED_START_HOUR),
       isStartTimeTbd: true,
@@ -125,13 +125,13 @@ describe('nextGame', () => {
   it('[STA-26] [CL-STA-14] compares now with the deemed start of a game whose time is to be determined, never with the end of its day', () => {
     const schedule = scheduleOf([toPlay(106, '2026-04-11', [6, X]), TBD]);
 
-    expect(nextGame(PLAYER, schedule, utc('2026-04-09', 12))).toMatchObject({ gameId: 106 });
+    expect(nextGameOf(PLAYER, schedule, utc('2026-04-09', 12))).toMatchObject({ gameId: 106 });
   });
 
   it('[STA-26] [JOU-14] reads the next game in the schedule of his new current team after a trade', () => {
     const traded = { teamId: Y, lastGamePlayedOn: '2026-04-03' };
 
-    expect(nextGame(traded, APRIL, NOW)).toMatchObject({
+    expect(nextGameOf(traded, APRIL, NOW)).toMatchObject({
       gameId: 104,
       opponentTeamId: 6,
       venue: 'home',
@@ -144,7 +144,7 @@ describe('nextGame', () => {
       nextSeasonGames: [toPlay(401, '2026-10-21', [5, X])],
     };
 
-    expect(nextGame(PLAYER, schedule, utc('2026-08-01', 12))).toMatchObject({
+    expect(nextGameOf(PLAYER, schedule, utc('2026-08-01', 12))).toMatchObject({
       gameId: 401,
       gameDayOn: '2026-10-21',
       opponentTeamId: 5,
@@ -189,6 +189,28 @@ const FINALS_OVER = scheduleOf(
   [...REGULAR_SEASON, ...FIRST_ROUND, ...sweep(241, [5, 3], FINALS_DAYS)],
   [...FIRST_ROUND_SERIES, seriesOf([3, 5], 'finals')],
 );
+// Or they are tied two games to two, their fifth game not listed.
+const FINALS_TIED = scheduleOf(
+  [
+    ...REGULAR_SEASON,
+    ...FIRST_ROUND,
+    ...sweep(241, [5, 3], FINALS_DAYS.slice(0, 2)),
+    ...sweep(243, [3, 5], FINALS_DAYS.slice(2)),
+  ],
+  [...FIRST_ROUND_SERIES, seriesOf([3, 5], 'finals')],
+);
+// A game of the next season, between two other teams.
+const NEXT_SEASON_GAMES = [toPlay(401, '2026-10-21', [5, 6])];
+// Or the stored playoffs stop at X and team 3 one game each in the first round, no Finals
+// listed.
+const CUT_SHORT = scheduleOf(
+  [
+    ...REGULAR_SEASON,
+    inPlayoffs(won(211, '2026-04-18', [X, 3])),
+    inPlayoffs(won(212, '2026-04-20', [3, X])),
+  ],
+  [seriesOf([X, 3], 'first_round')],
+);
 // X swept team 3, then won the first game of its second-round series against team 5,
 // whose next game is not in the schedule yet.
 const STILL_IN = scheduleOf(
@@ -210,11 +232,11 @@ const LAST_DAYS = scheduleOf([won(201, '2026-04-10', [X, 3]), toPlay(202, '2026-
 
 const NO_GAME = { kind: 'no_game_scheduled' } as const;
 
-describe('nextGame without a game to play', () => {
+describe('nextGameOf without a game to play', () => {
   it('[STA-26] [CL-STA-20] [CL-JOU-20] answers "no game scheduled" for a player without a team, the first reason, whatever the schedule', () => {
     const withoutTeam = { teamId: null, lastGamePlayedOn: '2026-04-03' };
 
-    expect(nextGame(withoutTeam, APRIL, NOW)).toStrictEqual({
+    expect(nextGameOf(withoutTeam, APRIL, NOW)).toStrictEqual({
       ...NO_GAME,
       reason: 'player_without_team',
     });
@@ -227,7 +249,7 @@ describe('nextGame without a game to play', () => {
   ])(
     '[STA-26] [CA-STA-09] [CL-STA-20] answers "no game scheduled", team eliminated, for a team %s',
     (_, schedule, on) => {
-      expect(nextGame(PLAYER, schedule, utc(on, 12))).toStrictEqual({
+      expect(nextGameOf(PLAYER, schedule, utc(on, 12))).toStrictEqual({
         ...NO_GAME,
         reason: 'team_eliminated',
       });
@@ -235,11 +257,44 @@ describe('nextGame without a game to play', () => {
   );
 
   it('[STA-26] [CA-STA-09] [CL-STA-20] [CL-STA-30] answers "no game scheduled", offseason, once the Finals are over and while no game of the next season is stored', () => {
-    expect(nextGame(PLAYER, FINALS_OVER, utc('2026-07-01', 12))).toStrictEqual({
+    expect(nextGameOf(PLAYER, FINALS_OVER, utc('2026-07-01', 12))).toStrictEqual({
       ...NO_GAME,
       reason: 'offseason',
     });
   });
+
+  it('[STA-26] [CL-STA-18] [CL-STA-20] reads Finals tied two games to two, their fifth game not listed, as under way while no game of the next season is stored, and as over once one is', () => {
+    const withNextSeason = { ...FINALS_TIED, nextSeasonGames: NEXT_SEASON_GAMES };
+
+    expect(nextGameOf(PLAYER, FINALS_TIED, utc('2026-06-15', 12))).toStrictEqual({
+      ...NO_GAME,
+      reason: 'team_eliminated',
+    });
+    expect(nextGameOf(PLAYER, withNextSeason, utc('2026-08-01', 12))).toStrictEqual({
+      ...NO_GAME,
+      reason: 'schedule_not_published',
+    });
+  });
+
+  it.each([
+    ['X, still in its series', X, 'schedule_not_published'],
+    ['team 7, never in the postseason', 7, 'team_eliminated'],
+  ])(
+    '[STA-26] [CL-STA-18] [CL-STA-20] reads playoffs stopped short, no Finals listed, as under way while no game of the next season is stored, and as over once one is: %s',
+    (_, teamId, reason) => {
+      const player = { teamId, lastGamePlayedOn: '2026-04-20' };
+      const withNextSeason = { ...CUT_SHORT, nextSeasonGames: NEXT_SEASON_GAMES };
+
+      expect(nextGameOf(player, CUT_SHORT, utc('2026-05-01', 12))).toStrictEqual({
+        ...NO_GAME,
+        reason,
+      });
+      expect(nextGameOf(player, withNextSeason, utc('2026-08-01', 12))).toStrictEqual({
+        ...NO_GAME,
+        reason: 'schedule_not_published',
+      });
+    },
+  );
 
   it.each([
     ['still in the playoffs, its next game not stored yet', STILL_IN, '2026-05-05'],
@@ -252,7 +307,7 @@ describe('nextGame without a game to play', () => {
   ])(
     '[STA-26] [CL-STA-20] answers "no game scheduled", schedule not published, in any other case, as for a team %s',
     (_, schedule, on) => {
-      expect(nextGame(PLAYER, schedule, utc(on, 12))).toStrictEqual({
+      expect(nextGameOf(PLAYER, schedule, utc(on, 12))).toStrictEqual({
         ...NO_GAME,
         reason: 'schedule_not_published',
       });
@@ -262,7 +317,7 @@ describe('nextGame without a game to play', () => {
   it('[STA-26] [CL-STA-20] gives the teams still in the playoffs their next game while another team is out', () => {
     const atTeam5 = { teamId: 5, lastGamePlayedOn: '2026-05-04' };
 
-    expect(nextGame(atTeam5, ELIMINATED, utc('2026-05-05', 12))).toMatchObject({
+    expect(nextGameOf(atTeam5, ELIMINATED, utc('2026-05-05', 12))).toMatchObject({
       gameId: 232,
       phase: 'playoffs',
       opponentTeamId: 3,
@@ -342,7 +397,7 @@ const ENTERED_AT = utc('2026-03-17', 12);
 
 /** His expected game after `after`, his team history being `history`. */
 const expectedAfter = (after: number, history: readonly PlayerTeamChange[] = []) =>
-  expectedGame({ stints: teamMembership(LINES, history), lines: LINES }, MARCH, after);
+  expectedGameOf({ stints: teamMembership(LINES, history), lines: LINES }, MARCH, after);
 
 /** A team change the owner entered on the 17th, at noon. */
 const entered = (newTeamId: number | null): PlayerTeamChange => ({
@@ -352,7 +407,7 @@ const entered = (newTeamId: number | null): PlayerTeamChange => ({
   origin: 'entered',
 });
 
-describe('expectedGame', () => {
+describe('expectedGameOf', () => {
   it('[STA-27] [CL-IMP-17] gives the first of his team games after an instant as the game given itself, with his team, participation and minutes', () => {
     const expected = expectedAfter(utc('2026-03-16', 12));
 

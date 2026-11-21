@@ -12,7 +12,7 @@ import { byScheduledStart } from '../schedule/series';
 import { teamGames } from '../schedule/team-membership';
 import { hasTeam } from '../schedule/team-record';
 
-import type { SeasonSpan } from '../schedule/seasons';
+import type { SeasonNotRead, SeasonSpan } from '../schedule/seasons';
 import type { LinesGame, PlayerLine, TeamGame, TeamStint } from '../schedule/team-membership';
 import type { EpochMs, GameId, IsoDate, TeamId } from '../types';
 
@@ -63,6 +63,13 @@ export type FormerTeamGame = DerivedGame &
   Readonly<{ formerTeamId: TeamId; departure: CalendarGame }>;
 
 /**
+ * The games that a calendar rule gives (CL-TAX-18), or `season_not_read` when the stored
+ * spans cannot tell the season of a game that it needs (STA-48, CL-STA-28).
+ */
+export type CalendarGamesResult<Derived extends DerivedGame> =
+  Readonly<{ ok: true; games: readonly Derived[] }> | SeasonNotRead;
+
+/**
  * A run of the derivation at its instant (CL-TAX-19): a regular run, with the instant of
  * the player's previous run and his next game (STA-26), null when none is scheduled; or a
  * full run.
@@ -73,6 +80,9 @@ export type DerivationRun =
 
 /** His stints and his lines, which say which games are his team games (CL-STA-05). */
 type Membership = Omit<CalendarPlayer, 'birthday'>;
+
+/** Whether the seasons from one game to another are covered, once both seasons are read. */
+type Coverage = Readonly<{ ok: true; isCovered: boolean }> | SeasonNotRead;
 
 // teamGames lists the team games strictly after an instant: from this one, all of them.
 const FROM_THE_START = -Infinity;
@@ -108,20 +118,51 @@ const firstYearOf = (season: string): number => Number(season.slice(0, YEAR_LENG
 
 /**
  * Whether every season from that of one game to that of another, both included, is
- * covered (CL-JOU-18, CL-STA-24). The seasons from one to another are those whose first
- * years run from the first one's to the last one's.
+ * covered (CL-JOU-18, CL-STA-24), or `season_not_read` when the stored spans cannot tell
+ * the season of one of them (STA-48). The seasons from one to another are those whose
+ * first years run from the first one's to the last one's.
  */
-function coverageOf(schedule: CalendarSchedule): (from: CalendarGame, to: CalendarGame) => boolean {
+function coverageOf(
+  schedule: CalendarSchedule,
+): (from: CalendarGame, to: CalendarGame) => Coverage {
   const coveredYears = new Set(schedule.coveredSeasons.map((season) => firstYearOf(season)));
-  const yearOf = ({ gameDayOn }: CalendarGame): number =>
-    firstYearOf(seasonOfDate(gameDayOn, schedule.seasons));
   return (from, to) => {
-    const firstYear = yearOf(from);
-    return Array.from(
-      { length: yearOf(to) - firstYear + 1 },
+    const first = seasonOfDate(from.gameDayOn, schedule.seasons);
+    if (!first.ok) {
+      return first;
+    }
+    const last = seasonOfDate(to.gameDayOn, schedule.seasons);
+    if (!last.ok) {
+      return last;
+    }
+    const firstYear = firstYearOf(first.season);
+    const years = Array.from(
+      { length: firstYearOf(last.season) - firstYear + 1 },
       (_, index) => firstYear + index,
-    ).every((year) => coveredYears.has(year));
+    );
+    return { ok: true, isCovered: years.every((year) => coveredYears.has(year)) };
   };
+}
+
+/**
+ * Those of `candidates` whose `coverage` is covered, in their order, or the first
+ * `season_not_read` that it gives (STA-48).
+ */
+function coveredOnly<Candidate>(
+  candidates: readonly Candidate[],
+  coverage: (candidate: Candidate) => Coverage,
+): Readonly<{ ok: true; games: readonly Candidate[] }> | SeasonNotRead {
+  const games: Candidate[] = [];
+  for (const candidate of candidates) {
+    const covered = coverage(candidate);
+    if (!covered.ok) {
+      return covered;
+    }
+    if (covered.isCovered) {
+      games.push(candidate);
+    }
+  }
+  return { ok: true, games };
 }
 
 /**
@@ -147,21 +188,25 @@ function datedTeamGames(
  * CL-JOU-17, CL-STA-24): every official game of the team he belonged to at its start
  * whose day (CL-TRV-03) has his day and month of birth, in a covered season. A birthday
  * on 29 February falls on 28 February in a common year, and in a leap year 28 February
- * is not his birthday. A player without a recorded birthday has none.
+ * is not his birthday. A player without a recorded birthday has none. The answer is
+ * `season_not_read` when the stored spans cannot tell the season of a game on his
+ * birthday (STA-48, CL-STA-28): so that it does not occur, `schedule.seasons` holds the
+ * span of the season of every game of `schedule.games`.
  */
 export function birthdayGames(
   player: CalendarPlayer,
   schedule: CalendarSchedule,
-): readonly DerivedGame[] {
+): CalendarGamesResult<DerivedGame> {
   const { birthday } = player;
   if (birthday === null) {
-    return [];
+    return { ok: true, games: [] };
   }
-  const isCovered = coverageOf(schedule);
-  const onBirthday = schedule.games.filter(
-    (game) => isBirthday(game.gameDayOn, birthday) && isCovered(game, game),
+  const coverage = coverageOf(schedule);
+  const onBirthday = coveredOnly(
+    schedule.games.filter((game) => isBirthday(game.gameDayOn, birthday)),
+    (game) => coverage(game, game),
   );
-  return datedTeamGames(player, onBirthday);
+  return onBirthday.ok ? { ok: true, games: datedTeamGames(player, onBirthday.games) } : onBirthday;
 }
 
 /**
@@ -174,13 +219,15 @@ export function birthdayGames(
  * until he has played for it again, so that each stint gives at most one, and a meeting
  * that follows two stints with one team follows the later one. A reunion is derived only
  * when every season from the departure to it is covered. Teams keep their id when a
- * franchise moves, so it stays one former team.
+ * franchise moves, so it stays one former team. The answer is `season_not_read` when the
+ * stored spans cannot tell the season of a reunion or of its departure (STA-48,
+ * CL-STA-28): so that it does not occur, `schedule.seasons` holds the span of the season
+ * of every game of `schedule.games`.
  */
 export function formerTeamGames(
   player: Membership,
   schedule: CalendarSchedule,
-): readonly FormerTeamGame[] {
-  const isCovered = coverageOf(schedule);
+): CalendarGamesResult<FormerTeamGame> {
   // For each team, the last game he played for it, while he has not met it since.
   const departures = new Map<TeamId, CalendarGame>();
   const reunions: FormerTeamGame[] = [];
@@ -191,15 +238,14 @@ export function formerTeamGames(
     if (met !== undefined) {
       const [formerTeamId, departure] = met;
       departures.delete(formerTeamId);
-      if (isCovered(departure, teamGame.game)) {
-        reunions.push({ ...teamGame, formerTeamId, departure });
-      }
+      reunions.push({ ...teamGame, formerTeamId, departure });
     }
     if (teamGame.participation === 'played') {
       departures.set(teamGame.teamId, teamGame.game);
     }
   }
-  return reunions;
+  const coverage = coverageOf(schedule);
+  return coveredOnly(reunions, ({ departure, game }) => coverage(departure, game));
 }
 
 /**

@@ -151,6 +151,10 @@ const reunionsOf = (games: readonly FormerTeamGame[]): unknown[] =>
     departure.gameDayOn,
   ]);
 
+/** The games of an answer, which must have read the season of every game that it needed. */
+const gamesIn = <G>(found: { ok: true; games: readonly G[] } | { ok: false }): readonly G[] =>
+  found.ok ? found.games : expect.unreachable('A season was not read.');
+
 describe('birthdayGames', () => {
   const MARCH_14: Birthday = { month: 3, day: 14 };
 
@@ -172,7 +176,7 @@ describe('birthdayGames', () => {
     const schedule = scheduleOf([...games, gameOn('2024-03-14', Y, RIVAL)]);
     const found = birthdayGames(playerOf(lines, [], MARCH_14), schedule);
 
-    expect(daysAndTeams(found)).toStrictEqual([
+    expect(daysAndTeams(gamesIn(found))).toStrictEqual([
       ['2024-03-14', X],
       ['2025-03-14', X],
       ['2026-03-14', X],
@@ -184,7 +188,7 @@ describe('birthdayGames', () => {
   const daysFound = (birthday: Birthday, day: IsoDate): readonly IsoDate[] => {
     const player = playerOf([lineIn(since1999, X)], [], birthday);
     const found = birthdayGames(player, scheduleOf([since1999, gameOn(day, X, RIVAL)]));
-    return found.map(({ game }) => game.gameDayOn);
+    return gamesIn(found).map(({ game }) => game.gameDayOn);
   };
 
   it.each([
@@ -213,7 +217,7 @@ describe('birthdayGames', () => {
     const games = [first, ...gamesOn(['2024-03-14', X, OTHER], ['2024-10-25', X, RIVAL])];
     const player = playerOf([lineIn(first, X)]);
 
-    expect(birthdayGames(player, scheduleOf(games))).toStrictEqual([]);
+    expect(birthdayGames(player, scheduleOf(games))).toStrictEqual({ ok: true, games: [] });
   });
 
   it('[CL-TAX-18] [CL-STA-05] takes his team at the start of each game: none before his first game, and after a recorded trade the new team before he plays for it', () => {
@@ -228,7 +232,7 @@ describe('birthdayGames', () => {
     const player = playerOf(lines, [observedOn(1, '2024-02-08', Y)], MARCH_14);
     const found = birthdayGames(player, scheduleOf([...others, first, firstAtY]));
 
-    expect(daysAndTeams(found)).toStrictEqual([['2024-03-14', Y]]);
+    expect(daysAndTeams(gamesIn(found))).toStrictEqual([['2024-03-14', Y]]);
   });
 
   it('[CL-STA-24] finds birthday games in covered seasons only', () => {
@@ -237,7 +241,7 @@ describe('birthdayGames', () => {
     const schedule = scheduleOf([first, ...games], ['2021-22', '2023-24']);
     const found = birthdayGames(playerOf([lineIn(first, X)], [], MARCH_14), schedule);
 
-    expect(daysAndTeams(found)).toStrictEqual([
+    expect(daysAndTeams(gamesIn(found))).toStrictEqual([
       ['2022-03-14', X],
       ['2024-03-14', X],
     ]);
@@ -256,11 +260,36 @@ describe('birthdayGames', () => {
     const player = playerOf([lineIn(first, X)], [], { month: 4, day: 20 });
     const found = birthdayGames(player, scheduleOf(games));
 
-    expect(daysAndTeams(found)).toStrictEqual([
+    expect(daysAndTeams(gamesIn(found))).toStrictEqual([
       ['2022-04-20', X],
       ['2023-04-20', X],
     ]);
   });
+});
+
+// He leaves X for Y on 1 July 2022, then meets X on 15 November 2023, his birthday, and on
+// 20 January 2024.
+const LEFT_X = gameOn('2022-01-10', X, OTHER);
+const AT_Y = gameOn('2023-10-25', Y, OTHER);
+const TRADED_GAMES = [LEFT_X, AT_Y, ...gamesOn(['2023-11-15', Y, X], ['2024-01-20', X, Y])];
+const TRADED_LINES = [...linesFor(X, [LEFT_X]), ...linesFor(Y, TRADED_GAMES.slice(1))];
+const TRADED = playerOf(TRADED_LINES, [observedOn(1, '2022-07-01', Y)], { month: 11, day: 15 });
+
+describe('the calendar games while a season is not read', () => {
+  // Each time, the spans of both seasons that the day of that game can belong to are left out.
+  it.each([
+    ['a game on his birthday', birthdayGames, ['2022-23', '2023-24']],
+    ['the departure that a reunion follows', formerTeamGames, ['2021-22', '2022-23']],
+    ['a reunion', formerTeamGames, ['2022-23', '2023-24']],
+  ])(
+    '[CL-STA-24] [STA-48] [CL-STA-28] gives season_not_read, never a guessed season, when the stored spans cannot tell the season of %s',
+    (_, derive, candidates) => {
+      const seasons = SEASONS.filter(({ season }) => !candidates.includes(season));
+      const found = derive(TRADED, { ...scheduleOf(TRADED_GAMES), seasons });
+
+      expect(found).toStrictEqual({ ok: false, error: { kind: 'season_not_read', candidates } });
+    },
+  );
 });
 
 describe('formerTeamGames', () => {
@@ -279,7 +308,7 @@ describe('formerTeamGames', () => {
     const player = playerOf(lines, [observedOn(1, '2024-01-20', Y)]);
     const found = formerTeamGames(player, scheduleOf([later, reunion, atY, missedAtX, ...atX]));
 
-    expect(reunionsOf(found)).toStrictEqual([['2024-02-10', Y, X, '2023-12-01']]);
+    expect(reunionsOf(gamesIn(found))).toStrictEqual([['2024-02-10', Y, X, '2023-12-01']]);
   });
 
   it('[CL-TAX-18] [CL-JOU-18] gives each stint its own reunion: going X, Y, X again, then Z gives two with X and one with Y', () => {
@@ -295,7 +324,7 @@ describe('formerTeamGames', () => {
     const schedule = scheduleOf([...atZ, ...againAtX, ...atY, ...firstAtX]);
     const found = formerTeamGames(playerOf(lines), schedule);
 
-    expect(reunionsOf(found)).toStrictEqual([
+    expect(reunionsOf(gamesIn(found))).toStrictEqual([
       ['2022-03-01', Y, X, '2022-01-10'],
       ['2022-11-15', X, Y, '2022-03-20'],
       ['2023-03-05', Z, X, '2023-01-15'],
@@ -311,7 +340,7 @@ describe('formerTeamGames', () => {
     const player = playerOf(lines, [enteredOn(1, '2024-01-20', Y)]);
     const found = formerTeamGames(player, scheduleOf([atX, reunion, firstAtY, later]));
 
-    expect(reunionsOf(found)).toStrictEqual([['2024-01-22', Y, X, '2023-12-01']]);
+    expect(reunionsOf(gamesIn(found))).toStrictEqual([['2024-01-22', Y, X, '2023-12-01']]);
   });
 
   it('[CL-TAX-18] [CL-JOU-18] makes no stint of a period in which he played no game for a team: no former team of it, and no new departure from a team he had played for', () => {
@@ -331,7 +360,7 @@ describe('formerTeamGames', () => {
     const schedule = scheduleOf([atW, ...atX, atY, ...backAtX, ...atZ]);
     const found = formerTeamGames(playerOf(lines, history), schedule);
 
-    expect(reunionsOf(found)).toStrictEqual([
+    expect(reunionsOf(gamesIn(found))).toStrictEqual([
       ['2022-02-10', X, Y, '2022-01-10'],
       ['2022-03-12', Z, X, '2021-12-01'],
     ]);
@@ -345,7 +374,7 @@ describe('formerTeamGames', () => {
     const player = playerOf([...linesFor(X, [atX]), ...linesFor(Y, [atY, ...meetings])]);
     const found = formerTeamGames(player, scheduleOf([atX, atY, ...meetings]));
 
-    expect(reunionsOf(found)).toStrictEqual([['2023-11-20', Y, X, '2023-01-10']]);
+    expect(reunionsOf(gamesIn(found))).toStrictEqual([['2023-11-20', Y, X, '2023-01-10']]);
   });
 
   it.each([
@@ -356,14 +385,9 @@ describe('formerTeamGames', () => {
   ])(
     '[CL-STA-24] [CL-JOU-18] derives a reunion only when every season from his departure to it is covered, and never a later meeting: %s',
     (_, covered, expected) => {
-      const atX = gameOn('2022-01-10', X, OTHER);
-      const atY = gameOn('2023-10-25', Y, OTHER);
-      const meetings = gamesOn(['2023-11-15', Y, X], ['2024-01-20', X, Y]);
-      const lines = [...linesFor(X, [atX]), ...linesFor(Y, [atY, ...meetings])];
-      const player = playerOf(lines, [observedOn(1, '2022-07-01', Y)]);
-      const found = formerTeamGames(player, scheduleOf([atX, atY, ...meetings], covered));
+      const found = formerTeamGames(TRADED, scheduleOf(TRADED_GAMES, covered));
 
-      expect(reunionsOf(found)).toStrictEqual(expected);
+      expect(reunionsOf(gamesIn(found))).toStrictEqual(expected);
     },
   );
 
@@ -378,7 +402,7 @@ describe('formerTeamGames', () => {
       previousRunAt: tipOffOn('2025-10-31'),
       nextGameId: next.id,
     };
-    const qualifying = formerTeamGames(player, scheduleOf([atX, atY, next]));
+    const qualifying = gamesIn(formerTeamGames(player, scheduleOf([atX, atY, next])));
 
     expect(reunionsOf(gamesToDerive(qualifying, run))).toStrictEqual([
       ['2025-11-20', Y, X, '2025-01-10'],
@@ -540,8 +564,8 @@ describe('the calendar games over any data', () => {
   it('[CL-TAX-18] [CL-STA-05] derives only games of the team he belonged to at their start', () => {
     fc.assert(
       fc.property(anyData, anyBirthday, ({ player, schedule }, birthday) => {
-        const birthdays = birthdayGames({ ...player, birthday }, schedule);
-        const derived = [...birthdays, ...formerTeamGames(player, schedule)];
+        const birthdays = gamesIn(birthdayGames({ ...player, birthday }, schedule));
+        const derived = [...birthdays, ...gamesIn(formerTeamGames(player, schedule))];
 
         expect(derived.every(({ game, teamId }) => isHisTeamGame(game, teamId, player))).toBe(true);
       }),
@@ -551,7 +575,7 @@ describe('the calendar games over any data', () => {
   it('[CL-TAX-18] [CL-JOU-18] gives no stint two reunions, each after the last game he played for the former team in that stint, in scheduled-start order', () => {
     fc.assert(
       fc.property(anyData, ({ player, schedule }) => {
-        const reunions = formerTeamGames(player, schedule);
+        const reunions = gamesIn(formerTeamGames(player, schedule));
         const games = reunions.map(({ game }) => game);
         const stints = reunions.map(({ departure }) =>
           stintAt(player.stints, departure.scheduledStartAt),
@@ -567,7 +591,7 @@ describe('the calendar games over any data', () => {
   it('[CL-TAX-18] [CL-JOU-17] [CL-STA-24] lists every game of his team on his birthday in a covered season, in scheduled-start order, and no other', () => {
     fc.assert(
       fc.property(anyData, anyBirthday, ({ player, schedule }, birthday) => {
-        const found = birthdayGames({ ...player, birthday }, schedule);
+        const found = gamesIn(birthdayGames({ ...player, birthday }, schedule));
 
         expect(found.map(({ game }) => game)).toStrictEqual(
           birthdayGamesOracle(player, schedule, birthday),

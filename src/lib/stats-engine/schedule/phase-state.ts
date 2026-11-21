@@ -23,10 +23,14 @@ export type PhaseSeries = Pick<
   'phase' | 'round' | 'teamAId' | 'teamBId' | 'winsNeeded'
 >;
 
-/** One season's stored schedule: its games of every phase, and its series. */
+/**
+ * One season's stored schedule: its games of every phase, its series, and whether a game
+ * of a later season is stored, which tells that the season is over (CL-STA-18).
+ */
 export type SeasonSchedule = Readonly<{
   games: readonly PhaseGame[];
   series: readonly PhaseSeries[];
+  hasLaterSeasonGame: boolean;
 }>;
 
 /**
@@ -97,16 +101,16 @@ function isKnockedOutBy(series: PhaseSeries, games: readonly PhaseGame[], teamId
 }
 
 /**
- * Whether `series` is the Finals and they are over: a team won them, or none of their
- * games is left to play, as when a game of them is missing (CL-STA-02, CL-STA-18).
+ * Whether `series` is the Finals and a team won them (CL-STA-02, CL-STA-18, CL-STA-20):
+ * while the season may be in progress, a game the source has not listed yet leaves them
+ * under way.
  */
 function isFinalsOver(series: PhaseSeries, games: readonly PhaseGame[]): boolean {
   const finals = gamesOf(series, games);
-  const isDecided = [series.teamAId, series.teamBId].some(
-    (teamId) => winsOf(finals, teamId) >= series.winsNeeded,
+  return (
+    series.round === 'finals' &&
+    [series.teamAId, series.teamBId].some((teamId) => winsOf(finals, teamId) >= series.winsNeeded)
   );
-  const hasGameLeft = finals.some((game) => isCounted(game) && game.status !== 'final');
-  return series.round === 'finals' && (isDecided || !hasGameLeft);
 }
 
 function postseasonState(schedule: SeasonSchedule, teamId: TeamId): PhaseState | null {
@@ -114,25 +118,33 @@ function postseasonState(schedule: SeasonSchedule, teamId: TeamId): PhaseState |
     (game) =>
       game.phase !== 'regular_season' && game.status !== 'canceled' && hasTeam(game, teamId),
   );
-  if (teamGames.length === 0) {
+  if (teamGames.length === 0 && !schedule.hasLaterSeasonGame) {
     return null;
   }
-  const isFinished = schedule.series.some(
-    (series) =>
-      isKnockedOutBy(series, schedule.games, teamId) || isFinalsOver(series, schedule.games),
-  );
+  // Once a game of a later season is stored, the season is over, for every team.
+  const isFinished =
+    schedule.hasLaterSeasonGame ||
+    schedule.series.some(
+      (series) =>
+        isKnockedOutBy(series, schedule.games, teamId) || isFinalsOver(series, schedule.games),
+    );
   return stateOf(isFinished, teamGames);
 }
 
 /**
- * The state of a phase of one season's `schedule` (STA-20, CL-STA-02, CL-STA-17). The
- * regular season is finished, league-wide, once the schedule holds its games and none of
- * them is scheduled, in progress or postponed, and at the latest at the scheduled start of the
- * season's first play-in or playoff game, so that a postponed game that no make-up was
- * linked to never holds it open past that start; its last game is the season's last
- * final regular-season game. The postseason is finished for a team once a series put it
- * out, or the Finals are over; its last game is the team's last final postseason game,
- * and a team that never entered it has no postseason: null.
+ * The state of a phase of one season's `schedule` (STA-20, CL-STA-02, CL-STA-17,
+ * CL-STA-18). The regular season is finished, league-wide, once the schedule holds its
+ * games and none of them is scheduled, in progress or postponed, and at the latest at the
+ * scheduled start of the season's first play-in or playoff game, so that a postponed game
+ * that no make-up was linked to never holds it open past that start; its last game is the
+ * season's last final regular-season game. Once a game of a later season is stored, the
+ * postseason is finished for every team of the season and its Finals are over, whatever
+ * its stored playoff games say: none stored, a series cut short, Finals never listed.
+ * Until then the season may be in progress: the postseason is finished for a team once a
+ * series put it out or a team won the Finals, a series ending on wins only, since the
+ * source may list a game only once it is scheduled (CL-STA-20). Its last game is the
+ * team's last final postseason game, and while no game of a later season is stored, a
+ * team that never entered it has no postseason: null.
  */
 export function phaseState(schedule: SeasonSchedule, of: PhaseOf): PhaseState | null {
   return of.phase === 'regular_season'

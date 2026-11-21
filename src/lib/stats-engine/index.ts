@@ -86,7 +86,11 @@ export type {
 
 // schedule/seasons.ts
 export { seasonOfDate } from './schedule/seasons';
+export { seasonSpan } from './schedule/seasons';
+export type { SeasonNotRead } from './schedule/seasons';
+export type { SeasonOfDateResult } from './schedule/seasons';
 export type { SeasonSpan } from './schedule/seasons';
+export type { SeasonSpanInput } from './schedule/seasons';
 
 // schedule/team-membership.ts
 export { teamGames } from './schedule/team-membership';
@@ -98,8 +102,8 @@ export type { TeamGame } from './schedule/team-membership';
 export type { TeamStint } from './schedule/team-membership';
 
 // schedule/next-game.ts
-export { expectedGame } from './schedule/next-game';
-export { nextGame } from './schedule/next-game';
+export { expectedGameOf } from './schedule/next-game';
+export { nextGameOf } from './schedule/next-game';
 export type { ExpectedGame } from './schedule/next-game';
 export type { GameVenue } from './schedule/next-game';
 export type { NextGame } from './schedule/next-game';
@@ -107,11 +111,13 @@ export type { NextGameCandidate } from './schedule/next-game';
 export type { NextGameSchedule } from './schedule/next-game';
 
 // schedule/player-indicators.ts
-export { firstNbaGame } from './schedule/player-indicators';
+export { firstNbaGameOf } from './schedule/player-indicators';
 export { indicatorsOf } from './schedule/player-indicators';
 export type { CareerSeasons } from './schedule/player-indicators';
 export type { FirstNbaGame } from './schedule/player-indicators';
+export type { FirstNbaGameResult } from './schedule/player-indicators';
 export type { IndicatorLine } from './schedule/player-indicators';
+export type { IndicatorsResult } from './schedule/player-indicators';
 export type { PlayerIndicators } from './schedule/player-indicators';
 
 // --- measured-game/ --------------------------------------------------------------
@@ -305,6 +311,7 @@ export { formerTeamGames } from './calendar/calendar-games';
 export { gamesToDerive } from './calendar/calendar-games';
 export type { Birthday } from './calendar/calendar-games';
 export type { CalendarGame } from './calendar/calendar-games';
+export type { CalendarGamesResult } from './calendar/calendar-games';
 export type { CalendarPlayer } from './calendar/calendar-games';
 export type { CalendarSchedule } from './calendar/calendar-games';
 export type { DerivationRun } from './calendar/calendar-games';

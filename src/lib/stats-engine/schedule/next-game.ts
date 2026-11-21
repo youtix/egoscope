@@ -34,10 +34,13 @@ export type NextGameCandidate = PhaseGame &
 /**
  * The stored schedule that the next game is read from (STA-26, CL-STA-20): the season in
  * progress or, between seasons, the season that ended last, with its series; and the
- * stored games of the season after it, none until its schedule is stored.
+ * stored games of the season after it, none until its schedule is stored. These also say
+ * whether a game of a later season is stored, which phaseState reads (CL-STA-18): while
+ * the season given is the latest that has begun, no season after the next holds a game.
  */
 export type NextGameSchedule = Readonly<{
-  season: SeasonSchedule & Readonly<{ games: readonly NextGameCandidate[] }>;
+  season: Omit<SeasonSchedule, 'hasLaterSeasonGame'> &
+    Readonly<{ games: readonly NextGameCandidate[] }>;
   nextSeasonGames: readonly NextGameCandidate[];
 }>;
 
@@ -84,7 +87,7 @@ function isToPlay(
   );
 }
 
-function nextGameOf(
+function asNextGame(
   game: NextGameCandidate & SetTeams,
   teamId: TeamId,
   lastGamePlayedOn: IsoDate | null,
@@ -118,12 +121,16 @@ function postseasonOf(teamId: TeamId): PhaseOf {
 }
 
 /**
- * Whether the Finals of `season` are over (CL-STA-02, CL-STA-20): a team of theirs has
- * finished the postseason, which only the end of the Finals does for a finalist.
+ * Whether the Finals of `season` are over (CL-STA-02, CL-STA-18, CL-STA-20): a team of
+ * theirs has finished the postseason, which only the end of the Finals does for a
+ * finalist. Finals that the schedule does not list are over once a game of a later
+ * season is stored, as phaseState then says of every team.
  */
 function areFinalsOver(season: SeasonSchedule): boolean {
   const finals = season.series.find(({ round }) => round === 'finals');
-  return finals !== undefined && isFinished(season, postseasonOf(finals.teamAId)) === true;
+  return finals === undefined
+    ? season.hasLaterSeasonGame
+    : isFinished(season, postseasonOf(finals.teamAId)) === true;
 }
 
 /**
@@ -146,11 +153,13 @@ function isSeasonOverFor(season: SeasonSchedule, teamId: TeamId, now: EpochMs): 
  * Why his team has no game to play (CL-STA-20), the first reason that applies once he has
  * a team: eliminated while the league's postseason is under way, its Finals not over and
  * his team's season over; the offseason once the Finals are over and no game of the next
- * season is stored; otherwise the schedule is not published.
+ * season is stored; otherwise the schedule is not published. A game of a later season is
+ * stored when the next season has one (CL-STA-18).
  */
 function reasonOf(schedule: NextGameSchedule, teamId: TeamId, now: EpochMs): NoNextGameReason {
-  const haveFinalsEnded = areFinalsOver(schedule.season);
-  if (!haveFinalsEnded && isSeasonOverFor(schedule.season, teamId, now)) {
+  const season = { ...schedule.season, hasLaterSeasonGame: schedule.nextSeasonGames.length > 0 };
+  const haveFinalsEnded = areFinalsOver(season);
+  if (!haveFinalsEnded && isSeasonOverFor(season, teamId, now)) {
     return 'team_eliminated';
   }
   return haveFinalsEnded && schedule.nextSeasonGames.length === 0
@@ -169,12 +178,14 @@ function reasonOf(schedule: NextGameSchedule, teamId: TeamId, now: EpochMs): NoN
  * first reason that applies: a player without a team; his team eliminated while the
  * postseason is under way, its Finals not over and his team's season over, eliminated or
  * never in the postseason; the offseason, the Finals over and no game of the next season
- * stored; otherwise the schedule not published. A team that qualified for the postseason
- * reads as never in it until a play-in or playoff game of the stored schedule names it, a
- * placeholder included: an accepted limit, since nothing stored tells it from a team that
- * did not qualify.
+ * stored; otherwise the schedule not published. The phases are read with phaseState, told
+ * that a game of a later season is stored when the next season's games hold one, which
+ * is enough (`NextGameSchedule` says why, CL-STA-18). A team that qualified for the
+ * postseason reads as never in it until a play-in or playoff game of the stored schedule
+ * names it, a placeholder included: an accepted limit, since nothing stored tells it from
+ * a team that did not qualify.
  */
-export function nextGame(
+export function nextGameOf(
   player: Readonly<{ teamId: TeamId | null; lastGamePlayedOn: IsoDate | null }>,
   schedule: NextGameSchedule,
   now: EpochMs,
@@ -188,7 +199,7 @@ export function nextGame(
     .toSorted(byScheduledStart);
   return game === undefined
     ? { kind: 'no_game_scheduled', reason: reasonOf(schedule, teamId, now) }
-    : nextGameOf(game, teamId, lastGamePlayedOn);
+    : asNextGame(game, teamId, lastGamePlayedOn);
 }
 
 /**
@@ -200,7 +211,7 @@ export function nextGame(
  * final game he did not play included; null while none of `games` is one. It is one of
  * `games`, returned as itself with the team he belonged to at its start.
  */
-export function expectedGame<G extends LinesGame>(
+export function expectedGameOf<G extends LinesGame>(
   player: Readonly<{ stints: readonly TeamStint[]; lines: readonly PlayerLine[] }>,
   games: readonly G[],
   after: EpochMs,
