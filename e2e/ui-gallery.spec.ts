@@ -1,29 +1,60 @@
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { hermeticEnvironment } from './fixtures/hermetic-server';
 import { expect, test } from './fixtures/test';
 
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 // The two themes that the app follows (IHM-63). Each project already runs one;
 // every test here runs in both, on the desktop and on the phone.
 const THEMES = ['light', 'dark'] as const;
 
+// What each theme paints, from the tokens of src/app/globals.css: the page, its
+// text and the main action.
+const THEME_COLORS = {
+  light: { canvas: 'rgb(255, 255, 255)', ink: 'rgb(24, 24, 27)', accent: 'rgb(29, 78, 216)' },
+  dark: { canvas: 'rgb(9, 9, 11)', ink: 'rgb(244, 244, 245)', accent: 'rgb(147, 197, 253)' },
+} as const;
+
 // The largest text size that WCAG 2.2 AA asks a page to take without loss: 200%.
 const LARGE_TEXT = 'html { font-size: 200% !important; }';
+const LARGE_TEXT_FACTOR = 2;
+
+// How a visually hidden text, written for screen readers alone, is cut on purpose.
+const VISUALLY_HIDDEN = 'inset(50%)';
+// How much of an element's markup a failure shows, enough to find it.
+const SHOWN_MARKUP = 120;
 
 /**
  * The elements of the page whose content is wider than their box, cut or pushed
- * sideways, and whether the page itself scrolls sideways (IHM-01, IHM-60).
+ * sideways, apart from the texts hidden for screen readers, and whether the page
+ * itself scrolls sideways (IHM-01, IHM-60).
  */
-async function overflows(page: Page): Promise<Readonly<{ page: boolean; elements: number }>> {
-  return page.evaluate(() => {
-    const root = globalThis.document.documentElement;
-    const boxes = [
-      ...globalThis.document.querySelectorAll('button, a, label, p, dt, dd, td, th, h1, h2, h3'),
-    ];
-    return {
-      page: root.scrollWidth > root.clientWidth,
-      elements: boxes.filter((box) => box.scrollWidth > box.clientWidth + 1).length,
-    };
-  });
+async function overflows(page: Page): Promise<Readonly<{ page: boolean; elements: string[] }>> {
+  return page.evaluate(
+    ([hidden, markupLength]) => {
+      const root = globalThis.document.documentElement;
+      const boxes = [...globalThis.document.body.querySelectorAll('*')].filter(
+        (box) => globalThis.getComputedStyle(box).clipPath !== hidden,
+      );
+      return {
+        page: root.scrollWidth > root.clientWidth,
+        elements: boxes
+          .filter((box) => box.scrollWidth > box.clientWidth + 1)
+          .map((box) => box.outerHTML.slice(0, markupLength)),
+      };
+    },
+    [VISUALLY_HIDDEN, SHOWN_MARKUP] as const,
+  );
+}
+
+/** The computed size of the text of `text`, in CSS pixels. */
+async function fontSize(text: Locator): Promise<number> {
+  return text.evaluate((element) =>
+    Number(globalThis.getComputedStyle(element).fontSize.replace(/px$/u, '')),
+  );
 }
 
 for (const colorScheme of THEMES) {
@@ -48,15 +79,49 @@ for (const colorScheme of THEMES) {
       await expect(page.getByText('Loading the samples')).toBeAttached();
     });
 
-    test('[IHM-60] keeps every text whole at twice the text size, with no sideways scroll', async ({
+    test("[IHM-63] paints the page and its components in the colors of the device's theme", async ({
+      page,
+    }) => {
+      const colors = THEME_COLORS[colorScheme];
+
+      const canvas = await page.evaluate(
+        () => globalThis.getComputedStyle(globalThis.document.body).backgroundColor,
+      );
+      expect(canvas).toBe(colors.canvas);
+      await expect(page.getByRole('main')).toHaveCSS('color', colors.ink);
+      await expect(page.getByRole('button', { name: 'Main action' })).toHaveCSS(
+        'background-color',
+        colors.accent,
+      );
+    });
+
+    test('[IHM-60] follows the text size up to twice its own, every text whole, with no sideways scroll', async ({
       page,
       accessibility,
     }) => {
+      // A field's label, an action, a state and a figure of a table, at the text size of the device.
+      const texts = [
+        page.getByText('Time zone', { exact: true }),
+        page.getByRole('button', { name: 'Main action' }),
+        page.getByText('Finished state', { exact: true }),
+        page.getByText('1,204', { exact: true }).filter({ visible: true }),
+      ];
+      // One at a time, as each read waits for the accessibility watch.
+      const sizes: number[] = [];
+      for (const text of texts) {
+        sizes.push(await fontSize(text));
+      }
+
       await page.addStyleTag({ content: LARGE_TEXT });
       await accessibility.check();
 
-      await expect(page.getByRole('button', { name: 'Main action' })).toBeVisible();
-      expect(await overflows(page)).toStrictEqual({ page: false, elements: 0 });
+      for (const [index, text] of texts.entries()) {
+        await expect(text).toHaveCSS(
+          'font-size',
+          `${String(LARGE_TEXT_FACTOR * (sizes[index] ?? 0))}px`,
+        );
+      }
+      expect(await overflows(page)).toStrictEqual({ page: false, elements: [] });
     });
 
     test('[IHM-63] works in landscape as in portrait, with no sideways scroll', async ({
@@ -72,7 +137,7 @@ for (const colorScheme of THEMES) {
       await expect(
         page.getByRole('heading', { level: 1, name: 'Component gallery' }),
       ).toBeVisible();
-      expect(await overflows(page)).toStrictEqual({ page: false, elements: 0 });
+      expect(await overflows(page)).toStrictEqual({ page: false, elements: [] });
     });
 
     test('[IHM-39] [IHM-63] unfolds the long text, copies it and shares it', async ({ page }) => {
@@ -104,13 +169,54 @@ for (const colorScheme of THEMES) {
         'aria-invalid',
         'true',
       );
+      const understood = fields.getByRole('checkbox', { name: 'I have read the explanation' });
+      await expect(understood).toHaveAttribute('aria-invalid', 'true');
+      await expect(fields.getByRole('checkbox', { name: 'Keep a copy' })).toBeChecked();
       await summary.getByRole('link', { name: 'Enter a display name.' }).click();
       await expect(fields.getByRole('textbox', { name: 'Display name' })).toBeFocused();
 
       await fields.getByRole('textbox', { name: 'Display name' }).fill('Sample');
       await fields.getByText('Duplicate').click();
+      await understood.check();
       await fields.getByRole('button', { name: 'Save' }).click();
       await expect(fields.getByText('The sample is saved.')).toBeVisible();
+    });
+
+    test('[IHM-61] shows a submit button that waits for its action, deaf to presses', async ({
+      page,
+    }) => {
+      const actions = page.getByRole('region', { name: 'Actions' });
+      const send = actions.getByRole('button', { name: 'Send the sample' });
+      await send.click();
+
+      await expect(send).toHaveAttribute('aria-disabled', 'true');
+      await expect(send).toBeFocused();
+      await actions.getByRole('button', { name: 'End the wait' }).click();
+      await expect(send).not.toHaveAttribute('aria-disabled');
+    });
+
+    test('[IHM-28] [IHM-39] says how to copy and paste by hand where the device offers no clipboard', async ({
+      page,
+    }) => {
+      await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'clipboard', { value: undefined });
+      });
+      await page.reload();
+
+      const refused = page.getByText(
+        'Copy refused: the text is selected, copy it with a long press.',
+      );
+      await page.getByRole('button', { name: 'Copy the text' }).click();
+      await expect(refused).toHaveCount(1);
+      await page.getByRole('button', { name: 'Share' }).click();
+      await expect(refused).toHaveCount(2);
+      await page
+        .getByRole('region', { name: 'Paste area' })
+        .getByRole('button', { name: 'Paste' })
+        .click();
+      await expect(
+        page.getByText('Paste refused: hold a finger on the area, then choose Paste.'),
+      ).toBeVisible();
     });
 
     test('[CL-IHM-18] keeps the input visible beside the current version of a note changed elsewhere', async ({
@@ -175,3 +281,69 @@ for (const colorScheme of THEMES) {
     });
   });
 }
+
+// How long a server of the test's own lives, within the test's timeout: a
+// production server starts within a few seconds and answers a request at once.
+const SERVER_LIFE_MS = 20_000;
+const ROOT = path.join(import.meta.dirname, '..');
+const NEXT = fileURLToPath(import.meta.resolve('next/dist/bin/next'));
+const LISTENING = /- Local:\s+(?<address>http:\/\/127\.0\.0\.1:\d+)/u;
+
+/** A server of the test's own: its address, and how to stop it. */
+type OwnServer = Readonly<{ address: string; stop: () => void }>;
+
+/**
+ * Runs `next start` on the run's build with `environment` over the test's own,
+ * on a port that the system picks, and resolves once it listens.
+ */
+async function startServer(environment: Readonly<Record<string, string>>): Promise<OwnServer> {
+  const controller = new AbortController();
+  const server = spawn(
+    process.execPath,
+    [NEXT, 'start', '--hostname', '127.0.0.1', '--port', '0'],
+    {
+      cwd: ROOT,
+      env: { ...process.env, ...environment },
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(SERVER_LIFE_MS)]),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  const stop = (): void => {
+    controller.abort();
+  };
+  let printed = '';
+  return new Promise<OwnServer>((resolve, reject) => {
+    server.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      printed += chunk;
+      const address = LISTENING.exec(printed)?.groups?.['address'];
+      if (address !== undefined) {
+        resolve({ address, stop });
+      }
+    });
+    server.stderr.resume();
+    server.once('error', (error) => {
+      reject(new Error('The server could not start within its life.', { cause: error }));
+    });
+    server.once('close', (code) => {
+      reject(new Error(`The server stopped before it listened, with code ${String(code)}.`));
+    });
+  });
+}
+
+test.describe('the component gallery outside development and the hermetic mode', () => {
+  test('answers not found on a server started without the hermetic mode, and names nothing of the gallery', async ({
+    request,
+  }) => {
+    // The run's build, which the hermetic mode made, started as production outside Vercel.
+    const server = await startServer({ ...hermeticEnvironment(1), EGOSCOPE_FAKES: '' });
+    try {
+      const response = await request.get(new URL('/dev/ui', server.address).href);
+      const body = await response.text();
+
+      expect(body).toContain('<meta name="robots" content="noindex"/>');
+      expect(body).not.toContain('Component gallery');
+    } finally {
+      server.stop();
+    }
+  });
+});
