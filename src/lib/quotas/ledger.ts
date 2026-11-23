@@ -1,14 +1,14 @@
 // The application's own count, per limit and period instance, in `quota_usage` (TRV-03,
 // TRV-04, CL-TRV-12): the state of each limit at an instant, and the writes that add a
 // call's use, mark a limit reached and note its warning.
-import { and, gt, gte, inArray, or, sql } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, or, sql } from 'drizzle-orm';
 
 import { quotaUsage } from '@/lib/db';
 import { toEpochMs } from '@/lib/time';
 
 import { bucketOf, fixedPeriodAt, leavesAt, rollingSince } from './periods';
 
-import type { CountedLimit, Window } from './limits';
+import type { CountedLimit, LimitKey, Measure, Window } from './limits';
 import type { Period } from './periods';
 import type { Database, Transaction } from '@/lib/db';
 import type { EpochMs } from '@/lib/time';
@@ -206,4 +206,40 @@ export async function writeRow(
         warningGivenAt: sql`coalesce(${quotaUsage.warningGivenAt}, excluded.warning_given_at)`,
       },
     });
+}
+
+/** A call's estimate counted on one row of a limit until the call's own use replaces it (TRV-04). */
+export type Hold = Readonly<{ key: LimitKey; start: EpochMs; amount: number }>;
+
+/**
+ * Counts the `estimate` of a call checked at `at` on the current rows of `states`, in
+ * the caller's transaction `tx`, so that a call checked while this one runs sees it
+ * (TRV-04).
+ */
+export async function hold(
+  tx: Transaction,
+  states: readonly LimitState[],
+  call: Readonly<{ estimate: Readonly<Partial<Record<Measure, number>>>; at: EpochMs }>,
+): Promise<readonly Hold[]> {
+  const holds: Hold[] = [];
+  for (const state of states) {
+    const amount = call.estimate[state.limit.measure] ?? 0;
+    if (amount <= 0) {
+      continue;
+    }
+    await writeRow(tx, state, { at: call.at, used: amount });
+    holds.push({ key: state.limit.key, start: rowStart(state, call.at), amount });
+  }
+  return holds;
+}
+
+/** Takes the estimates of `holds` back off their rows, in the caller's transaction `tx` (TRV-04). */
+export async function release(tx: Transaction, holds: readonly Hold[]): Promise<void> {
+  for (const { key, start, amount } of holds) {
+    const row = and(eq(quotaUsage.limitKey, key), eq(quotaUsage.periodStartAt, new Date(start)));
+    await tx
+      .update(quotaUsage)
+      .set({ used: sql`${quotaUsage.used} - ${amount}` })
+      .where(row);
+  }
 }

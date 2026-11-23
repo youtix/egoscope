@@ -8,7 +8,7 @@ import { getParams } from '@/lib/params';
 import { now } from '@/lib/time';
 
 import { syncComputeWarning } from './compute';
-import { BYTES_PER_MEGABYTE } from './limits';
+import { BYTES_PER_MEGABYTE, isShareReached } from './limits';
 
 import type { Database, Transaction } from '@/lib/db';
 import type { IsoDate } from '@/lib/time';
@@ -22,7 +22,6 @@ export type DatabaseVolume = Readonly<{
   warning: boolean;
 }>;
 
-const PERCENT = 100;
 const VOLUME_WARNING = { kind: 'database_volume_warning' } as const;
 
 /**
@@ -39,7 +38,7 @@ export async function databaseVolume(db: Executor): Promise<DatabaseVolume> {
   const capacity = values.get('quotas.database.capacityMegabytes');
   const capacityBytes = capacity === null ? null : capacity * BYTES_PER_MEGABYTE;
   const share = values.get('quotas.databaseWarningShare');
-  const isWarning = capacityBytes !== null && usedBytes * PERCENT >= capacityBytes * share;
+  const isWarning = capacityBytes !== null && isShareReached(usedBytes, capacityBytes, share);
   return { usedBytes, capacityBytes, warning: isWarning };
 }
 

@@ -8,7 +8,7 @@ import { formatCount, formatDecimal, sentence } from '@/lib/wording';
 
 import { computeEstimate } from './compute';
 import { readStates } from './ledger';
-import { QUOTA_SERVICES, REFERENCE_KEYS, scaleOf, SERVICES } from './limits';
+import { isShareReached, QUOTA_SERVICES, REFERENCE_KEYS, scaleOf, SERVICES } from './limits';
 import { allowanceOf } from './quota-incidents';
 
 import type { ComputeEstimate } from './compute';
@@ -31,7 +31,6 @@ export type UsageLine =
   | Readonly<{ kind: 'usage'; key: LimitKey; status: QuotaStatus; text: string }>
   | Readonly<{ kind: 'not_entered' | 'reference'; key: LimitKey; text: string }>;
 
-const PERCENT = 100;
 const DAY_MS = 86_400_000;
 const COMPUTE_DECIMALS = 1;
 const COMPUTE_KEY = 'quotas.database.computeHoursPerMonth';
@@ -95,7 +94,7 @@ function statusOf(state: LimitState, values: ParamReader): QuotaStatus {
     return 'reached';
   }
   const share = values.get('quotas.warningShare');
-  return state.used * PERCENT >= allowance * share ? 'warning' : 'normal';
+  return isShareReached(state.used, allowance, share) ? 'warning' : 'normal';
 }
 
 /** What the report reads for its usage lines: the counted limits' states, the compute estimate. */

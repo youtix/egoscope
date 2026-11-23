@@ -101,14 +101,13 @@ const READERS: Readers = {
   workersAi: modelUsage,
   groq: modelUsage,
   // GitHub's requests and the reset its `x-ratelimit-reset` header reports, which a
-  // refusal waits for (backup storage sheet).
+  // refusal waits for: a header's reset, not a retry-after (backup storage sheet).
   backupStorage: (outcome) => {
-    const resetsAt = outcome.meta.rateLimitResetsAt;
     const isRefused = !outcome.ok && outcome.error.kind === 'rate_limited';
     return {
-      amounts: { requests: outcome.meta.requests },
-      resets: reported([['requests', resetsAt]]),
-      refusal: isRefused ? { retryAt: resetsAt } : null,
+      amounts: { requests: outcome.call.httpRequests },
+      resets: reported([['requests', outcome.call.rateLimitResetsAt]]),
+      refusal: isRefused ? { retryAt: null } : null,
     };
   },
   telegram: (outcome, at) => ({

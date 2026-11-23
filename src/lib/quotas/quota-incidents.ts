@@ -6,7 +6,7 @@ import { close, listOpen, open, updateQuotaCauses } from '@/lib/incidents';
 import { valueAt } from '@/lib/params';
 
 import { reachedSince, readStates, rowEnd, writeRow } from './ledger';
-import { scaleOf, SERVICES, servicesOf } from './limits';
+import { isShareReached, scaleOf, SERVICES, servicesOf } from './limits';
 import { followingEnd } from './periods';
 
 import type { LimitState } from './ledger';
@@ -31,7 +31,6 @@ const CAUSE_ORDER: readonly QuotaIncidentCause[] = [
   'refused_before_limit',
   'not_answering',
 ];
-const PERCENT = 100;
 
 /** The value in force of a limit in the units of its measure, null while not entered. */
 export function allowanceOf(state: LimitState, values: ParamReader): number | null {
@@ -39,10 +38,16 @@ export function allowanceOf(state: LimitState, values: ParamReader): number | nu
   return value === null ? null : value * scaleOf(state.limit.measure);
 }
 
-/** Whether the limit of `state` is reached by the app's own count (TRV-05). */
+/** The allowance of a limit that warns and reaches as a quota: entered, enforced, not a rate (TRV-05). */
+function quotaAllowanceOf(state: LimitState, values: ParamReader): number | null {
+  const { enforced, rate } = state.limit;
+  return enforced && !rate ? allowanceOf(state, values) : null;
+}
+
+/** Whether the limit of `state` is reached by the app's own count, a rate never (TRV-05). */
 export function isReachedByCount(state: LimitState, values: ParamReader): boolean {
-  const allowance = allowanceOf(state, values);
-  return state.limit.enforced && allowance !== null && state.used >= allowance;
+  const allowance = quotaAllowanceOf(state, values);
+  return allowance !== null && state.used >= allowance;
 }
 
 /**
@@ -136,8 +141,8 @@ export async function syncReached(
 /**
  * Gives the warning of `role` in the caller's transaction `tx` when a limit of its
  * services reaches `quotas.warningShare` of its value, noted once per limit and period
- * instance, and ends it when no limit is there any longer: the period renewed (TRV-05,
- * CL-TRV-12).
+ * instance, and ends it when no limit is there any longer: the period renewed; a rate,
+ * which the guard paces, never warns (TRV-05, CL-TRV-12).
  */
 export async function syncWarning(
   tx: Transaction,
@@ -148,8 +153,8 @@ export async function syncWarning(
   const share = context.values.get('quotas.warningShare');
   const states = await readStates(tx, limits, context.at);
   const over = states.filter((state) => {
-    const allowance = allowanceOf(state, context.values);
-    return state.limit.enforced && allowance !== null && state.used * PERCENT >= allowance * share;
+    const allowance = quotaAllowanceOf(state, context.values);
+    return allowance !== null && isShareReached(state.used, allowance, share);
   });
   for (const state of over) {
     if (state.rows.at(-1)?.warningGivenAt === null) {

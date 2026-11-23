@@ -24,18 +24,40 @@ function refusalEnd(state: LimitState, at: EpochMs): EpochMs {
   return window.kind === 'rolling' ? leavesAt(bucketOf(at), window.lengthMs) : state.period.end;
 }
 
+/** The reset that `usage` reports for the limit of `state`, if its window is a reported one. */
+function reportedResetOf(state: LimitState, usage: CallUsage): EpochMs | null {
+  const { measure, window } = state.limit;
+  return window.kind === 'reported' ? (usage.resets[measure] ?? null) : null;
+}
+
+/**
+ * Until when the refusal of `usage` at `at` marks the limit of `state` reached, or null.
+ * A retry-after is for the limits that no header reports: a refusal with one leaves a
+ * reported window counting to the reset its header gives, one without marks it reached
+ * until that reset (CL-TRV-12; data model, `quota_usage.resets_at`).
+ */
+function markOf(state: LimitState, usage: CallUsage, at: EpochMs): EpochMs | null {
+  const { refusal } = usage;
+  if (refusal === null) {
+    return null;
+  }
+  if (state.limit.window.kind !== 'reported') {
+    return refusal.retryAt ?? refusalEnd(state, at);
+  }
+  return refusal.retryAt === null ? (reportedResetOf(state, usage) ?? refusalEnd(state, at)) : null;
+}
+
 /** What `usage` adds to the current row of `state`: its amount, a reported reset, a refusal's mark. */
 function changeOf(
   state: LimitState,
   usage: CallUsage,
   at: EpochMs,
 ): (RowChange & Readonly<{ at: EpochMs }>) | null {
-  const { measure, window } = state.limit;
-  const used = usage.amounts[measure] ?? 0;
-  const reportedReset = window.kind === 'reported' ? (usage.resets[measure] ?? null) : null;
-  if (usage.refusal !== null) {
-    const resetsAt = usage.refusal.retryAt ?? reportedReset ?? refusalEnd(state, at);
-    return { at, used, resetsAt, reachedAt: at };
+  const used = usage.amounts[state.limit.measure] ?? 0;
+  const reportedReset = reportedResetOf(state, usage);
+  const markedUntil = markOf(state, usage, at);
+  if (markedUntil !== null) {
+    return { at, used, resetsAt: markedUntil, reachedAt: at };
   }
   return used === 0 && reportedReset === null ? null : { at, used, resetsAt: reportedReset };
 }

@@ -11,6 +11,7 @@ import { close, open } from '@/lib/incidents';
 import { getParams } from '@/lib/params';
 import { now } from '@/lib/time';
 
+import { isShareReached } from './limits';
 import { BUCKET_MS, bucketOf, fixedPeriodAt } from './periods';
 
 import type { Period } from './periods';
@@ -33,7 +34,6 @@ export type ComputeEstimate = Readonly<{
 const SUSPEND_AFTER_MS = 300_000;
 const COMPUTE_UNITS = 0.25;
 const MS_PER_HOUR = 3_600_000;
-const PERCENT = 100;
 
 // This server instance, which writes at most one row a minute, and the last minute it wrote.
 const INSTANCE_ID = randomUUID();
@@ -92,7 +92,7 @@ export async function computeEstimate(db: Executor, at: EpochMs): Promise<Comput
   const values = await getParams(db);
   const limitHours = values.get('quotas.database.computeHoursPerMonth');
   const share = values.get('quotas.warningShare');
-  const isWarning = limitHours !== null && computeHours * PERCENT >= limitHours * share;
+  const isWarning = limitHours !== null && isShareReached(computeHours, limitHours, share);
   return { computeHours, limitHours, month, warning: isWarning };
 }
 

@@ -33,6 +33,12 @@ export type CountedLimit = Readonly<{
   window: Window;
   /** False for a reference value, counted but never a reason to defer a call. */
   enforced: boolean;
+  /**
+   * True for a rate, which the registry calls "a rate, no reset": the guard keeps it by
+   * spacing the calls it defers, so reaching it is the pace the service sheet sets, and
+   * neither a warning nor "quota reached" (TRV-04, TRV-05; telegram sheet).
+   */
+  rate: boolean;
 }>;
 
 /** The services that `withQuota` guards, by the names of their parameters (TRV-03). */
@@ -64,6 +70,7 @@ export const BYTES_PER_MEGABYTE = 1_000_000;
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
+const PERCENT = 100;
 
 const fixed = (unit: FixedUnit): Window => ({ kind: 'fixed', unit });
 const counted = (key: LimitKey, measure: Measure, window: Window): CountedLimit => ({
@@ -71,7 +78,13 @@ const counted = (key: LimitKey, measure: Measure, window: Window): CountedLimit 
   measure,
   window,
   enforced: true,
+  rate: false,
 });
+const rate = (key: LimitKey, measure: Measure, window: Window): CountedLimit => ({
+  ...counted(key, measure, window),
+  rate: true,
+});
+const ROLLING_MINUTE: Window = { kind: 'rolling', lengthMs: MINUTE_MS };
 const plain = { callSizeKey: null, reserve: false, closesOnResume: false };
 const languageModel = { ...plain, role: 'language_model' } as const;
 
@@ -91,16 +104,14 @@ export const SERVICES: Readonly<Record<QuotaService, ServiceDeclaration>> = {
     ...languageModel,
     limits: [
       counted('quotas.workersAi.neuronsPerDay', 'neurons', fixed('day')),
-      counted('quotas.workersAi.requestsPerMinute', 'requests', fixed('minute')),
+      // A rate, which its sheet gives no boundary for: a rolling minute, as Groq's.
+      rate('quotas.workersAi.requestsPerMinute', 'requests', ROLLING_MINUTE),
     ],
   },
   groq: {
     ...languageModel,
     limits: [
-      counted('quotas.groq.requestsPerMinute', 'requests', {
-        kind: 'rolling',
-        lengthMs: MINUTE_MS,
-      }),
+      counted('quotas.groq.requestsPerMinute', 'requests', ROLLING_MINUTE),
       counted('quotas.groq.requestsPerDay', 'requests', { kind: 'reported', lengthMs: DAY_MS }),
       counted('quotas.groq.tokensPerMinute', 'tokens', { kind: 'reported', lengthMs: MINUTE_MS }),
       counted('quotas.groq.tokensPerDay', 'tokens', { kind: 'rolling', lengthMs: DAY_MS }),
@@ -116,15 +127,21 @@ export const SERVICES: Readonly<Record<QuotaService, ServiceDeclaration>> = {
         measure: 'requests',
         window: { kind: 'reported', lengthMs: HOUR_MS },
         enforced: false,
+        rate: false,
       },
     ],
   },
   telegram: {
     ...plain,
     role: 'notifications',
-    limits: [counted('quotas.telegram.messagesPerSecond', 'messages', fixed('second'))],
+    limits: [rate('quotas.telegram.messagesPerSecond', 'messages', fixed('second'))],
   },
 };
+
+/** Whether `used` reached `share` percent of `total`, the test of every warning share (TRV-05, TRV-07). */
+export function isShareReached(used: number, total: number, share: number): boolean {
+  return used * PERCENT >= total * share;
+}
 
 /** The units of `measure` in one unit of its limit: a megabyte's bytes, else one. */
 export function scaleOf(measure: Measure): number {

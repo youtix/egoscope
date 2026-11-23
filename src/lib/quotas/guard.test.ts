@@ -31,15 +31,15 @@ const statsRefusal = (retryAfterMs: number | null): OutcomeOf['statsSource'] => 
   call: { httpRequests: 1, bytesReceived: 0, fileRequests: 0 },
 });
 const githubCall = (resetsAt: number, isRefused = false): OutcomeOf['backupStorage'] => {
-  const meta = {
-    requests: 1,
+  const call = {
+    httpRequests: 1,
     bytesSent: 0,
     bytesReceived: 0,
     rateLimitResetsAt: toEpochMs(resetsAt),
   };
   return isRefused
-    ? { ok: false, error: { kind: 'rate_limited' }, meta }
-    : { ok: true, value: null, meta };
+    ? { ok: false, error: { kind: 'rate_limited' }, call }
+    : { ok: true, value: null, call };
 };
 
 describe('the quota guard', { timeout: 60_000 }, () => {
@@ -134,6 +134,49 @@ describe('the quota guard', { timeout: 60_000 }, () => {
         reached: START,
         resetsAt: NEXT_UTC_DAY,
       },
+    ]);
+  });
+
+  it('[TRV-04] lets only one of two calls made at the same instant take the last unit of the day', async () => {
+    await enter('quotas.statsSource.requestsPerDay', 1000);
+    await enter('games.quotaReserveShare', 0);
+    await guarded('statsSource', statsCall(999));
+
+    const both = await Promise.all([
+      guarded('statsSource', statsCall(1)),
+      guarded('statsSource', statsCall(1)),
+    ]);
+
+    expect(both.filter(({ called }) => called)).toHaveLength(1);
+    expect(both.map(({ result }) => result)).toContainEqual({
+      ok: false,
+      error: { kind: 'deferred', availableAt: NEXT_UTC_DAY },
+    });
+    expect(await usage()).toMatchObject([{ key: 'quotas.statsSource.requestsPerDay', used: 1000 }]);
+  });
+
+  it('[TRV-03] [TRV-04] holds the estimate while the call runs, then counts the use the port reported in its own UTC day', async () => {
+    await enter('quotas.statsSource.requestsPerDay', 1000);
+    await enter('games.quotaReserveShare', 0);
+    await guarded('statsSource', statsCall(990));
+    let heldWhileRunning: number | null = null;
+
+    const result = await withQuota(
+      db,
+      { service: 'statsSource', estimate: { requests: 10 }, priority: false },
+      async () => {
+        const running = await usage();
+        heldWhileRunning = running[0]?.used ?? null;
+        clock.advance(NEXT_UTC_DAY - START);
+        return statsCall(3);
+      },
+    );
+
+    expect([result.ok, heldWhileRunning]).toStrictEqual([true, 1000]);
+    const stored = await usage();
+    expect(stored.map(({ start, used }) => ({ start, used }))).toStrictEqual([
+      { start: Date.UTC(2026, 10, 24), used: 990 },
+      { start: NEXT_UTC_DAY, used: 3 },
     ]);
   });
 

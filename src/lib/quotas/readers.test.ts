@@ -184,6 +184,66 @@ describe('the use that each service reports', { timeout: 60_000 }, () => {
     expect(await listOpen(db)).toStrictEqual([]);
   });
 
+  it("[TRV-03] [TRV-04] [CL-TRV-12] keeps Groq's requests a day and tokens a minute counting to the resets their headers report after a 429 with retry-after", async () => {
+    const requestsReset = toEpochMs(START + 5 * 3_600_000);
+    const tokensReset = toEpochMs(START + 7 * SECOND);
+    await enter('quotas.groq.requestsPerDay', 1000);
+    await enter('quotas.groq.tokensPerMinute', 8000);
+    await call(
+      'groq',
+      answered({
+        httpRequests: 990,
+        tokens: 6500,
+        requestsResetAt: requestsReset,
+        tokensResetAt: tokensReset,
+      }),
+    );
+    const refusal = await call('groq', refused(2 * SECOND));
+    clock.advance(3 * SECOND);
+    const after = await call('groq', answered({ httpRequests: 9, tokens: 1000 }));
+
+    expect([refusal.ok, after.ok]).toStrictEqual([true, true]);
+    expect(await call('groq', answered({}))).toStrictEqual(deferredUntil(requestsReset));
+    expect(await nextAvailableAt(db, 'groq')).toBe(requestsReset);
+    expect(await rows('quotas.groq.requestsPerDay')).toStrictEqual([
+      { start: START, used: 1000, resetsAt: requestsReset },
+    ]);
+    expect(await rows('quotas.groq.tokensPerMinute')).toStrictEqual([
+      { start: START, used: 7500, resetsAt: tokensReset },
+    ]);
+  });
+
+  it('[TRV-04] [TRV-05] [CL-TRV-11] paces Telegram at its rate of 1 message a second, with neither a warning nor "quota reached"', async () => {
+    await enter('quotas.telegram.messagesPerSecond', 1);
+    const message = { ok: true, call: { httpRequests: 1, messages: 1 } } as const;
+    const opened = [];
+
+    const first = await send(message);
+    opened.push(await openKinds());
+    const sameSecond = await send(message);
+    opened.push(await openKinds());
+    clock.advance(5 * SECOND);
+    const later = await send(message);
+    clock.advance(MINUTE);
+    const last = await send(message);
+    opened.push(await openKinds());
+
+    expect([first.ok, later.ok, last.ok]).toStrictEqual([true, true, true]);
+    expect(sameSecond).toStrictEqual(deferredUntil(toEpochMs(START + SECOND)));
+    expect(opened).toStrictEqual([[], [], []]);
+  });
+
+  it("[TRV-04] [CL-TRV-12] counts Workers AI's requests a minute as a rate over a rolling minute, without a warning", async () => {
+    await enter('quotas.workersAi.requestsPerMinute', 2);
+    await call('workersAi', answered({}));
+    await call('workersAi', answered({}));
+
+    expect(await call('workersAi', answered({}))).toStrictEqual(
+      deferredUntil(toEpochMs(START + 2 * MINUTE)),
+    );
+    expect(await openKinds()).toStrictEqual([]);
+  });
+
   it("[TRV-04] [TRV-06] counts Telegram's messages per second and holds them for the retry-after of its refusal", async () => {
     await enter('quotas.telegram.messagesPerSecond', 1);
     await send({ ok: true, call: { httpRequests: 1, messages: 1 } });

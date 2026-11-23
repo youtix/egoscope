@@ -79,11 +79,11 @@ describe('the check before a call', () => {
     const fits = check([view(dayState(REQUESTS_PER_DAY, 999), 1000)], request(), AT);
     const over = check([view(dayState(REQUESTS_PER_DAY, 1000), 1000)], request(), AT);
 
-    expect(fits).toStrictEqual({ allowed: true, resumes: true, byCount: false, availableAt: AT });
+    expect(fits).toStrictEqual({ allowed: true, resumes: true, reached: false, availableAt: AT });
     expect(over).toStrictEqual({
       allowed: false,
       resumes: false,
-      byCount: true,
+      reached: true,
       availableAt: DAY_END,
     });
   });
@@ -104,7 +104,7 @@ describe('the check before a call', () => {
     expect(tooLargeForAnyDay).toStrictEqual({
       allowed: false,
       resumes: false,
-      byCount: true,
+      reached: true,
       availableAt: null,
     });
   });
@@ -122,13 +122,13 @@ describe('the check before a call', () => {
     expect(normal).toStrictEqual({
       allowed: false,
       resumes: false,
-      byCount: true,
+      reached: true,
       availableAt: DAY_END,
     });
     expect(priority).toStrictEqual({
       allowed: true,
       resumes: false,
-      byCount: false,
+      reached: false,
       availableAt: AT,
     });
     expect(priorityAtLimit.allowed).toBe(false);
@@ -163,7 +163,7 @@ describe('the check before a call', () => {
     expect(held).toStrictEqual({
       allowed: false,
       resumes: false,
-      byCount: false,
+      reached: false,
       availableAt: retryAt,
     });
     expect(notEntered.availableAt).toBe(retryAt);
@@ -183,6 +183,24 @@ describe('the check before a call', () => {
 
     expect(verdict.availableAt).toBe(first + 2 * MINUTE);
     expect(tooMany.availableAt).toBeNull();
+  });
+
+  it('[TRV-04] [TRV-05] defers a call that a full rate would exceed without counting it as a quota reached', () => {
+    const second = toEpochMs(Date.UTC(2026, 10, 24, 14, 30, 1));
+    const state: LimitState = {
+      limit: limitOf('telegram', 'quotas.telegram.messagesPerSecond'),
+      period: { start: AT, end: second },
+      used: 1,
+      rows: [],
+      blockedUntil: null,
+    };
+
+    expect(check([view(state, 1)], request({ estimate: { messages: 1 } }), AT)).toStrictEqual({
+      allowed: false,
+      resumes: false,
+      reached: false,
+      availableAt: second,
+    });
   });
 
   it('[TRV-04] never allows a call whose estimate takes the count over the limit', () => {
@@ -208,7 +226,7 @@ describe('the check before a call', () => {
     expect(verdict).toStrictEqual({
       allowed: false,
       resumes: false,
-      byCount: true,
+      reached: true,
       availableAt: null,
     });
     expect(fits.allowed).toBe(true);

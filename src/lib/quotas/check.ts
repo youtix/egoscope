@@ -31,13 +31,17 @@ export type Verdict = Readonly<{
   allowed: boolean;
   /** Allowed without touching the reserve, which tells that deferred work resumes (STA-39). */
   resumes: boolean;
-  /** Deferred by the app's own count, rather than by a refusal that still holds (TRV-06). */
-  byCount: boolean;
+  /**
+   * Deferred by a limit that the app's own count reached, which opens "quota reached"
+   * (TRV-05): not by a rate, which only spaces the calls, nor by a refusal that still
+   * holds (TRV-06).
+   */
+  reached: boolean;
   /** When the call may be made: `at` when allowed, null when no reset ever makes room. */
   availableAt: EpochMs | null;
 }>;
 
-type Blocker = Readonly<{ until: EpochMs | null; byCount: boolean }>;
+type Blocker = Readonly<{ until: EpochMs | null; reached: boolean }>;
 
 const PERCENT = 100;
 
@@ -74,19 +78,19 @@ function countBlocker(view: LimitView, request: CheckRequest, share: number): Bl
   const allowance = (value * scaleOf(state.limit.measure) * share) / PERCENT;
   const need = request.estimate[state.limit.measure] ?? 0;
   return isOver(state.used, need, allowance)
-    ? { until: freeAt(state, need, allowance), byCount: true }
+    ? { until: freeAt(state, need, allowance), reached: !state.limit.rate }
     : null;
 }
 
 /** What blocks a call under `share` percent of each limit: refusals that hold, counts, its size. */
 function blockersOf(views: readonly LimitView[], request: CheckRequest, share: number): Blocker[] {
   const marks = views.flatMap(({ state }) =>
-    state.blockedUntil === null ? [] : { until: state.blockedUntil, byCount: false },
+    state.blockedUntil === null ? [] : { until: state.blockedUntil, reached: false },
   );
   const counts = views.flatMap((view) => countBlocker(view, request, share) ?? []);
   const bytes = request.estimate.bytes ?? 0;
   const isTooLarge = request.callSize !== null && bytes > request.callSize * scaleOf('bytes');
-  return [...marks, ...counts, ...(isTooLarge ? [{ until: null, byCount: true }] : [])];
+  return [...marks, ...counts, ...(isTooLarge ? [{ until: null, reached: true }] : [])];
 }
 
 /** The latest instant at which every blocker has made room, or null when one never does. */
@@ -108,7 +112,7 @@ export function check(views: readonly LimitView[], request: CheckRequest, at: Ep
   return {
     allowed: isAllowed,
     resumes: isAllowed && blockersOf(views, request, normalShare).length === 0,
-    byCount: blockers.some((blocker) => blocker.byCount),
+    reached: blockers.some((blocker) => blocker.reached),
     availableAt: isAllowed ? at : latest(blockers),
   };
 }
