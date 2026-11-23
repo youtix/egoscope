@@ -23,7 +23,10 @@ export type StatsSourceHarness = Readonly<{
   source: StatsSource;
   /** A finished season that the source covers. */
   season: Season;
-  /** The season in progress, whose player file is out. */
+  /**
+   * The season in progress, whose player file is out, and of which the source holds
+   * box scores: the directory case reads them, as it reads those of `season`.
+   */
   currentSeason: Season;
   /** A season that the source does not hold. */
   missingSeason: Season;
