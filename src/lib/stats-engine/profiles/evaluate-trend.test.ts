@@ -207,7 +207,8 @@ describe('hasTallyEvent', () => {
 
 describe('casesByView', () => {
   it('[SEN-21] [CL-SEN-19] puts each case in the views of its origin and the exits in all cases alone', () => {
-    const [first, second] = [VALID[0], VALID[2]];
+    const first = validCase(0, [FIRST, 'historical'], 1.4);
+    const second = validCase(2, [FIRST, 'tracked'], 1.5);
     expect(casesByView([first, second], ['merged'])).toStrictEqual([
       { view: 'all_cases', cases: [first, second], exitReasons: ['merged'] },
       { view: 'historical_only', cases: [first], exitReasons: [] },

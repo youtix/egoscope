@@ -47,7 +47,21 @@ const EASTERN_OFFSET_MINUTES = 5 * 60;
 const CONSOLIDATION_MS = 7 * MS_PER_DAY;
 const NOON_MS = 12 * 60 * MS_PER_MINUTE;
 
-type SeasonSpec = (typeof example.seasons)[number];
+// A season of the example: its regular season, his minutes when not the line's, the days
+// he played short or missed, and its playoffs.
+type SeasonSpec = Readonly<{
+  season: string;
+  firstGameOn: IsoDate;
+  gameCount: number;
+  playedTime: Readonly<{ minutes: number; seconds: number }> | null;
+  shortGamesOn: readonly IsoDate[];
+  missedGamesOn: readonly IsoDate[];
+  playoffs: Readonly<{
+    firstGameOn: IsoDate;
+    gameCount: number;
+    eliminationGameOn: IsoDate;
+  }> | null;
+}>;
 type EventSpec = (typeof example.events)[number];
 type GameRow = Readonly<{
   id: GameId;
