@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -152,6 +152,37 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
     });
   });
 
+  it('[CL-DSN-22] accepts an import copy with no counter while no event was ever withdrawn', async () => {
+    expect(
+      await saveDraft(db, {
+        target: IMPORT,
+        text: PASTED,
+        updatedAt: SAVED_AT,
+        knownWithdrawnEventCount: null,
+        originDevice: 'Phone',
+      }),
+    ).toStrictEqual({ ok: true, value: { withdrawnEventCount: 0 } });
+    expect(await getDraft(db, IMPORT)).toMatchObject({ text: PASTED });
+  });
+
+  it('[CL-DSN-17] keeps the last change when a copy typed earlier arrives after it', async () => {
+    clock.advance(HOUR_MS);
+    await save(IMPORT, PASTED, 'Laptop');
+    await saveDraft(db, {
+      target: IMPORT,
+      text: 'Typed earlier on the phone.',
+      updatedAt: SAVED_AT,
+      knownWithdrawnEventCount: 0,
+      originDevice: 'Phone',
+    });
+
+    expect(await getDraft(db, IMPORT)).toStrictEqual({
+      text: PASTED,
+      updatedAt: toEpochMs(SAVED_AT + HOUR_MS),
+      originDevice: 'Laptop',
+    });
+  });
+
   it('[CL-IHM-11] keeps the instant a copy was typed at, never later than now', async () => {
     const typedOffline = toEpochMs(SAVED_AT - DAY_MS);
     await saveDraft(db, {
@@ -233,6 +264,36 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
     expect(await getDraft(db, IMPORT)).toBeNull();
     expect(await purgeExpired(db)).toBe(1);
     expect(await getDraft(db, GENERAL)).toMatchObject({ text: 'younger' });
+  });
+
+  it('[DSN-32] [CL-IHM-10] fails a write the database refuses with an error that holds no draft text', async () => {
+    const writeFailed = new Error('The server copy of a draft could not be written.');
+    await db.execute(sql`
+      create function refuse_draft() returns trigger language plpgsql as $$
+      begin raise exception 'The test refuses this write.'; end $$`);
+    await db.execute(sql`
+      create trigger refuse_insert before insert on drafts
+      for each row execute function refuse_draft()`);
+
+    await expect(save(IMPORT, PASTED)).rejects.toStrictEqual(writeFailed);
+    await expect(save(IMPORT, PASTED)).rejects.not.toHaveProperty('cause');
+
+    await db.execute(sql`drop trigger refuse_insert on drafts`);
+    await save(IMPORT, 'An earlier text.');
+    await db.execute(sql`
+      create trigger refuse_update before update on drafts
+      for each row execute function refuse_draft()`);
+
+    await expect(save(IMPORT, PASTED)).rejects.toStrictEqual(writeFailed);
+    await expect(save(IMPORT, PASTED)).rejects.not.toHaveProperty('cause');
+    expect(await getDraft(db, IMPORT)).toMatchObject({ text: 'An earlier text.' });
+  });
+
+  it('[DSN-32] refuses, before any write, a text holding a character the database cannot keep', async () => {
+    expect(
+      await save(IMPORT, 'EVENT 1: the Northport Gulls guard\0misses practice.'),
+    ).toStrictEqual({ ok: false, error: { kind: 'unstorable_text' } });
+    expect(await count()).toBe(0);
   });
 
   it('[DSN-32] [CL-IHM-10] writes no draft text to the journal or the log', async () => {

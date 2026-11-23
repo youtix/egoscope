@@ -65,9 +65,10 @@ describe('the fate of a device copy at a contact', () => {
     ).toBe('drop');
   });
 
-  it('[CL-DSN-22] discards an import copy never sent when the counter has grown, or was never received, and sends it otherwise', () => {
+  it('[CL-DSN-22] discards an import copy never sent when the counter has grown, or was never received and some event was withdrawn, and sends it otherwise', () => {
     expect(copyFate(copyOf(IMPORT, false, 2), checkOf(3), AT)).toBe('discard_unsent');
-    expect(copyFate(copyOf(IMPORT, false, null), checkOf(0), AT)).toBe('discard_unsent');
+    expect(copyFate(copyOf(IMPORT, false, null), checkOf(1), AT)).toBe('discard_unsent');
+    expect(copyFate(copyOf(IMPORT, false, null), checkOf(0), AT)).toBe('send');
     expect(copyFate(copyOf(IMPORT, false, 3), checkOf(3), AT)).toBe('send');
   });
 

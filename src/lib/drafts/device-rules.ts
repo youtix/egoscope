@@ -21,9 +21,12 @@ export function hasExpired(copy: DeviceCopy, retentionDays: number | null, at: E
   return retentionDays !== null && draftExpiresAt(copy.updatedAt, retentionDays) <= at;
 }
 
-/** Says whether the counter has grown since the copy recorded it, or the copy recorded none. */
+/**
+ * Says whether the counter may have grown since the copy recorded it: it has, or the copy
+ * recorded none and some event was ever withdrawn (CL-DSN-22).
+ */
 function hasCounterGrown(copy: DeviceCopy, check: DraftCheck): boolean {
-  return copy.withdrawnEventCount === null || check.withdrawnEventCount > copy.withdrawnEventCount;
+  return check.withdrawnEventCount > (copy.withdrawnEventCount ?? 0);
 }
 
 /**

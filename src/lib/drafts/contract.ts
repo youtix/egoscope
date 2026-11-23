@@ -18,11 +18,14 @@ export type DraftUpload = Readonly<{
 
 /**
  * Why the server refused a copy: a text above `imports.maxPastedTextMegabytes`, with the
- * glossary's message (CL-IMP-27); an import copy typed before the counter grew, which the
- * device discards (CL-DSN-22); a request or a proposal that no longer exists (CL-DSN-17).
+ * glossary's message (CL-IMP-27); a text holding a NUL character, which the database cannot
+ * keep, so that the device keeps it alone (DSN-32); an import copy typed before the
+ * counter grew, which the device discards (CL-DSN-22); a request or a proposal that no
+ * longer exists (CL-DSN-17).
  */
 export type SaveDraftError =
   | Readonly<{ kind: 'text_too_large'; message: string }>
+  | Readonly<{ kind: 'unstorable_text' }>
   | Readonly<{ kind: 'events_withdrawn'; withdrawnEventCount: number }>
   | Readonly<{ kind: 'target_gone' }>;
 

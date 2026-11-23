@@ -10,10 +10,14 @@ import type { DraftServer } from './contract';
 import type { CopyFate } from './device-rules';
 import type { DeviceCopy } from './device-store';
 
-/** What a send did: the copy reached the server, was refused with a message, or went (CL-DSN-22). */
+/**
+ * What a send did: the copy reached the server, was refused with a message, stays on the
+ * device alone, or went (CL-DSN-22).
+ */
 export type SendOutcome =
   | Readonly<{ kind: 'sent' }>
   | Readonly<{ kind: 'refused'; message: string }>
+  | Readonly<{ kind: 'kept_unsent' }>
   | Readonly<{ kind: 'discarded_unsent' }>
   | Readonly<{ kind: 'gone' }>;
 
@@ -30,9 +34,22 @@ async function recordCount(withdrawnEventCount: number): Promise<void> {
 }
 
 /**
+ * Records the counter that the server answered to the send of `copy`, and marks the copy
+ * sent when the device still holds that text (IHM-42, CL-DSN-22).
+ */
+async function markSent(copy: DeviceCopy, withdrawnEventCount: number): Promise<void> {
+  await recordCount(withdrawnEventCount);
+  const current = await readCopy(copy.key);
+  if (current?.updatedAt === copy.updatedAt && current.text === copy.text) {
+    await putCopy({ ...current, sent: true, withdrawnEventCount });
+  }
+}
+
+/**
  * Sends `copy` to the server and marks it sent when the device still holds that text
- * (IHM-42); an import copy typed before the counter grew is discarded, and a copy whose
- * request or proposal is gone is deleted (CL-DSN-22, CL-DSN-17).
+ * (IHM-42); a text that the database cannot hold stays on the device alone (DSN-32); an
+ * import copy typed before the counter grew is discarded, and a copy whose request or
+ * proposal is gone is deleted (CL-DSN-22, CL-DSN-17).
  */
 export async function sendCopy(copy: DeviceCopy, server: DraftServer): Promise<SendOutcome> {
   const saved = await server.save({
@@ -42,19 +59,14 @@ export async function sendCopy(copy: DeviceCopy, server: DraftServer): Promise<S
     knownWithdrawnEventCount: copy.withdrawnEventCount,
   });
   if (saved.ok) {
-    await recordCount(saved.value.withdrawnEventCount);
-    const current = await readCopy(copy.key);
-    if (current?.updatedAt === copy.updatedAt && current.text === copy.text) {
-      await putCopy({
-        ...current,
-        sent: true,
-        withdrawnEventCount: saved.value.withdrawnEventCount,
-      });
-    }
+    await markSent(copy, saved.value.withdrawnEventCount);
     return { kind: 'sent' };
   }
   if (saved.error.kind === 'text_too_large') {
     return { kind: 'refused', message: saved.error.message };
+  }
+  if (saved.error.kind === 'unstorable_text') {
+    return { kind: 'kept_unsent' };
   }
   await deleteCopy(copy.key);
   if (saved.error.kind === 'events_withdrawn') {

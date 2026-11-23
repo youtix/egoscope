@@ -154,6 +154,19 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
     expect(await readCopy(draftKey(GENERAL))).toStrictEqual(large);
   });
 
+  it('[DSN-32] keeps unsent, with no refusal, a copy holding a character the database cannot keep', async () => {
+    const unstorable = { ...copyOf(GENERAL, false, 0), text: 'Pasted\0text.' };
+    await putCopy(unstorable);
+
+    expect(await sendCopy(unstorable, server)).toStrictEqual({ kind: 'kept_unsent' });
+    expect(await contactServer(server)).toStrictEqual({
+      unsentDiscarded: false,
+      refusals: new Map(),
+    });
+    expect(await readCopy(draftKey(GENERAL))).toStrictEqual(unstorable);
+    expect(await getDraft(db, GENERAL)).toBeNull();
+  });
+
   it('[CL-DSN-17] deletes a copy whose request no longer exists', async () => {
     await putCopy(copyOf(GONE_IMPORT, false, 0));
 

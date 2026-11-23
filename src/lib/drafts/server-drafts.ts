@@ -55,13 +55,57 @@ async function doesTargetExist(executor: Executor, target: DraftTarget): Promise
   return types.length > 0;
 }
 
+// The one character that a Postgres `text` cannot hold.
+const NUL = '\0';
+
+/** A copy that `writeCopy` keeps: its text, the instant it was typed at and its device. */
+type WrittenCopy = Readonly<{ text: string; updatedAt: Date; originDevice: string }>;
+
+/**
+ * Writes `copy` as the server copy of `target`'s draft, unless the server holds a later
+ * change, since a draft keeps its last change (CL-DSN-17). A failed query carries every
+ * parameter in its message, the pasted text among them, and Next.js logs the error of a
+ * Server Action: the failure leaves this module as an error that names no parameter and
+ * keeps no cause (DSN-32, CL-IHM-10).
+ */
+async function writeCopy(
+  executor: Executor,
+  target: DraftTarget,
+  copy: WrittenCopy,
+): Promise<void> {
+  try {
+    const inserted = await executor
+      .insert(drafts)
+      .values({
+        ...copy,
+        kind: target.kind,
+        backtestRequestId: target.kind === 'research_result' ? target.requestId : null,
+        explorationEventTypeId: target.kind === 'exploration_response' ? target.eventTypeId : null,
+      })
+      .onConflictDoNothing()
+      .returning({ id: drafts.id });
+    if (inserted.length === 0) {
+      // A copy typed before the one the server holds, which arrives late, replaces nothing.
+      await executor
+        .update(drafts)
+        .set(copy)
+        .where(and(ofTarget(target), lte(drafts.updatedAt, copy.updatedAt)));
+    }
+  } catch {
+    // The query's error holds the pasted text: none of it may reach a log.
+    throw new Error('The server copy of a draft could not be written.');
+  }
+}
+
 /**
  * Keeps a device's copy as the server copy of its draft, the one other record of the
  * pasted text, so that another device can resume it (IHM-42, DSN-32, CL-DSN-17). The copy
  * keeps the instant it was typed at, never later than now, and the device it came from;
- * no journal entry or log line holds its text (CL-IHM-10). Refuses a text above
- * `imports.maxPastedTextMegabytes` (CL-IMP-27), a request or proposal that no longer
- * exists, and an import copy typed before the withdrawn-events counter grew (CL-DSN-22).
+ * no journal entry, log line or error holds its text (CL-IHM-10). Refuses a text above
+ * `imports.maxPastedTextMegabytes` (CL-IMP-27), a text holding a NUL character, which the
+ * database cannot keep and the device then keeps alone, a request or proposal that no
+ * longer exists, and an import copy typed before the withdrawn-events counter grew
+ * (CL-DSN-22).
  */
 export async function saveDraft(
   executor: Executor,
@@ -74,33 +118,24 @@ export async function saveDraft(
   if (!size.ok) {
     return size;
   }
+  if (upload.text.includes(NUL)) {
+    return err({ kind: 'unstorable_text' });
+  }
   if (!(await doesTargetExist(executor, upload.target))) {
     return err({ kind: 'target_gone' });
   }
   const count = await withdrawnEventCount(executor);
-  const known = upload.knownWithdrawnEventCount;
-  if (upload.target.kind === 'research_result' && (known === null || count > known)) {
+  // A copy typed before any contact may predate a withdrawal, unless none ever happened.
+  const known = upload.knownWithdrawnEventCount ?? 0;
+  if (upload.target.kind === 'research_result' && count > known) {
     return err({ kind: 'events_withdrawn', withdrawnEventCount: count });
   }
-  const copy = {
+  const updatedAt = new Date(Math.min(upload.updatedAt, now()));
+  await writeCopy(executor, upload.target, {
     text: upload.text,
-    updatedAt: new Date(Math.min(upload.updatedAt, now())),
+    updatedAt,
     originDevice: upload.originDevice,
-  };
-  const inserted = await executor
-    .insert(drafts)
-    .values({
-      ...copy,
-      kind: upload.target.kind,
-      backtestRequestId: upload.target.kind === 'research_result' ? upload.target.requestId : null,
-      explorationEventTypeId:
-        upload.target.kind === 'exploration_response' ? upload.target.eventTypeId : null,
-    })
-    .onConflictDoNothing()
-    .returning({ id: drafts.id });
-  if (inserted.length === 0) {
-    await executor.update(drafts).set(copy).where(ofTarget(upload.target));
-  }
+  });
   return ok({ withdrawnEventCount: count });
 }
 
