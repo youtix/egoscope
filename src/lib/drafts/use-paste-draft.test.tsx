@@ -7,7 +7,8 @@ import { insertEventType, insertPlayer, insertRequest } from '@/lib/testing';
 import { fixedClock, installFakeClock, now, toEpochMs } from '@/lib/time';
 import { sentence } from '@/lib/wording';
 
-import { hasUnsentDeviceDrafts, readCopy } from './device-store';
+import { hasUnsentDeviceDrafts } from './device-copies';
+import { listCopies, putContact, putCopy, readCopy } from './device-store';
 import { draftKey } from './draft-target';
 import { checkDeviceDrafts } from './server-check';
 import { discardDraft, getDraft, saveDraft } from './server-drafts';
@@ -188,6 +189,27 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
 
     expect(result.current.text).toBe('');
     expect(await readCopy(draftKey(IMPORT))).toBeUndefined();
+  });
+
+  it('[CL-IHM-11] [CL-DSN-22] deletes offline the expired copies of the other screens when a screen opens', async () => {
+    const typedAt = toEpochMs(now() - RETENTION_MS);
+    const otherScreen: DraftTarget = { kind: 'research_result', requestId: 7 };
+    await putContact({ withdrawnEventCount: 0, retentionDays: 7 });
+    await putCopy({
+      key: draftKey(otherScreen),
+      target: otherScreen,
+      text: PASTED,
+      updatedAt: typedAt,
+      sent: false,
+      withdrawnEventCount: 0,
+      status: 'kept',
+    });
+    onLine.mockReturnValue(false);
+
+    await open();
+
+    expect(await listCopies()).toStrictEqual([]);
+    expect(calls).toStrictEqual([]);
   });
 
   it('[IHM-42] shows the last change when an earlier one is answered after it', async () => {

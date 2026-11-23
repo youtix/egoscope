@@ -6,7 +6,6 @@ import { toEpochMs } from '@/lib/time';
 import {
   clearDeviceDrafts,
   deleteCopy,
-  hasUnsentDeviceDrafts,
   listCopies,
   putContact,
   putCopy,
@@ -52,18 +51,6 @@ describe('the device copies of drafts', () => {
     await deleteCopy(draftKey(GENERAL));
 
     expect(await listCopies()).toStrictEqual([copyOf(IMPORT, true)]);
-  });
-
-  it('[CL-IHM-10] tells whether the device holds a draft not yet sent to the server', async () => {
-    expect(await hasUnsentDeviceDrafts()).toBe(false);
-
-    await putCopy(copyOf(IMPORT, true));
-
-    expect(await hasUnsentDeviceDrafts()).toBe(false);
-
-    await putCopy(copyOf(GENERAL, false));
-
-    expect(await hasUnsentDeviceDrafts()).toBe(true);
   });
 
   it('[DSN-33] [CL-IHM-10] erases every device copy and the last contact at logout', async () => {

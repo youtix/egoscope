@@ -7,7 +7,8 @@ export type {
   SentCopyStatus,
   StoredDraft,
 } from './contract';
-export { clearDeviceDrafts, hasUnsentDeviceDrafts } from './device-store';
+export { hasUnsentDeviceDrafts } from './device-copies';
+export { clearDeviceDrafts } from './device-store';
 export type { DraftKind, DraftTarget, ImportDraftStatus } from './draft-target';
 export { checkDeviceDrafts } from './server-check';
 export {

@@ -129,12 +129,3 @@ export async function clearDeviceDrafts(): Promise<void> {
   await withStore(COPIES, 'readwrite', (store) => store.clear());
   await withStore(CONTACT, 'readwrite', (store) => store.clear());
 }
-
-/**
- * Says whether this device holds a draft whose text has not reached the server, which a
- * logout would lose, for the logout warning (CL-IHM-10).
- */
-export async function hasUnsentDeviceDrafts(): Promise<boolean> {
-  const copies = await listCopies();
-  return copies.some((copy) => !copy.sent);
-}

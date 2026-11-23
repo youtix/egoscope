@@ -4,7 +4,7 @@ import { useEffect, useEffectEvent, useState } from 'react';
 
 import { now } from '@/lib/time';
 
-import { hasExpired } from './device-rules';
+import { dropExpiredCopies } from './device-copies';
 import { deleteCopy, putCopy, readContact, readCopy } from './device-store';
 import { contactServer, sendCopy } from './device-sync';
 import { draftKey } from './draft-target';
@@ -59,17 +59,6 @@ function isOnline(): boolean {
   return navigator.onLine;
 }
 
-/** The device copy of `key`, an expired one deleted first (CL-IHM-11). */
-async function loadCopy(key: string): Promise<DeviceCopy | undefined> {
-  const copy = await readCopy(key);
-  const contact = await readContact();
-  if (copy !== undefined && hasExpired(copy, contact?.retentionDays ?? null, now())) {
-    await deleteCopy(key);
-    return undefined;
-  }
-  return copy;
-}
-
 /**
  * Brings onto this device the server copy of a draft typed on another one, when this
  * device holds none (IHM-42, H-IHM-08).
@@ -110,10 +99,14 @@ async function contactFor(target: DraftTarget, server: DraftServer): Promise<Omi
   }
 }
 
-/** Contacts the server when the network allows, then reads the device copy (IHM-42, CL-IHM-11). */
+/**
+ * Deletes the expired copies of every screen, online or not, then contacts the server when
+ * the network allows, and reads the device copy (IHM-42, CL-IHM-11, CL-DSN-22).
+ */
 async function loadDraft(target: DraftTarget, server: DraftServer): Promise<Loaded> {
+  await dropExpiredCopies();
   const report = await contactFor(target, server);
-  return { copy: await loadCopy(draftKey(target)), ...report };
+  return { copy: await readCopy(draftKey(target)), ...report };
 }
 
 /** Keeps a typed copy on the device, then sends it when the network allows; `null` when it was not sent. */
