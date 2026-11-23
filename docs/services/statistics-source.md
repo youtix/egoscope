@@ -107,7 +107,9 @@ From documentation only: the CC BY 4.0 license and the attribution duty; GitHub'
 
 Verified on the release of 2026-11-22, while recording the adapter's fixtures: the 2026-27 player file lists exactly the 498 players who have a 2026-27 box-score line, 24 of them with did-not-play lines only, and nobody else, so a rostered player without any line is not listed; its "Free Agent" rows all keep a team id, so no row has an empty team; for two players it gave a team other than that of their last box score, presumably a move that their box scores did not show yet.
 
-Not verified: when the next season's schedule and the playoff schedule appear in the files; how soon the current-season player file shows a trade, and whether it ever empties the team of a released player; behavior under sustained high request rates (not attempted, out of courtesy); Parquet parsing in TypeScript.
+Seen on the next release, of 2026-11-23: the 2026-27 player file no longer listed two of those 498 players, whose last box-score lines were of 2026-11-20, so a release may remove a player's row rather than empty his team.
+
+Not verified: when the next season's schedule and the playoff schedule appear in the files; how soon the current-season player file shows a trade, and whether it ever empties the team of a released player or only removes his row; behavior under sustained high request rates (not attempted, out of courtesy); Parquet parsing in TypeScript.
 
 ## Risks
 

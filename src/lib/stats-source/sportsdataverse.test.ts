@@ -463,6 +463,24 @@ describe('[TRV-15] [STA-02] the SportsDataverse adapter on the recorded release'
     );
   });
 
+  it('[STA-03] [STA-08] keeps in a call context only the box-score file of the season it asked for last', async () => {
+    const { source, replay } = await recordedSource();
+    const ctx = open();
+    const read = async (season: string): Promise<number> => {
+      const { call } = await source.getSeasonPlayers(ctx, { season, knownVersion: null });
+      return call.fileRequests;
+    };
+    expect([
+      await read(SEASON),
+      await read(SEASON),
+      await read(CURRENT),
+      await read(SEASON),
+    ]).toStrictEqual([1, 0, 1, 1]);
+    expect(replay.requests.filter(({ path }) => path.endsWith('player_box_2025.csv'))).toHaveLength(
+      4,
+    );
+  });
+
   it('[STA-26] [STA-42] [CL-STA-27] [CL-STA-30] reads the current player file once, conditionally, and earlier ones for unlisted players only', async () => {
     const { source, replay } = await recordedSource();
     const files = () => replay.requests.flatMap(({ path }) => /player_core_\d+/u.exec(path) ?? []);

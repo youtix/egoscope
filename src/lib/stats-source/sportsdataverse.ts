@@ -69,9 +69,10 @@ const FILES = {
   crosswalk: (year: number) => `nba_crosswalk/nba_player_crosswalk_${String(year)}.csv`,
 };
 
-// The box-score files read in each call context, so that the box scores and the
-// directory of one season asked in one context share one download (module map §5).
-const boxScoreReads = new WeakMap<CallContext, Map<string, BoxScoreRead>>();
+// The box-score file read last in each call context, so that the box scores and the
+// directory of one season asked in one context share one download (module map §5),
+// while a context that walks the seasons keeps one season's file alive, not each one.
+const boxScoreReads = new WeakMap<CallContext, Readonly<{ key: string; read: BoxScoreRead }>>();
 
 /** Reads a CSV body into `sink`; a file it cannot read has a changed layout (section 10, rule 11). */
 const csvOf =
@@ -213,7 +214,10 @@ class SportsDataverse implements StatsSource {
     return `${this.#baseUrl}/${file}`;
   }
 
-  /** The season's box-score file, downloaded once per call context (evaluation, section 12). */
+  /**
+   * The season's box-score file, downloaded once while the call context asks for that
+   * season, and kept until it asks for another (evaluation, section 12).
+   */
   async #boxScores(
     ctx: CallContext,
     call: SourceCall,
@@ -221,9 +225,12 @@ class SportsDataverse implements StatsSource {
   ): Promise<Step<ConditionalRead<BoxScoreFile>>> {
     const address = this.#url(FILES.boxScores(fileYearOf(season)));
     const key = `${address} ${knownVersion ?? ''}`;
-    const reads = boxScoreReads.get(ctx) ?? new Map<string, BoxScoreRead>();
-    const read = reads.get(key) ?? call.read({ address, knownVersion }, boxScoreReader(season));
-    boxScoreReads.set(ctx, reads.set(key, read));
+    const kept = boxScoreReads.get(ctx);
+    if (kept?.key === key) {
+      return kept.read;
+    }
+    const read = call.read({ address, knownVersion }, boxScoreReader(season));
+    boxScoreReads.set(ctx, { key, read });
     return read;
   }
 
