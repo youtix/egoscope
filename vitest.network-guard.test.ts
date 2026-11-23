@@ -1,10 +1,12 @@
 // Proves that the network guard, which vitest.config.ts loads before every test,
 // refuses any connection that would leave the machine, and lets local ones through,
-// whatever the lookup that a connection brings answers, and that the system resolver
-// refuses every name that it would ask the network about.
+// whatever the lookup that a connection brings answers, that the system resolver
+// refuses every name that it would ask the network about, and that each method it
+// replaces keeps the properties of the original.
 import { promises as dnsPromises, lookup as systemLookup } from 'node:dns';
 import { lookup as promisedLookup } from 'node:dns/promises';
 import { createServer, Socket } from 'node:net';
+import { promisify } from 'node:util';
 
 import { describe, expect, it, onTestFinished } from 'vitest';
 
@@ -17,23 +19,24 @@ const HTTP_PORT = 80;
 // The loopback that a test's own server listens on, written as an IPv4-mapped IPv6 address.
 // eslint-disable-next-line sonarjs/no-hardcoded-ip -- the machine's own loopback, which the guard must let through
 const LOOPBACK_AS_IPV6 = '::ffff:127.0.0.1';
-// A public address, which a test's lookup never gets to answer.
-// eslint-disable-next-line sonarjs/no-hardcoded-ip -- the public address that the guard must refuse
-const PUBLIC = '11.0.0.1';
+// An answer outside the loopback, which a test's lookup never gets to hand on: an address
+// of another documentation range (RFC 5737) than OUTSIDE, so that the two tests do not
+// read as one. The guard refuses every answer outside the loopback, whatever its kind.
+const ANSWER_OUTSIDE = '198.51.100.20';
 
 /** Resolves every host name to the loopback, as a test that answers its own lookups does. */
 const toLoopback: LookupFunction = (_hostname, _options, callback) => {
   callback(null, [{ address: '127.0.0.1', family: 4 }]);
 };
 
-/** Resolves every host name to a public address, as a list, the form a connection asks by default. */
-const toPublicList: LookupFunction = (_hostname, _options, callback) => {
-  callback(null, [{ address: PUBLIC, family: 4 }]);
+/** Resolves every host name outside the loopback, as a list, the form a connection asks by default. */
+const toOutsideList: LookupFunction = (_hostname, _options, callback) => {
+  callback(null, [{ address: ANSWER_OUTSIDE, family: 4 }]);
 };
 
-/** Resolves every host name to a public address, as one address, the form a connection asks without `autoSelectFamily`. */
-const toPublicAddress: LookupFunction = (_hostname, _options, callback) => {
-  callback(null, PUBLIC, 4);
+/** Resolves every host name outside the loopback, as one address, the form a connection asks without `autoSelectFamily`. */
+const toOutsideAddress: LookupFunction = (_hostname, _options, callback) => {
+  callback(null, ANSWER_OUTSIDE, 4);
 };
 
 /** Hands every host name on to the system resolver, as the link check's adapter does when no test gives a lookup. */
@@ -123,8 +126,8 @@ describe('the network guard of the tests', () => {
   });
 
   it.each([
-    ['a list', {}, toPublicList],
-    ['one address', { autoSelectFamily: false }, toPublicAddress],
+    ['a list', {}, toOutsideList],
+    ['one address', { autoSelectFamily: false }, toOutsideAddress],
   ])(
     'refuses a connection whose own lookup answers an address outside the loopback, as %s',
     async (_form, options, lookup) => {
@@ -133,7 +136,7 @@ describe('the network guard of the tests', () => {
           socket.connect({ host: 'news.test', port: HTTP_PORT, lookup, ...options }),
         ),
       ).resolves.toBe(
-        `${REFUSED}: the address ${PUBLIC} that the lookup of news.test answered was refused (vitest.network-guard.ts).`,
+        `${REFUSED}: the address ${ANSWER_OUTSIDE} that the lookup of news.test answered was refused (vitest.network-guard.ts).`,
       );
     },
   );
@@ -158,6 +161,17 @@ describe('the network guard of the tests', () => {
     expect(() => {
       systemLookup('news.test', () => undefined);
     }).toThrow(`${REFUSED}: the lookup of news.test was refused (vitest.network-guard.ts).`);
+  });
+
+  it('keeps the properties of dns.lookup, so that its promised form answers an address and its family', async () => {
+    await expect(promisify(systemLookup)('127.0.0.1')).resolves.toStrictEqual({
+      address: '127.0.0.1',
+      family: 4,
+    });
+  });
+
+  it('keeps the name and the length of dns.promises.lookup, which an async method replaces', () => {
+    expect([dnsPromises.lookup.name, dnsPromises.lookup.length]).toStrictEqual(['lookup', 2]);
   });
 
   it.each([

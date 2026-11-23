@@ -140,7 +140,11 @@ const rejectingGuard =
       return answer;
     };
 
-/** Replaces the method `key` of `owner` by the method that `guarded` makes of it, once per process. */
+/**
+ * Replaces the method `key` of `owner` by the method that `guarded` makes of it, once per
+ * process. The new method takes every own property of the original, symbols included,
+ * such as the one that makes `util.promisify(dns.lookup)` answer `{ address, family }`.
+ */
 function guard(owner: object, key: string, guarded: (original: Original) => Method): void {
   const original: unknown = Reflect.get(owner, key);
   if (typeof original !== 'function' || Reflect.has(original, GUARDED)) {
@@ -150,6 +154,8 @@ function guard(owner: object, key: string, guarded: (original: Original) => Meth
     const result: unknown = Reflect.apply(original, self, args);
     return result;
   });
+  // The descriptors of every own key of the original, a string or a symbol.
+  Object.defineProperties(method, Object.getOwnPropertyDescriptors(original));
   Reflect.set(method, GUARDED, true);
   Reflect.set(owner, key, method);
 }

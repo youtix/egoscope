@@ -4,8 +4,11 @@
 // metadata service of the host (TRV-66). Every block of the IANA special-purpose
 // registries for IPv4 and IPv6 (RFC 6890 and its updates) that is not globally
 // reachable is refused whole, its anycast exceptions included, since no article
-// lives on a protocol's anycast address; multicast is refused too. An IPv6 address
-// that holds an IPv4 one is judged by the IPv4 address it holds.
+// lives on a protocol's anycast address; multicast is refused too, and so is the
+// former site-local block of IPv6. An IPv6 address that holds an IPv4 one is judged
+// by the IPv4 address it holds; any other is public only inside the global unicast
+// block 2000::/3 (RFC 4291), since no web server lives outside it and a network that
+// still routes an address outside it would be reached through a link.
 import { isIP } from 'node:net';
 
 /** Why an IP address is not public: the kind of its block, or `unreadable`. */
@@ -145,9 +148,17 @@ const REFUSED_IPV6: readonly RefusedBlock[] = [
   ...ipv6Blocks('unique-local', ['fc00::/7']),
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('link-local', ['fe80::/10']),
+  // The former site-local block (RFC 3879).
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
+  ...ipv6Blocks('deprecated', ['fec0::/10']),
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- the multicast block, which the link check refuses
   ...ipv6Blocks('multicast', ['ff00::/8']),
 ];
+
+// The global unicast block (RFC 4291, section 2.5.4): outside it, an IPv6 address that
+// holds no IPv4 address is reserved.
+// eslint-disable-next-line sonarjs/no-hardcoded-ip -- the global unicast block, the only one that the link check accepts
+const GLOBAL_UNICAST: Block = blockOf('2000::/3', IPV6_BITS, ipv6Value);
 
 const lastBits = (address: bigint): bigint => address & IPV4_MASK;
 
@@ -174,18 +185,30 @@ const EMBEDDINGS: readonly Embedding[] = [
 const kindIn = (address: bigint, blocks: readonly RefusedBlock[]): AddressKind =>
   blocks.find((block) => isWithin(address, block))?.kind ?? 'public';
 
-/** The kind of an IPv6 address: that of its own block, or else that of the IPv4 address it holds. */
+/**
+ * The kind of an IPv6 address: that of its own refused block, else that of the IPv4
+ * address it holds, else public inside the global unicast block and reserved outside it.
+ */
 function ipv6Kind(address: bigint): AddressKind {
   const own = kindIn(address, REFUSED_IPV6);
+  if (own !== 'public') {
+    return own;
+  }
   const held = EMBEDDINGS.find((block) => isWithin(address, block));
-  return own !== 'public' || held === undefined ? own : kindIn(held.ipv4(address), REFUSED_IPV4);
+  if (held !== undefined) {
+    return kindIn(held.ipv4(address), REFUSED_IPV4);
+  }
+  return isWithin(address, GLOBAL_UNICAST) ? 'public' : 'reserved';
 }
 
 /**
  * Says whether `address`, an IPv4 or IPv6 address as text, is a public unicast
  * address that the link check may connect to, and if not, why (TRV-66, CL-IMP-25):
  * the kind of its block, or `unreadable` for a text that is not an address, or that
- * carries a zone.
+ * carries a zone. An IPv4 address is public in no refused block; an IPv6 address, in
+ * no refused block and either holding a public IPv4 address (IPv4-compatible,
+ * IPv4-mapped, NAT64 or 6to4) or inside the global unicast block 2000::/3, outside of
+ * which it is `reserved`.
  */
 export function addressKind(address: string): AddressKind {
   const version = address.includes('%') ? 0 : isIP(address);
