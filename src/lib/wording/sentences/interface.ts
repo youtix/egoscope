@@ -34,5 +34,24 @@ export const interfaceSentences = {
   filterSummary: '{k} "{filter}" {k|profile|profiles} of {total}',
   methodAndLimits: 'Method and limits',
 
+  // The consequence that the to-do list gives each open incident, in plain words (IHM-20,
+  // TRV-42)
+  incidentConsequencePressSourceDown: 'Articles from this source are no longer collected.',
+  incidentConsequenceCollectionImpossible: 'No article is collected until a source answers again.',
+  incidentConsequencePressSourceSilent: 'Events that only this source reports may be missed.',
+  incidentConsequenceFeedTooShort: 'Articles published between two collection runs may be missed.',
+  incidentConsequenceQuotaReached: 'The service stops working until its quota renews.',
+  incidentConsequenceQuotaWarning: 'The service may stop working before its quota renews.',
+  incidentConsequenceDatabaseVolumeWarning:
+    'The database may soon be full and stop accepting new data.',
+  incidentConsequenceStatsSourceUnavailable: 'Statistics are no longer updated.',
+  incidentConsequenceStatsSourceSchemaChanged:
+    'The statistics file that changed is not read, so its figures are not updated.',
+  incidentConsequenceTaskNotRun: 'The task did not run, so its work is late.',
+  incidentConsequenceBackupFailed: 'Your data has no recent backup.',
+  incidentConsequenceLoginsRefused: 'Signing in is locked after repeated failures.',
+  incidentConsequenceTelegramLinkBroken: 'Telegram messages are not delivered.',
+  incidentConsequenceExportReminder: 'Your last full export is out of date.',
+
   // An area adds its groups below, one commented group per screen or task.
 } as const;
