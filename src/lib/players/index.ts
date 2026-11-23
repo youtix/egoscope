@@ -15,6 +15,15 @@ export type {
 } from './types';
 
 // add.ts: add
+export { add } from './add';
+export type {
+  AddFieldErrors,
+  Added,
+  AddRefusal,
+  NewNameVariant,
+  NewPlayer,
+  VariantProblem,
+} from './add';
 
 // identity.ts: updateIdentity, setBirthdayFromSource, recordDerivationRun
 
@@ -25,3 +34,27 @@ export type {
 // delete.ts: deleteRows
 
 // queries.ts: list, get, activeCount, statusGates, sharedVariants, history, variantsOfActivePlayers
+export {
+  activeCount,
+  get,
+  history,
+  list,
+  normalizeName,
+  sharedVariants,
+  variantsOfActivePlayers,
+} from './queries';
+export type {
+  ActivePlayerNames,
+  ListedPlayer,
+  NameVariant,
+  NameVariantKind,
+  PlayerDetail,
+  PlayerHistoryEntry,
+  PlayerListPage,
+  PlayerListQuery,
+  PlayerStatus,
+  SearchedVariant,
+  SharedVariant,
+  StatusHistoryEntry,
+  TeamHistoryEntry,
+} from './queries';
