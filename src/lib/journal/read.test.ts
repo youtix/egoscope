@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDatabase, insertParents, PARENTS } from '@/lib/db';
+import { createTestDatabase } from '@/lib/db';
+import { DATABASE_TEST_TIMEOUT_MS, insertPlayer, leaguePlayerId } from '@/lib/testing';
 import { toEpochMs } from '@/lib/time';
 
 import { recordCountedAttempts } from './attempts';
@@ -12,7 +13,8 @@ import type { JournalEntryInput } from './record';
 import type { Database } from '@/lib/db';
 
 const PARIS = 'Europe/Paris';
-const PLAYER_ID = PARENTS.playerId;
+// A followed player, the first of the invented league, whom the entries name.
+const PLAYER_ID = leaguePlayerId('p01');
 const at = (day: number, hour: number) => toEpochMs(Date.UTC(2026, 10, day, hour));
 const DAY_18 = { from: at(18, 0), to: at(19, 0) };
 // More entries than the export reads at a time, 500.
@@ -47,13 +49,13 @@ async function joined(parts: AsyncIterable<string>): Promise<string> {
   return text;
 }
 
-describe('reading the journal', { timeout: 60_000 }, () => {
+describe('reading the journal', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
 
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
-    await insertParents(db);
+    await insertPlayer(db);
     const entries: readonly JournalEntryInput[] = [
       { messageKey: 'player_added', playerId: PLAYER_ID, occurredAt: at(17, 9) },
       { messageKey: 'trigger_refused', occurredAt: at(18, 3) },
@@ -72,7 +74,7 @@ describe('reading the journal', { timeout: 60_000 }, () => {
       }
     });
     return database.close;
-  }, 60_000);
+  }, DATABASE_TEST_TIMEOUT_MS);
 
   it('[IHM-38] lists the entries newest first, a page at a time, each text built at display', async () => {
     const first = await list(db, { timeZone: PARIS, pageSize: 2 });

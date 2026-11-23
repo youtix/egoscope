@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { toEpochMs } from '@/lib/time';
 
@@ -9,10 +9,12 @@ const CONTEXT: CallContext = {
   signal: new AbortController().signal,
 };
 const NAME = 'egoscope-backup-20261116T040000Z-weekly.bin';
+// Where the process keeps its one fake.
+const SHARED_FAKE = Symbol.for('egoscope.backup-storage.fake');
 const NOT_CONFIGURED = {
   ok: false,
   error: { kind: 'unauthorized', cause: 'not_configured' },
-  meta: { requests: 0, bytesSent: 0, bytesReceived: 0, rateLimitResetsAt: null },
+  call: { httpRequests: 0, bytesSent: 0, bytesReceived: 0, rateLimitResetsAt: null },
 };
 
 /** The accessor of a server whose configuration holds `variables`: its modules load afresh. */
@@ -26,6 +28,11 @@ async function accessorWith(variables: Readonly<Record<string, string>>) {
 }
 
 describe('backupStorage', () => {
+  beforeEach(() => {
+    // Each test is a fresh process, which holds no fake yet.
+    vi.stubGlobal(SHARED_FAKE, undefined);
+  });
+
   it('[TRV-47] answers "not configured" to every call, sending nothing, while no real adapter serves', async () => {
     const storage = (await accessorWith({}))();
     const answers = [
@@ -55,6 +62,23 @@ describe('backupStorage', () => {
     expect(await backupStorage().list(CONTEXT)).toMatchObject({
       ok: true,
       value: [{ id: '1', name: NAME, sizeBytes: 4, complete: true }],
+    });
+  });
+
+  it('gives one fake to every copy of the module, the one that the accessor serves', async () => {
+    vi.stubEnv('EGOSCOPE_FAKES', 'all');
+    vi.resetModules();
+    const first = await import('./port');
+    vi.resetModules();
+    const second = await import('./port');
+    second.fakeBackupStorage().failNext('checkHealth', { kind: 'unavailable' });
+
+    expect(second).not.toBe(first);
+    expect(second.fakeBackupStorage()).toBe(first.fakeBackupStorage());
+    expect(first.backupStorage()).toBe(first.fakeBackupStorage());
+    expect(await first.backupStorage().checkHealth(CONTEXT)).toMatchObject({
+      ok: false,
+      error: { kind: 'unavailable' },
     });
   });
 });

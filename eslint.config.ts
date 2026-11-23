@@ -37,6 +37,7 @@ import tseslint from 'typescript-eslint';
 
 import { E2E_SYNTAX, E2E_TEST_IMPORT } from './scripts/eslint-playwright';
 import { egoscopePlugin } from './scripts/eslint-plugin';
+import { testSupportZone } from './scripts/eslint-test-support';
 import { GENERATED_FOLDERS } from './scripts/generated-files';
 import { IGNORED_FOLDERS } from './scripts/ignored-folders';
 import { ROUTE_SHELLS, SHELL_KINDS } from './scripts/route-shells';
@@ -331,8 +332,9 @@ const PURE_GLOBALS = [
 ].map((name) => ({ name, message: PURE_MESSAGE }));
 
 /**
- * The layer zones of module rules 1 and 2, resolved against `basePath`. Exported
- * so that eslint.config.test.ts can lint its probes in a temporary project.
+ * The layer zones of module rules 1 and 2, and the one that keeps the test support out
+ * of production code (scripts/eslint-test-support.ts), resolved against `basePath`.
+ * Exported so that the probes of scripts/lint-probes.ts lint in a temporary project.
  */
 export function layerZones(basePath: string): Linter.RuleEntry {
   return [
@@ -353,6 +355,7 @@ export function layerZones(basePath: string): Linter.RuleEntry {
           except: ['./lib/ai-exchange'],
           message: NO_SRC_FROM_AI_EXCHANGE.message,
         },
+        testSupportZone(TS),
       ],
     },
   ];

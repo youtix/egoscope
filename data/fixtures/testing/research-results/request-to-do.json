@@ -1,0 +1,53 @@
+{
+  "format": "egoscope-backtest",
+  "format_version": "1.0",
+  "request_reference": "REQ-2026-0001",
+  "player": { "id": "0f6c2a4e-8b1d-4c3f-9a7e-5d2b1c0e9f09", "name": "Soren Vail" },
+  "covered_types": ["media-storm"],
+  "covered_period": { "start": "2023-10-24", "end": "2026-11-08" },
+  "events": [
+    {
+      "event_type": "media-storm",
+      "public_date": "2024-11-20",
+      "description": "Every national outlet covers the player after a public dispute with his coach during practice.",
+      "sources": [
+        {
+          "url": "https://www.national-sports.example/news/soren-vail-in-the-spotlight",
+          "outlet": "A national sports outlet (fictitious)",
+          "title": "Soren Vail in the spotlight after a heated practice",
+          "publication_date": "2024-11-20"
+        },
+        {
+          "url": "https://www.regional-daily.example/sports/a-storm-around-soren-vail",
+          "outlet": "A regional daily (fictitious)",
+          "title": "A storm around Soren Vail",
+          "publication_date": "2024-11-21"
+        }
+      ],
+      "context": { "injury_return": "no", "game_stakes": "normal" },
+      "confidence": "high"
+    },
+    {
+      "event_type": "media-storm",
+      "public_date": "2025-12-02T18:30-05:00",
+      "description": "A trade rumor about the player leads the evening shows of every sports channel.",
+      "sources": [
+        {
+          "url": "https://www.sports-channel.example/evening/trade-rumor-soren-vail",
+          "outlet": "A sports channel (fictitious)",
+          "title": "Trade rumor: Soren Vail on the move?",
+          "publication_date": "2025-12-02T18:45-05:00"
+        }
+      ],
+      "context": {
+        "injury_return": "unknown",
+        "game_stakes": "high",
+        "detail": "Next game: a rivalry game at home."
+      },
+      "confidence": "medium",
+      "unverified_note": "The rumor may have started on a fan forum a few hours earlier."
+    }
+  ],
+  "unverified_leads": [],
+  "limitations": ["Subscriber-only articles were not consulted."]
+}

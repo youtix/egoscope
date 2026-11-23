@@ -15,6 +15,7 @@ import type {
   StoredFile,
   UploadAnswer,
 } from './types';
+import type { EpochMs } from '@/lib/time';
 
 /** How the fake's space lets the app in: with a valid token, an expired one, or no configuration at all. */
 export type FakeAccess = 'granted' | 'token_expired' | 'not_configured';
@@ -26,8 +27,17 @@ export type FakeBackupStorage = BackupStorage &
     setAccess: (access: FakeAccess) => void;
     /** From now on, the space is private or not. */
     setPrivate: (isPrivate: boolean) => void;
-    /** The next call of `operation` fails with `error` and changes nothing. */
-    failNext: (operation: BackupStorageOperation, error: BackupStorageError) => void;
+    /**
+     * The next call of `operation` that reaches the space fails with `error` and changes
+     * nothing, reporting `rateLimitResetsAt` when given (CL-TRV-12): a call refused
+     * before, for a file too large, no configuration or an expired token, leaves the
+     * script in place.
+     */
+    failNext: (
+      operation: BackupStorageOperation,
+      error: BackupStorageError,
+      rateLimitResetsAt?: EpochMs,
+    ) => void;
     /** The next upload that reaches the container fails midway and leaves an empty, half-created file. */
     interruptNextUpload: () => void;
     /** The next deletion of a file answers that it succeeded but leaves the file in place. */
@@ -35,6 +45,8 @@ export type FakeBackupStorage = BackupStorage &
   }>;
 
 type HeldFile = Readonly<{ file: StoredFile; bytes: Uint8Array }>;
+// A failure scripted for an operation, with the instant its call reports the quota resets.
+type ScriptedFailure = Readonly<{ error: BackupStorageError; rateLimitResetsAt: EpochMs | null }>;
 
 const TOKEN_REJECTED: BackupStorageError = { kind: 'unauthorized', cause: 'token_rejected' };
 const NOT_FOUND: BackupStorageError = { kind: 'not_found' };
@@ -43,16 +55,16 @@ const UNAVAILABLE: BackupStorageError = { kind: 'unavailable' };
 // The request that checks that the space is private, before every upload (CL-TRV-04).
 const PRIVACY_CHECK = 1;
 
-function cost(requests: number, bytesSent = 0, bytesReceived = 0): CallMetadata {
-  return { requests, bytesSent, bytesReceived, rateLimitResetsAt: null };
+function cost(httpRequests: number, bytesSent = 0, bytesReceived = 0): CallMetadata {
+  return { httpRequests, bytesSent, bytesReceived, rateLimitResetsAt: null };
 }
 
-function succeeded<T>(value: T, meta: CallMetadata): BackupStorageOutcome<T> {
-  return { ok: true, value, meta };
+function succeeded<T>(value: T, call: CallMetadata): BackupStorageOutcome<T> {
+  return { ok: true, value, call };
 }
 
-function failed(error: BackupStorageError, meta: CallMetadata): BackupStorageFailure {
-  return { ok: false, error, meta };
+function failed(error: BackupStorageError, call: CallMetadata): BackupStorageFailure {
+  return { ok: false, error, call };
 }
 
 function streamOf(bytes: Uint8Array): ReadableStream<Uint8Array> {
@@ -74,7 +86,7 @@ async function later<T>(call: () => T): Promise<T> {
 // The fake's space: one container, the files it holds, and the scripts that make its calls fail.
 class FakeSpace {
   readonly #maxFileBytes: number;
-  readonly #failures = new Map<BackupStorageOperation, BackupStorageError>();
+  readonly #failures = new Map<BackupStorageOperation, ScriptedFailure>();
   #files: readonly HeldFile[] = [];
   #access: FakeAccess = 'granted';
   #isPrivate = true;
@@ -98,7 +110,9 @@ class FakeSpace {
     }
     const scripted = this.#failures.get(operation);
     this.#failures.delete(operation);
-    return scripted === undefined ? null : failed(scripted, cost(1));
+    return scripted === undefined
+      ? null
+      : failed(scripted.error, { ...cost(1), rateLimitResetsAt: scripted.rateLimitResetsAt });
   }
 
   // A call on the files meets the same refusals, then needs the container.
@@ -127,9 +141,9 @@ class FakeSpace {
       this.#remove(leftover.file.id);
       deletions = 1;
     }
-    const meta = cost(PRIVACY_CHECK + deletions + 1, bytes.byteLength);
+    const call = cost(PRIVACY_CHECK + deletions + 1, bytes.byteLength);
     const file = this.#hold(name, bytes);
-    return file.complete ? succeeded({ kind: 'stored', file }, meta) : failed(UNAVAILABLE, meta);
+    return file.complete ? succeeded({ kind: 'stored', file }, call) : failed(UNAVAILABLE, call);
   }
 
   // Keeps a copy of `bytes` under `name` or, when the upload is scripted to break,
@@ -158,8 +172,12 @@ class FakeSpace {
     this.#isPrivate = isPrivate;
   }
 
-  failNext(operation: BackupStorageOperation, error: BackupStorageError): void {
-    this.#failures.set(operation, error);
+  failNext(
+    operation: BackupStorageOperation,
+    error: BackupStorageError,
+    rateLimitResetsAt: EpochMs | null,
+  ): void {
+    this.#failures.set(operation, { error, rateLimitResetsAt });
   }
 
   interruptNextUpload(): void {
@@ -254,8 +272,8 @@ export function createFakeBackupStorage(
     setPrivate: (isPrivate) => {
       space.setPrivate(isPrivate);
     },
-    failNext: (operation, error) => {
-      space.failNext(operation, error);
+    failNext: (operation, error, rateLimitResetsAt) => {
+      space.failNext(operation, error, rateLimitResetsAt ?? null);
     },
     interruptNextUpload: () => {
       space.interruptNextUpload();

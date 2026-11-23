@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { createTestDatabase, journalEntries, journalTechnicalDetails } from '@/lib/db';
 import {
-  createTestDatabase,
-  insertParents,
-  journalEntries,
-  journalTechnicalDetails,
-  PARENTS,
-} from '@/lib/db';
+  DATABASE_TEST_TIMEOUT_MS,
+  insertDetectedEvent,
+  insertEventType,
+  insertPlayer,
+  leaguePlayerId,
+} from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { record } from './record';
@@ -16,9 +17,9 @@ import type { Database } from '@/lib/db';
 
 const RECORDED_AT = toEpochMs(Date.UTC(2026, 10, 20, 8, 15));
 const LOCKED_UNTIL = toEpochMs(Date.UTC(2026, 10, 20, 8, 30));
-// A followed player and his event, which the entries name.
-const PLAYER_ID = PARENTS.playerId;
-const EVENT_ID = PARENTS.eventId;
+// A followed player, the first of the invented league, and his event, the first one written.
+const PLAYER_ID = leaguePlayerId('p01');
+const EVENT_ID = 1;
 // What an entry names when it names nothing.
 const NO_REFERENCE = {
   playerId: null,
@@ -33,19 +34,21 @@ const NO_REFERENCE = {
   lot2ObjectId: null,
 } as const;
 
-describe('record', { timeout: 60_000 }, () => {
+describe('record', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
 
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
-    await insertParents(db);
+    await insertEventType(db);
+    const player = await insertPlayer(db);
+    await insertDetectedEvent(db, { playerId: player.id });
     const restoreClock = installFakeClock(fixedClock(RECORDED_AT));
     return async () => {
       restoreClock();
       await database.close();
     };
-  }, 60_000);
+  }, DATABASE_TEST_TIMEOUT_MS);
 
   /** Records `entry` in a transaction of its own. */
   async function write(entry: JournalEntryInput): Promise<number> {

@@ -6,11 +6,11 @@ export type CallContext = Readonly<{ deadline: EpochMs; signal: AbortSignal }>;
 
 /**
  * What one call cost, which `quotas.withQuota` records (TRV-03, TRV-04): its
- * requests, the bytes it sent and received, and the instant the provider says its
+ * HTTP requests, the bytes it sent and received, and the instant the provider says its
  * request window resets, when it says so (CL-TRV-12).
  */
 export type CallMetadata = Readonly<{
-  requests: number;
+  httpRequests: number;
   bytesSent: number;
   bytesReceived: number;
   rateLimitResetsAt: EpochMs | null;
@@ -18,7 +18,7 @@ export type CallMetadata = Readonly<{
 
 /** The metadata of a call refused before any request: it cost nothing. */
 export const NO_CALLS: CallMetadata = {
-  requests: 0,
+  httpRequests: 0,
   bytesSent: 0,
   bytesReceived: 0,
   rateLimitResetsAt: null,
@@ -55,12 +55,12 @@ export type ContainerAnswer = Readonly<{ created: boolean }>;
 export type BackupStorageFailure = Readonly<{
   ok: false;
   error: BackupStorageError;
-  meta: CallMetadata;
+  call: CallMetadata;
 }>;
 
 /** The answer to one call: its value or its error, with what the call cost. */
 export type BackupStorageOutcome<T> =
-  Readonly<{ ok: true; value: T; meta: CallMetadata }> | BackupStorageFailure;
+  Readonly<{ ok: true; value: T; call: CallMetadata }> | BackupStorageFailure;
 
 /**
  * The backup storage (module map §5): one container that holds one encrypted

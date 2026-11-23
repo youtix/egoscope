@@ -40,7 +40,7 @@ const UNKNOWN_ID = 'unknown';
 const NOT_FOUND = { error: { kind: 'not_found' } };
 const TOKEN_REJECTED = { error: { kind: 'unauthorized', cause: 'token_rejected' } };
 const TOO_LARGE: BackupStorageError = { kind: 'too_large' };
-const UNCONFIGURED = { ok: false, error: NOT_CONFIGURED, meta: NO_CALLS };
+const UNCONFIGURED = { ok: false, error: NOT_CONFIGURED, call: NO_CALLS };
 
 function context(): CallContext {
   return { deadline: toEpochMs(now() + CALL_BUDGET_MS), signal: new AbortController().signal };
@@ -168,7 +168,7 @@ async function refusesLargerFile(storageIn: ContractStorage): Promise<ContractCh
   return {
     observed: [refused, told(listing), told(atLimit)],
     promised: [
-      { ok: false, error: TOO_LARGE, meta: NO_CALLS },
+      { ok: false, error: TOO_LARGE, call: NO_CALLS },
       { value: [] },
       { value: { kind: 'stored', file: promisedFile(atLimit, CONTRACT_MAX_FILE_BYTES) } },
     ],
@@ -182,7 +182,7 @@ async function reportsPrivacy(storageIn: ContractStorage): Promise<ContractCheck
     await storageIn('not_private').checkHealth(context()),
   ];
   return {
-    observed: answers.map((answer) => [told(answer), answer.meta.requests <= 1]),
+    observed: answers.map((answer) => [told(answer), answer.call.httpRequests <= 1]),
     promised: [
       [{ value: { private: true } }, true],
       [{ value: { private: false } }, true],
@@ -196,7 +196,7 @@ async function keepsPublicSpaceEmpty(storageIn: ContractStorage): Promise<Contra
   const upload = await storage.upload(NAME, bytesOf(FILE_SIZE), context());
   const listing = await storage.list(context());
   return {
-    observed: [told(upload), upload.meta.bytesSent, told(listing)],
+    observed: [told(upload), upload.call.bytesSent, told(listing)],
     promised: [{ value: { kind: 'not_private' } }, 0, { value: [] }],
   };
 }

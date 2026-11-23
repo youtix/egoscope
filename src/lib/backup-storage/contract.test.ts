@@ -7,7 +7,7 @@ import type { BackupStorage, BackupStorageFailure } from './types';
 const UNAVAILABLE: BackupStorageFailure = {
   ok: false,
   error: { kind: 'unavailable' },
-  meta: { requests: 1, bytesSent: 0, bytesReceived: 0, rateLimitResetsAt: null },
+  call: { httpRequests: 1, bytesSent: 0, bytesReceived: 0, rateLimitResetsAt: null },
 };
 
 async function unavailable(): Promise<BackupStorageFailure> {
