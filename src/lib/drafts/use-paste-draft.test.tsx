@@ -2,7 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import { createTestDatabase, insertParents, PARENTS, withdrawnEventCounter } from '@/lib/db';
+import { createTestDatabase, withdrawnEventCounter } from '@/lib/db';
+import { insertEventType, insertPlayer, insertRequest } from '@/lib/testing';
 import { fixedClock, installFakeClock, now, toEpochMs } from '@/lib/time';
 import { sentence } from '@/lib/wording';
 
@@ -17,7 +18,9 @@ import type { DraftTarget } from './draft-target';
 import type { Database } from '@/lib/db';
 import type { MockInstance } from 'vitest';
 
-const IMPORT: DraftTarget = { kind: 'research_result', requestId: PARENTS.requestId };
+// The request of an invented player, the first that a test's own database writes.
+const REQUEST_ID = 1;
+const IMPORT: DraftTarget = { kind: 'research_result', requestId: REQUEST_ID };
 const PASTED = 'EVENT 1: the Redwater Foxes forward changes agents.';
 const SAVED_ELSEWHERE_AT = toEpochMs(Date.UTC(2026, 10, 20));
 // The default of display.draftRetentionDays, 7 days.
@@ -35,7 +38,9 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
     onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
     const database = await createTestDatabase();
     db = database.db;
-    await insertParents(db);
+    await insertEventType(db);
+    const player = await insertPlayer(db);
+    await insertRequest(db, { playerId: player.id });
     isReachable = true;
     calls = [];
     // The route's Server Actions, which reject while the session is expired.

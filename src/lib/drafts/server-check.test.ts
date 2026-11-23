@@ -1,13 +1,8 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  backtestRequests,
-  createTestDatabase,
-  insertParents,
-  PARENTS,
-  withdrawnEventCounter,
-} from '@/lib/db';
+import { backtestRequests, createTestDatabase, withdrawnEventCounter } from '@/lib/db';
+import { insertEventType, insertPlayer, insertRequest } from '@/lib/testing';
 import { toEpochMs } from '@/lib/time';
 
 import { checkDeviceDrafts } from './server-check';
@@ -17,7 +12,9 @@ import type { DraftTarget } from './draft-target';
 import type { Database } from '@/lib/db';
 
 const IMPORTED_AT = new Date(Date.UTC(2026, 10, 21));
-const IMPORT: DraftTarget = { kind: 'research_result', requestId: PARENTS.requestId };
+// The request of an invented player, the first that a test's own database writes.
+const REQUEST_ID = 1;
+const IMPORT: DraftTarget = { kind: 'research_result', requestId: REQUEST_ID };
 const GENERAL: DraftTarget = { kind: 'exploration_response', eventTypeId: null };
 const TARGETED: DraftTarget = { kind: 'exploration_response', eventTypeId: 'media-storm' };
 
@@ -27,7 +24,9 @@ describe("the server's answer at a device's contact", { timeout: 60_000 }, () =>
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
-    await insertParents(db);
+    await insertEventType(db);
+    const player = await insertPlayer(db);
+    await insertRequest(db, { playerId: player.id });
     return database.close;
   }, 60_000);
 
@@ -74,7 +73,7 @@ describe("the server's answer at a device's contact", { timeout: 60_000 }, () =>
     await db
       .update(backtestRequests)
       .set({ status: 'imported', importedAt: IMPORTED_AT })
-      .where(eq(backtestRequests.id, PARENTS.requestId));
+      .where(eq(backtestRequests.id, REQUEST_ID));
 
     expect(await checkDeviceDrafts(db, [IMPORT])).toMatchObject({
       copies: [{ target: IMPORT, exists: false, requestImported: true }],

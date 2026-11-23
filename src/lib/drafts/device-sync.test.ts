@@ -2,13 +2,8 @@ import { eq } from 'drizzle-orm';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  backtestRequests,
-  createTestDatabase,
-  insertParents,
-  PARENTS,
-  withdrawnEventCounter,
-} from '@/lib/db';
+import { backtestRequests, createTestDatabase, withdrawnEventCounter } from '@/lib/db';
+import { insertEventType, insertPlayer, insertRequest } from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { listCopies, putContact, putCopy, readContact, readCopy } from './device-store';
@@ -24,7 +19,9 @@ import type { Database } from '@/lib/db';
 
 const NOW = toEpochMs(Date.UTC(2026, 10, 20, 9));
 const DAY_MS = 86_400_000;
-const IMPORT: DraftTarget = { kind: 'research_result', requestId: PARENTS.requestId };
+// The request of an invented player, the first that a test's own database writes.
+const REQUEST_ID = 1;
+const IMPORT: DraftTarget = { kind: 'research_result', requestId: REQUEST_ID };
 const GONE_IMPORT: DraftTarget = { kind: 'research_result', requestId: 99 };
 const GENERAL: DraftTarget = { kind: 'exploration_response', eventTypeId: null };
 
@@ -52,7 +49,9 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
     vi.stubGlobal('indexedDB', new IDBFactory());
     const database = await createTestDatabase();
     db = database.db;
-    await insertParents(db);
+    await insertEventType(db);
+    const player = await insertPlayer(db);
+    await insertRequest(db, { playerId: player.id });
     server = {
       check: async (sent) => checkDeviceDrafts(db, sent),
       load: async (target) => getDraft(db, target),
@@ -100,7 +99,7 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
   it('[CL-DSN-22] after a withdrawal, drops the sent copy whose server copy went and discards an unsent import copy of any player, exploration copies sent', async () => {
     await putCopy(copyOf(IMPORT, false, 0));
     await sendCopy(copyOf(IMPORT, false, 0), server);
-    await withdrawEventOf([PARENTS.requestId]);
+    await withdrawEventOf([REQUEST_ID]);
     const otherPlayers: DraftTarget = { kind: 'research_result', requestId: 7 };
     await putCopy(copyOf(otherPlayers, false, 0));
     await putCopy(copyOf(GENERAL, false, 0));
@@ -122,7 +121,7 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
       await tx
         .update(backtestRequests)
         .set({ status: 'imported', importedAt: new Date(NOW) })
-        .where(eq(backtestRequests.id, PARENTS.requestId));
+        .where(eq(backtestRequests.id, REQUEST_ID));
     });
 
     expect(await contactServer(server)).toStrictEqual({

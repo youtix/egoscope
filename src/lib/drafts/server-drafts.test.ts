@@ -2,15 +2,13 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  backtestRequests,
   createTestDatabase,
   drafts,
-  insertParents,
   journalEntries,
   journalTechnicalDetails,
-  PARENTS,
   withdrawnEventCounter,
 } from '@/lib/db';
+import { insertEventType, insertPlayer, insertRequest } from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { checkDeviceDrafts } from './server-check';
@@ -30,7 +28,9 @@ import type { FixedClock } from '@/lib/time';
 const SAVED_AT = toEpochMs(Date.UTC(2026, 10, 20, 9, 30));
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
-const IMPORT: DraftTarget = { kind: 'research_result', requestId: PARENTS.requestId };
+// The requests of two invented players, the first two that a test's own database writes.
+const REQUEST_ID = 1;
+const IMPORT: DraftTarget = { kind: 'research_result', requestId: REQUEST_ID };
 const OTHER_IMPORT: DraftTarget = { kind: 'research_result', requestId: 2 };
 const GENERAL: DraftTarget = { kind: 'exploration_response', eventTypeId: null };
 const TARGETED: DraftTarget = { kind: 'exploration_response', eventTypeId: 'media-storm' };
@@ -45,16 +45,11 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
-    await insertParents(db);
-    await db.insert(backtestRequests).values({
-      reference: 'REQ-2026-0002',
-      playerId: PARENTS.otherPlayerId,
-      kind: 'initial',
-      trigger: 'manual_action',
-      createdOn: '2026-11-03',
-      promptText: 'Research the public events of the other player.',
-      promptProducedAt: new Date(SAVED_AT),
-    });
+    await insertEventType(db);
+    for (const source of ['p01', 'p02'] as const) {
+      const player = await insertPlayer(db, { source });
+      await insertRequest(db, { playerId: player.id });
+    }
     clock = fixedClock(SAVED_AT);
     const restoreClock = installFakeClock(clock);
     return async () => {
@@ -195,7 +190,7 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
 
     await db.transaction(async (tx) => {
       await discardDraftsOfRequests(tx, []);
-      await discardDraftsOfRequests(tx, [PARENTS.requestId]);
+      await discardDraftsOfRequests(tx, [REQUEST_ID]);
     });
 
     expect(await getDraft(db, IMPORT)).toBeNull();
@@ -207,7 +202,7 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
   it('[CL-DSN-22] rolls the discard back with the withdrawal transaction that fails', async () => {
     await save(IMPORT, PASTED);
     const failed = db.transaction(async (tx) => {
-      await discardDraftsOfRequests(tx, [PARENTS.requestId]);
+      await discardDraftsOfRequests(tx, [REQUEST_ID]);
       throw new Error('The withdrawal failed.');
     });
 
