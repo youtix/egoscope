@@ -1,15 +1,19 @@
 import { connection } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { toEpochMs } from '@/lib/time';
+
+import type { requireSession } from '@/lib/auth';
+
 // `connection()` only works inside a Next.js request; here it just records the call.
 vi.mock(import('next/server'), async (importOriginal) => ({
   ...(await importOriginal()),
   connection: vi.fn(),
 }));
 
-// A database that fails on any use: the probe answers from the environment
-// alone, so that an outside monitor never wakes the database, whose compute is
-// billed for five minutes after each query.
+// A database that fails on any use: beyond the session check, the probe answers from the
+// environment alone, so that it never wakes the database for anything else, whose compute
+// is billed for five minutes after each query.
 vi.mock(import('@/lib/db'), () => {
   const refuse = (): never => {
     throw new Error('/api/health must not touch the database.');
@@ -17,13 +21,25 @@ vi.mock(import('@/lib/db'), () => {
   return { getDb: refuse, getDirectDb: refuse, ping: refuse, migrateDatabase: refuse };
 });
 
+const checkSession = vi.hoisted(() => vi.fn<typeof requireSession>());
+
+vi.mock(import('@/lib/auth'), () => ({ requireSession: checkSession }));
+
+const SESSION = {
+  id: 1,
+  device: 'Phone',
+  openedAt: toEpochMs(Date.UTC(2026, 10, 23, 9)),
+  passwordStatus: 'chosen',
+} as const;
+
 describe('GET /api/health', () => {
   beforeEach(() => {
     // The environment is read once per server process, so each test loads a fresh one.
     vi.resetModules();
+    checkSession.mockReset().mockResolvedValue({ ok: true, value: SESSION });
   });
 
-  it('answers 200 with an uncached body while the environment is valid', async () => {
+  it('[CL-TRV-13] answers 200 with an uncached body to a valid session while the environment is valid', async () => {
     vi.stubEnv('LOG_LEVEL', 'info');
     const { GET } = await import('./route');
 
@@ -32,9 +48,10 @@ describe('GET /api/health', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     await expect(response.json()).resolves.toStrictEqual({ status: 'ok' });
+    expect(checkSession).toHaveBeenCalledExactlyOnceWith('/');
   });
 
-  it('answers from the environment alone while a database that fails on any query is configured', async () => {
+  it('asks nothing of a configured database beyond the session check', async () => {
     vi.stubEnv('LOG_LEVEL', 'info');
     vi.stubEnv('DATABASE_URL', 'postgresql://app@127.0.0.1:1/egoscope?sslmode=verify-full');
     vi.stubEnv(
@@ -55,6 +72,37 @@ describe('GET /api/health', () => {
     await GET();
 
     expect(vi.mocked(connection)).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [{ kind: 'log-in', redirect: '/log-in?next=%2F', ended: 'logged_out' }, 'logged_out'],
+    [{ kind: 'log-in', redirect: '/log-in?next=%2F', ended: null }, null],
+    [{ kind: 'choose-password', redirect: '/choose-password' }, null],
+  ] as const)(
+    '[CL-TRV-13] [IHM-08] answers 401 with how the session ended to a refused session: %o',
+    async (refusal, ended) => {
+      checkSession.mockResolvedValue({ ok: false, error: refusal });
+      const { GET } = await import('./route');
+
+      const response = await GET();
+
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toStrictEqual({ status: 'unauthorized', ended });
+    },
+  );
+
+  it('answers 503 and logs the cause when the session cannot be checked', async () => {
+    checkSession.mockResolvedValue({ ok: false, error: { kind: 'database-not-configured' } });
+    const logError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { GET } = await import('./route');
+
+    const response = await GET();
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toStrictEqual({ status: 'unavailable' });
+    expect(logError).toHaveBeenCalledExactlyOnceWith(
+      '{"level":"error","message":"The session could not be checked.","context":{"cause":"database-not-configured"}}',
+    );
   });
 
   it('[TRV-64] answers 503 and logs the variable name, never its value, when the environment is invalid', async () => {
