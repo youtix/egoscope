@@ -1,14 +1,15 @@
 import { asc } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
+import { createTestDatabase, games, incidents, outboxFacts } from '@/lib/db';
 import {
-  createTestDatabase,
-  games,
-  incidents,
-  insertParents,
-  outboxFacts,
-  PARENTS,
-} from '@/lib/db';
+  DATABASE_TEST_TIMEOUT_MS,
+  insertDetectedEvent,
+  insertEventType,
+  insertLeagueSeason,
+  insertPlayer,
+  insertRequest,
+} from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { emit } from './emit';
@@ -23,19 +24,38 @@ const NOW = toEpochMs(Date.UTC(2026, 10, 23, 22));
 const PASS_ID = '0b9f3c1e-5a7d-4e62-8c14-7f2d9a6b3e05';
 const LATER = toEpochMs(NOW + 3_600_000);
 
-const TO_DO: OutboxFact = { kind: 'backtest_request_to_do', backtestRequestId: PARENTS.requestId };
+// The request, the game and the event that the facts name, the first of their tables
+// (insertSubjects).
+const REQUEST_ID = 1;
+const GAME_ID = 1;
+const EVENT_ID = 1;
+const TO_DO: OutboxFact = { kind: 'backtest_request_to_do', backtestRequestId: REQUEST_ID };
 const DEADLINE_MOVED = {
   kind: 'backtest_request_deadline_changed',
-  backtestRequestId: PARENTS.requestId,
-  deadlineGameId: PARENTS.gameId,
-  playerEventId: PARENTS.eventId,
+  backtestRequestId: REQUEST_ID,
+  deadlineGameId: GAME_ID,
+  playerEventId: EVENT_ID,
 } as const;
 // The wake plan a pass left: only the purge is due, an hour later.
 const PLAN = { computedAt: NOW, entries: [{ task: 'purge', dueAt: LATER }], probes: [] } as const;
 
 /**
+ * Writes the rows that the facts name, each the first of its table: two research types,
+ * a followed player, his request to do of the media storm, an event of his, and a season
+ * of games.
+ */
+async function insertSubjects(db: Database): Promise<void> {
+  await insertEventType(db);
+  await insertEventType(db, { id: 'bereavement', name: 'Death of a loved one' });
+  const player = await insertPlayer(db);
+  await insertRequest(db, { playerId: player.id });
+  await insertDetectedEvent(db, { playerId: player.id });
+  await insertLeagueSeason(db, '2024-25');
+}
+
+/**
  * The outbox and the wake plan as a build of `lot` loads them, over a database with the
- * parent rows and a plan that a pass left.
+ * rows that the facts name and a plan that a pass left.
  */
 async function build(lot: '1' | '2') {
   vi.resetModules();
@@ -46,7 +66,7 @@ async function build(lot: '1' | '2') {
   const outbox = await import('.');
   const database = await createTestDatabase();
   onTestFinished(database.close);
-  await insertParents(database.db);
+  await insertSubjects(database.db);
   await wakePlan.writePlan(PLAN);
   return {
     emitTwice: async (fact: OutboxFact) => {
@@ -62,17 +82,17 @@ async function build(lot: '1' | '2') {
   };
 }
 
-describe('emit', { timeout: 60_000 }, () => {
+describe('emit', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
 
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
-    await insertParents(db);
+    await insertSubjects(db);
     await db.insert(incidents).values({ kind: 'backup_failed', causeKey: 'upload_failed' });
     onTestFinished(installFakeClock(fixedClock(NOW)));
     return database.close;
-  }, 60_000);
+  }, DATABASE_TEST_TIMEOUT_MS);
 
   /** Emits each of `facts` in a transaction of its own. */
   async function emitEach(facts: readonly OutboxFact[], passId?: string): Promise<void> {
@@ -155,7 +175,7 @@ describe('emit', { timeout: 60_000 }, () => {
   });
 });
 
-describe('the wake-up of the notification dispatch', { timeout: 60_000 }, () => {
+describe('the wake-up of the notification dispatch', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   beforeEach(() => {
     vi.stubGlobal(PROCESS_FAKE, undefined);
     onTestFinished(installFakeClock(fixedClock(NOW)));

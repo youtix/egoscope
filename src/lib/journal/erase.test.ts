@@ -1,16 +1,14 @@
 import { asc } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { createTestDatabase, incidents, journalEntries, journalTechnicalDetails } from '@/lib/db';
 import {
-  createTestDatabase,
-  DETECTED_EVENT,
-  events,
-  incidents,
-  insertParents,
-  journalEntries,
-  journalTechnicalDetails,
-  PARENTS,
-} from '@/lib/db';
+  DATABASE_TEST_TIMEOUT_MS,
+  insertDetectedEvent,
+  insertEventType,
+  insertPlayer,
+  leaguePlayerId,
+} from '@/lib/testing';
 
 import { eraseDetailsAbout } from './erase';
 import { list } from './read';
@@ -21,31 +19,35 @@ import type { JournalEntryInput } from './record';
 import type { Database } from '@/lib/db';
 
 const PARIS = 'Europe/Paris';
-const PLAYER_ID = PARENTS.playerId;
-const OTHER_PLAYER_ID = PARENTS.otherPlayerId;
-// The parent event, and a second event of the same player.
-const ERASED_EVENT = PARENTS.eventId;
+// Two invented players of the league, followed.
+const PLAYER_ID = leaguePlayerId('p01');
+const OTHER_PLAYER_ID = leaguePlayerId('p02');
+// Two events of the first player, the first and the second written.
+const ERASED_EVENT = 1;
 const OTHER_EVENT = 2;
 // An alert sheet that holds both events.
 const SHEET = 5;
 const DETAILS = { service: 'stats_source', httpStatus: 503 } as const;
 
-describe('eraseDetailsAbout', { timeout: 60_000 }, () => {
+describe('eraseDetailsAbout', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
   let incidentId: number;
 
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
-    await insertParents(db);
-    await db.insert(events).values(DETECTED_EVENT);
+    await insertEventType(db);
+    await insertPlayer(db);
+    await insertPlayer(db, { source: 'p02' });
+    await insertDetectedEvent(db, { playerId: PLAYER_ID });
+    await insertDetectedEvent(db, { playerId: PLAYER_ID });
     const [incident] = await db
       .insert(incidents)
       .values({ kind: 'stats_source_unavailable' })
       .returning({ id: incidents.id });
     incidentId = incident?.id ?? 0;
     return database.close;
-  }, 60_000);
+  }, DATABASE_TEST_TIMEOUT_MS);
 
   /** Records `entries` in one transaction. */
   async function write(entries: readonly JournalEntryInput[]): Promise<void> {

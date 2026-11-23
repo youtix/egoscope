@@ -1,9 +1,9 @@
 /**
  * The harness of the lint policy probes, shared by eslint.config.test.ts,
  * scripts/eslint-plugin.test.ts, scripts/eslint-playwright.test.ts,
- * scripts/eslint-time-rules.test.ts and scripts/vitest-names.test.ts. Probes are real
- * files in a temporary copy of the project, linted with the full configuration,
- * type-aware rules included.
+ * scripts/eslint-test-support.test.ts, scripts/eslint-time-rules.test.ts and
+ * scripts/vitest-names.test.ts. Probes are real files in a temporary copy of the
+ * project, linted with the full configuration, type-aware rules included.
  * typescript-estree's automatic single-run mode is off: under CI=true it would
  * reuse an isolated program across the many lints of one probe path.
  */
@@ -56,6 +56,7 @@ const PROBE_FILES: readonly string[] = [
   'scripts/probe.ts',
   'scripts/signal-relay.ts',
   'scripts/with-lock.ts',
+  'src/app/api/test/probe/route.ts',
   'src/app/page-helper.ts',
   'src/app/players/[playerId]/page.tsx',
   'src/app/players/page.tsx',

@@ -84,7 +84,6 @@ export { isOutsideArchive } from './schema/archive';
 export { nextValue } from './sequence';
 export type { SequenceName } from './sequence';
 export { createTestDatabase } from './test-database';
-export { DETECTED_EVENT, insertParents, PARENTS } from './test-parents';
 export { transaction } from './transaction';
 export type { Transaction } from './transaction';
 export { updateVersioned } from './versioned';

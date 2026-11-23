@@ -19,6 +19,8 @@ const CONTEXT: CallContext = {
 const WEEKLY = 'egoscope-backup-20261116T040000Z-weekly.bin';
 const MANUAL = 'egoscope-backup-20261123T040000Z-manual.bin';
 const RATE_LIMITED = { kind: 'rate_limited' } as const;
+// When the provider says the request window of a refused call reopens.
+const RESETS_AT = toEpochMs(Date.UTC(2026, 10, 16, 5));
 
 /** The fake in `condition`, as the contract asks for it. */
 function fakeIn(condition: ContractCondition): FakeBackupStorage {
@@ -118,7 +120,7 @@ describe('createFakeBackupStorage', () => {
         { id: '1', name: WEEKLY, sizeBytes: 3, createdAt: STORED_AT, complete: true },
         { id: '2', name: MANUAL, sizeBytes: 5, createdAt: STORED_AT + WEEK_MS, complete: true },
       ],
-      meta: { requests: 1, bytesSent: 0, bytesReceived: 0, rateLimitResetsAt: null },
+      call: { httpRequests: 1, bytesSent: 0, bytesReceived: 0, rateLimitResetsAt: null },
     });
   });
 
@@ -127,9 +129,9 @@ describe('createFakeBackupStorage', () => {
     const upload = await fake.upload(WEEKLY, new Uint8Array(6), CONTEXT);
     const download = await fake.download('1', CONTEXT);
 
-    expect([upload.meta, download.meta]).toStrictEqual([
-      { requests: 2, bytesSent: 6, bytesReceived: 0, rateLimitResetsAt: null },
-      { requests: 1, bytesSent: 0, bytesReceived: 6, rateLimitResetsAt: null },
+    expect([upload.call, download.call]).toStrictEqual([
+      { httpRequests: 2, bytesSent: 6, bytesReceived: 0, rateLimitResetsAt: null },
+      { httpRequests: 1, bytesSent: 0, bytesReceived: 6, rateLimitResetsAt: null },
     ]);
   });
 
@@ -139,7 +141,7 @@ describe('createFakeBackupStorage', () => {
     const interrupted = await fake.upload(WEEKLY, new Uint8Array(4), CONTEXT);
     const retried = await fake.upload(WEEKLY, new Uint8Array(4), CONTEXT);
 
-    expect([interrupted.meta.requests, retried.meta.requests]).toStrictEqual([2, 3]);
+    expect([interrupted.call.httpRequests, retried.call.httpRequests]).toStrictEqual([2, 3]);
     expect(await fake.list(CONTEXT)).toMatchObject({
       value: [{ id: '2', name: WEEKLY, sizeBytes: 4, complete: true }],
     });
@@ -178,9 +180,37 @@ describe('createFakeBackupStorage', () => {
     expect(failed).toStrictEqual({
       ok: false,
       error: RATE_LIMITED,
-      meta: { requests: 1, bytesSent: 0, bytesReceived: 0, rateLimitResetsAt: null },
+      call: { httpRequests: 1, bytesSent: 0, bytesReceived: 0, rateLimitResetsAt: null },
     });
     expect(next.ok).toBe(true);
+  });
+
+  it('[CL-TRV-12] reports the instant the quota resets that a scripted failure names', async () => {
+    const fake = await readyFake();
+    fake.failNext('list', RATE_LIMITED, RESETS_AT);
+
+    expect(await fake.list(CONTEXT)).toStrictEqual({
+      ok: false,
+      error: RATE_LIMITED,
+      call: { httpRequests: 1, bytesSent: 0, bytesReceived: 0, rateLimitResetsAt: RESETS_AT },
+    });
+  });
+
+  it('keeps the script for the next call that reaches the space, past a call refused before', async () => {
+    const fake = createFakeBackupStorage({ maxFileBytes: 4 });
+    await fake.ensureContainer(CONTEXT);
+    fake.failNext('upload', RATE_LIMITED);
+    const tooLarge = await fake.upload(WEEKLY, new Uint8Array(5), CONTEXT);
+    fake.setAccess('token_expired');
+    const expired = await fake.upload(WEEKLY, new Uint8Array(1), CONTEXT);
+    fake.setAccess('granted');
+    const scripted = await fake.upload(WEEKLY, new Uint8Array(1), CONTEXT);
+
+    expect([tooLarge, expired, scripted]).toMatchObject([
+      { ok: false, error: { kind: 'too_large' } },
+      { ok: false, error: { kind: 'unauthorized', cause: 'token_rejected' } },
+      { ok: false, error: RATE_LIMITED },
+    ]);
   });
 
   it('changes nothing in the space on a scripted failure', async () => {

@@ -1,7 +1,13 @@
 import { asc } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 
-import { createTestDatabase, insertParents, outboxFacts, PARENTS } from '@/lib/db';
+import { createTestDatabase, outboxFacts } from '@/lib/db';
+import {
+  DATABASE_TEST_TIMEOUT_MS,
+  insertEventType,
+  insertPlayer,
+  insertRequest,
+} from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { markConsumed, pending } from './consume';
@@ -15,6 +21,9 @@ import type { FixedClock } from '@/lib/time';
 const NOW = toEpochMs(Date.UTC(2026, 10, 23, 14));
 const MINUTE = 60_000;
 const PASS_ID = '6d1e8a42-93b0-4f7c-a5e2-1c4b7d9f0a38';
+// The request that a fact names, the first of its table: a request to do of the media
+// storm, for an invented player.
+const REQUEST_ID = 1;
 
 const NO_SUBJECT = {
   backtestRequestId: null,
@@ -25,18 +34,20 @@ const NO_SUBJECT = {
   lot2SubjectId: null,
 } as const;
 
-describe('the consumption of the facts', { timeout: 60_000 }, () => {
+describe('the consumption of the facts', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
   let clock: FixedClock;
 
   beforeEach(async () => {
     const database = await createTestDatabase();
     db = database.db;
-    await insertParents(db);
+    await insertEventType(db);
+    const player = await insertPlayer(db);
+    await insertRequest(db, { playerId: player.id });
     clock = fixedClock(NOW);
     onTestFinished(installFakeClock(clock));
     return database.close;
-  }, 60_000);
+  }, DATABASE_TEST_TIMEOUT_MS);
 
   /** Emits `facts` a minute apart, the first now. */
   async function emitApart(facts: readonly Readonly<{ fact: OutboxFact; passId?: string }>[]) {
@@ -52,7 +63,7 @@ describe('the consumption of the facts', { timeout: 60_000 }, () => {
   it('[TEL-02] [TEL-19] lists the facts not consumed yet, oldest first, with their subject and pass', async () => {
     await emitApart([
       { fact: { kind: 'type_proposal_new', eventTypeId: 'media-storm' }, passId: PASS_ID },
-      { fact: { kind: 'backtest_request_to_do', backtestRequestId: PARENTS.requestId } },
+      { fact: { kind: 'backtest_request_to_do', backtestRequestId: REQUEST_ID } },
       { fact: { kind: 'tracked_result_ready', lot2SubjectId: 7 }, passId: PASS_ID },
     ]);
 
@@ -69,7 +80,7 @@ describe('the consumption of the facts', { timeout: 60_000 }, () => {
         ...NO_SUBJECT,
         id: 2,
         kind: 'backtest_request_to_do',
-        backtestRequestId: PARENTS.requestId,
+        backtestRequestId: REQUEST_ID,
         passId: null,
         createdAt: NOW + MINUTE,
       },
