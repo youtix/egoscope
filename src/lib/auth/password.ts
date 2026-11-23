@@ -3,7 +3,7 @@ import 'server-only';
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
-import type { ScryptOptions } from 'node:crypto';
+import type { BinaryLike, ScryptOptions } from 'node:crypto';
 
 // scrypt's cost (N = 2^15), block size and parallelism (RFC 7914), and twice the 32 MiB
 // they need as the memory ceiling, since Node refuses a computation that reaches it.
@@ -19,7 +19,8 @@ const ENCODING = 'base64url';
 // Splits a text into the characters a person sees, an accented letter or an emoji each one.
 const CHARACTERS = new Intl.Segmenter('en', { granularity: 'grapheme' });
 
-const scryptKey = promisify(scrypt);
+// scrypt with its options; `promisify` alone would take the overload without them.
+const scryptKey = promisify<BinaryLike, BinaryLike, number, ScryptOptions, Buffer>(scrypt);
 
 /** The derived key of `password`, its Unicode form normalized so that every device types it alike. */
 async function derive(password: string, salt: Buffer, options: ScryptOptions): Promise<Buffer> {
