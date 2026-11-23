@@ -53,19 +53,35 @@ const unreachable = (httpRequests: number) => ({
 
 /**
  * A lookup that answers every name with the next list of `turns`, the last one again
- * once they run out, and the names it was asked, one per call.
+ * once they run out, and the names it was asked, one per call. As the system's
+ * resolver does, it answers the whole list only when asked for all the addresses,
+ * and the first one otherwise.
  */
 function lookupAnswering(...turns: readonly (readonly string[])[]) {
   const asked: string[] = [];
-  const lookup: LookupFunction = (hostname, _options, callback) => {
+  const lookup: LookupFunction = (hostname, options, callback) => {
     const addresses = turns[Math.min(asked.length, turns.length - 1)] ?? [];
     asked.push(hostname);
-    callback(
-      null,
-      addresses.map((address) => ({ address, family: isIP(address) })),
-    );
+    const [first = ''] = addresses;
+    if (options.all === true) {
+      callback(
+        null,
+        addresses.map((address) => ({ address, family: isIP(address) })),
+      );
+    } else {
+      callback(null, first, isIP(first));
+    }
   };
   return { lookup, asked };
+}
+
+/** Turns off, for the test that calls it, the default that makes a connection ask for all the addresses of a name. */
+function askForOneAddressOnly(): void {
+  const wasAutoSelecting = getDefaultAutoSelectFamily();
+  setDefaultAutoSelectFamily(false);
+  onTestFinished(() => {
+    setDefaultAutoSelectFamily(wasAutoSelecting);
+  });
 }
 
 /** The adapter of a test that reaches its local server, resolving names as `options` says. */
@@ -354,12 +370,22 @@ describe('createHttpLinkCheck', () => {
       expect(warn).not.toHaveBeenCalled();
     });
 
-    it('[TRV-66] connects to the address it checked when the connection asks for one address only', async () => {
-      const wasAutoSelecting = getDefaultAutoSelectFamily();
-      setDefaultAutoSelectFamily(false);
-      onTestFinished(() => {
-        setDefaultAutoSelectFamily(wasAutoSelecting);
+    it('[TRV-66] refuses a name with one public and one private address when the connection asks for one address only', async () => {
+      askForOneAddressOnly();
+      const { lookup, asked } = lookupAnswering([PUBLIC, PRIVATE]);
+
+      const outcome = await createHttpLinkCheck({ lookup }).probe(open(), {
+        url: 'http://intranet.test/',
+        timeoutMs: TIMEOUT_MS,
       });
+
+      expect(outcome).toStrictEqual(unreachable(0));
+      expect(asked).toStrictEqual(['intranet.test']);
+      expect(warn).toHaveBeenCalledExactlyOnceWith(refusal('intranet.test', 'private-use'));
+    });
+
+    it('[TRV-66] connects to the address it checked when the connection asks for one address only', async () => {
+      askForOneAddressOnly();
       const { lookup } = lookupAnswering([LOOPBACK]);
 
       const outcome = await local({ lookup }).probe(open(), {
