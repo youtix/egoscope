@@ -1,6 +1,14 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 
-import { boxScores, games } from '@/lib/db';
+import {
+  backtestRequests,
+  boxScores,
+  cases as caseRows,
+  events as eventRows,
+  games,
+  imports,
+  parameterOverrides,
+} from '@/lib/db';
 import { err, ok } from '@/lib/result';
 import { gameDay, now, toEpochMs } from '@/lib/time';
 
@@ -9,7 +17,8 @@ import { insertHistoricalEvent } from './factories/events';
 import { insertBoxScores, insertLeagueSeason } from './factories/games';
 import { insertPlayer } from './factories/players';
 import { insertValidCase } from './factories/sensitivity';
-import { insertCalendarType, insertEventType } from './factories/taxonomy';
+import { insertCalendarType, insertEventType, MEDIA_STORM } from './factories/taxonomy';
+import { firstRow, present } from './rows';
 
 import type { ImportRow, RequestRow } from './factories/backtests';
 import type { EventRow } from './factories/events';
@@ -30,6 +39,15 @@ const MEASURED_SEASON = '2024-25';
 // How many valid cases the profiled player has: seven, of one type.
 const VALID_CASES = 7;
 const DAY_MS = 86_400_000;
+// The day of the profiled player's request, and the period of the media storm it asks
+// and its import covers: from his first season to that day.
+const PROFILED_REQUEST_ON = '2025-06-02';
+const PROFILED_PERIOD = [
+  { eventTypeId: MEDIA_STORM, startOn: '2023-10-24', endOn: PROFILED_REQUEST_ON },
+] as const;
+// The most games a baseline of the invented league holds: his team's ten games of a
+// season, the measured game excluded (STA-17, STA-19).
+const LEAGUE_BASELINE_GAMES = 9;
 
 /**
  * A player without backtest, the glossary's unprofiled player (TRV-76): an invented
@@ -49,64 +67,121 @@ export type ProfiledPlayer = Readonly<{
   events: readonly EventRow[];
 }>;
 
+/** What `profiledPlayer` wrote when it ran before on `db`: the rows of the import of his request, or null. */
+async function profiledAlready(db: Database, player: PlayerRow): Promise<ProfiledPlayer | null> {
+  const [imported] = await db
+    .select()
+    .from(imports)
+    .where(eq(imports.playerId, player.id))
+    .orderBy(asc(imports.id))
+    .limit(1);
+  if (imported === undefined) {
+    return null;
+  }
+  return {
+    player,
+    request: firstRow(
+      await db
+        .select()
+        .from(backtestRequests)
+        .where(eq(backtestRequests.id, imported.backtestRequestId)),
+      'the request imported',
+    ),
+    imported,
+    cases: await db
+      .select()
+      .from(caseRows)
+      .where(eq(caseRows.playerId, player.id))
+      .orderBy(asc(caseRows.id)),
+    events: await db
+      .select()
+      .from(eventRows)
+      .where(eq(eventRows.originImportId, imported.id))
+      .orderBy(asc(eventRows.id)),
+  };
+}
+
 /**
- * A profiled player with seven valid cases of one type (SEN-07): the first invented
- * player, his request of June 2025 imported over the media storm, and seven historical
- * media storms, each published the day before one of his first seven games of 2024-25
- * and measured at it, with the season's games and his box scores as the source serves
- * them.
+ * Writes the profiled player's seven cases and their events (SEN-01, SEN-07): a media
+ * storm known by the day before each of his first seven games of the measured season,
+ * which `imported` recorded, and its case, measured at that game.
+ */
+async function measureFirstGames(db: Database, imported: ImportRow): Promise<void> {
+  const { playerId } = imported;
+  const measured = await db
+    .select({ id: games.id, tipOff: games.scheduledStartAt })
+    .from(boxScores)
+    .innerJoin(games, eq(games.id, boxScores.gameId))
+    .where(and(eq(boxScores.playerId, playerId), eq(games.season, MEASURED_SEASON)))
+    .orderBy(asc(games.scheduledStartAt))
+    .limit(VALID_CASES);
+  for (const game of measured) {
+    const eventOn = gameDay(toEpochMs(game.tipOff.getTime() - DAY_MS));
+    const measuredCase = await insertValidCase(db, { playerId, measuredGameId: game.id, eventOn });
+    await insertHistoricalEvent(db, {
+      playerId,
+      originImportId: imported.id,
+      overrides: { referenceDateOn: eventOn, caseId: measuredCase.id },
+    });
+  }
+}
+
+/**
+ * A profiled player with seven valid cases of one type (SEN-01, SEN-07, SEN-08): the
+ * first invented player, his request of 2 June 2025 imported over the media storm up to
+ * that day, and seven historical media storms, each known by the day before one of his
+ * first seven games of 2024-25, public at the end of that day in Pacific time, and
+ * measured at that game from the season's games and his box scores as the source serves
+ * them. A season of the invented league holds ten games of his team, so a baseline holds
+ * nine games at most, the measured game excluded: the scenario sets the minimum baseline
+ * size, `games.minBaselineGames`, to 9, a value of its range (STA-19). Once applied, it is
+ * left as it is and gives the rows it wrote, so that scenarios combine.
  */
 export async function profiledPlayer(db: Database): Promise<ProfiledPlayer> {
   await insertEventType(db);
   await insertLeagueSeason(db, MEASURED_SEASON);
   const player = await insertPlayer(db, { source: 'p01' });
   await insertBoxScores(db, { playerId: player.id, source: 'p01', season: MEASURED_SEASON });
+  const already = await profiledAlready(db, player);
+  if (already !== null) {
+    return already;
+  }
+  await db
+    .insert(parameterOverrides)
+    .values({ parameterKey: 'games.minBaselineGames', value: LEAGUE_BASELINE_GAMES })
+    .onConflictDoNothing();
   const request = await insertRequest(db, {
     playerId: player.id,
-    overrides: { createdOn: '2025-06-02' },
+    types: PROFILED_PERIOD,
+    overrides: { createdOn: PROFILED_REQUEST_ON },
   });
-  const imported = await insertImport(db, { request });
-  const measured = await db
-    .select({ id: games.id, tipOff: games.scheduledStartAt })
-    .from(boxScores)
-    .innerJoin(games, eq(games.id, boxScores.gameId))
-    .where(eq(boxScores.playerId, player.id))
-    .orderBy(asc(games.scheduledStartAt))
-    .limit(VALID_CASES);
-  const cases: CaseRow[] = [];
-  const events: EventRow[] = [];
-  for (const game of measured) {
-    const publishedAt = toEpochMs(game.tipOff.getTime() - DAY_MS);
-    const measuredCase = await insertValidCase(db, {
-      playerId: player.id,
-      measuredGameId: game.id,
-      overrides: { referenceInstantAt: new Date(publishedAt) },
-    });
-    cases.push(measuredCase);
-    events.push(
-      await insertHistoricalEvent(db, {
-        playerId: player.id,
-        originImportId: imported.id,
-        overrides: { referenceDateOn: gameDay(publishedAt), caseId: measuredCase.id },
-      }),
-    );
-  }
-  return { player, request, imported, cases, events };
+  const imported = await insertImport(db, { request, covered: PROFILED_PERIOD });
+  await measureFirstGames(db, imported);
+  return present(await profiledAlready(db, player), 'the profiled player written');
 }
 
 /**
  * A request to do whose prompt was copied (TRV-76): the ninth invented player followed,
- * his initial request asking the media storm, its prompt copied now.
+ * his initial request asking the media storm, its prompt copied now. Once applied, it is
+ * left as it is and gives his request, so that scenarios combine.
  */
 export async function requestToDo(
   db: Database,
 ): Promise<Readonly<{ player: PlayerRow; request: RequestRow }>> {
   await insertEventType(db);
   const player = await insertPlayer(db, { source: 'p09' });
-  const request = await insertRequest(db, {
-    playerId: player.id,
-    overrides: { lastCopiedAt: new Date(now()) },
-  });
+  const [written] = await db
+    .select()
+    .from(backtestRequests)
+    .where(eq(backtestRequests.playerId, player.id))
+    .orderBy(asc(backtestRequests.id))
+    .limit(1);
+  const request =
+    written ??
+    (await insertRequest(db, {
+      playerId: player.id,
+      overrides: { lastCopiedAt: new Date(now()) },
+    }));
   return { player, request };
 }
 
@@ -163,19 +238,23 @@ const REFERENCE_DATA: readonly Scenario[] = [];
 export type SeedError = Readonly<{ kind: 'unknown_scenarios'; names: readonly string[] }>;
 
 /**
- * Applies the scenarios named, in the order given, after the reference data (TRV-76):
- * what `/api/test/seed` does to the in-memory database of the hermetic server, so that
- * scenarios combine. Writes nothing when a name is unknown, and names those.
+ * Applies the scenarios named, in the order given, each one after the one before it has
+ * ended, after the reference data (TRV-76): what `/api/test/seed` does to the in-memory
+ * database of the hermetic server, so that scenarios combine. A scenario named twice, or
+ * already applied, leaves its rows as they are. Writes nothing when a name is unknown,
+ * and names those. `registry` holds the scenarios by name, those of every world unless a
+ * test gives its own.
  */
 export async function applyScenarios(
   db: Database,
   names: readonly string[],
+  registry: ReadonlyMap<string, Scenario> = scenarios,
 ): Promise<Result<readonly string[], SeedError>> {
-  const unknown = names.filter((name) => !scenarios.has(name));
+  const unknown = names.filter((name) => !registry.has(name));
   if (unknown.length > 0) {
     return err({ kind: 'unknown_scenarios', names: unknown });
   }
-  const named = names.map((name) => scenarios.get(name)).filter((step) => step !== undefined);
+  const named = names.map((name) => registry.get(name)).filter((step) => step !== undefined);
   for (const step of [...REFERENCE_DATA, ...named]) {
     await step(db);
   }

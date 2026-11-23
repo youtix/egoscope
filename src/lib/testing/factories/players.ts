@@ -1,3 +1,5 @@
+import { eq } from 'drizzle-orm';
+
 import { followedPlayers, statsSourceMappings } from '@/lib/db';
 import { now } from '@/lib/time';
 import league from '@data/fixtures/stats-source/world/scenario.json';
@@ -38,11 +40,30 @@ export type PlayerFactoryOptions = Readonly<{
   overrides?: Partial<typeof followedPlayers.$inferInsert>;
 }>;
 
+/** The birthday columns of a player whose birthday the source gives, or does not. */
+function birthdayColumns(birthday: Readonly<{ month: number; day: number }> | null) {
+  return birthday === null
+    ? { birthdayMonth: null, birthdayDay: null, birthdayOrigin: null }
+    : {
+        birthdayMonth: birthday.month,
+        birthdayDay: birthday.day,
+        birthdayOrigin: 'stats_source' as const,
+      };
+}
+
+/** A name as CL-JOU-13 compares it: NFC, trimmed, its inner spaces collapsed, case folded. */
+function normalizedName(name: string): string {
+  return name.normalize('NFC').trim().replaceAll(/\s+/gu, ' ').toLowerCase();
+}
+
 /**
  * Writes a followed player (JOU-10): an invented player of the league, the
  * first by default, under his fixed identifier, with his name and his birthday as the
- * source gives them and his mapping to the source established, so that the fake of
- * the statistics source and the database agree. `overrides` replaces any column.
+ * source gives them, the name normalized as CL-JOU-13 says, and his mapping to the
+ * source established, so that the fake of the statistics source and the database agree.
+ * `overrides` replaces any column; a `displayName` alone also gives the normalized name.
+ * A player already followed under that identifier is left as he is, overrides ignored,
+ * so that scenarios combine: gives him as the database holds him.
  */
 export async function insertPlayer(
   db: Database,
@@ -52,28 +73,32 @@ export async function insertPlayer(
     league.players.filter((candidate) => candidate.id === source),
     `the invented player ${source}`,
   );
-  const { birthday } = player;
   const addedAt = new Date(now());
-  const rows = await db
+  const id = overrides.id ?? leaguePlayerId(source);
+  const displayName = overrides.displayName ?? player.name;
+  await db
     .insert(followedPlayers)
     .values({
-      id: leaguePlayerId(source),
-      displayName: player.name,
-      displayNameNormalized: player.name.toLowerCase(),
-      birthdayMonth: birthday?.month ?? null,
-      birthdayDay: birthday?.day ?? null,
-      birthdayOrigin: birthday === null ? null : 'stats_source',
+      id,
+      displayName,
+      displayNameNormalized: normalizedName(displayName),
+      ...birthdayColumns(player.birthday),
       addedAt,
       ...overrides,
     })
-    .returning();
-  const row = firstRow(rows, 'the followed player written');
-  await db.insert(statsSourceMappings).values({
-    playerId: row.id,
-    statsSource: 'sportsdataverse_espn',
-    status: 'established',
-    sourcePlayerRef: source,
-    establishedAt: addedAt,
-  });
-  return row;
+    .onConflictDoNothing({ target: followedPlayers.id });
+  await db
+    .insert(statsSourceMappings)
+    .values({
+      playerId: id,
+      statsSource: 'sportsdataverse_espn',
+      status: 'established',
+      sourcePlayerRef: source,
+      establishedAt: addedAt,
+    })
+    .onConflictDoNothing();
+  return firstRow(
+    await db.select().from(followedPlayers).where(eq(followedPlayers.id, id)),
+    'the followed player written',
+  );
 }

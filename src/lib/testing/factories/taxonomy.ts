@@ -27,30 +27,41 @@ const VALIDATED_SHEET = {
   datingRule: 'The day of the first article.',
   genericExample: 'A player leads every sports page for two days.',
   documentationDifficulty: 'medium',
-  currentVersionNumber: FIRST_VERSION,
 } as const;
 
 /**
- * Writes an event type and the first version of its sheet (TAX-01, TAX-20), unless a
- * type of that identifier exists, so that scenarios that need the same type combine: a
- * validated research type, the media storm, by default; `overrides` replaces any
- * column. Gives the type as the database holds it.
+ * Writes an event type (TAX-01, TAX-20): a validated research type, the media storm, by
+ * default; `overrides` replaces any column. A validated or withdrawn type gets the first
+ * version of its sheet, which its validation produced; a proposed or rejected one, never
+ * validated, has no version and no version number. A type of that identifier that exists
+ * already is left as it is, overrides ignored, so that scenarios that need the same type
+ * combine. Gives the type as the database holds it.
  */
 export async function insertEventType(
   db: Database,
   overrides: Partial<typeof eventTypes.$inferInsert> = {},
 ): Promise<EventTypeRow> {
-  const type = { ...VALIDATED_SHEET, ...overrides };
-  await db.insert(eventTypes).values(type).onConflictDoNothing({ target: eventTypes.id });
-  await db
-    .insert(typeSheetVersions)
-    .values({
+  const status = overrides.status ?? VALIDATED_SHEET.status;
+  const wasValidated = status === 'validated' || status === 'withdrawn';
+  const type = {
+    ...VALIDATED_SHEET,
+    currentVersionNumber: wasValidated ? FIRST_VERSION : null,
+    ...overrides,
+  };
+  const inserted = await db
+    .insert(eventTypes)
+    .values(type)
+    .onConflictDoNothing({ target: eventTypes.id })
+    .returning({ version: eventTypes.currentVersionNumber });
+  const version = inserted[0]?.version ?? null;
+  if (version !== null) {
+    await db.insert(typeSheetVersions).values({
       eventTypeId: type.id,
-      versionNumber: FIRST_VERSION,
+      versionNumber: version,
       kind: 'validation',
       content: { name: type.name, definition: type.definition },
-    })
-    .onConflictDoNothing();
+    });
+  }
   return firstRow(
     await db.select().from(eventTypes).where(eq(eventTypes.id, type.id)),
     `the event type ${type.id}`,

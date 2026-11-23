@@ -52,6 +52,35 @@ describe('the taxonomy factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
     });
   });
 
+  it.each([
+    ['proposed', { status: 'proposed' } as const],
+    ['rejected', { status: 'rejected', rejectionReason: 'out_of_scope' } as const],
+  ])(
+    '[TAX-20] writes a %s type, never validated, without a version of its sheet',
+    async (status, overrides) => {
+      await expect(insertEventType(db, { id: 'bereavement', ...overrides })).resolves.toMatchObject(
+        { id: 'bereavement', status, currentVersionNumber: null },
+      );
+      await expect(db.select().from(typeSheetVersions)).resolves.toStrictEqual([]);
+    },
+  );
+
+  it('[TAX-20] writes a withdrawn type with the version of its sheet that its validation produced', async () => {
+    await expect(
+      insertEventType(db, {
+        status: 'withdrawn',
+        withdrawalReasonKind: 'entered',
+        withdrawalReason: 'Too close to another type.',
+      }),
+    ).resolves.toMatchObject({
+      status: 'withdrawn',
+      currentVersionNumber: 1,
+    });
+    await expect(db.select().from(typeSheetVersions)).resolves.toMatchObject([
+      { eventTypeId: 'media-storm', versionNumber: 1, kind: 'validation' },
+    ]);
+  });
+
   it('[TAX-10] writes the birthday as a validated type derived from the calendar, known in advance', async () => {
     await expect(insertCalendarType(db)).resolves.toMatchObject({
       id: 'birthday',

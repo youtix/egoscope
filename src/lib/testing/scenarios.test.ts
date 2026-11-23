@@ -1,17 +1,21 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { checkEvents, checkLeadsAndLimitations, readResult } from '@/lib/ai-exchange';
 import {
   backtestCoveragePeriods,
   backtestRequests,
+  backtestRequestTypes,
   boxScores,
   cases,
   createTestDatabase,
   events as eventRows,
   eventTypes,
   followedPlayers,
+  games,
+  parameterOverrides,
 } from '@/lib/db';
+import { gameScore } from '@/lib/stats-engine';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 import emptyResult from '@data/fixtures/testing/research-results/request-to-do-empty.json';
 import result from '@data/fixtures/testing/research-results/request-to-do.json';
@@ -27,8 +31,10 @@ import {
 } from './scenarios';
 import { DATABASE_TEST_TIMEOUT_MS } from './timeouts';
 
+import type { Scenario } from './scenarios';
 import type { EventCheckContext, ResearchResult } from '@/lib/ai-exchange';
 import type { Database } from '@/lib/db';
+import type { GameScoreInput } from '@/lib/stats-engine';
 
 const AT = toEpochMs(Date.UTC(2026, 10, 20, 8, 15));
 const SCENARIO_NAMES = [
@@ -54,6 +60,78 @@ const CHECKS: EventCheckContext = {
   maxSourceLeadDays: 1,
   sourceRules: { cleanLink: (url) => url, disallowedDomains: [], checkedAt: AT },
 };
+
+// The profiled player's request, the period it asks and its import covers.
+const PROFILED_PERIOD = { startOn: '2023-10-24', endOn: '2025-06-02' };
+// His seven cases: the day of each event, the instant it became public, the end of that
+// day in Pacific time (SEN-01), daylight saving time until 3 November 2024, and his whole
+// minutes in the game measured, the next one of his team.
+const MEASURED = [
+  ['2024-10-21', '2024-10-22T07:00:00.000Z', 34],
+  ['2024-10-24', '2024-10-25T07:00:00.000Z', 38],
+  ['2024-10-27', '2024-10-28T07:00:00.000Z', 28],
+  ['2024-10-30', '2024-10-31T07:00:00.000Z', 15],
+  ['2024-11-02', '2024-11-03T07:00:00.000Z', 22],
+  ['2024-11-05', '2024-11-06T08:00:00.000Z', 34],
+  ['2024-11-08', '2024-11-09T08:00:00.000Z', 38],
+] as const;
+
+/** A stored total, which a complete line always holds. */
+const total = (value: number | null): number => value ?? NaN;
+
+/** The twelve totals of a stored line that the Game Score reads (STA-11). */
+function totalsOf(line: typeof boxScores.$inferSelect): GameScoreInput {
+  return {
+    points: total(line.points),
+    fieldGoalsMade: total(line.fieldGoalsMade),
+    fieldGoalsAttempted: total(line.fieldGoalsAttempted),
+    freeThrowsMade: total(line.freeThrowsMade),
+    freeThrowsAttempted: total(line.freeThrowsAttempted),
+    offensiveRebounds: total(line.offensiveRebounds),
+    defensiveRebounds: total(line.defensiveRebounds),
+    steals: total(line.steals),
+    assists: total(line.assists),
+    blocks: total(line.blocks),
+    personalFouls: total(line.personalFouls),
+    turnovers: total(line.turnovers),
+  };
+}
+
+/**
+ * Each stored case beside the box score of its measured game: when its event became
+ * public and whether before the tip-off, its minutes, its baseline, and whether its
+ * minutes, Game Score and performance index are those of the line (STA-11, STA-12).
+ */
+async function casesBesideTheirLines(db: Database) {
+  const rows = await db
+    .select({ measured: cases, line: boxScores, tipOff: games.scheduledStartAt })
+    .from(cases)
+    .innerJoin(
+      boxScores,
+      and(eq(boxScores.gameId, cases.measuredGameId), eq(boxScores.playerId, cases.playerId)),
+    )
+    .innerJoin(games, eq(games.id, cases.measuredGameId))
+    .orderBy(asc(cases.id));
+  return rows.map(({ measured, line, tipOff }) => {
+    const score = gameScore(totalsOf(line));
+    const publicAt = measured.referenceInstantAt ?? tipOff;
+    return {
+      publicAt: publicAt.toISOString(),
+      minutes: measured.measuredMinutes,
+      baseline: [
+        measured.baselineSeason,
+        measured.baselinePhase,
+        measured.baselineGameCount,
+        measured.baselineStatus,
+      ].join(' '),
+      isPublicBeforeTipOff: publicAt < tipOff,
+      agreesWithItsLine:
+        measured.measuredMinutes === line.minutes &&
+        measured.measuredGameScore === score &&
+        measured.performanceIndex === score / total(line.minutes),
+    };
+  });
+}
 
 /** The research result that `fixture` holds, read by the import as the owner pastes it. */
 function readFixture(fixture: unknown): ResearchResult {
@@ -91,19 +169,51 @@ describe('the scenarios', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     expect(player).toMatchObject({ id: leaguePlayerId('p01'), displayName: 'Ansel Varga' });
     expect(request).toMatchObject({ reference: 'REQ-2025-0001', createdOn: '2025-06-02' });
     await expect(
-      db.select({ status: backtestRequests.status }).from(backtestRequests),
-    ).resolves.toStrictEqual([{ status: 'imported' }]);
+      db
+        .select({
+          status: backtestRequests.status,
+          startOn: backtestRequestTypes.periodStartOn,
+          endOn: backtestRequestTypes.periodEndOn,
+        })
+        .from(backtestRequests)
+        .innerJoin(
+          backtestRequestTypes,
+          eq(backtestRequestTypes.backtestRequestId, backtestRequests.id),
+        ),
+    ).resolves.toStrictEqual([{ status: 'imported', ...PROFILED_PERIOD }]);
     await expect(
       db
         .select({
           importId: backtestCoveragePeriods.importId,
           type: backtestCoveragePeriods.eventTypeId,
+          startOn: backtestCoveragePeriods.startOn,
+          endOn: backtestCoveragePeriods.endOn,
         })
         .from(backtestCoveragePeriods),
-    ).resolves.toStrictEqual([{ importId: imported.id, type: MEDIA_STORM }]);
+    ).resolves.toStrictEqual([{ importId: imported.id, type: MEDIA_STORM, ...PROFILED_PERIOD }]);
     await expect(
       db.select().from(boxScores).where(eq(boxScores.playerId, player.id)),
     ).resolves.toHaveLength(10);
+  });
+
+  it('[SEN-01] [SEN-08] [STA-12] [STA-19] measures each case of the profiled player from the box score of its game and the nine other games of his season, after the end of the day of its event in Pacific time', async () => {
+    const { events } = await profiledPlayer(db);
+
+    await expect(db.select().from(parameterOverrides)).resolves.toMatchObject([
+      { parameterKey: 'games.minBaselineGames', value: 9 },
+    ]);
+    expect(events.map(({ referenceDateOn }) => referenceDateOn)).toStrictEqual(
+      MEASURED.map(([eventOn]) => eventOn),
+    );
+    await expect(casesBesideTheirLines(db)).resolves.toStrictEqual(
+      MEASURED.map(([, publicAt, minutes]) => ({
+        publicAt,
+        minutes,
+        baseline: '2024-25 regular_season 9 final',
+        isPublicBeforeTipOff: true,
+        agreesWithItsLine: true,
+      })),
+    );
   });
 
   it('[SEN-07] gives the profiled player seven valid cases of one type, each measured at a game of his and caused by a media storm of the day before', async () => {
@@ -178,6 +288,68 @@ describe('the scenarios', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       { reference: 'REQ-2025-0001', status: 'imported' },
       { reference: 'REQ-2026-0001', status: 'to_do' },
     ]);
+  });
+
+  it('applies the scenarios in the order given, each one once the one before it has ended', async () => {
+    const ran: string[] = [];
+    const step =
+      (name: string): Scenario =>
+      async () => {
+        ran.push(`${name} starts`);
+        await Promise.resolve();
+        ran.push(`${name} ends`);
+      };
+    const registry = new Map([
+      ['first', step('first')],
+      ['second', step('second')],
+    ]);
+
+    await expect(
+      applyScenarios(db, ['second', 'first', 'second'], registry),
+    ).resolves.toStrictEqual({ ok: true, value: ['second', 'first', 'second'] });
+    expect(ran).toStrictEqual([
+      'second starts',
+      'second ends',
+      'first starts',
+      'first ends',
+      'second starts',
+      'second ends',
+    ]);
+  });
+
+  it('[SEN-07] leaves the profiled player as he is when applied again, and gives the rows it wrote', async () => {
+    const written = await profiledPlayer(db);
+
+    await expect(profiledPlayer(db)).resolves.toStrictEqual(written);
+    expect(written.request.status).toBe('imported');
+    await expect(db.select({ id: cases.id }).from(cases)).resolves.toHaveLength(7);
+    await expect(db.select({ id: eventRows.id }).from(eventRows)).resolves.toHaveLength(7);
+  });
+
+  it('applies a scenario named twice once, and every scenario again on a database that holds them', async () => {
+    await expect(applyScenarios(db, ['request-to-do', 'request-to-do'])).resolves.toStrictEqual({
+      ok: true,
+      value: ['request-to-do', 'request-to-do'],
+    });
+    await expect(applyScenarios(db, SCENARIO_NAMES)).resolves.toStrictEqual({
+      ok: true,
+      value: SCENARIO_NAMES,
+    });
+    await expect(applyScenarios(db, SCENARIO_NAMES)).resolves.toStrictEqual({
+      ok: true,
+      value: SCENARIO_NAMES,
+    });
+
+    await expect(
+      db
+        .select({ reference: backtestRequests.reference, player: backtestRequests.playerId })
+        .from(backtestRequests)
+        .orderBy(asc(backtestRequests.reference)),
+    ).resolves.toStrictEqual([
+      { reference: 'REQ-2025-0001', player: leaguePlayerId('p01') },
+      { reference: 'REQ-2026-0001', player: leaguePlayerId('p09') },
+    ]);
+    await expect(db.select({ id: cases.id }).from(cases)).resolves.toHaveLength(7);
   });
 
   it('applies nothing when a name is unknown, and names the unknown ones', async () => {

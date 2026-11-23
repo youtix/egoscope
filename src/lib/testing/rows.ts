@@ -13,6 +13,17 @@ export function firstRow<T>(rows: readonly T[], what: string): T {
 }
 
 /**
+ * `value`, a nullable column that the rows a factory wrote always fill: null is a bug of
+ * the factory or of the scenario that asked, named by `what`.
+ */
+export function present<T>(value: T | null, what: string): T {
+  if (value === null) {
+    throw new Error(`Expected ${what}, found null.`);
+  }
+  return value;
+}
+
+/**
  * What a first read of the statistics-source fake gives: a fresh fake, asked with no
  * version known, always reads, so anything else is a bug of the factory, named by `what`.
  */

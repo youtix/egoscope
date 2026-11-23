@@ -3,6 +3,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { boxScores, games, seasons, teams, teamSeasons, teamSourceRefs } from '@/lib/db';
 import { createFakeStatsSource } from '@/lib/stats-source';
 import { now, toEpochMs } from '@/lib/time';
+import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 
 import { firstRow, readData } from '../rows';
 
@@ -21,6 +22,9 @@ import type {
 const STATS_SOURCE = 'sportsdataverse_espn';
 // Time enough for the fake, which answers at once, to answer.
 const CALL_WINDOW_MS = 60_000;
+const DAY_MS = 86_400_000;
+// The correction window after a game, games.correctionWindowDays at its default (STA-33).
+const CORRECTION_WINDOW_MS = engineParams.games.correctionWindowDays * DAY_MS;
 
 /** A fresh fake of the statistics source, which serves the invented league without fault, and the context of a call to it. */
 function league(): Readonly<{ source: FakeStatsSource; ctx: CallContext }> {
@@ -67,11 +71,17 @@ async function writeTeams(db: Database, data: SeasonGames, season: string): Prom
     .onConflictDoNothing();
 }
 
-/** The row of a regular-season game as the fake serves it, its lines published when the season's box scores hold them. */
+/**
+ * The row of a regular-season game as the fake serves it, its lines published when the
+ * season's box scores hold them, and consolidated when it is final and its correction
+ * window was over before now (STA-33).
+ */
 function gameRow(game: SourceGame, data: SeasonGames) {
-  const fetchedAt = new Date(now());
+  const at = now();
+  const fetchedAt = new Date(at);
   const hasLines =
     game.status === 'final' && !data.coverage.gamesWithoutBoxScores.includes(game.game);
+  const isConsolidated = game.status === 'final' && game.tipOff + CORRECTION_WINDOW_MS <= at;
   return {
     statsSource: STATS_SOURCE,
     sourceGameRef: game.game,
@@ -88,6 +98,7 @@ function gameRow(game: SourceGame, data: SeasonGames) {
     overtimeCount: game.overtimes,
     homeLinesPublished: hasLines,
     awayLinesPublished: hasLines,
+    consolidatedAt: isConsolidated ? fetchedAt : null,
     lastFetchedAt: fetchedAt,
     scheduleChangedAt: fetchedAt,
   } as const;
@@ -154,7 +165,8 @@ export type BoxScoreFactoryOptions = Readonly<{
 /**
  * Writes the player's box scores of the season's games that the database holds, as
  * the statistics-source fake serves them (TRV-15), did-not-play lines included, each
- * one complete. Gives the number of lines written.
+ * one complete, unless they are written already, so that scenarios combine. Gives the
+ * number of lines written.
  */
 export async function insertBoxScores(
   db: Database,
@@ -188,6 +200,13 @@ export async function insertBoxScores(
           fetchedAt,
         }) as const,
     );
-  await db.insert(boxScores).values(rows);
-  return rows.length;
+  if (rows.length === 0) {
+    return 0;
+  }
+  const written = await db
+    .insert(boxScores)
+    .values(rows)
+    .onConflictDoNothing()
+    .returning({ id: boxScores.id });
+  return written.length;
 }

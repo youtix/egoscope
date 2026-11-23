@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { firstRow, readData } from './rows';
+import { firstRow, present, readData } from './rows';
 
 const CALL = { httpRequests: 1, bytesReceived: 0, fileRequests: 1 } as const;
 
@@ -12,6 +12,18 @@ describe('firstRow', () => {
   it('fails, naming what was expected, when there is none', () => {
     expect(() => firstRow([], 'the followed player written')).toThrow(
       'Expected the followed player written, found none.',
+    );
+  });
+});
+
+describe('present', () => {
+  it.each([0, false, ''])('gives a value that is not null, even %j', (value) => {
+    expect(present(value, 'a value')).toBe(value);
+  });
+
+  it('fails, naming what was expected, on null', () => {
+    expect(() => present(null, 'his team in the game')).toThrow(
+      'Expected his team in the game, found null.',
     );
   });
 });

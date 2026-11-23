@@ -212,4 +212,63 @@ describe('the league factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       { minutes: timed.minutes, seconds: timed.seconds, hasRoundedMinutes: false },
     ]);
   });
+
+  it('writes no line twice, and none of a season whose games the database does not hold', async () => {
+    await insertLeagueSeason(db, '2024-25');
+    const { id: playerId } = await insertPlayer(db);
+    const first = await insertBoxScores(db, { playerId, source: 'p01', season: '2024-25' });
+
+    await expect(insertBoxScores(db, { playerId, source: 'p01', season: '2024-25' })).resolves.toBe(
+      0,
+    );
+    await expect(insertBoxScores(db, { playerId, source: 'p01', season: '2025-26' })).resolves.toBe(
+      0,
+    );
+    await expect(db.select().from(boxScores)).resolves.toHaveLength(first);
+  });
+});
+
+// A few days after the last games of 2026-27 that the league has played, before 8 November 2026.
+const LATER = toEpochMs(Date.UTC(2026, 10, 10, 8));
+const WINDOW_MS = 7 * 86_400_000;
+
+/** How each stored game of `season` stands against its correction window at LATER (STA-33). */
+async function consolidation(db: Database, season: string): Promise<ReadonlySet<string>> {
+  const rows = await db
+    .select({ status: games.status, tipOff: games.scheduledStartAt, at: games.consolidatedAt })
+    .from(games)
+    .where(eq(games.season, season));
+  return new Set(
+    rows.map(({ status, tipOff, at }) => {
+      const window = tipOff.getTime() + WINDOW_MS <= LATER ? 'window over' : 'in its window';
+      return `${status}, ${window}, ${at === null ? 'not consolidated' : at.toISOString()}`;
+    }),
+  );
+}
+
+describe('the consolidation of the games', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
+  let db: Database;
+
+  beforeEach(async () => {
+    const database = await createTestDatabase();
+    db = database.db;
+    const restoreClock = installFakeClock(fixedClock(LATER));
+    return async () => {
+      restoreClock();
+      await database.close();
+    };
+  }, DATABASE_TEST_TIMEOUT_MS);
+
+  it('[STA-33] consolidates a final game once its correction window of 7 days is over, and no other', async () => {
+    await insertLeagueSeason(db, '2026-27');
+
+    await expect(consolidation(db, '2026-27')).resolves.toStrictEqual(
+      new Set([
+        `final, window over, ${new Date(LATER).toISOString()}`,
+        'final, in its window, not consolidated',
+        'postponed, window over, not consolidated',
+        'scheduled, in its window, not consolidated',
+      ]),
+    );
+  });
 });

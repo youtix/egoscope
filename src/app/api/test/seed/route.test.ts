@@ -60,7 +60,57 @@ describe('POST /api/test/seed', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     onTestFinished(installFakeClock(fixedClock(AT)));
   });
 
-  it('applies the scenarios named, in the order given, and answers which, uncached', async () => {
+  it('applies the scenarios named in the order given', async () => {
+    await servedDatabase();
+    const ran: string[] = [];
+    const registry = new Map(
+      ['first', 'second'].map((name) => [
+        name,
+        async () => {
+          await Promise.resolve();
+          ran.push(name);
+        },
+      ]),
+    );
+    vi.doMock(import('@/lib/testing'), async (importOriginal) => {
+      const testing = await importOriginal();
+      return {
+        ...testing,
+        applyScenarios: async (db: Database, names: readonly string[]) =>
+          testing.applyScenarios(db, names, registry),
+      };
+    });
+    onTestFinished(() => {
+      vi.doUnmock(import('@/lib/testing'));
+    });
+    const { POST } = await hermeticRoute();
+
+    const response = await POST(seed({ scenarios: ['second', 'first', 'second'] }));
+
+    await expect(response.json()).resolves.toStrictEqual({
+      applied: ['second', 'first', 'second'],
+    });
+    expect(ran).toStrictEqual(['second', 'first', 'second']);
+  });
+
+  it('answers a second seed of the same scenarios as the first, leaving their rows as they are', async () => {
+    const db = await servedDatabase();
+    const { POST } = await hermeticRoute();
+    const body = { scenarios: ['profiled-player', 'request-to-do'] };
+
+    const first = await POST(seed(body));
+    const second = await POST(seed(body));
+
+    await expect(first.json()).resolves.toStrictEqual({ applied: body.scenarios });
+
+    expect(second.status).toBe(200);
+    await expect(second.json()).resolves.toStrictEqual({ applied: body.scenarios });
+    await expect(db.select({ id: followedPlayers.id }).from(followedPlayers)).resolves.toHaveLength(
+      2,
+    );
+  });
+
+  it('applies the scenarios named and answers which, uncached', async () => {
     const db = await servedDatabase();
     const { POST } = await hermeticRoute();
 

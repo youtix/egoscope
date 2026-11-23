@@ -101,6 +101,24 @@ describe('insertPlayer', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     });
   });
 
+  it('[CL-JOU-13] normalizes the name that it is given in place of his', async () => {
+    await expect(
+      insertPlayer(db, { source: 'p05', overrides: { displayName: '  Ilías   BRENNER ' } }),
+    ).resolves.toMatchObject({
+      displayName: '  Ilías   BRENNER ',
+      displayNameNormalized: 'ilías brenner',
+    });
+  });
+
+  it('leaves a player already followed as he is, so that scenarios combine', async () => {
+    const first = await insertPlayer(db, { source: 'p05' });
+
+    await expect(
+      insertPlayer(db, { source: 'p05', overrides: { status: 'paused' } }),
+    ).resolves.toStrictEqual(first);
+    await expect(db.select().from(statsSourceMappings)).resolves.toHaveLength(1);
+  });
+
   it('refuses a player that the invented league does not hold', async () => {
     // @ts-expect-error -- the league holds ten players, p01 to p10.
     await expect(insertPlayer(db, { source: 'p11' })).rejects.toThrow(
