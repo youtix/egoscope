@@ -42,6 +42,7 @@
     "vercel-build": "bun run db:migrate && next build"
   },
   "dependencies": {
+    "@base-ui/react": "1.9.0",
     "@electric-sql/pglite": "0.5.16",
     "@vercel/functions": "3.11.3",
     "drizzle-orm": "0.45.4",
@@ -71,6 +72,7 @@
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.10",
     "@types/eslint-plugin-promise": "7.3.0",
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",
@@ -79,6 +81,7 @@
     "@typescript-eslint/utils": "8.72.2",
     "@vitest/coverage-v8": "5.1.0",
     "@vitest/eslint-plugin": "1.6.28",
+    "axe-core": "4.14.0",
     "drizzle-kit": "0.31.11",
     "eslint": "10.15.0",
     "eslint-config-prettier": "10.1.8",
