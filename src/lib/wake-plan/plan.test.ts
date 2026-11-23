@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { z } from 'zod';
 
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
@@ -193,17 +194,45 @@ describe('the wake plan', () => {
     });
 
     it('[TRV-66] admits only task keys, instants, counts, versions and hashes, never personal data', async () => {
-      const { writePlan, readPlan } = await deployment('dpl_first');
+      const { fake, writePlan, readPlan } = await deployment('dpl_first');
 
-      // @ts-expect-error -- a plan names its tasks by their keys alone
-      await writePlan({ ...CONTENT, entries: [{ task: 'Tobiah Wrenfield', dueAt: at(5) }] });
-      const withName = await readPlan(at(10));
-      // @ts-expect-error -- a probe's state holds numbers and short texts, never an object
-      await writePlan({ ...CONTENT, probes: [{ ...PROBE, state: { chat: { id: 7 } } }] });
-      const withObject = await readPlan(at(10));
+      const withName = writePlan({
+        ...CONTENT,
+        // @ts-expect-error -- a plan names its tasks by their keys alone
+        entries: [{ task: 'Tobiah Wrenfield', dueAt: at(5) }],
+      });
+      const withObject = writePlan({
+        ...CONTENT,
+        // @ts-expect-error -- a probe's state holds numbers and short texts, never an object
+        probes: [{ ...PROBE, state: { chat: { id: 7 } } }],
+      });
 
-      expect([withName, withObject]).toStrictEqual([UNREADABLE, UNREADABLE]);
+      await expect(withName).rejects.toThrow(z.ZodError);
+      await expect(withObject).rejects.toThrow(z.ZodError);
+      expect(fake.writeCount(PLAN_KEY)).toBe(0);
+      expect(await readPlan(at(10))).toStrictEqual({ ok: false, error: { kind: 'missing' } });
     });
+
+    it.each([
+      ['an offset of 1.5', { offset: 1.5 }],
+      ['a text of 300 characters', { codeHash: 'f'.repeat(300) }],
+    ])(
+      '[TRV-31] throws on a probe state with %s, which readPlan could not read, and keeps the plan it held',
+      async (_refused, state) => {
+        const { fake, writePlan, readPlan } = await deployment('dpl_first');
+        await writePlan(CONTENT);
+        const telegram: WakeProbe = { kind: 'telegram-polling', dueAt: at(5), state };
+
+        await expect(writePlan({ ...CONTENT, probes: [telegram] })).rejects.toThrow(z.ZodError);
+
+        expect(fake.writeCount(PLAN_KEY)).toBe(1);
+        expect(await readPlan(at(10))).toStrictEqual({
+          ok: true,
+          plan: { deploymentId: 'dpl_first', ...CONTENT },
+          earliestDueAt: at(25),
+        });
+      },
+    );
   });
 
   describe('TASK_KEYS', () => {

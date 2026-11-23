@@ -8,6 +8,8 @@ import { createFakeRuntimeCache } from './fake';
 const KEY = 'wake:plan';
 const OTHER_KEY = 'tick:last';
 const HOUR_SECONDS = 3600;
+// The unit in which the host meters reads and writes (hosting sheet).
+const UNIT_BYTES = 8192;
 const UNAVAILABLE = { ok: false, error: { kind: 'unavailable' } };
 
 describe('[TRV-12] the fake Runtime Cache holds to the contract of every adapter', () => {
@@ -132,5 +134,50 @@ describe('createFakeRuntimeCache', () => {
     expect([fake.writeCount(KEY), fake.writeCount(OTHER_KEY), fake.writeCount()]).toStrictEqual([
       2, 1, 3,
     ]);
+  });
+
+  it('[TRV-04] counts each write in units of 8 KB of its value as JSON in UTF-8, rounded up, and a delete as one', async () => {
+    const fake = createFakeRuntimeCache();
+    // A value of 8,192 bytes as JSON: 8,190 characters between its quotes.
+    await fake.set(KEY, 'v'.repeat(UNIT_BYTES - 2), HOUR_SECONDS);
+    // One byte more: two units.
+    await fake.set(KEY, 'v'.repeat(UNIT_BYTES - 1), HOUR_SECONDS);
+    // 4,096 characters of three bytes each in UTF-8, 12,290 bytes with the quotes: two units.
+    await fake.set(OTHER_KEY, '€'.repeat(UNIT_BYTES / 2), HOUR_SECONDS);
+    await fake.set(OTHER_KEY, null, HOUR_SECONDS);
+    await fake.delete(OTHER_KEY);
+
+    expect([fake.writeUnits(KEY), fake.writeUnits(OTHER_KEY), fake.writeUnits()]).toStrictEqual([
+      3, 4, 7,
+    ]);
+  });
+
+  it('[TRV-04] counts each read in units of the value it finds, and one for a read that finds nothing', async () => {
+    const clock = fixedClock(toEpochMs(Date.UTC(2026, 10, 21, 9)));
+    onTestFinished(installFakeClock(clock));
+    const fake = createFakeRuntimeCache();
+    await fake.set(KEY, 'v'.repeat(2 * UNIT_BYTES), 60);
+
+    await fake.get(KEY);
+    await fake.get(OTHER_KEY);
+    clock.advance(60_000);
+    await fake.get(KEY);
+
+    expect([fake.readUnits(KEY), fake.readUnits(OTHER_KEY), fake.readUnits()]).toStrictEqual([
+      4, 1, 5,
+    ]);
+  });
+
+  it('[TRV-04] counts the units of a write lost to a racing writer, which the cache took, and none of what it refused', async () => {
+    const fake = createFakeRuntimeCache();
+    fake.raceNextWrite(KEY);
+    await fake.set(KEY, 'v'.repeat(UNIT_BYTES), HOUR_SECONDS);
+    fake.setWritable(false);
+    await fake.set(KEY, 'plan', HOUR_SECONDS);
+    await fake.delete(KEY);
+    fake.setAvailable(false);
+    await fake.get(KEY);
+
+    expect([fake.writeUnits(), fake.readUnits()]).toStrictEqual([2, 0]);
   });
 });

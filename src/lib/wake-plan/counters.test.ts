@@ -9,6 +9,7 @@ const INSTANCE_COUNTERS = Symbol.for('egoscope.wake-plan.instance-counters');
 const COUNTERS_KEY = 'wake:counters';
 const START = toEpochMs(Date.UTC(2026, 10, 21, 9));
 const at = (seconds: number) => toEpochMs(START + seconds * 1000);
+const MONTH_MS = 30 * 86_400_000;
 
 const REFUSED = { attempt: 'refused_trigger' } as const;
 const UNAVAILABLE = { ok: false, error: { kind: 'unavailable' } };
@@ -168,6 +169,46 @@ describe('the counters of the attempts and probe calls', () => {
       ]);
     });
 
+    it('[CL-TRV-25] stores a full entry, 1,000 attempts spread over a month, the counts beyond them and the probe calls, in 9,425 bytes, two units of 8 KB', async () => {
+      const { fake, bumpCounter, drainCounters } = await instance();
+      const kinds = ['refused_trigger', 'private', 'group', 'channel'] as const;
+      const spread = Math.floor(MONTH_MS / (MAX_ATTEMPTS + kinds.length));
+      const attemptAt = (index: number) => toEpochMs(START + index * spread);
+      for (let index = 0; index < MAX_ATTEMPTS + kinds.length; index += 1) {
+        bumpCounter({ attempt: kinds[index % kinds.length] ?? 'group' }, attemptAt(index));
+      }
+      bumpCounter({ probeCall: 'statsSource' }, attemptAt(10));
+      await bumpCounter({ probeCall: 'telegram' }, attemptAt(MAX_ATTEMPTS + kinds.length))();
+
+      const held = await fake.get(COUNTERS_KEY);
+      const bytes = new TextEncoder().encode(JSON.stringify(held.ok && held.value)).length;
+      const drained = await drainCounters();
+
+      // Two units for its write, then one for the drain's delete; one for the read of the
+      // empty entry before the write, then two for each read of the full one.
+      expect([bytes, fake.writeUnits(COUNTERS_KEY), fake.readUnits(COUNTERS_KEY)]).toStrictEqual([
+        9425,
+        2 + 1,
+        1 + 2 + 2,
+      ]);
+      expect(drained.ok && drained.counters.attempts.slice(-2)).toStrictEqual([
+        { kind: 'group', at: attemptAt(MAX_ATTEMPTS - 2) },
+        { kind: 'channel', at: attemptAt(MAX_ATTEMPTS - 1) },
+      ]);
+      expect(drained.ok && drained.counters.beyond).toStrictEqual(
+        kinds.map((kind, index) => ({
+          kind,
+          count: 1,
+          firstAt: attemptAt(MAX_ATTEMPTS + index),
+          lastAt: attemptAt(MAX_ATTEMPTS + index),
+        })),
+      );
+      expect(drained.ok && drained.counters.probeCalls).toStrictEqual([
+        { service: 'statsSource', at: attemptAt(10) },
+        { service: 'telegram', at: attemptAt(MAX_ATTEMPTS + kinds.length) },
+      ]);
+    });
+
     it('[CL-TRV-25] keeps one buffer per server instance, which every copy of the module shares', async () => {
       const first = await instance();
       first.fake.setWritable(false);
@@ -226,6 +267,24 @@ describe('the counters of the attempts and probe calls', () => {
 
       expect(await drainCounters()).toStrictEqual(UNAVAILABLE);
     });
+
+    it.each([
+      ['more tags than instants', { tags: '00', deltas: [START] }],
+      ['a tag beyond the kinds', { tags: '4', deltas: [START] }],
+      ['a tag that is no digit', { tags: 'r', deltas: [START] }],
+      ['a space for a tag', { tags: ' ', deltas: [START] }],
+      ['a fraction of a millisecond', { tags: '00', deltas: [START, 0.5] }],
+      ['an instant before 1970', { tags: '00', deltas: [START, -2 * START] }],
+    ])(
+      '[CL-TRV-25] reads as none a stored series of attempts with %s',
+      async (_garbled, attempts) => {
+        const { fake, drainCounters } = await instance();
+        const empty = { tags: '', deltas: [] };
+        await fake.set(COUNTERS_KEY, { attempts, beyond: [], probeCalls: empty }, 60);
+
+        expect(await drainCounters()).toStrictEqual(NOTHING);
+      },
+    );
 
     it('[CL-TRV-25] reads garbled counters as none, which the next write replaces', async () => {
       const { fake, bumpCounter, drainCounters } = await instance();

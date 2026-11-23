@@ -19,8 +19,9 @@ const UNWRITTEN: WakeOutcome = { ok: true, written: false };
 const UNAVAILABLE: WakeOutcome = { ok: false, error: { kind: 'unavailable' } };
 
 /**
- * Runs `work` as a database pass (module map §1.6 steps 5 to 7): inside it, `wakeAt`
- * writes nothing, since the pass rewrites the plan at its end. Only the async context
+ * Runs `work` as a database pass (module map §1.6 steps 5 to 7; TRV-25, TRV-31): inside
+ * it, `wakeAt` writes nothing, since the pass rewrites the plan at its end, after the
+ * run check. Only the async context
  * of `work` is a pass, so that a request served meanwhile by the same instance keeps
  * its own `wakeAt`.
  */

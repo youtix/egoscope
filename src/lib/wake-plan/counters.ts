@@ -57,8 +57,6 @@ const EMPTY: Counters = { attempts: [], beyond: [], probeCalls: [] };
 
 const attemptKind = z.enum(ATTEMPT_KINDS);
 
-const attemptSchema = z.strictObject({ kind: attemptKind, at: storedInstant });
-
 const beyondSchema = z.strictObject({
   kind: attemptKind,
   count: z.int().min(1),
@@ -66,12 +64,90 @@ const beyondSchema = z.strictObject({
   lastAt: storedInstant,
 });
 
-const probeCallSchema = z.strictObject({ service: z.enum(PROBE_SERVICES), at: storedInstant });
+// A series of instants, each with its tag, as the cache holds it: the tags as one
+// string of digits, each the index of its tag in a list of ten tags at most, and the
+// instants delta-encoded, the first as it is and each other as its difference from the
+// one before. The order of the series is kept, so that the counters read back as written.
+const storedSeries = z
+  .strictObject({ tags: z.string().regex(/^\d*$/u), deltas: z.array(z.int()) })
+  .refine(({ tags, deltas }) => tags.length === deltas.length);
 
-const countersSchema = z.strictObject({
-  attempts: z.array(attemptSchema),
-  beyond: z.array(beyondSchema),
-  probeCalls: z.array(probeCallSchema),
+type StoredSeries = z.infer<typeof storedSeries>;
+
+/** `items` as a stored series, each tag by its index in `tags`. */
+function encodeSeries<Tag>(
+  tags: readonly Tag[],
+  items: readonly Readonly<{ tag: Tag; at: EpochMs }>[],
+): StoredSeries {
+  return {
+    tags: items.map(({ tag }) => tags.indexOf(tag)).join(''),
+    deltas: items.map(({ at }, index) => at - (items[index - 1]?.at ?? 0)),
+  };
+}
+
+/**
+ * The tagged instants of a stored series of `tags`, each tag read from its digit and
+ * each instant summed from the deltas; none when a digit names no tag or an instant
+ * falls outside the range of dates.
+ */
+function decodeSeries<Tag>(
+  tags: readonly Tag[],
+  series: StoredSeries,
+): Readonly<{ tag: Tag; at: EpochMs }>[] | null {
+  const items: Readonly<{ tag: Tag; at: EpochMs }>[] = [];
+  let sum = 0;
+  for (const [index, delta] of series.deltas.entries()) {
+    sum += delta;
+    const tag = tags[Number(series.tags[index])];
+    const at = storedInstant.safeParse(sum);
+    if (tag === undefined || !at.success) {
+      return null;
+    }
+    items.push({ tag, at: at.data });
+  }
+  return items;
+}
+
+/** The stored series of `tags`, read back as the tagged instants it holds, each one checked. */
+const seriesOf = <Tag extends string>(tags: readonly Tag[]) =>
+  storedSeries.transform((series, context) => {
+    const items = decodeSeries(tags, series);
+    if (items === null) {
+      context.addIssue('A stored series holds a tag or an instant that it cannot hold.');
+      return z.NEVER;
+    }
+    return items;
+  });
+
+/**
+ * The counters as the cache holds them (CL-TRV-25): the attempts and the probe calls
+ * each as a stored series, the counts beyond 1,000 as they are. A full entry, 1,000
+ * attempts spread over a month, weighs about 9,400 bytes: two units of 8 KB for each
+ * read and each write (hosting sheet).
+ */
+const countersSchema = z
+  .strictObject({
+    attempts: seriesOf(ATTEMPT_KINDS),
+    beyond: z.array(beyondSchema),
+    probeCalls: seriesOf(PROBE_SERVICES),
+  })
+  .transform(({ attempts, beyond, probeCalls }): Counters => ({
+    attempts: attempts.map(({ tag, at }) => ({ kind: tag, at })),
+    beyond,
+    probeCalls: probeCalls.map(({ tag, at }) => ({ service: tag, at })),
+  }));
+
+/** `counters` in the form the cache holds them. */
+const stored = ({ attempts, beyond, probeCalls }: Counters) => ({
+  attempts: encodeSeries(
+    ATTEMPT_KINDS,
+    attempts.map(({ kind, at }) => ({ tag: kind, at })),
+  ),
+  beyond,
+  probeCalls: encodeSeries(
+    PROBE_SERVICES,
+    probeCalls.map(({ service, at }) => ({ tag: service, at })),
+  ),
 });
 
 // The counters of this server instance live on globalThis under a registered symbol,
@@ -136,7 +212,7 @@ async function cachedCounters(): Promise<CountersDrain> {
 async function addToCache(sent: Counters): Promise<CacheWrite> {
   const cached = await cachedCounters();
   return cached.ok
-    ? runtimeCache().set(COUNTERS_KEY, merge(cached.counters, sent), LONG_TTL_SECONDS)
+    ? runtimeCache().set(COUNTERS_KEY, stored(merge(cached.counters, sent)), LONG_TTL_SECONDS)
     : cached;
 }
 
