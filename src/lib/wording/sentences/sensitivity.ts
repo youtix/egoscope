@@ -13,5 +13,24 @@ export const sensitivitySentences = {
     'inconclusive for this player ({k} valid {k|case|cases} of the {n} needed)',
   generalTrendTitle: 'general trend of the type, does not describe this player',
 
+  // The figures of ui/figures (SEN-38, SEN-39, IHM-45, IHM-47): the mean gap's label;
+  // its plausible range, as the example of 08 writes it, "from +0.09 to +1.51"; the
+  // valid-case count; a verdict's level and its written direction, "possible,
+  // increase" (glossary section 7.2, SEN-23, SEN-24); the profile confidence (SEN-25);
+  // a proportion as counts below the case number of SEN-39, "5 of 7" (CL-SEN-21)
+  meanGap: 'Mean gap',
+  rangeBounds: 'from {low} to {high}',
+  validCaseCount: '{k} valid {k|case|cases}',
+  inconclusive: 'inconclusive',
+  possible: 'possible',
+  probable: 'probable',
+  increase: 'increase',
+  decrease: 'decrease',
+  levelAndDirection: '{level}, {direction}',
+  lowConfidence: 'Low',
+  mediumConfidence: 'Medium',
+  highConfidence: 'High',
+  proportionAsCounts: '{k} of {m}',
+
   // An area adds its groups below, one commented group per screen or task.
 } as const;

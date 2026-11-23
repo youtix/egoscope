@@ -24,7 +24,16 @@ const INDEX_DECIMALS = 3;
 const GAP_DECIMALS = 2;
 const NOISE_DECIMALS = 3;
 
+// The digits of what chance alone would give (CL-SEN-20, CL-SUI-15): two significant
+// digits for a share, one decimal for an expected count.
+const CHANCE_SHARE_DIGITS = 2;
+const EXPECTED_COUNT_DECIMALS = 1;
+
 const INDEX_FORMAT: NumberFormat = { decimals: INDEX_DECIMALS, sign: 'negative' };
+const EXPECTED_COUNT_FORMAT: NumberFormat = {
+  decimals: EXPECTED_COUNT_DECIMALS,
+  sign: 'negative',
+};
 
 /**
  * The numbers a profile computes from normalized gaps (SEN-09, SEN-20, SEN-22): `gap`,
@@ -136,4 +145,37 @@ export function formatShare(part: number, whole: number): string {
   // 100 × part ÷ whole rounded half up, in integers: ⌊(200 × part + whole) ÷ (2 × whole)⌋.
   const percent = Math.floor((2 * PERCENT * part + whole) / (2 * whole));
   return `${String(percent)}%`;
+}
+
+/**
+ * A share that chance alone would give, such as the share of pairs that would get an
+ * at-least-possible verdict without any effect, as a percentage with two significant
+ * digits rounded half up (SEN-41, CL-SEN-20): "4.6%" and "0.27%" for the 4.55% and
+ * 0.27% of the defaults, "10%" for 9.96%, "0%" for none. `share` is the exact
+ * proportion, from 0 to 1.
+ */
+export function formatChanceShare(share: number): string {
+  if (Number.isNaN(share) || share < 0 || share > 1) {
+    throw new RangeError(`${String(share)} is not a share.`);
+  }
+  if (share === 0) {
+    return '0%';
+  }
+  // toPrecision rounds the exact value half up; the decimals then follow the rounded
+  // value, so that 9.96 becomes "10", not "10.0", and 100 stays "100".
+  const rounded = Number((share * PERCENT).toPrecision(CHANCE_SHARE_DIGITS));
+  const decimals = Math.max(0, CHANCE_SHARE_DIGITS - 1 - Math.floor(Math.log10(rounded)));
+  return `${rounded.toFixed(decimals)}%`;
+}
+
+/**
+ * A count that chance alone would give, which need not be whole, with one decimal
+ * rounded half away from zero and a comma between thousands (CL-SEN-20, CL-SUI-15):
+ * "2.3" for 2.275, "0.1" for 0.135, "1,204.0" for 1,204.
+ */
+export function formatExpectedCount(count: number): string {
+  if (Number.isNaN(count) || count < 0) {
+    throw new RangeError(`${String(count)} is not an expected count.`);
+  }
+  return formatNumber(count, EXPECTED_COUNT_FORMAT);
 }

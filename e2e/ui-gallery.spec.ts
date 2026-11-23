@@ -270,6 +270,45 @@ for (const colorScheme of THEMES) {
       await expect(page.getByText('The sample is erased.')).toBeVisible();
     });
 
+    test("[IHM-15] [CL-IHM-26] opens a term's definition with one tap or one key, and closes it", async ({
+      page,
+    }) => {
+      const term = page.getByRole('button', { name: 'Profile confidence' });
+      const definition = page.getByText(
+        'The level, low, medium or high, of a profile or a general trend, which says what its verdict rests on.',
+      );
+      await expect(definition).toBeHidden();
+
+      await term.click();
+      await expect(definition).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(definition).toBeHidden();
+
+      await term.press('Enter');
+      await expect(definition).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(definition).toBeHidden();
+      await expect(term).toBeFocused();
+    });
+
+    test('[IHM-47] [CA-IHM-10] writes "increase" and "decrease" beside gaps of +0.60 and −0.60, both alike', async ({
+      page,
+    }) => {
+      const figures = page.getByRole('region', { name: 'Figures' });
+      const increase = figures.getByText('increase', { exact: true });
+      const decrease = figures.getByText('decrease', { exact: true });
+      await expect(figures.getByText('+0.60', { exact: true })).toBeVisible();
+      await expect(figures.getByText('\u{2212}0.60', { exact: true })).toBeVisible();
+
+      for (const property of ['font-size', 'font-weight', 'color']) {
+        const shown = await increase.evaluate(
+          (element, name) => globalThis.getComputedStyle(element).getPropertyValue(name),
+          property,
+        );
+        await expect(decrease).toHaveCSS(property, shown);
+      }
+    });
+
     test('shows the second tab, and the list filtered on its own address', async ({ page }) => {
       await page.getByRole('tab', { name: 'Second panel' }).click();
       await expect(page.getByRole('tabpanel', { name: 'Second panel' })).toBeVisible();

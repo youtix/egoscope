@@ -3,7 +3,7 @@
 // written for the owner, never the Meaning column of sections 3 and 4, a note for
 // engineers. A term that section 7.7 does not define, such as the retained dispersion,
 // is never shown and has no entry. One key gives both, so that a screen renders the
-// first label of a term as a GlossaryTerm (coordinator decision, gap h).
+// first label of a term as a GlossaryTerm (CL-IHM-26).
 //
 // A term's label is the UI label of its row in glossary section 3, the label screens
 // show it under: "Gap" for the normalized gap, "Range" for the plausible range. A term
