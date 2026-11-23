@@ -120,6 +120,25 @@ export function formatIndex(value: number): string {
 }
 
 /**
+ * A setting's number that a step of `decimals` places allows, as people read it
+ * (IHM-13, CL-IHM-03, CL-TRV-16): at most those decimals, rounded half away from zero,
+ * without the zeros that end them, signed only when negative: "0.25", "1.5", "2",
+ * "1,440" for decimals of 2.
+ */
+export function formatDecimal(value: number, decimals: number): string {
+  if (!Number.isSafeInteger(decimals) || decimals < 1) {
+    throw new RangeError(`${String(decimals)} is not a number of decimals.`);
+  }
+  const written = formatNumber(value, { decimals, sign: 'negative' });
+  // The zeros that end the decimals, then the point if no decimal is left.
+  let end = written.length;
+  while (written.endsWith('0', end)) {
+    end -= 1;
+  }
+  return written.slice(0, written.endsWith('.', end) ? end - 1 : end);
+}
+
+/**
  * A count, as people read it (IHM-13, CL-IHM-03): no sign, and a comma between
  * thousands from 1,000 on: "7", "1,000", "12,345".
  */

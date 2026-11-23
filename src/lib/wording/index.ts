@@ -4,6 +4,7 @@ export type { DefinedTerm, GlossaryEntry } from './glossary';
 export {
   formatChanceShare,
   formatCount,
+  formatDecimal,
   formatExpectedCount,
   formatGap,
   formatIndex,
