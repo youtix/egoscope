@@ -16,15 +16,20 @@ async function serverWith(variables: Readonly<Record<string, string>>) {
   return import('./port');
 }
 
-/** The address of a local page that answers 200. */
-async function localPage(): Promise<string> {
-  const server = createServer((_request, response) => response.writeHead(OK).end());
+/** The address of a local page that answers 200, and the paths it was asked. */
+async function localPage(): Promise<Readonly<{ url: string; asked: string[] }>> {
+  const asked: string[] = [];
+  const server = createServer((request, response) => {
+    asked.push(request.url ?? '');
+    response.writeHead(OK).end();
+  });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   onTestFinished(async () => {
     await new Promise((resolve) => server.close(resolve));
   });
   const address = server.address();
-  return `http://127.0.0.1:${String(typeof address === 'object' && address !== null ? address.port : 0)}/article`;
+  const port = String(typeof address === 'object' && address !== null ? address.port : 0);
+  return { url: `http://127.0.0.1:${port}/article`, asked };
 }
 
 const open = () => ({
@@ -46,14 +51,23 @@ describe('linkCheck', () => {
     fakeLinkCheck().reset();
   });
 
-  it('[IMP-17] serves the HTTP adapter otherwise, which opens the page itself', async () => {
+  it('[IMP-17] [TRV-66] serves the HTTP adapter otherwise, which refuses the loopback of a local page', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { linkCheck } = await serverWith({});
-    const url = await localPage();
+    const { url, asked } = await localPage();
 
     await expect(linkCheck().probe(open(), { url, timeoutMs: TIMEOUT_MS })).resolves.toStrictEqual({
       ok: true,
-      value: { verdict: 'reachable', status: OK },
-      call: { httpRequests: 1 },
+      value: { verdict: 'unreachable', status: null },
+      call: { httpRequests: 0 },
     });
+    expect(asked).toStrictEqual([]);
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      JSON.stringify({
+        level: 'warn',
+        message: 'The link check refused an address that is not public.',
+        context: { host: '127.0.0.1', kind: 'loopback' },
+      }),
+    );
   });
 });
