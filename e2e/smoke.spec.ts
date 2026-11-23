@@ -1,13 +1,12 @@
 import { expect, test } from './fixtures/test';
 
 test.describe('the hermetic server', () => {
-  test('answers on the health route, or sends a request without a session to the log-in page', async ({
+  test('[CL-TRV-13] refuses the health route to a request without a session', async ({
     request,
   }) => {
-    const response = await request.get('/api/health');
+    const response = await request.get('/api/health', { maxRedirects: 0 });
 
-    await expect(response).toBeOK();
-    expect(new URL(response.url()).pathname).toMatch(/^\/(?:api\/health|log-in)$/u);
+    expect(response.status()).toBe(401);
   });
 
   test('renders the page reached from the root address, which passes the accessibility check', async ({
