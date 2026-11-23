@@ -2,6 +2,7 @@ export type { StatsSourceError, StatsSourceErrorKind } from './errors';
 export { createFakeStatsSource } from './fake';
 export type { BoxScoreCorrection, FakeFault, FakeResource, FakeStatsSource } from './fake';
 export { fakeStatsSource, statsSource } from './port';
+export { STATS_SOURCE_ATTRIBUTION } from './sportsdataverse';
 export type { StatsSource, StatsSourceAccess, StatsSourceOutcome } from './port';
 export { BOX_SCORE_COUNTS, SERIES_ROUNDS } from './types';
 export type {

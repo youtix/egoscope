@@ -1,0 +1,58 @@
+id,uid,date,attendance,time_valid,neutral_site,conference_competition,play_by_play_available,recent,start_date,broadcast,highlights,notes_type,notes_headline,broadcast_market,broadcast_name,type_id,type_abbreviation,venue_id,venue_full_name,venue_address_city,venue_address_state,venue_indoor,status_clock,status_display_clock,status_period,status_type_id,status_type_name,status_type_state,status_type_completed,status_type_description,status_type_detail,status_type_short_detail,format_regulation_periods,home_id,home_uid,home_location,home_name,home_abbreviation,home_display_name,home_short_display_name,home_alternate_color,home_is_active,home_logo,home_logo_dark,home_score,home_winner,home_linescores,home_records,away_id,away_uid,away_location,away_name,away_abbreviation,away_display_name,away_short_display_name,away_alternate_color,away_is_active,away_logo,away_logo_dark,away_score,away_winner,away_linescores,away_records,game_id,season,season_type,status_type_alt_detail,game_json,game_json_url,game_date_time,game_date,PBP,team_box,player_box
+131107022,s:40~l:46~e:131107022~c:131107022,1993-11-08T00:30Z,12888.0,true,false,false,false,false,1993-11-08T00:30Z,,[],,,,,1,STD,,,,,,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,22,s:40~l:46~t:22,Portland,Trail Blazers,POR,Portland Trail Blazers,Trail Blazers,000000,true,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/por.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/por.png,92,false,"[{'value': 27.0, 'displayValue': '27', 'period': 1.0}
+ {'value': 16.0, 'displayValue': '16', 'period': 2.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 3.0}
+ {'value': 22.0, 'displayValue': '22', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-2'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-1'}]",10,s:40~l:46~t:10,Houston,Rockets,HOU,Houston Rockets,Rockets,000000,true,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/hou.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/hou.png,106,true,"[{'value': 25.0, 'displayValue': '25', 'period': 1.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 2.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 3.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '2-0'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-0'}]",131107022,1994,2,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/131107022.json,1993-11-07T19:30:00.000000-0500,1993-11-07,false,true,true
+131107024,s:40~l:46~e:131107024~c:131107024,1993-11-08T00:30Z,15280.0,true,false,false,false,false,1993-11-08T00:30Z,,[],,,,,1,STD,,,,,,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,24,s:40~l:46~t:24,San Antonio,Spurs,SA,San Antonio Spurs,Spurs,c4ced4,true,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sa.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sa.png,73,false,"[{'value': 15.0, 'displayValue': '15', 'period': 1.0}
+ {'value': 17.0, 'displayValue': '17', 'period': 2.0}
+ {'value': 20.0, 'displayValue': '20', 'period': 3.0}
+ {'value': 21.0, 'displayValue': '21', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-1'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-0'}]",17,s:40~l:46~t:17,New Jersey,Nets,NJ,New Jersey Nets,Nets,ffffff,false,https://a.espncdn.com/guid/926db769-d35e-e282-9d7e-a05001d774ab/logos/default.png,https://a.espncdn.com/guid/926db769-d35e-e282-9d7e-a05001d774ab/logos/default-dark.png,99,true,"[{'value': 23.0, 'displayValue': '23', 'period': 1.0}
+ {'value': 23.0, 'displayValue': '23', 'period': 2.0}
+ {'value': 22.0, 'displayValue': '22', 'period': 3.0}
+ {'value': 31.0, 'displayValue': '31', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-1'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-1'}]",131107024,1994,2,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/131107024.json,1993-11-07T19:30:00.000000-0500,1993-11-07,false,true,true
+131107005,s:40~l:46~e:131107005~c:131107005,1993-11-08T00:00Z,17727.0,true,false,false,false,false,1993-11-08T00:00Z,,[],,,,,1,STD,,,,,,0.0,0.0,5.0,3,STATUS_FINAL,post,true,Final,Final/OT,Final/OT,4.0,5,s:40~l:46~t:5,Cleveland,Cavaliers,CLE,Cleveland Cavaliers,Cavaliers,bc945c,true,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/cle.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/cle.png,107,false,"[{'value': 30.0, 'displayValue': '30', 'period': 1.0}
+ {'value': 31.0, 'displayValue': '31', 'period': 2.0}
+ {'value': 21.0, 'displayValue': '21', 'period': 3.0}
+ {'value': 21.0, 'displayValue': '21', 'period': 4.0}
+ {'value': 4.0, 'displayValue': '4', 'period': 5.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-2'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-0'}]",18,s:40~l:46~t:18,New York,Knicks,NY,New York Knicks,Knicks,f58426,true,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/ny.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/ny.png,115,true,"[{'value': 25.0, 'displayValue': '25', 'period': 1.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 2.0}
+ {'value': 30.0, 'displayValue': '30', 'period': 3.0}
+ {'value': 22.0, 'displayValue': '22', 'period': 4.0}
+ {'value': 12.0, 'displayValue': '12', 'period': 5.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '2-0'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '2-0'}]",131107005,1994,2,OT,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/131107005.json,1993-11-07T19:00:00.000000-0500,1993-11-07,false,true,true
+131107007,s:40~l:46~e:131107007~c:131107007,1993-11-08T00:00Z,17171.0,true,false,false,false,false,1993-11-08T00:00Z,,[],,,,,1,STD,,,,,,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,7,s:40~l:46~t:7,Denver,Nuggets,DEN,Denver Nuggets,Nuggets,fec524,true,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/den.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/den.png,99,true,"[{'value': 16.0, 'displayValue': '16', 'period': 1.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 2.0}
+ {'value': 28.0, 'displayValue': '28', 'period': 3.0}
+ {'value': 28.0, 'displayValue': '28', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-1'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-1'}]",12,s:40~l:46~t:12,Los Angeles,Clippers,LAC,Los Angeles Clippers,Clippers,c8102e,false,https://a.espncdn.com/guid/083a58a6-b849-3501-e67b-059290d12295/logos/default.png,https://a.espncdn.com/guid/083a58a6-b849-3501-e67b-059290d12295/logos/default-dark.png,97,false,"[{'value': 28.0, 'displayValue': '28', 'period': 1.0}
+ {'value': 18.0, 'displayValue': '18', 'period': 2.0}
+ {'value': 21.0, 'displayValue': '21', 'period': 3.0}
+ {'value': 30.0, 'displayValue': '30', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-1'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-1'}]",131107007,1994,2,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/131107007.json,1993-11-07T19:00:00.000000-0500,1993-11-07,false,true,true
+131107021,s:40~l:46~e:131107021~c:131107021,1993-11-08T00:00Z,19023.0,true,false,false,false,false,1993-11-08T00:00Z,,[],,,,,1,STD,1949,Mortgage Matchup Center,Phoenix,AZ,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,21,s:40~l:46~t:21,Phoenix,Suns,PHX,Phoenix Suns,Suns,e56020,true,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/phx.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/phx.png,132,true,"[{'value': 39.0, 'displayValue': '39', 'period': 1.0}
+ {'value': 36.0, 'displayValue': '36', 'period': 2.0}
+ {'value': 24.0, 'displayValue': '24', 'period': 3.0}
+ {'value': 33.0, 'displayValue': '33', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-1'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-1'}]",23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,6a7a82,true,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,110,false,"[{'value': 23.0, 'displayValue': '23', 'period': 1.0}
+ {'value': 23.0, 'displayValue': '23', 'period': 2.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 3.0}
+ {'value': 35.0, 'displayValue': '35', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-1'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-1'}]",131107021,1994,2,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/131107021.json,1993-11-07T19:00:00.000000-0500,1993-11-07,false,true,true

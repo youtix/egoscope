@@ -3,12 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { now, toEpochMs, toIsoDate } from '@/lib/time';
 
 import { STATS_SOURCE_CONTRACT } from './contract';
+import { listsDirectory } from './contract-games';
 import { createFakeStatsSource } from './fake';
 
 import type { ContractFault, StatsSourceHarness } from './contract-support';
 import type { FakeFault } from './fake';
 import type { StatsSourceOutcome } from './port';
-import type { CallContext, ConditionalRead, SeasonGames } from './types';
+import type { CallContext, ConditionalRead, DirectoryEntry, SeasonGames } from './types';
 
 const SEASON = '2025-26';
 // A season that the broken adapter below refuses, which it names as its first covered one.
@@ -75,6 +76,13 @@ const brokenSchedule = ({ games, coverage }: SeasonGames): SeasonGames => ({
   heldBack: games.slice(1, 2).map(({ game }) => ({ game, status: 'Unknown' })),
 });
 
+// Starts every team of the directory on a day of none of its box scores.
+const startsNeverPlayed = (directory: readonly DirectoryEntry[]): readonly DirectoryEntry[] =>
+  directory.map((entry) => ({
+    ...entry,
+    teams: entry.teams.map((team) => ({ ...team, firstGameDay: NEVER_PLAYED })),
+  }));
+
 // Answers every call as an outage, whatever it asks, an aborted call included.
 const unavailable = vi.fn<() => Promise<StatsSourceOutcome<never>>>().mockResolvedValue({
   ok: false,
@@ -134,15 +142,10 @@ function brokenHarness(): StatsSourceHarness {
           }),
           (lines) => lines.map((line) => ({ ...line, isHome: !line.isHome })),
         ),
-      // Starts every team of the directory on a day of none of its box scores.
       getSeasonPlayers: async () =>
         changed(
           await source.getSeasonPlayers(anyContext(), { season, knownVersion: null }),
-          (directory) =>
-            directory.map((entry) => ({
-              ...entry,
-              teams: entry.teams.map((team) => ({ ...team, firstGameDay: NEVER_PLAYED })),
-            })),
+          startsNeverPlayed,
         ),
       getPlayerRecords: async (_ctx, { players }) =>
         changed(
@@ -155,6 +158,25 @@ function brokenHarness(): StatsSourceHarness {
             records.map((record) => ({ ...record, currentTeam: { kind: 'without_team' } })),
         ),
       firstCoveredSeason: () => NEVER_HELD,
+    },
+  };
+}
+
+/** The fake with its directory alone broken, against its intact schedule and box scores. */
+function brokenDirectoryHarness(): StatsSourceHarness {
+  const harness = fakeHarness();
+  const { source } = harness;
+  return {
+    ...harness,
+    source: {
+      checkHealth: async (ctx) => source.checkHealth(ctx),
+      getPublication: async (ctx, request) => source.getPublication(ctx, request),
+      getSeasonGames: async (ctx, request) => source.getSeasonGames(ctx, request),
+      getSeasonBoxScores: async (ctx, request) => source.getSeasonBoxScores(ctx, request),
+      getSeasonPlayers: async (ctx, request) =>
+        changed(await source.getSeasonPlayers(ctx, request), startsNeverPlayed),
+      getPlayerRecords: async (ctx, request) => source.getPlayerRecords(ctx, request),
+      firstCoveredSeason: () => source.firstCoveredSeason(),
     },
   };
 }
@@ -179,4 +201,13 @@ describe('the stats-source contract against adapters that break it', () => {
       await expect(check(failingHarness())).resolves.not.toHaveLength(0);
     },
   );
+
+  it('[STA-03] [JOU-13] finds by its first and last game days alone a directory whose teams start on a day of none of their box scores', async () => {
+    const problems = await listsDirectory(brokenDirectoryHarness());
+    const rule =
+      'directory teams whose first or last game day is the day of none of his box scores';
+
+    expect(problems).not.toHaveLength(0);
+    expect(problems.filter((found) => !found.startsWith(rule))).toStrictEqual([]);
+  });
 });

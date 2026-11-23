@@ -1,8 +1,9 @@
 import 'server-only';
 
-import { adapterFor } from '@/lib/env';
+import { adapterFor, readServerEnv } from '@/lib/env';
 
 import { createFakeStatsSource } from './fake';
+import { createSportsDataverseSource } from './sportsdataverse';
 
 import type { StatsSourceError } from './errors';
 import type { FakeStatsSource } from './fake';
@@ -98,11 +99,16 @@ export function fakeStatsSource(): FakeStatsSource {
 
 /**
  * The statistics source that `env.adapterFor` names (module map §5): the shared fake
- * under EGOSCOPE_FAKES, and "not configured" for the real adapter until it exists
- * (STA-01, TRV-15).
+ * under EGOSCOPE_FAKES, else the SportsDataverse adapter, at STATS_SOURCE_BASE_URL
+ * when it is set, and "not configured" while the configuration is invalid (STA-01,
+ * TRV-15).
  */
 export function statsSource(): StatsSourceAccess {
-  return adapterFor('stats-source') === 'fake'
-    ? { ok: true, source: fakeStatsSource() }
+  if (adapterFor('stats-source') === 'fake') {
+    return { ok: true, source: fakeStatsSource() };
+  }
+  const env = readServerEnv();
+  return env.ok
+    ? { ok: true, source: createSportsDataverseSource(env.env.STATS_SOURCE_BASE_URL) }
     : NOT_CONFIGURED;
 }

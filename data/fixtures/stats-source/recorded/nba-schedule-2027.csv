@@ -1,0 +1,408 @@
+id,uid,date,attendance,time_valid,neutral_site,play_by_play_available,recent,start_date,broadcast,notes_type,notes_headline,broadcast_market,broadcast_name,type_id,type_abbreviation,venue_id,venue_full_name,venue_address_city,venue_address_state,venue_indoor,status_clock,status_display_clock,status_period,status_type_id,status_type_name,status_type_state,status_type_completed,status_type_description,status_type_detail,status_type_short_detail,format_regulation_periods,home_id,home_uid,home_location,home_name,home_abbreviation,home_display_name,home_short_display_name,home_color,home_alternate_color,home_is_active,home_venue_id,home_logo,home_score,home_linescores,home_records,away_id,away_uid,away_location,away_name,away_abbreviation,away_display_name,away_short_display_name,away_color,away_alternate_color,away_is_active,away_venue_id,away_logo,away_score,away_linescores,away_records,game_id,season,season_type,home_logo_dark,away_logo_dark,conference_competition,highlights,home_winner,away_winner,status_type_alt_detail,game_json,game_json_url,game_date_time,game_date,PBP,team_box,player_box
+401910357,s:40~l:46~e:401910357~c:401910357,2027-01-17T15:30Z,0.0,true,true,false,false,2027-01-17T15:30Z,Prime Video,event,NBA Manchester Game,national,Prime Video,1,STD,9050,Co-op Live,Manchester,,true,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,"Sun, January 17th at 10:30 AM EST",1/17 - 10:30 AM EST,4.0,3,s:40~l:46~t:3,New Orleans,Pelicans,NO,New Orleans Pelicans,Pelicans,0a2240,b4975a,true,985,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/no.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '5-13'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-7'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-6'}]",24,s:40~l:46~t:24,San Antonio,Spurs,SA,San Antonio Spurs,Spurs,000000,c4ced4,true,780,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sa.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '14-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '7-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '7-0'}]",401910357,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/no.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sa.png,false,[],,,,false,,2027-01-17T10:30:00.000000-0500,2027-01-17,false,false,false
+401910334,s:40~l:46~e:401910334~c:401910334,2027-01-14T19:00Z,0.0,true,true,false,false,2027-01-14T19:00Z,Prime Video,event,NBA Paris Game,national,Prime Video,1,STD,10660,Accor Arena,Paris,,true,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,"Thu, January 14th at 2:00 PM EST",1/14 - 2:00 PM EST,4.0,24,s:40~l:46~t:24,San Antonio,Spurs,SA,San Antonio Spurs,Spurs,000000,c4ced4,true,780,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sa.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '14-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '7-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '7-0'}]",3,s:40~l:46~t:3,New Orleans,Pelicans,NO,New Orleans Pelicans,Pelicans,0a2240,b4975a,true,985,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/no.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '5-13'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-7'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-6'}]",401910334,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sa.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/no.png,false,[],,,,false,,2027-01-14T14:00:00.000000-0500,2027-01-14,false,false,false
+401909456,s:40~l:46~e:401909456~c:401909456,2026-12-11T05:00Z,0.0,false,true,false,false,2026-12-11T05:00Z,Prime Video,event,NBA Cup Championship,national,Prime Video,39,CC,2032,Hinkle Fieldhouse,Indianapolis,IN,false,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,12/11 - TBD,TBD,4.0,-1,s:40~l:46~t:-1,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",-2,s:40~l:46~t:-2,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",401909456,2027,2,,,false,[],,,,false,,2026-12-11T00:00:00.000000-0500,2026-12-11,false,false,false
+401909454,s:40~l:46~e:401909454~c:401909454,2026-12-08T05:00Z,0.0,false,false,false,false,2026-12-08T05:00Z,,event,NBA Cup - Semifinals,,,1,STD,,,,,,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,12/8 - TBD,TBD,4.0,-1,s:40~l:46~t:-1,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",-2,s:40~l:46~t:-2,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",401909454,2027,2,,,false,[],,,,false,,2026-12-08T00:00:00.000000-0500,2026-12-08,false,false,false
+401909452,s:40~l:46~e:401909452~c:401909452,2026-12-05T05:00Z,0.0,false,false,false,false,2026-12-05T05:00Z,Prime Video,event,NBA Cup - Quarterfinals,national,Prime Video,1,STD,,,,,,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,12/5 - TBD,TBD,4.0,-1,s:40~l:46~t:-1,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",-2,s:40~l:46~t:-2,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",401909452,2027,2,,,false,[],,,,false,,2026-12-05T00:00:00.000000-0500,2026-12-05,false,false,false
+401909453,s:40~l:46~e:401909453~c:401909453,2026-12-05T05:00Z,0.0,false,false,false,false,2026-12-05T05:00Z,Prime Video,event,NBA Cup - Quarterfinals,national,Prime Video,1,STD,,,,,,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,12/5 - TBD,TBD,4.0,-1,s:40~l:46~t:-1,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",-2,s:40~l:46~t:-2,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",401909453,2027,2,,,false,[],,,,false,,2026-12-05T00:00:00.000000-0500,2026-12-05,false,false,false
+401909450,s:40~l:46~e:401909450~c:401909450,2026-12-04T05:00Z,0.0,false,false,false,false,2026-12-04T05:00Z,Prime Video,event,NBA Cup - Quarterfinals,national,Prime Video,1,STD,,,,,,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,12/4 - TBD,TBD,4.0,-1,s:40~l:46~t:-1,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",-2,s:40~l:46~t:-2,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",401909450,2027,2,,,false,[],,,,false,,2026-12-04T00:00:00.000000-0500,2026-12-04,false,false,false
+401909451,s:40~l:46~e:401909451~c:401909451,2026-12-04T05:00Z,0.0,false,false,false,false,2026-12-04T05:00Z,Prime Video,event,NBA Cup - Quarterfinals,national,Prime Video,1,STD,,,,,,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,12/4 - TBD,TBD,4.0,-1,s:40~l:46~t:-1,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",-2,s:40~l:46~t:-2,TBD,TBD,TBD,TBD,TBD,,,false,,,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-0'}
+ {'name': 'Home', 'abbreviation': 'null', 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': 'null', 'type': 'road', 'summary': '0-0'}]",401909451,2027,2,,,false,[],,,,false,,2026-12-04T00:00:00.000000-0500,2026-12-04,false,false,false
+401910035,s:40~l:46~e:401910035~c:401910035,2026-11-23T01:30Z,0.0,true,false,false,false,2026-11-23T01:30Z,,,,,,1,STD,6270,Chase Center,San Francisco,CA,true,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,"Sun, November 22nd at 8:30 PM EST",11/22 - 8:30 PM EST,4.0,9,s:40~l:46~t:9,Golden State,Warriors,GS,Golden State Warriors,Warriors,fdb927,1d428a,true,2465,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/gs.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '8-8'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '6-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '2-7'}]",2,s:40~l:46~t:2,Boston,Celtics,BOS,Boston Celtics,Celtics,008348,ffffff,true,1824,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/bos.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '11-5'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '6-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '5-4'}]",401910035,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/gs.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/bos.png,false,[],,,,false,,2026-11-22T20:30:00.000000-0500,2026-11-22,false,false,false
+401910034,s:40~l:46~e:401910034~c:401910034,2026-11-23T01:00Z,0.0,true,false,false,false,2026-11-23T01:00Z,,,,away,DAZN IND,1,STD,1830,Madison Square Garden,New York,NY,true,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,"Sun, November 22nd at 8:00 PM EST",11/22 - 8:00 PM EST,4.0,18,s:40~l:46~t:18,New York,Knicks,NY,New York Knicks,Knicks,1d428a,f58426,true,1830,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/ny.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '10-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '5-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '5-3'}]",11,s:40~l:46~t:11,Indiana,Pacers,IND,Indiana Pacers,Pacers,0c2340,ffd520,true,2183,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/ind.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '5-11'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '2-5'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '3-5'}]",401910034,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/ny.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/ind.png,false,[],,,,false,,2026-11-22T20:00:00.000000-0500,2026-11-22,false,false,false
+401910031,s:40~l:46~e:401910031~c:401910031,2026-11-23T00:00Z,0.0,true,false,false,false,2026-11-23T00:00Z,,,,home,MNMT,1,STD,1823,Capital One Arena,Washington,DC,true,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,"Sun, November 22nd at 7:00 PM EST",11/22 - 7:00 PM EST,4.0,27,s:40~l:46~t:27,Washington,Wizards,WSH,Washington Wizards,Wizards,e31837,002b5c,true,1823,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/wsh.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '6-11'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '2-5'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '4-6'}]",19,s:40~l:46~t:19,Orlando,Magic,ORL,Orlando Magic,Magic,0150b5,9ca0a3,true,3432,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/orl.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '7-8'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-5'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '6-3'}]",401910031,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/wsh.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/orl.png,false,[],,,,false,,2026-11-22T19:00:00.000000-0500,2026-11-22,false,false,false
+401910032,s:40~l:46~e:401910032~c:401910032,2026-11-23T00:00Z,0.0,true,false,false,false,2026-11-23T00:00Z,,,,,,1,STD,1847,United Center,Chicago,IL,true,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,"Sun, November 22nd at 7:00 PM EST",11/22 - 7:00 PM EST,4.0,4,s:40~l:46~t:4,Chicago,Bulls,CHI,Chicago Bulls,Bulls,ce1141,000000,true,1847,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/chi.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '4-11'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-5'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '3-6'}]",7,s:40~l:46~t:7,Denver,Nuggets,DEN,Denver Nuggets,Nuggets,0e2240,fec524,true,892,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/den.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '9-5'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '4-2'}]",401910032,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/chi.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/den.png,false,[],,,,false,,2026-11-22T19:00:00.000000-0500,2026-11-22,false,false,false
+401910033,s:40~l:46~e:401910033~c:401910033,2026-11-23T00:00Z,0.0,true,false,false,false,2026-11-23T00:00Z,,,,home,KJZZ-TV,1,STD,3093,Delta Center,Salt Lake City,UT,true,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,"Sun, November 22nd at 7:00 PM EST",11/22 - 7:00 PM EST,4.0,26,s:40~l:46~t:26,Utah,Jazz,UTAH,Utah Jazz,Jazz,4e008e,79a3dc,true,3093,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/utah.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '3-14'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-8'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '2-6'}]",6,s:40~l:46~t:6,Dallas,Mavericks,DAL,Dallas Mavericks,Mavericks,0064b1,bbc4ca,true,516,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/dal.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '9-7'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '7-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '2-5'}]",401910033,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/utah.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/dal.png,false,[],,,,false,,2026-11-22T19:00:00.000000-0500,2026-11-22,false,false,false
+401910030,s:40~l:46~e:401910030~c:401910030,2026-11-22T23:00Z,0.0,true,false,false,false,2026-11-22T23:00Z,,,,away,KSBI,1,STD,3438,Kaseya Center,Miami,FL,true,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,"Sun, November 22nd at 6:00 PM EST",11/22 - 6:00 PM EST,4.0,14,s:40~l:46~t:14,Miami,Heat,MIA,Miami Heat,Heat,98002e,000000,true,3438,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/mia.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '9-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '5-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '4-3'}]",25,s:40~l:46~t:25,Oklahoma City,Thunder,OKC,Oklahoma City Thunder,Thunder,007ac1,ef3b24,true,2559,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/okc.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '10-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '6-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '4-5'}]",401910030,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/mia.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/okc.png,false,[],,,,false,,2026-11-22T18:00:00.000000-0500,2026-11-22,false,false,false
+401910029,s:40~l:46~e:401910029~c:401910029,2026-11-22T20:30Z,0.0,true,false,false,false,2026-11-22T20:30Z,,,,,,1,STD,1827,State Farm Arena,Atlanta,GA,true,0.0,0.0,0.0,1,STATUS_SCHEDULED,pre,false,Scheduled,"Sun, November 22nd at 3:30 PM EST",11/22 - 3:30 PM EST,4.0,1,s:40~l:46~t:1,Atlanta,Hawks,ATL,Atlanta Hawks,Hawks,c8102e,fdb927,true,1827,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/atl.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '10-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '6-3'}]",8,s:40~l:46~t:8,Detroit,Pistons,DET,Detroit Pistons,Pistons,1d428a,c8102e,true,5311,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/det.png,0,"[{'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}
+ {'value': 0.0, 'displayValue': None, 'period': None}]","[{'name': 'overall', 'abbreviation': 'Total', 'type': 'total', 'summary': '10-5'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '3-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '7-2'}]",401910029,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/atl.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/det.png,false,[],,,,false,,2026-11-22T15:30:00.000000-0500,2026-11-22,false,false,false
+401910028,s:40~l:46~e:401910028~c:401910028,2026-11-22T03:00Z,15416.0,true,false,true,false,2026-11-22T03:00Z,NBA TV,,,national,NBA TV,1,STD,5310,Golden 1 Center,Sacramento,CA,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,97,"[{'value': 25.0, 'displayValue': '25', 'period': 1.0}
+ {'value': 16.0, 'displayValue': '16', 'period': 2.0}
+ {'value': 35.0, 'displayValue': '35', 'period': 3.0}
+ {'value': 21.0, 'displayValue': '21', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '2-14'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-9'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-5'}]",2,s:40~l:46~t:2,Boston,Celtics,BOS,Boston Celtics,Celtics,008348,ffffff,true,1824,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/bos.png,96,"[{'value': 27.0, 'displayValue': '27', 'period': 1.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 2.0}
+ {'value': 13.0, 'displayValue': '13', 'period': 3.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '11-5'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '6-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '5-4'}]",401910028,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/bos.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401910028.json,2026-11-21T22:00:00.000000-0500,2026-11-21,true,true,true
+401910025,s:40~l:46~e:401910025~c:401910025,2026-11-22T01:00Z,19888.0,true,false,true,false,2026-11-22T01:00Z,,,,home,KFAA-TV,1,STD,516,American Airlines Center,Dallas,TX,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,6,s:40~l:46~t:6,Dallas,Mavericks,DAL,Dallas Mavericks,Mavericks,0064b1,bbc4ca,true,516,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/dal.png,110,"[{'value': 23.0, 'displayValue': '23', 'period': 1.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 2.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 3.0}
+ {'value': 32.0, 'displayValue': '32', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '9-7'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '7-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '2-5'}]",12,s:40~l:46~t:12,LA,Clippers,LAC,LA Clippers,Clippers,12173f,c8102e,true,1841,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/lac.png,100,"[{'value': 26.0, 'displayValue': '26', 'period': 1.0}
+ {'value': 18.0, 'displayValue': '18', 'period': 2.0}
+ {'value': 30.0, 'displayValue': '30', 'period': 3.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '4-11'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-4'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-7'}]",401910025,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/dal.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/lac.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401910025.json,2026-11-21T20:00:00.000000-0500,2026-11-21,true,true,true
+401910026,s:40~l:46~e:401910026~c:401910026,2026-11-22T01:00Z,0.0,true,false,true,false,2026-11-22T01:00Z,,,,home,DAZN MIN,1,STD,2029,Target Center,Minneapolis,MN,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,16,s:40~l:46~t:16,Minnesota,Timberwolves,MIN,Minnesota Timberwolves,Timberwolves,266092,79bc43,true,2029,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/min.png,104,"[{'value': 28.0, 'displayValue': '28', 'period': 1.0}
+ {'value': 28.0, 'displayValue': '28', 'period': 2.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 3.0}
+ {'value': 21.0, 'displayValue': '21', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '12-5'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '8-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '4-2'}]",29,s:40~l:46~t:29,Memphis,Grizzlies,MEM,Memphis Grizzlies,Grizzlies,5d76a9,12173f,true,1392,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/mem.png,95,"[{'value': 34.0, 'displayValue': '34', 'period': 1.0}
+ {'value': 12.0, 'displayValue': '12', 'period': 2.0}
+ {'value': 16.0, 'displayValue': '16', 'period': 3.0}
+ {'value': 33.0, 'displayValue': '33', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '12-5'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-4'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '8-1'}]",401910026,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/min.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/mem.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401910026.json,2026-11-21T20:00:00.000000-0500,2026-11-21,true,true,true
+401910027,s:40~l:46~e:401910027~c:401910027,2026-11-22T01:00Z,18708.0,true,false,true,false,2026-11-22T01:00Z,,,,home,DAZN SAS,1,STD,780,Frost Bank Center,San Antonio,TX,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,24,s:40~l:46~t:24,San Antonio,Spurs,SA,San Antonio Spurs,Spurs,000000,c4ced4,true,780,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sa.png,114,"[{'value': 32.0, 'displayValue': '32', 'period': 1.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 2.0}
+ {'value': 28.0, 'displayValue': '28', 'period': 3.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '14-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '7-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '7-0'}]",3,s:40~l:46~t:3,New Orleans,Pelicans,NO,New Orleans Pelicans,Pelicans,0a2240,b4975a,true,985,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/no.png,91,"[{'value': 29.0, 'displayValue': '29', 'period': 1.0}
+ {'value': 16.0, 'displayValue': '16', 'period': 2.0}
+ {'value': 21.0, 'displayValue': '21', 'period': 3.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '5-13'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-7'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-6'}]",401910027,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sa.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/no.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401910027.json,2026-11-21T20:00:00.000000-0500,2026-11-21,true,true,true
+401910024,s:40~l:46~e:401910024~c:401910024,2026-11-22T00:30Z,19812.0,true,false,true,false,2026-11-22T00:30Z,NBA TV,,,national,NBA TV,1,STD,1830,Madison Square Garden,New York,NY,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,18,s:40~l:46~t:18,New York,Knicks,NY,New York Knicks,Knicks,1d428a,f58426,true,1830,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/ny.png,97,"[{'value': 40.0, 'displayValue': '40', 'period': 1.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 2.0}
+ {'value': 15.0, 'displayValue': '15', 'period': 3.0}
+ {'value': 16.0, 'displayValue': '16', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '10-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '5-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '5-3'}]",22,s:40~l:46~t:22,Portland,Trail Blazers,POR,Portland Trail Blazers,Trail Blazers,e03a3e,000000,true,3423,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/por.png,96,"[{'value': 23.0, 'displayValue': '23', 'period': 1.0}
+ {'value': 20.0, 'displayValue': '20', 'period': 2.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 3.0}
+ {'value': 24.0, 'displayValue': '24', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '10-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '3-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '7-4'}]",401910024,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/ny.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/por.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401910024.json,2026-11-21T19:30:00.000000-0500,2026-11-21,true,true,true
+401910023,s:40~l:46~e:401910023~c:401910023,2026-11-21T18:00Z,21043.0,true,false,true,false,2026-11-21T18:00Z,,,,away,MyMi,1,STD,1845,Xfinity Mobile Arena,Philadelphia,PA,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,20,s:40~l:46~t:20,Philadelphia,76ers,PHI,Philadelphia 76ers,76ers,1d428a,e01234,true,1845,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/phi.png,132,"[{'value': 29.0, 'displayValue': '29', 'period': 1.0}
+ {'value': 31.0, 'displayValue': '31', 'period': 2.0}
+ {'value': 38.0, 'displayValue': '38', 'period': 3.0}
+ {'value': 34.0, 'displayValue': '34', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '14-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '7-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '7-1'}]",15,s:40~l:46~t:15,Milwaukee,Bucks,MIL,Milwaukee Bucks,Bucks,00471b,eee1c6,true,2099,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/mil.png,129,"[{'value': 30.0, 'displayValue': '30', 'period': 1.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 2.0}
+ {'value': 33.0, 'displayValue': '33', 'period': 3.0}
+ {'value': 37.0, 'displayValue': '37', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-16'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-8'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-8'}]",401910023,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/phi.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/mil.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401910023.json,2026-11-21T13:00:00.000000-0500,2026-11-21,true,true,true
+401909310,s:40~l:46~e:401909310~c:401909310,2026-11-21T01:00Z,18203.0,true,false,true,false,2026-11-21T01:00Z,,event,NBA Cup - Group Play,home,KSBI,1,STD,2559,Paycom Center,Oklahoma City,OK,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,25,s:40~l:46~t:25,Oklahoma City,Thunder,OKC,Oklahoma City Thunder,Thunder,007ac1,ef3b24,true,2559,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/okc.png,126,"[{'value': 33.0, 'displayValue': '33', 'period': 1.0}
+ {'value': 23.0, 'displayValue': '23', 'period': 2.0}
+ {'value': 36.0, 'displayValue': '36', 'period': 3.0}
+ {'value': 34.0, 'displayValue': '34', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '10-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '6-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '4-5'}]",3,s:40~l:46~t:3,New Orleans,Pelicans,NO,New Orleans Pelicans,Pelicans,0a2240,b4975a,true,985,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/no.png,120,"[{'value': 36.0, 'displayValue': '36', 'period': 1.0}
+ {'value': 28.0, 'displayValue': '28', 'period': 2.0}
+ {'value': 34.0, 'displayValue': '34', 'period': 3.0}
+ {'value': 22.0, 'displayValue': '22', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '5-12'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-7'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-5'}]",401909310,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/okc.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/no.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909310.json,2026-11-20T20:00:00.000000-0500,2026-11-20,true,true,true
+401910014,s:40~l:46~e:401910014~c:401910014,2026-11-19T01:00Z,18203.0,true,false,true,false,2026-11-19T01:00Z,,,,home,KSBI,1,STD,2559,Paycom Center,Oklahoma City,OK,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,25,s:40~l:46~t:25,Oklahoma City,Thunder,OKC,Oklahoma City Thunder,Thunder,007ac1,ef3b24,true,2559,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/okc.png,112,"[{'value': 29.0, 'displayValue': '29', 'period': 1.0}
+ {'value': 22.0, 'displayValue': '22', 'period': 2.0}
+ {'value': 32.0, 'displayValue': '32', 'period': 3.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '9-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '5-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '4-5'}]",1,s:40~l:46~t:1,Atlanta,Hawks,ATL,Atlanta Hawks,Hawks,c8102e,fdb927,true,1827,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/atl.png,117,"[{'value': 31.0, 'displayValue': '31', 'period': 1.0}
+ {'value': 33.0, 'displayValue': '33', 'period': 2.0}
+ {'value': 19.0, 'displayValue': '19', 'period': 3.0}
+ {'value': 34.0, 'displayValue': '34', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '9-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '3-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '6-3'}]",401910014,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/okc.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/atl.png,false,[],false,true,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401910014.json,2026-11-18T20:00:00.000000-0500,2026-11-18,true,true,true
+401909993,s:40~l:46~e:401909993~c:401909993,2026-11-16T02:00Z,13021.0,true,false,true,false,2026-11-16T02:00Z,,,,away,KSBI,1,STD,5310,Golden 1 Center,Sacramento,CA,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,103,"[{'value': 24.0, 'displayValue': '24', 'period': 1.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 2.0}
+ {'value': 30.0, 'displayValue': '30', 'period': 3.0}
+ {'value': 23.0, 'displayValue': '23', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-12'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-8'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-4'}]",25,s:40~l:46~t:25,Oklahoma City,Thunder,OKC,Oklahoma City Thunder,Thunder,007ac1,ef3b24,true,2559,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/okc.png,125,"[{'value': 32.0, 'displayValue': '32', 'period': 1.0}
+ {'value': 30.0, 'displayValue': '30', 'period': 2.0}
+ {'value': 32.0, 'displayValue': '32', 'period': 3.0}
+ {'value': 31.0, 'displayValue': '31', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '9-5'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '5-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '4-5'}]",401909993,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/okc.png,false,[],false,true,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909993.json,2026-11-15T21:00:00.000000-0500,2026-11-15,true,true,true
+401909304,s:40~l:46~e:401909304~c:401909304,2026-11-14T03:30Z,17927.0,true,false,true,false,2026-11-14T03:30Z,,event,NBA Cup - Group Play,away,KSBI,1,STD,10642,Intuit Dome,Inglewood,CA,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,12,s:40~l:46~t:12,LA,Clippers,LAC,LA Clippers,Clippers,12173f,c8102e,true,1841,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/lac.png,113,"[{'value': 33.0, 'displayValue': '33', 'period': 1.0}
+ {'value': 24.0, 'displayValue': '24', 'period': 2.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 3.0}
+ {'value': 31.0, 'displayValue': '31', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '3-8'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '3-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-5'}]",25,s:40~l:46~t:25,Oklahoma City,Thunder,OKC,Oklahoma City Thunder,Thunder,007ac1,ef3b24,true,2559,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/okc.png,112,"[{'value': 27.0, 'displayValue': '27', 'period': 1.0}
+ {'value': 17.0, 'displayValue': '17', 'period': 2.0}
+ {'value': 40.0, 'displayValue': '40', 'period': 3.0}
+ {'value': 28.0, 'displayValue': '28', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '8-5'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '5-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '3-5'}]",401909304,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/lac.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/okc.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909304.json,2026-11-13T22:30:00.000000-0500,2026-11-13,true,true,true
+401909975,s:40~l:46~e:401909975~c:401909975,2026-11-12T03:00Z,19851.0,true,false,true,false,2026-11-12T03:00Z,,,,home,KUNP 16,1,STD,3423,Moda Center,Portland,OR,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,22,s:40~l:46~t:22,Portland,Trail Blazers,POR,Portland Trail Blazers,Trail Blazers,e03a3e,000000,true,3423,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/por.png,118,"[{'value': 28.0, 'displayValue': '28', 'period': 1.0}
+ {'value': 28.0, 'displayValue': '28', 'period': 2.0}
+ {'value': 32.0, 'displayValue': '32', 'period': 3.0}
+ {'value': 30.0, 'displayValue': '30', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '8-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '3-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '5-1'}]",25,s:40~l:46~t:25,Oklahoma City,Thunder,OKC,Oklahoma City Thunder,Thunder,007ac1,ef3b24,true,2559,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/okc.png,108,"[{'value': 32.0, 'displayValue': '32', 'period': 1.0}
+ {'value': 18.0, 'displayValue': '18', 'period': 2.0}
+ {'value': 35.0, 'displayValue': '35', 'period': 3.0}
+ {'value': 23.0, 'displayValue': '23', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '8-4'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '5-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '3-4'}]",401909975,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/por.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/okc.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909975.json,2026-11-11T22:00:00.000000-0500,2026-11-11,true,true,true
+401909965,s:40~l:46~e:401909965~c:401909965,2026-11-11T04:00Z,19367.0,true,false,true,false,2026-11-11T04:00Z,NBC,,,national,NBC,1,STD,3423,Moda Center,Portland,OR,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,22,s:40~l:46~t:22,Portland,Trail Blazers,POR,Portland Trail Blazers,Trail Blazers,e03a3e,000000,true,3423,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/por.png,123,"[{'value': 26.0, 'displayValue': '26', 'period': 1.0}
+ {'value': 33.0, 'displayValue': '33', 'period': 2.0}
+ {'value': 38.0, 'displayValue': '38', 'period': 3.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '7-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '2-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '5-1'}]",25,s:40~l:46~t:25,Oklahoma City,Thunder,OKC,Oklahoma City Thunder,Thunder,007ac1,ef3b24,true,2559,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/okc.png,103,"[{'value': 27.0, 'displayValue': '27', 'period': 1.0}
+ {'value': 32.0, 'displayValue': '32', 'period': 2.0}
+ {'value': 21.0, 'displayValue': '21', 'period': 3.0}
+ {'value': 23.0, 'displayValue': '23', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '8-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '5-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '3-3'}]",401909965,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/por.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/okc.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909965.json,2026-11-10T23:00:00.000000-0500,2026-11-10,true,true,true
+401909938,s:40~l:46~e:401909938~c:401909938,2026-11-07T22:00Z,20191.0,true,true,true,false,2026-11-07T22:00Z,NBA TV,event,NBA Mexico City Game,national,NBA TV,1,STD,5779,Arena CDMX,Mexico City,,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,11,s:40~l:46~t:11,Indiana,Pacers,IND,Indiana Pacers,Pacers,0c2340,ffd520,true,2183,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/ind.png,102,"[{'value': 19.0, 'displayValue': '19', 'period': 1.0}
+ {'value': 22.0, 'displayValue': '22', 'period': 2.0}
+ {'value': 37.0, 'displayValue': '37', 'period': 3.0}
+ {'value': 24.0, 'displayValue': '24', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '3-7'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-5'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '3-2'}]",7,s:40~l:46~t:7,Denver,Nuggets,DEN,Denver Nuggets,Nuggets,0e2240,fec524,true,892,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/den.png,114,"[{'value': 27.0, 'displayValue': '27', 'period': 1.0}
+ {'value': 37.0, 'displayValue': '37', 'period': 2.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 3.0}
+ {'value': 24.0, 'displayValue': '24', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '5-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '2-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '3-1'}]",401909938,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/ind.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/den.png,false,[],false,true,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909938.json,2026-11-07T17:00:00.000000-0500,2026-11-07,true,true,true
+401909295,s:40~l:46~e:401909295~c:401909295,2026-11-07T03:00Z,14238.0,true,false,true,false,2026-11-07T03:00Z,,event,NBA Cup - Group Play,away,DAZN SAS,1,STD,5310,Golden 1 Center,Sacramento,CA,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,109,"[{'value': 29.0, 'displayValue': '29', 'period': 1.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 2.0}
+ {'value': 24.0, 'displayValue': '24', 'period': 3.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-8'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-4'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-4'}]",24,s:40~l:46~t:24,San Antonio,Spurs,SA,San Antonio Spurs,Spurs,000000,c4ced4,true,780,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sa.png,124,"[{'value': 38.0, 'displayValue': '38', 'period': 1.0}
+ {'value': 37.0, 'displayValue': '37', 'period': 2.0}
+ {'value': 24.0, 'displayValue': '24', 'period': 3.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '7-2'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '3-0'}]",401909295,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sa.png,false,[],false,true,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909295.json,2026-11-06T22:00:00.000000-0500,2026-11-06,true,true,true
+401909934,s:40~l:46~e:401909934~c:401909934,2026-11-05T03:00Z,14484.0,true,false,true,false,2026-11-05T03:00Z,,,,away,Spectrum Sports Net,1,STD,5310,Golden 1 Center,Sacramento,CA,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,103,"[{'value': 28.0, 'displayValue': '28', 'period': 1.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 2.0}
+ {'value': 20.0, 'displayValue': '20', 'period': 3.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-7'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-3'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-4'}]",13,s:40~l:46~t:13,Los Angeles,Lakers,LAL,Los Angeles Lakers,Lakers,552583,fdb927,true,1841,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/lal.png,116,"[{'value': 28.0, 'displayValue': '28', 'period': 1.0}
+ {'value': 33.0, 'displayValue': '33', 'period': 2.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 3.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '7-2'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '4-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '3-1'}]",401909934,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/lal.png,false,[],false,true,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909934.json,2026-11-04T22:00:00.000000-0500,2026-11-04,true,true,true
+401909913,s:40~l:46~e:401909913~c:401909913,2026-11-03T01:00Z,18967.0,true,false,true,false,2026-11-03T01:00Z,,,,away,NBA League Pass,1,STD,516,American Airlines Center,Dallas,TX,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,6,s:40~l:46~t:6,Dallas,Mavericks,DAL,Dallas Mavericks,Mavericks,0064b1,bbc4ca,true,516,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/dal.png,100,"[{'value': 18.0, 'displayValue': '18', 'period': 1.0}
+ {'value': 35.0, 'displayValue': '35', 'period': 2.0}
+ {'value': 21.0, 'displayValue': '21', 'period': 3.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '4-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '2-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '2-1'}]",23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,115,"[{'value': 19.0, 'displayValue': '19', 'period': 1.0}
+ {'value': 35.0, 'displayValue': '35', 'period': 2.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 3.0}
+ {'value': 34.0, 'displayValue': '34', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-4'}]",401909913,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/dal.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,false,[],false,true,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909913.json,2026-11-02T20:00:00.000000-0500,2026-11-02,true,true,true
+401909899,s:40~l:46~e:401909899~c:401909899,2026-11-01T00:00Z,15060.0,true,false,true,false,2026-11-01T00:00Z,,,,away,NBA League Pass,1,STD,1392,FedExForum,Memphis,TN,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,29,s:40~l:46~t:29,Memphis,Grizzlies,MEM,Memphis Grizzlies,Grizzlies,5d76a9,12173f,true,1392,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/mem.png,136,"[{'value': 27.0, 'displayValue': '27', 'period': 1.0}
+ {'value': 39.0, 'displayValue': '39', 'period': 2.0}
+ {'value': 42.0, 'displayValue': '42', 'period': 3.0}
+ {'value': 28.0, 'displayValue': '28', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '6-0'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '2-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '4-0'}]",23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,105,"[{'value': 21.0, 'displayValue': '21', 'period': 1.0}
+ {'value': 34.0, 'displayValue': '34', 'period': 2.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 3.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-6'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-4'}]",401909899,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/mem.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909899.json,2026-10-31T20:00:00.000000-0400,2026-10-31,true,true,true
+401909894,s:40~l:46~e:401909894~c:401909894,2026-10-30T00:00Z,15442.0,true,false,true,false,2026-10-30T00:00Z,,,,away,NBA League Pass,1,STD,985,Smoothie King Center,New Orleans,LA,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,3,s:40~l:46~t:3,New Orleans,Pelicans,NO,New Orleans Pelicans,Pelicans,0a2240,b4975a,true,985,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/no.png,132,"[{'value': 24.0, 'displayValue': '24', 'period': 1.0}
+ {'value': 39.0, 'displayValue': '39', 'period': 2.0}
+ {'value': 39.0, 'displayValue': '39', 'period': 3.0}
+ {'value': 30.0, 'displayValue': '30', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-4'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-2'}]",23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,120,"[{'value': 30.0, 'displayValue': '30', 'period': 1.0}
+ {'value': 31.0, 'displayValue': '31', 'period': 2.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 3.0}
+ {'value': 32.0, 'displayValue': '32', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-5'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-3'}]",401909894,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/no.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909894.json,2026-10-29T20:00:00.000000-0400,2026-10-29,true,true,true
+401909879,s:40~l:46~e:401909879~c:401909879,2026-10-28T00:00Z,18354.0,true,false,true,false,2026-10-28T00:00Z,,,,away,NBA League Pass,1,STD,780,Frost Bank Center,San Antonio,TX,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,24,s:40~l:46~t:24,San Antonio,Spurs,SA,San Antonio Spurs,Spurs,000000,c4ced4,true,780,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sa.png,130,"[{'value': 39.0, 'displayValue': '39', 'period': 1.0}
+ {'value': 41.0, 'displayValue': '41', 'period': 2.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 3.0}
+ {'value': 23.0, 'displayValue': '23', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '2-2'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-0'}]",23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,103,"[{'value': 29.0, 'displayValue': '29', 'period': 1.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 2.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 3.0}
+ {'value': 23.0, 'displayValue': '23', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-4'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-2'}]",401909879,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sa.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909879.json,2026-10-27T20:00:00.000000-0400,2026-10-27,true,true,true
+401909867,s:40~l:46~e:401909867~c:401909867,2026-10-26T01:00Z,13076.0,true,false,true,false,2026-10-26T01:00Z,,,,away,NBA League Pass,1,STD,5310,Golden 1 Center,Sacramento,CA,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,112,"[{'value': 28.0, 'displayValue': '28', 'period': 1.0}
+ {'value': 31.0, 'displayValue': '31', 'period': 2.0}
+ {'value': 31.0, 'displayValue': '31', 'period': 3.0}
+ {'value': 22.0, 'displayValue': '22', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-3'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-2'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-1'}]",29,s:40~l:46~t:29,Memphis,Grizzlies,MEM,Memphis Grizzlies,Grizzlies,5d76a9,12173f,true,1392,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/mem.png,123,"[{'value': 25.0, 'displayValue': '25', 'period': 1.0}
+ {'value': 42.0, 'displayValue': '42', 'period': 2.0}
+ {'value': 29.0, 'displayValue': '29', 'period': 3.0}
+ {'value': 27.0, 'displayValue': '27', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '3-0'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '2-0'}]",401909867,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/mem.png,false,[],false,true,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909867.json,2026-10-25T21:00:00.000000-0400,2026-10-25,true,true,true
+401909852,s:40~l:46~e:401909852~c:401909852,2026-10-24T02:00Z,17832.0,true,false,true,false,2026-10-24T02:00Z,,,,away,NBA League Pass,1,STD,5310,Golden 1 Center,Sacramento,CA,true,0.0,0.0,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,120,"[{'value': 33.0, 'displayValue': '33', 'period': 1.0}
+ {'value': 31.0, 'displayValue': '31', 'period': 2.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 3.0}
+ {'value': 30.0, 'displayValue': '30', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-2'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-1'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-1'}]",22,s:40~l:46~t:22,Portland,Trail Blazers,POR,Portland Trail Blazers,Trail Blazers,e03a3e,000000,true,3423,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/por.png,128,"[{'value': 27.0, 'displayValue': '27', 'period': 1.0}
+ {'value': 32.0, 'displayValue': '32', 'period': 2.0}
+ {'value': 44.0, 'displayValue': '44', 'period': 3.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '2-0'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '1-0'}]",401909852,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/por.png,false,[],false,true,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909852.json,2026-10-23T22:00:00.000000-0400,2026-10-23,true,true,true
+401909842,s:40~l:46~e:401909842~c:401909842,2026-10-22T02:30Z,17927.0,true,false,true,false,2026-10-22T02:30Z,,,,away,NBA League Pass,1,STD,10642,Intuit Dome,Inglewood,CA,true,720.0,12:00,4.0,3,STATUS_FINAL,post,true,Final,Final,Final,4.0,12,s:40~l:46~t:12,LA,Clippers,LAC,LA Clippers,Clippers,12173f,c8102e,true,1841,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/lac.png,121,"[{'value': 41.0, 'displayValue': '41', 'period': 1.0}
+ {'value': 20.0, 'displayValue': '20', 'period': 2.0}
+ {'value': 32.0, 'displayValue': '32', 'period': 3.0}
+ {'value': 28.0, 'displayValue': '28', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '1-0'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '1-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-0'}]",23,s:40~l:46~t:23,Sacramento,Kings,SAC,Sacramento Kings,Kings,5a2d81,6a7a82,true,2247,https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/sac.png,96,"[{'value': 29.0, 'displayValue': '29', 'period': 1.0}
+ {'value': 25.0, 'displayValue': '25', 'period': 2.0}
+ {'value': 16.0, 'displayValue': '16', 'period': 3.0}
+ {'value': 26.0, 'displayValue': '26', 'period': 4.0}]","[{'name': 'overall', 'abbreviation': 'Game', 'type': 'total', 'summary': '0-1'}
+ {'name': 'Home', 'abbreviation': None, 'type': 'home', 'summary': '0-0'}
+ {'name': 'Road', 'abbreviation': None, 'type': 'road', 'summary': '0-1'}]",401909842,2027,2,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/lac.png,https://a.espncdn.com/i/teamlogos/nba/500-dark/scoreboard/sac.png,false,[],true,false,,true,https://raw.githubusercontent.com/sportsdataverse/hoopR-nba-raw/main/nba/json/final/401909842.json,2026-10-21T22:30:00.000000-0400,2026-10-21,true,true,true

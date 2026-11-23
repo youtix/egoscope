@@ -78,6 +78,10 @@ const NOT_PUBLISHED: Refusal = { error: { kind: 'not_published' }, call: REFUSED
 const SCHEMA_CHANGED: Refusal = { error: { kind: 'schema_changed' }, call: UNREADABLE_CALL };
 const NOT_LISTED = { kind: 'not_listed' } as const;
 const PUBLICATION = 'publication';
+// How long past the time left a slow call waits: a timer of exactly that time can end
+// a millisecond before the deadline by the clock, as the contract's CLOCK_TOLERANCE_MS
+// allows, since the two count whole milliseconds apart.
+const CLOCK_TOLERANCE_MS = 1;
 
 const readCall = (data: unknown): CallMetadata => ({
   httpRequests: 1,
@@ -104,11 +108,10 @@ const isAborted = (signal: AbortSignal): boolean => signal.aborted;
 
 /**
  * Waits until the call's deadline has passed, or until its signal, which has not
- * aborted yet, aborts it: a millisecond past the time left, since a timer of exactly
- * that time can end a millisecond before the deadline by the clock.
+ * aborted yet, aborts it: CLOCK_TOLERANCE_MS past the time left.
  */
 async function pastDeadline({ deadline, signal }: CallContext): Promise<void> {
-  const waitMs = Math.max(0, deadline - now()) + 1;
+  const waitMs = Math.max(0, deadline - now()) + CLOCK_TOLERANCE_MS;
   const ended = AbortSignal.any([signal, AbortSignal.timeout(waitMs)]);
   await new Promise<void>((resolve) => {
     ended.addEventListener(
