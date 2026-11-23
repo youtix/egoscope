@@ -5,6 +5,7 @@ import {
   boxScores,
   createTestDatabase,
   games,
+  parameterOverrides,
   seasons,
   teams,
   teamSeasons,
@@ -134,6 +135,29 @@ describe('the league factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       { season: '2024-25', abbreviation: 'SPG' },
       { season: '2025-26', abbreviation: 'RVG' },
     ]);
+  });
+
+  it('[STA-19] sets the minimum baseline size to the nine games that a baseline of the league holds, once', async () => {
+    await insertLeagueSeason(db, '2024-25');
+    await insertLeagueSeason(db, '2025-26');
+
+    await expect(
+      db
+        .select({ key: parameterOverrides.parameterKey, value: parameterOverrides.value })
+        .from(parameterOverrides),
+    ).resolves.toStrictEqual([{ key: 'games.minBaselineGames', value: 9 }]);
+  });
+
+  it('[STA-19] keeps the minimum baseline size that the database already overrides', async () => {
+    await db
+      .insert(parameterOverrides)
+      .values({ parameterKey: 'games.minBaselineGames', value: 12 });
+
+    await insertLeagueSeason(db, '2024-25');
+
+    await expect(
+      db.select({ value: parameterOverrides.value }).from(parameterOverrides),
+    ).resolves.toStrictEqual([{ value: 12 }]);
   });
 
   it('leaves the lines of a game that is not played yet unpublished', async () => {

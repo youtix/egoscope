@@ -64,11 +64,12 @@ describe('POST /api/test/seed', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     await servedDatabase();
     const ran: string[] = [];
     const registry = new Map(
-      ['first', 'second'].map((name) => [
+      ['first', 'second', 'third'].map((name) => [
         name,
         async () => {
+          ran.push(`${name} starts`);
           await Promise.resolve();
-          ran.push(name);
+          ran.push(`${name} ends`);
         },
       ]),
     );
@@ -85,12 +86,35 @@ describe('POST /api/test/seed', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     });
     const { POST } = await hermeticRoute();
 
-    const response = await POST(seed({ scenarios: ['second', 'first', 'second'] }));
+    const response = await POST(seed({ scenarios: ['third', 'first', 'second'] }));
 
     await expect(response.json()).resolves.toStrictEqual({
-      applied: ['second', 'first', 'second'],
+      applied: ['third', 'first', 'second'],
     });
-    expect(ran).toStrictEqual(['second', 'first', 'second']);
+    expect(ran).toStrictEqual([
+      'third starts',
+      'third ends',
+      'first starts',
+      'first ends',
+      'second starts',
+      'second ends',
+    ]);
+  });
+
+  it('answers two seeds of the same scenarios sent at once, writing their rows once', async () => {
+    const db = await servedDatabase();
+    const { POST } = await hermeticRoute();
+    const body = { scenarios: ['profiled-player', 'request-to-do'] };
+
+    const answers = await Promise.all([POST(seed(body)), POST(seed(body))]);
+
+    expect(answers.map(({ status }) => status)).toStrictEqual([200, 200]);
+    for (const answer of answers) {
+      await expect(answer.json()).resolves.toStrictEqual({ applied: body.scenarios });
+    }
+    await expect(db.select({ id: followedPlayers.id }).from(followedPlayers)).resolves.toHaveLength(
+      2,
+    );
   });
 
   it('answers a second seed of the same scenarios as the first, leaving their rows as they are', async () => {

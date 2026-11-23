@@ -27,6 +27,8 @@ const LINE_15 = 4.9 / 15;
 // His first game's baseline: his other nine games of the regular season, in their order.
 const BASELINE = [LINE_38, LINE_28, LINE_15, LINE_22, LINE_34, LINE_38, LINE_28, LINE_15, LINE_22];
 const PRECISION = 12;
+// games.minBaselineGames at its default value, that of the parameter registry (STA-19).
+const DEFAULT_MINIMUM_BASELINE = 10;
 
 // The scale that rounds a figure to PRECISION decimals.
 const SCALE = 10 ** PRECISION;
@@ -54,7 +56,8 @@ function moments(values: readonly number[]): Readonly<{ mean: number; deviation:
 async function setMinimumBaseline(db: Database, count: number): Promise<void> {
   await db
     .insert(parameterOverrides)
-    .values({ parameterKey: 'games.minBaselineGames', value: count });
+    .values({ parameterKey: 'games.minBaselineGames', value: count })
+    .onConflictDoUpdate({ target: parameterOverrides.parameterKey, set: { value: count } });
 }
 
 /** The games of the player's lines of `season`, by tip-off, with his minutes. */
@@ -164,7 +167,20 @@ describe('insertValidCase', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     expect(written.baselineMean).toBeCloseTo(moments(kept).mean, PRECISION);
   });
 
+  it('[STA-19] measures a valid case with nothing written beyond the season, the player and his lines', async () => {
+    await expect(
+      insertValidCase(db, { playerId, measuredGameId: gameAt(0) }),
+    ).resolves.toMatchObject({
+      measuredGameId: gameAt(0),
+      baselineGameCount: 9,
+      baselineStatus: 'final',
+      gapStatus: 'final',
+    });
+  });
+
   it('[STA-19] refuses a case whose baseline stays under the minimum of 10 games once the season is over', async () => {
+    await setMinimumBaseline(db, DEFAULT_MINIMUM_BASELINE);
+
     await expect(insertValidCase(db, { playerId, measuredGameId: gameAt(0) })).rejects.toThrow(
       /^No valid case can be measured at the game \d+: .*"gameCount":9,"status":"insufficient"/u,
     );

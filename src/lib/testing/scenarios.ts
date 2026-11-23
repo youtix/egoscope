@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 import {
   backtestRequests,
@@ -7,7 +7,6 @@ import {
   events as eventRows,
   games,
   imports,
-  parameterOverrides,
 } from '@/lib/db';
 import { err, ok } from '@/lib/result';
 import { gameDay, now, toEpochMs } from '@/lib/time';
@@ -45,9 +44,6 @@ const PROFILED_REQUEST_ON = '2025-06-02';
 const PROFILED_PERIOD = [
   { eventTypeId: MEDIA_STORM, startOn: '2023-10-24', endOn: PROFILED_REQUEST_ON },
 ] as const;
-// The most games a baseline of the invented league holds: his team's ten games of a
-// season, the measured game excluded (STA-17, STA-19).
-const LEAGUE_BASELINE_GAMES = 9;
 
 /**
  * A player without backtest, the glossary's unprofiled player (TRV-76): an invented
@@ -132,10 +128,8 @@ async function measureFirstGames(db: Database, imported: ImportRow): Promise<voi
  * that day, and seven historical media storms, each known by the day before one of his
  * first seven games of 2024-25, public at the end of that day in Pacific time, and
  * measured at that game from the season's games and his box scores as the source serves
- * them. A season of the invented league holds ten games of his team, so a baseline holds
- * nine games at most, the measured game excluded: the scenario sets the minimum baseline
- * size, `games.minBaselineGames`, to 9, a value of its range (STA-19). Once applied, it is
- * left as it is and gives the rows it wrote, so that scenarios combine.
+ * them, with the minimum baseline size that the league's season sets, 9 (STA-19). Once
+ * applied, it is left as it is and gives the rows it wrote, so that scenarios combine.
  */
 export async function profiledPlayer(db: Database): Promise<ProfiledPlayer> {
   await insertEventType(db);
@@ -146,10 +140,6 @@ export async function profiledPlayer(db: Database): Promise<ProfiledPlayer> {
   if (already !== null) {
     return already;
   }
-  await db
-    .insert(parameterOverrides)
-    .values({ parameterKey: 'games.minBaselineGames', value: LEAGUE_BASELINE_GAMES })
-    .onConflictDoNothing();
   const request = await insertRequest(db, {
     playerId: player.id,
     types: PROFILED_PERIOD,
@@ -237,13 +227,19 @@ const REFERENCE_DATA: readonly Scenario[] = [];
 /** Why `applyScenarios` wrote nothing: names that no world registers. */
 export type SeedError = Readonly<{ kind: 'unknown_scenarios'; names: readonly string[] }>;
 
+// The name of the transaction-level advisory lock that serializes the seeds of one
+// database, whatever process or connection sends them.
+const SEED_LOCK = 'egoscope.testing.seed';
+
 /**
  * Applies the scenarios named, in the order given, each one after the one before it has
  * ended, after the reference data (TRV-76): what `/api/test/seed` does to the in-memory
  * database of the hermetic server, so that scenarios combine. A scenario named twice, or
- * already applied, leaves its rows as they are. Writes nothing when a name is unknown,
- * and names those. `registry` holds the scenarios by name, those of every world unless a
- * test gives its own.
+ * already applied, leaves its rows as they are. The seed runs in one transaction that
+ * takes the seed lock first, so that two seeds sent at once, by the desktop and the phone
+ * projects say, run one after the other, and a scenario that throws leaves no row of the
+ * seed behind. Writes nothing when a name is unknown, and names those. `registry` holds
+ * the scenarios by name, those of every world unless a test gives its own.
  */
 export async function applyScenarios(
   db: Database,
@@ -255,8 +251,13 @@ export async function applyScenarios(
     return err({ kind: 'unknown_scenarios', names: unknown });
   }
   const named = names.map((name) => registry.get(name)).filter((step) => step !== undefined);
-  for (const step of [...REFERENCE_DATA, ...named]) {
-    await step(db);
-  }
+  // No transaction configuration: the driver sends a bare BEGIN, and the lock is the
+  // transaction's own, so nothing here sets the session.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${SEED_LOCK}))`);
+    for (const step of [...REFERENCE_DATA, ...named]) {
+      await step(tx);
+    }
+  });
   return ok(names);
 }

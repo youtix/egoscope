@@ -302,19 +302,58 @@ describe('the scenarios', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     const registry = new Map([
       ['first', step('first')],
       ['second', step('second')],
+      ['third', step('third')],
     ]);
 
-    await expect(
-      applyScenarios(db, ['second', 'first', 'second'], registry),
-    ).resolves.toStrictEqual({ ok: true, value: ['second', 'first', 'second'] });
+    await expect(applyScenarios(db, ['third', 'first', 'second'], registry)).resolves.toStrictEqual(
+      { ok: true, value: ['third', 'first', 'second'] },
+    );
     expect(ran).toStrictEqual([
-      'second starts',
-      'second ends',
+      'third starts',
+      'third ends',
       'first starts',
       'first ends',
       'second starts',
       'second ends',
     ]);
+  });
+
+  it.each([[['profiled-player', 'request-to-do']], [['request-to-do']]])(
+    'applies two seeds of %j at once, one after the other, and writes their rows once',
+    async (names) => {
+      await expect(
+        Promise.all([applyScenarios(db, names), applyScenarios(db, names)]),
+      ).resolves.toStrictEqual([
+        { ok: true, value: names },
+        { ok: true, value: names },
+      ]);
+
+      await expect(
+        db.select({ player: backtestRequests.playerId }).from(backtestRequests),
+      ).resolves.toHaveLength(names.length);
+      await expect(
+        db.select({ id: followedPlayers.id }).from(followedPlayers),
+      ).resolves.toHaveLength(names.length);
+    },
+  );
+
+  it('writes nothing of a seed whose scenario throws, the scenarios before it included', async () => {
+    const registry = new Map<string, Scenario>([
+      ['request-to-do', requestToDo],
+      [
+        'broken',
+        async (tx) => {
+          await playerWithoutBacktest(tx);
+          throw new Error('A broken scenario.');
+        },
+      ],
+    ]);
+
+    await expect(applyScenarios(db, ['request-to-do', 'broken'], registry)).rejects.toThrow(
+      'A broken scenario.',
+    );
+    await expect(db.select().from(followedPlayers)).resolves.toStrictEqual([]);
+    await expect(db.select().from(eventTypes)).resolves.toStrictEqual([]);
   });
 
   it('[SEN-07] leaves the profiled player as he is when applied again, and gives the rows it wrote', async () => {

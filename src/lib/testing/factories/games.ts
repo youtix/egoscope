@@ -1,6 +1,14 @@
 import { and, eq, sql } from 'drizzle-orm';
 
-import { boxScores, games, seasons, teams, teamSeasons, teamSourceRefs } from '@/lib/db';
+import {
+  boxScores,
+  games,
+  parameterOverrides,
+  seasons,
+  teams,
+  teamSeasons,
+  teamSourceRefs,
+} from '@/lib/db';
 import { createFakeStatsSource } from '@/lib/stats-source';
 import { now, toEpochMs } from '@/lib/time';
 import engineParams from '@data/fixtures/stats-engine/engine-params.json';
@@ -25,6 +33,9 @@ const CALL_WINDOW_MS = 60_000;
 const DAY_MS = 86_400_000;
 // The correction window after a game, games.correctionWindowDays at its default (STA-33).
 const CORRECTION_WINDOW_MS = engineParams.games.correctionWindowDays * DAY_MS;
+// The most games a baseline of the invented league holds: a team's ten games of a
+// season, the measured game excluded (STA-17, STA-19).
+const LEAGUE_BASELINE_GAMES = 9;
 
 /** A fresh fake of the statistics source, which serves the invented league without fault, and the context of a call to it. */
 function league(): Readonly<{ source: FakeStatsSource; ctx: CallContext }> {
@@ -108,13 +119,20 @@ function gameRow(game: SourceGame, data: SeasonGames) {
  * Writes `season` of the invented league as the statistics-source fake serves it
  * (TRV-15): the season and its coverage, its teams under their source identifiers, and
  * every game of its regular season, unless they are written already, so that the fake
- * and the database agree and scenarios combine. Gives the identifier of each game of
- * the season by the source's game identifier.
+ * and the database agree and scenarios combine. A team of the league plays ten games a
+ * season, so a baseline holds nine at most, under the default minimum of ten: unless the
+ * database already overrides it, the minimum baseline size, `games.minBaselineGames`, is
+ * set to 9, a value of its range (STA-19), so that a case of the league can be measured.
+ * Gives the identifier of each game of the season by the source's game identifier.
  */
 export async function insertLeagueSeason(
   db: Database,
   season: string,
 ): Promise<ReadonlyMap<SourceGameId, number>> {
+  await db
+    .insert(parameterOverrides)
+    .values({ parameterKey: 'games.minBaselineGames', value: LEAGUE_BASELINE_GAMES })
+    .onConflictDoNothing();
   const { source, ctx } = league();
   const data = readData(
     await source.getSeasonGames(ctx, { season, knownVersion: null }),

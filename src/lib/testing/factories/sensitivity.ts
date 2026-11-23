@@ -71,7 +71,10 @@ function previousSeason(season: string): string {
   return `${String(year)}-${String((year + 1) % SHORT_YEAR).padStart(SHORT_YEAR_DIGITS, '0')}`;
 }
 
-/** The engine's parameters, `games.minBaselineGames` as the database overrides it (STA-19). */
+/**
+ * The engine's parameters at their default values, `games.minBaselineGames` as the
+ * database overrides it (STA-19): no other override is read.
+ */
 async function paramsOf(db: Database): Promise<EngineParams> {
   const rows = await db
     .select({ value: parameterOverrides.value })
@@ -317,11 +320,13 @@ async function measure(db: Database, measured: Measured) {
  * historical media storm known by its day `eventOn`, public at the end of that day in
  * Pacific time, measured at the regular-season game `measuredGameId` from the player's
  * lines and the schedule that the database holds, as the engine measures it, with the
- * engine's parameters and `games.minBaselineGames` as the database overrides it: his
- * minutes, the Game Score, the performance index, the season baseline, the measured game
- * excluded, and the normalized gap, no doubtful-case criterion met. Throws when that game
- * is not the first he played after the event, or the case it gives is not valid.
- * `overrides` replaces any column, the type and the measurement included.
+ * engine's parameters at their default values and `games.minBaselineGames` as the
+ * database overrides it, which `insertLeagueSeason` sets to the league's nine games
+ * unless a test set it first; no other override is read. It writes his minutes, the Game
+ * Score, the performance index, the season baseline, the measured game excluded, and the
+ * normalized gap, no doubtful-case criterion met. Throws when that game is not the first
+ * he played after the event, or the case it gives is not valid. `overrides` replaces any
+ * column, the type and the measurement included.
  */
 export async function insertValidCase(
   db: Database,
