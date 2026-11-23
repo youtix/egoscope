@@ -18,7 +18,7 @@ export type SendOutcome =
   | Readonly<{ kind: 'gone' }>;
 
 /** What a contact did: whether it discarded unsent copies, and the refusal of each copy refused (CL-DSN-22). */
-export type ContactReport = Readonly<{
+type ContactReport = Readonly<{
   unsentDiscarded: boolean;
   refusals: ReadonlyMap<string, string>;
 }>;

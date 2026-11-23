@@ -19,7 +19,7 @@ export type DeviceCopy = Readonly<{
 }>;
 
 /** What the device last received from the server: the counter and the retention (CL-DSN-22, CL-IHM-11). */
-export type DeviceContact = Readonly<{ withdrawnEventCount: number; retentionDays: number | null }>;
+type DeviceContact = Readonly<{ withdrawnEventCount: number; retentionDays: number | null }>;
 
 const DATABASE = 'egoscope-drafts';
 const VERSION = 1;

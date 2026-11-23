@@ -19,4 +19,4 @@ export {
   saveDraft,
 } from './server-drafts';
 export { usePasteDraft } from './use-paste-draft';
-export type { PasteDraft } from './use-paste-draft';
+export type { DiscardOutcome, PasteDraft } from './use-paste-draft';
