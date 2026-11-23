@@ -2,15 +2,19 @@ import { sentence } from '@/lib/wording';
 
 import type { ReactNode } from 'react';
 
-/** The direction of a sensitivity or a verdict, by its stored value (SEN-24). */
-export type VerdictDirection = 'increase' | 'decrease';
+/**
+ * The direction of a sensitivity or a verdict, by its stored value (SEN-24): the
+ * figures' copy of the engine's `VerdictDirection`, which `ui` cannot import, kept
+ * equal to it by a type test of the gallery.
+ */
+export type FigureVerdictDirection = 'increase' | 'decrease';
 
 // The one look of both directions: the size and color of the text around it, and one
 // weight for both, so that neither reads as good or bad news (IHM-47, H-04).
 const DIRECTION_CLASSES = 'font-medium';
 
 /** The word of a direction, "increase" or "decrease" (SEN-24, IHM-47). */
-export function directionWord(direction: VerdictDirection): string {
+export function directionWord(direction: FigureVerdictDirection): string {
   return sentence(direction === 'increase' ? 'sensitivity.increase' : 'sensitivity.decrease');
 }
 
@@ -19,14 +23,14 @@ export function directionWord(direction: VerdictDirection): string {
  * "−0.60" a decrease, and none for a gap that rounds to zero, "0.00" (IHM-47,
  * CL-IHM-03).
  */
-export function shownDirection(writtenGap: string): VerdictDirection | undefined {
+export function shownDirection(writtenGap: string): FigureVerdictDirection | undefined {
   if (writtenGap.startsWith('+')) {
     return 'increase';
   }
   return writtenGap.startsWith('\u{2212}') ? 'decrease' : undefined;
 }
 
-export type DirectionProps = Readonly<{ direction: VerdictDirection }>;
+export type DirectionProps = Readonly<{ direction: FigureVerdictDirection }>;
 
 /**
  * The direction written in full, "increase" or "decrease", beside the sign of a gap

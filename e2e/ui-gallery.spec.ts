@@ -27,6 +27,10 @@ const VISUALLY_HIDDEN = 'inset(50%)';
 // How much of an element's markup a failure shows, enough to find it.
 const SHOWN_MARKUP = 120;
 
+// The mean gaps of the gallery's figures: an increase, a decrease and one that
+// rounds to zero, each on nine valid cases.
+const MEAN_GAP_SAMPLES = 3;
+
 /**
  * The elements of the page whose content is wider than their box, cut or pushed
  * sideways, apart from the texts hidden for screen readers, and whether the page
@@ -309,6 +313,34 @@ for (const colorScheme of THEMES) {
       }
     });
 
+    test('[IHM-45] [IHM-46] [SEN-38] [SEN-39] shows each state of the figures', async ({
+      page,
+    }) => {
+      const figures = page.getByRole('region', { name: 'Figures' });
+      const texts = [
+        'probable, decrease',
+        'High',
+        '21 valid cases',
+        'inconclusive',
+        'Medium',
+        '1 valid case',
+        '0.00',
+        'from \u{2212}0.40 to +0.40',
+        '7 valid cases: 7 historical',
+        '2 valid cases: 2 tracked',
+        '1 valid case: 1 historical',
+        '1 of 1',
+        '1 "probable" profile of 1',
+      ];
+      for (const text of texts) {
+        await expect(figures.getByText(text, { exact: true })).toBeVisible();
+      }
+      await expect(figures.getByText('Mean gap', { exact: true })).toHaveCount(MEAN_GAP_SAMPLES);
+      await expect(figures.getByText('9 valid cases', { exact: true })).toHaveCount(
+        MEAN_GAP_SAMPLES,
+      );
+    });
+
     test('shows the second tab, and the list filtered on its own address', async ({ page }) => {
       await page.getByRole('tab', { name: 'Second panel' }).click();
       await expect(page.getByRole('tabpanel', { name: 'Second panel' })).toBeVisible();
@@ -379,6 +411,7 @@ test.describe('the component gallery outside development and the hermetic mode',
       const response = await request.get(new URL('/dev/ui', server.address).href);
       const body = await response.text();
 
+      expect(body).toContain('This page could not be found.');
       expect(body).toContain('<meta name="robots" content="noindex"/>');
       expect(body).not.toContain('Component gallery');
     } finally {
