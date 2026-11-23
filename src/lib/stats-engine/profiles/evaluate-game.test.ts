@@ -220,6 +220,25 @@ describe('statisticsOf', () => {
     expect(baseline?.standardDeviation).toBeCloseTo(deviation, PRECISION);
   });
 
+  it('[STA-24] [STA-13] counts a game he played too short among the played games, so that 2 of 10 without an index leave the baseline whole', () => {
+    const unknown: Partial<Row> = { participation: 'unknown', line: null };
+    const missed: Partial<Row> = { participation: 'not_played', line: null };
+    const rows = changed([
+      [101, unknown],
+      [102, unknown],
+      [103, { line: 'short' }],
+      [107, missed],
+      [108, missed],
+      [109, missed],
+    ]);
+    const baseline = baselineOf(MEASURED, contextOf(rows));
+    expect([baseline?.status, baseline?.gameCount, baseline?.isPartial]).toStrictEqual([
+      'insufficient',
+      6,
+      false,
+    ]);
+  });
+
   it('[STA-33] gives an incomplete box score with whether its game is still in its correction window', () => {
     expect(incompleteStatisticsOf(false)).toStrictEqual({
       boxScoreStatus: 'incomplete',

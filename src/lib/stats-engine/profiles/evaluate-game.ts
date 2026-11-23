@@ -194,6 +194,19 @@ function thresholdOf(season: string, context: GameContext): number {
   return playingTimeThreshold(games, context.params);
 }
 
+/** What a baseline game holds to sort it and keep it to its phase. */
+type BaselineKey = Pick<BaselineGame, 'gameId' | 'scheduledStartAt' | 'phase'>;
+
+/**
+ * A game he played that no baseline can use (STA-13, STA-24): his line incomplete or
+ * suspect, without an index, or complete and too short, with its index.
+ */
+function unusableGame(key: BaselineKey, index: number | null): BaselineGame {
+  // A baseline tells its games apart only as usable, not played or anything else.
+  // Stryker disable next-line StringLiteral: seasonBaseline reads 'usable' and 'not_played' alone
+  return { ...key, classification: 'played_not_usable', performanceIndex: index };
+}
+
 /**
  * A final team game as a baseline reads it (STA-13, STA-14, STA-24): with no line of his,
  * not played, or of no class while its participation is unknown; with an incomplete or
@@ -208,12 +221,12 @@ function baselineGameOf(teamGame: EvaluationTeamGame, threshold: number): Baseli
     return { ...key, classification, performanceIndex: null };
   }
   if (boxScore.status !== 'complete') {
-    return { ...key, classification: 'played_not_usable', performanceIndex: null };
+    return unusableGame(key, null);
   }
   const index = performanceIndex(boxScore);
   return classifyGame({ ...key, boxScore }, threshold) === 'usable'
     ? { ...key, classification: 'usable', performanceIndex: index }
-    : { ...key, classification: 'played_not_usable', performanceIndex: index };
+    : unusableGame(key, index);
 }
 
 /**
