@@ -236,8 +236,35 @@ export type {
 } from './profiles/verdict-history';
 
 // profiles/evaluate-player.ts
+export { evaluatePlayer } from './profiles/evaluate-player';
+export type { PlayerEvaluation } from './profiles/evaluate-player';
+export type { PlayerProfile } from './profiles/evaluate-player';
+export type { ProfileViewValues } from './profiles/evaluate-player';
 
 // profiles/evaluate-trend.ts
+export { evaluateTrend } from './profiles/evaluate-trend';
+export type { CaseOrigin } from './profiles/evaluate-trend';
+export type { EvaluatedTrend } from './profiles/evaluate-trend';
+export type { ProfileView } from './profiles/evaluate-trend';
+export type { TrendEvaluationInput } from './profiles/evaluate-trend';
+export type { TypeStatus } from './profiles/evaluate-trend';
+
+// profiles/evaluate-cases.ts
+export type { CaseCriterion } from './profiles/evaluate-cases';
+export type { CaseKey } from './profiles/evaluate-cases';
+export type { DecidedValues } from './profiles/evaluate-cases';
+export type { EvaluatedCase } from './profiles/evaluate-cases';
+export type { EvaluationEvent } from './profiles/evaluate-cases';
+export type { EvaluationType } from './profiles/evaluate-cases';
+export type { ManualCriterion } from './profiles/evaluate-cases';
+export type { PlayerEvaluationInput } from './profiles/evaluate-cases';
+export type { StoredCase } from './profiles/evaluate-cases';
+
+// profiles/evaluate-game.ts
+export type { BaselineUsed } from './profiles/evaluate-game';
+export type { EvaluationGame } from './profiles/evaluate-game';
+export type { EvaluationTeamGame } from './profiles/evaluate-game';
+export type { MeasuredValues } from './profiles/evaluate-game';
 
 // --- tracking/ -------------------------------------------------------------------
 
