@@ -95,10 +95,12 @@ async function touch(
 }
 
 /**
- * The answer to a token the server no longer knows: the account's last ending of every
- * session when the device logged in before it, expiry otherwise (IHM-08, operations.md §1.10).
+ * The answer to a token whose session expired unused, or that the server no longer knows
+ * since the purge deleted its row: the account's last ending of every session when the
+ * device logged in before it, expiry otherwise, so that the answer does not depend on when
+ * the purge ran (IHM-08, DSN-33, operations.md §1.10).
  */
-async function unknownToken(tx: Transaction, loggedInAt: EpochMs): Promise<SessionState> {
+async function lapsedToken(tx: Transaction, loggedInAt: EpochMs): Promise<SessionState> {
   const [ending] = await tx
     .select({ reason: accounts.allSessionsEndReason })
     .from(accounts)
@@ -110,9 +112,9 @@ async function unknownToken(tx: Transaction, loggedInAt: EpochMs): Promise<Sessi
 /**
  * The state of the session that the cookie value `value` names, in `tx` (TRV-62, IHM-08,
  * CL-IHM-10): an open session, which this use keeps open for `auth.sessionIdleDays` more;
- * an ended one with its reason, `expired` once unused beyond that duration; for a token the
+ * an ended one with its reason; for a session unused beyond that duration, or a token the
  * server no longer knows, the reason of the last ending of every session when the device
- * logged in before it, expiry otherwise; none for a value that names no session.
+ * logged in before it, `expired` otherwise; none for a value that names no session.
  */
 export async function sessionState(tx: Transaction, value: string): Promise<SessionState> {
   const { token, loggedInAt } = COOKIE_VALUE.exec(value)?.groups ?? {};
@@ -121,14 +123,11 @@ export async function sessionState(tx: Transaction, value: string): Promise<Sess
   }
   const tokenHash = hashOf(Buffer.from(token, TOKEN_ENCODING));
   const [row] = await tx.select().from(sessions).where(eq(sessions.tokenHash, tokenHash));
-  if (row === undefined) {
-    return unknownToken(tx, toEpochMs(Number(loggedInAt)));
-  }
-  if (row.endReason !== null) {
+  if (row !== undefined && row.endReason !== null) {
     return { state: 'ended', reason: row.endReason };
   }
-  return row.expiresAt.getTime() <= now()
-    ? EXPIRED
+  return row === undefined || row.expiresAt.getTime() <= now()
+    ? lapsedToken(tx, toEpochMs(Number(loggedInAt)))
     : { state: 'open', session: await touch(tx, row) };
 }
 
@@ -170,7 +169,7 @@ export async function endAllSessions(
  * operations.md §1.10 and §1.11): deletes the sessions past their idle expiry, an ended
  * session having kept its row and its token hash until then so that its device is told how
  * it ended, and the login failures older than `auth.loginFailureWindowMinutes`, which no
- * longer count. Returns how many rows it deleted.
+ * longer count (TRV-61, TRV-62). Returns how many rows it deleted.
  */
 export async function purgeExpired(
   tx: Transaction,

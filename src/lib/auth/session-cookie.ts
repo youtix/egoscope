@@ -16,7 +16,7 @@ const COOKIE_LIFETIME_SECONDS = 34_560_000;
 
 const ATTRIBUTES = { httpOnly: true, secure: true, sameSite: 'lax', path: '/' } as const;
 
-/** The session cookie the device sent, if any. */
+/** The session cookie the device sent, if any (TRV-58, TRV-62). */
 export async function readSessionCookie(): Promise<string | undefined> {
   const jar = await cookies();
   return jar.get(SESSION_COOKIE)?.value;
@@ -28,7 +28,7 @@ export async function writeSessionCookie(value: string): Promise<void> {
   jar.set(SESSION_COOKIE, value, { ...ATTRIBUTES, maxAge: COOKIE_LIFETIME_SECONDS });
 }
 
-/** Removes the device's session cookie, with the attributes its `__Host-` name requires. */
+/** Removes the device's session cookie at logout, with the attributes its `__Host-` name requires (TRV-62, IHM-08). */
 export async function clearSessionCookie(): Promise<void> {
   const jar = await cookies();
   jar.set(SESSION_COOKIE, '', { ...ATTRIBUTES, maxAge: 0 });

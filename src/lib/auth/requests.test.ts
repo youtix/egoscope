@@ -415,6 +415,20 @@ describe('logging in and the sessions of the devices', { timeout: 60_000 }, () =
     await expect(check(auth, phone)).resolves.toStrictEqual(ended('logged_out'));
   });
 
+  it('[IHM-08] [DSN-33] tells a device whose session had expired that every device was logged out, before and after the purge', async () => {
+    const auth = await instance();
+    const [phone, computer] = [device(), device('Computer')];
+    await chosenOn(auth, phone);
+    clock.advance(31 * DAY);
+    await logIn(auth, computer, CHOSEN);
+
+    await computer.request(async () => auth.logOut('all-devices'));
+
+    await expect(check(auth, phone)).resolves.toStrictEqual(ended('logged_out'));
+    await db.transaction(async (tx) => purgeExpired(tx, { now: toEpochMs(START + 31 * DAY) }));
+    await expect(check(auth, phone)).resolves.toStrictEqual(ended('logged_out'));
+  });
+
   it('[IHM-08] [IHM-11] answers expiry to a device that logged in after the last ending of every session', async () => {
     const auth = await instance();
     const phone = device();

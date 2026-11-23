@@ -150,9 +150,11 @@ export async function requireSession(
 /**
  * Replaces the password in `tx` for the device of the cookie `value`: every session ends
  * with `password_changed` and the device continues in a session opened at that instant,
- * so that its own login does not precede the change (TRV-60, operations.md §2.4).
+ * so that its own login does not precede the change (TRV-60, operations.md §2.4). The
+ * account's row is locked before the session is read, the order that logins and `endIn` follow.
  */
 async function replaceIn(tx: Transaction, value: string, change: Replacement) {
+  const account = await lockedAccount(tx);
   const state = await sessionState(tx, value);
   if (state.state !== 'open') {
     return err(NO_SESSION);
@@ -161,7 +163,7 @@ async function replaceIn(tx: Transaction, value: string, change: Replacement) {
   if (!isLongEnough(change.newPassword, minLength)) {
     return err({ kind: 'too-short', minLength } as const);
   }
-  const refusal = await change.refusal(await lockedAccount(tx));
+  const refusal = await change.refusal(account);
   if (refusal !== null) {
     return err(refusal);
   }
@@ -230,8 +232,13 @@ export async function changePassword(
   });
 }
 
-/** Ends the open session of the cookie `value` in `tx`, or every session, journaled (IHM-08). */
+/**
+ * Ends the open session of the cookie `value` in `tx`, or every session, journaled (IHM-08).
+ * The account's row is locked first, as logins and password changes lock it before they
+ * touch a session row, so that two endings at once take turns instead of deadlocking.
+ */
 async function endIn(tx: Transaction, value: string, scope: LogOutScope) {
+  await lockedAccount(tx);
   const state = await sessionState(tx, value);
   if (state.state !== 'open') {
     return err(NO_SESSION);

@@ -9,7 +9,7 @@ describe('password hashing', () => {
     const first = await hashPassword(PASSWORD);
     const second = await hashPassword(PASSWORD);
 
-    expect(first).toMatch(/^scrypt\$32768\$8\$1\$[\w-]{22}\$[\w-]{86}$/u);
+    expect(first).toMatch(/^scrypt\$32768\$8\$3\$[\w-]{22}\$[\w-]{86}$/u);
     expect(first).not.toContain(PASSWORD);
     expect(second).not.toBe(first);
   });

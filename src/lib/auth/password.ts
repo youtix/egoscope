@@ -5,11 +5,12 @@ import { promisify } from 'node:util';
 
 import type { BinaryLike, ScryptOptions } from 'node:crypto';
 
-// scrypt's cost (N = 2^15), block size and parallelism (RFC 7914), and twice the 32 MiB
-// they need as the memory ceiling, since Node refuses a computation that reaches it.
+// scrypt's cost (N = 2^15), block size and parallelism (RFC 7914), OWASP's minimum for
+// password storage at 32 MiB, and twice those 32 MiB as the memory ceiling, since Node
+// refuses a computation that reaches it.
 const COST = 32_768;
 const BLOCK_SIZE = 8;
-const PARALLELISM = 1;
+const PARALLELISM = 3;
 const MAX_MEMORY = 67_108_864;
 const KEY_BYTES = 64;
 const SALT_BYTES = 16;
