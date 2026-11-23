@@ -185,4 +185,21 @@ describe('the single account', { timeout: 60_000 }, () => {
     });
     await expect(readyDatabase()).resolves.toStrictEqual({ ok: true, value: db });
   });
+
+  it('[TRV-63] tries the check again at the next request after a check that throws', async () => {
+    const dropped = new Error('Connection terminated unexpectedly');
+    vi.spyOn(db, 'transaction').mockRejectedValueOnce(dropped);
+    const { readyDatabase } = await instance(FIRST_INITIAL);
+
+    const meanwhile = await Promise.allSettled([readyDatabase(), readyDatabase()]);
+
+    expect(meanwhile).toStrictEqual([
+      { status: 'rejected', reason: dropped },
+      { status: 'rejected', reason: dropped },
+    ]);
+    expect(harness.getDb).toHaveBeenCalledOnce();
+    await expect(readyDatabase()).resolves.toStrictEqual({ ok: true, value: db });
+    expect(harness.getDb).toHaveBeenCalledTimes(2);
+    await expect(account()).resolves.toMatchObject({ id: 1, passwordStatus: 'initial' });
+  });
 });

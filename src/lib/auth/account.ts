@@ -97,16 +97,27 @@ async function prepare(): Promise<Result<Database, ReadyError>> {
   return ensured.ok ? ok(database.db) : ensured;
 }
 
-/** Runs `work` once, the calls made meanwhile sharing its run, and again after a failure. */
+/**
+ * Runs `work` once, the calls made meanwhile sharing its run, and again after a failure:
+ * a run that returns an error or throws is forgotten before any caller sees its outcome.
+ */
 function onceUntilSuccess<T, E>(work: () => Promise<Result<T, E>>): () => Promise<Result<T, E>> {
   let pending: Promise<Result<T, E>> | undefined;
-  return async () => {
-    pending ??= work();
-    const result = await pending;
-    if (!result.ok) {
+  const run = async () => {
+    try {
+      const result = await work();
+      if (!result.ok) {
+        pending = undefined;
+      }
+      return result;
+    } catch (error) {
       pending = undefined;
+      throw error;
     }
-    return result;
+  };
+  return async () => {
+    pending ??= run();
+    return pending;
   };
 }
 
