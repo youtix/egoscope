@@ -3293,6 +3293,20 @@ The specs require these texts but do not quote them; the English below is the pr
 | Reminder with a case's category                                          | One case alone proves nothing.                                                                                                    | ALE-27            |
 | Detection confidence label                                               | Model self-assessment, not a probability.                                                                                         | DET-25            |
 | Home presentation at first launch                                        | Egoscope measures how followed players played after public events. It does not predict games or give betting advice.              | IHM-53            |
+| To-do consequence of "Press source down"                                 | Articles from this source are no longer collected.                                                                                | IHM-20, TRV-42    |
+| To-do consequence of "Collection impossible"                             | No article is collected until a source answers again.                                                                             | IHM-20, TRV-42    |
+| To-do consequence of "Silent press source"                               | Events that only this source reports may be missed.                                                                               | IHM-20, TRV-42    |
+| To-do consequence of "Add a collection time"                             | Articles published between two collection runs may be missed.                                                                     | IHM-20, TRV-42    |
+| To-do consequence of "Quota reached"                                     | The service stops working until this is resolved.                                                                                 | IHM-20, TRV-42    |
+| To-do consequence of "Quota warning"                                     | The service may stop working before its quota renews.                                                                             | IHM-20, TRV-42    |
+| To-do consequence of "Database volume warning"                           | The database may soon be full and stop accepting new data.                                                                        | IHM-20, TRV-42    |
+| To-do consequence of "Stats source unavailable"                          | Statistics are no longer updated.                                                                                                 | IHM-20, TRV-42    |
+| To-do consequence of "Stats source format changed"                       | The statistics file that changed is not read, so its figures are not updated.                                                     | IHM-20, TRV-42    |
+| To-do consequence of "Task not run"                                      | The task did not run, so its work is late.                                                                                        | IHM-20, TRV-42    |
+| To-do consequence of "Backup failed"                                     | Your data has no recent backup.                                                                                                   | IHM-20, TRV-42    |
+| To-do consequence of "Logins refused"                                    | Signing in is locked after repeated failures.                                                                                     | IHM-20, TRV-42    |
+| To-do consequence of "Telegram link broken"                              | Telegram messages are not delivered.                                                                                              | IHM-20, TRV-42    |
+| To-do consequence of "Export reminder"                                   | Your data has no recent full export.                                                                                              | IHM-20, TRV-42    |
 
 ### 7.7 One-sentence definitions shown in the application (IHM-15)
 

@@ -40,7 +40,7 @@ export const interfaceSentences = {
   incidentConsequenceCollectionImpossible: 'No article is collected until a source answers again.',
   incidentConsequencePressSourceSilent: 'Events that only this source reports may be missed.',
   incidentConsequenceFeedTooShort: 'Articles published between two collection runs may be missed.',
-  incidentConsequenceQuotaReached: 'The service stops working until its quota renews.',
+  incidentConsequenceQuotaReached: 'The service stops working until this is resolved.',
   incidentConsequenceQuotaWarning: 'The service may stop working before its quota renews.',
   incidentConsequenceDatabaseVolumeWarning:
     'The database may soon be full and stop accepting new data.',
@@ -51,7 +51,7 @@ export const interfaceSentences = {
   incidentConsequenceBackupFailed: 'Your data has no recent backup.',
   incidentConsequenceLoginsRefused: 'Signing in is locked after repeated failures.',
   incidentConsequenceTelegramLinkBroken: 'Telegram messages are not delivered.',
-  incidentConsequenceExportReminder: 'Your last full export is out of date.',
+  incidentConsequenceExportReminder: 'Your data has no recent full export.',
 
   // An area adds its groups below, one commented group per screen or task.
 } as const;

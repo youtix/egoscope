@@ -27,7 +27,7 @@ const CONSEQUENCES: readonly (readonly [IncidentKind, string])[] = [
   ['collection_impossible', 'No article is collected until a source answers again.'],
   ['press_source_silent', 'Events that only this source reports may be missed.'],
   ['feed_too_short', 'Articles published between two collection runs may be missed.'],
-  ['quota_reached', 'The service stops working until its quota renews.'],
+  ['quota_reached', 'The service stops working until this is resolved.'],
   ['quota_warning', 'The service may stop working before its quota renews.'],
   ['database_volume_warning', 'The database may soon be full and stop accepting new data.'],
   ['stats_source_unavailable', 'Statistics are no longer updated.'],
@@ -39,7 +39,7 @@ const CONSEQUENCES: readonly (readonly [IncidentKind, string])[] = [
   ['backup_failed', 'Your data has no recent backup.'],
   ['logins_refused', 'Signing in is locked after repeated failures.'],
   ['telegram_link_broken', 'Telegram messages are not delivered.'],
-  ['export_reminder', 'Your last full export is out of date.'],
+  ['export_reminder', 'Your data has no recent full export.'],
 ];
 
 describe('the to-do list', { timeout: 60_000 }, () => {
@@ -197,7 +197,7 @@ describe('the to-do list', { timeout: 60_000 }, () => {
       ]);
     });
 
-    it('[IHM-20] [TRV-37] leaves the Lot 2 causes out, hidden ones included, while Lot 1 is active', async () => {
+    it('[IHM-20] leaves the Lot 2 causes out, hidden ones included, while Lot 1 is active', async () => {
       const list = await todoList(db, 1);
 
       expect(list.sections[0]?.items.map((item) => item.incidentKind)).toStrictEqual([
@@ -207,11 +207,11 @@ describe('the to-do list', { timeout: 60_000 }, () => {
       expect(await todoCount(db, 1)).toBe(1);
     });
 
-    it('[IHM-20] [TRV-37] reads the active lot when none is given, which is Lot 1 by default', async () => {
+    it('[IHM-20] reads the active lot when none is given, which is Lot 1 by default', async () => {
       expect(await todoCount(db)).toBe(1);
     });
 
-    it('[IHM-20] [TRV-37] lists the Lot 2 causes when Lot 2 is active', async () => {
+    it('[IHM-20] lists the Lot 2 causes when Lot 2 is active', async () => {
       const list = await todoList(db, 2);
 
       expect(list.sections[0]?.items.map((item) => item.incidentKind)).toStrictEqual([
@@ -231,6 +231,7 @@ describe('the to-do list', { timeout: 60_000 }, () => {
       INCIDENT_KINDS.map((kind, index) => ({
         kind,
         causeKey: String(index),
+        serviceRole: kind === 'quota_reached' || kind === 'quota_warning' ? 'database' : null,
         quotaCauses: kind === 'quota_reached' ? ['limit_reached' as const] : [],
         openedAt: hoursBefore(100 - index),
       })),
