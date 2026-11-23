@@ -23,6 +23,7 @@ const SECOND_INITIAL = 'second-initial-meadow-violet';
 // Monday 23 November 2026, 10:00 Paris time, and an hour.
 const START = toEpochMs(Date.UTC(2026, 10, 23, 9));
 const HOUR = 3_600_000;
+const AN_HOUR_LATER = toEpochMs(START + HOUR);
 
 /** A new server instance, configured with `initialPassword` ('' for none). */
 async function instance(initialPassword: string) {
@@ -114,6 +115,35 @@ describe('the single account', { timeout: 60_000 }, () => {
       { endedAt: new Date(START), reason: 'reset' },
     ]);
     await expect(db.select().from(loginFailures)).resolves.toStrictEqual([]);
+  });
+
+  it('[TRV-63] [CA-TRV-33] resets only once: a new server instance on the same changed initial password keeps the owner password', async () => {
+    await ensure(FIRST_INITIAL);
+    await ensure(SECOND_INITIAL);
+    const chosen = await hashPassword('chosen-password-of-owner');
+    await db
+      .update(accounts)
+      .set({ passwordHash: chosen, passwordStatus: 'chosen' })
+      .where(eq(accounts.id, 1));
+    const afterReset = await account();
+    onTestFinished(installFakeClock(fixedClock(AN_HOUR_LATER)));
+
+    await ensure(SECOND_INITIAL);
+    await ensure(SECOND_INITIAL);
+    const later = await account();
+
+    expect(later).toMatchObject({
+      passwordHash: chosen,
+      passwordStatus: 'chosen',
+      allSessionsEndedAt: new Date(START),
+      allSessionsEndReason: 'reset',
+    });
+    expect(later?.initialPasswordFingerprint).toBe(afterReset?.initialPasswordFingerprint);
+    await expect(
+      isSamePassword(SECOND_INITIAL, later?.initialPasswordFingerprint ?? ''),
+    ).resolves.toBe(true);
+    const entries = await db.select().from(journalEntries);
+    expect(entries.map(({ messageKey }) => messageKey)).toStrictEqual(['password_reset']);
   });
 
   it('[TRV-63] [TRV-64] journals the reset without either password', async () => {
