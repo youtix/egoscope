@@ -65,8 +65,18 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
     });
   }
 
-  async function record(evidence: TeamEvidence) {
-    return db.transaction(async (tx) => recordTeamChange(tx, playerId, evidence));
+  /** The evidence as a test writes it, whose membership at the entry defaults to none. */
+  type EvidenceOfTest = TeamEvidence extends infer E
+    ? E extends unknown
+      ? Omit<E, 'membershipAtEntry'> & { membershipAtEntry?: number | null }
+      : never
+    : never;
+
+  /** Records the evidence; `membershipAtEntry` is none unless the test gives it, as for a player who has played no game. */
+  async function record(evidence: EvidenceOfTest) {
+    return db.transaction(async (tx) =>
+      recordTeamChange(tx, playerId, { membershipAtEntry: null, ...evidence }),
+    );
   }
 
   /** The owner enters `team` on day `entryDay`. */
@@ -204,7 +214,7 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
       await follow(x, 'observed');
 
       const result = await db.transaction(async (tx) =>
-        recordTeamChange(tx, UNKNOWN_PLAYER, { teamId: y, at: day(5) }),
+        recordTeamChange(tx, UNKNOWN_PLAYER, { teamId: y, at: day(5), membershipAtEntry: null }),
       );
 
       expect(result).toStrictEqual({ ok: false, error: 'player_not_found' });
@@ -454,7 +464,7 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
     });
 
     it('[CL-STA-27] records nothing when the file still gives the team he left, so it never takes the entry back', async () => {
-      const result = await record({ teamId: x, at: day(4) });
+      const result = await record({ teamId: x, at: day(4), membershipAtEntry: x });
 
       expect(result).toStrictEqual({ ok: true, value: { changed: false, judgment: null } });
       expect(await currentTeam()).toBe(y);
@@ -495,6 +505,54 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
 
       expect(result).toStrictEqual({ ok: true, value: { changed: true, judgment: 'verified' } });
       expect(await column('gameId')).toStrictEqual([null, null, firstGame]);
+    });
+
+    it('[CL-STA-27] never lets a file that still gives his last team before the entries take back the second of two entries', async () => {
+      await follow(x, 'observed');
+      await enter(2, y);
+      await enter(4, z);
+
+      const result = await record({ teamId: x, at: day(5), membershipAtEntry: x });
+
+      expect(result).toStrictEqual({ ok: true, value: { changed: false, judgment: null } });
+      expect(await currentTeam()).toBe(z);
+      expect(await history()).toStrictEqual([
+        { at: day(0), from: null, to: x, origin: 'observed', gameId: null },
+        { at: day(2), from: x, to: y, origin: 'entered', gameId: null },
+        { at: day(4), from: y, to: z, origin: 'entered', gameId: null },
+      ]);
+    });
+
+    it('[CL-STA-05] turns only the row of the addition observed on a same-team file read: an ordinary entered change stays entered', async () => {
+      await follow(x, 'observed');
+      await enter(2, y);
+
+      const result = await record({ teamId: y, at: day(4), membershipAtEntry: x });
+
+      expect(result).toStrictEqual({ ok: true, value: { changed: false, judgment: null } });
+      expect(await changeAt(1)).toStrictEqual({
+        at: day(2),
+        from: x,
+        to: y,
+        origin: 'entered',
+        gameId: null,
+      });
+    });
+
+    it('[CL-JOU-02] ignores a game older than the one that verified the entry, whatever the order they arrive in', async () => {
+      await follow(x, 'observed');
+      await enter(2, y);
+      await db
+        .update(games)
+        .set({ scheduledStartAt: new Date(day(5)) })
+        .where(eq(games.id, firstGame));
+      await record({ teamId: y, at: day(5), gameId: firstGame });
+
+      const result = await record({ teamId: z, at: day(4), gameId: secondGame });
+
+      expect(result).toStrictEqual({ ok: true, value: { changed: false, judgment: null } });
+      expect(await currentTeam()).toBe(y);
+      expect(await history()).toHaveLength(2);
     });
   });
 });

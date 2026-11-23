@@ -1,6 +1,6 @@
 import { desc, eq, sql } from 'drizzle-orm';
 
-import { followedPlayers, playerTeamChanges } from '@/lib/db';
+import { followedPlayers, games, playerTeamChanges } from '@/lib/db';
 import { record } from '@/lib/journal';
 import { err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
@@ -14,11 +14,12 @@ import type { EpochMs } from '@/lib/time';
 type EvidenceBase = Readonly<{
   /**
    * His membership at the entry instant as his box scores give it: the team of his last
-   * game played before it, none if he has played none. Players never reads box scores,
-   * so games passes it, and it is read only against the row written at the addition,
-   * which has no previous team of its own (CL-JOU-03).
+   * game played before the latest entry, none if he has played none. Players never reads
+   * box scores, so games passes it, always. A player file that still gives it never takes
+   * the entry back (CL-STA-27), and a first game for it, for the row written at the
+   * addition, which has no previous team of its own, voids that row (CL-JOU-03).
    */
-  membershipAtEntry?: number | null;
+  membershipAtEntry: number | null;
 }>;
 
 /** The team of a game he played, dated by that game's scheduled start (CL-JOU-02). */
@@ -49,7 +50,12 @@ async function findPlayer(
   tx: Transaction,
   playerId: string,
 ): Promise<FollowedPlayerRow | undefined> {
-  const [player] = await tx.select().from(followedPlayers).where(eq(followedPlayers.id, playerId));
+  // Locked, so that a games unit and the edit screen never both read a team before either writes.
+  const [player] = await tx
+    .select()
+    .from(followedPlayers)
+    .where(eq(followedPlayers.id, playerId))
+    .for('update');
   return player;
 }
 
@@ -64,6 +70,22 @@ async function latestChange(
     .orderBy(desc(playerTeamChanges.changedAt), desc(playerTeamChanges.id))
     .limit(1);
   return latest;
+}
+
+/**
+ * The instant after which evidence counts as recent: the latest change's, or the scheduled
+ * start of the game that verified it if later, since a verification leaves `changed_at` at
+ * the entry (CL-JOU-02).
+ */
+async function recencyInstant(tx: Transaction, latest: PlayerTeamChangeRow): Promise<number> {
+  const verifying =
+    latest.gameId === null
+      ? []
+      : await tx
+          .select({ start: games.scheduledStartAt })
+          .from(games)
+          .where(eq(games.id, latest.gameId));
+  return Math.max(latest.changedAt.getTime(), ...verifying.map((game) => game.start.getTime()));
 }
 
 /** Sets his current team; the row's version moves on, so that an open edit screen sees the change (CL-IHM-18). */
@@ -117,8 +139,6 @@ async function judge(
   evidence: TeamEvidence,
 ): Promise<TeamChangeOutcome | undefined> {
   const isAddition = isAdditionRow(entered, player);
-  // The team he left: for the row of the addition his membership then, else its previous team.
-  const left = isAddition ? (evidence.membershipAtEntry ?? null) : entered.previousTeamId;
   if (evidence.gameId === undefined) {
     if (isAddition && evidence.teamId === entered.newTeamId) {
       await tx
@@ -127,7 +147,8 @@ async function judge(
         .where(eq(playerTeamChanges.id, entered.id));
       return { changed: true, judgment: null };
     }
-    return evidence.teamId === left ? UNCHANGED : undefined;
+    // A file never takes an entry back: it still gives the team of his last game before it.
+    return evidence.teamId === evidence.membershipAtEntry ? UNCHANGED : undefined;
   }
   if (evidence.teamId === entered.newTeamId) {
     await tx
@@ -136,6 +157,8 @@ async function judge(
       .where(eq(playerTeamChanges.id, entered.id));
     return { changed: true, judgment: 'verified' };
   }
+  // The team he left: for the row of the addition his membership then, else its previous team.
+  const left = isAddition ? evidence.membershipAtEntry : entered.previousTeamId;
   await observe(tx, player, evidence);
   return { changed: true, judgment: evidence.teamId === left ? 'void' : 'unconfirmed' };
 }
@@ -148,8 +171,9 @@ async function judge(
  * recent than the latest recorded change and the team differs, so an older game changes
  * nothing whatever the order seasons are fetched in. The first game after an entered
  * change judges it, as the result says, so that games requests the calendar derivation
- * when it is `void` or `unconfirmed`; the row written at the addition is judged against
- * `membershipAtEntry`. The module writes player tables only (JOU-14), and the closed
+ * when it is `void` or `unconfirmed`; a player file that gives
+ * `membershipAtEntry` records nothing, and the row written at the addition is judged
+ * against it. The module writes player tables only (JOU-14), and the closed
  * list of the journal holds no message for an observed change, so it writes no entry.
  */
 export async function recordTeamChange(
@@ -162,7 +186,7 @@ export async function recordTeamChange(
     return err('player_not_found');
   }
   const latest = await latestChange(tx, playerId);
-  if (latest !== undefined && evidence.at <= latest.changedAt.getTime()) {
+  if (latest !== undefined && evidence.at <= (await recencyInstant(tx, latest))) {
     return ok(UNCHANGED);
   }
   const judged =
