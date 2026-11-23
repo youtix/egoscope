@@ -111,7 +111,7 @@ describe('[IMP-17] [CL-IMP-25] the HTTP adapter against the link-check contract,
 
   it.each(LINK_CHECK_CONTRACT)('$title', async (contractCase) => {
     const harness = {
-      linkCheck: createHttpLinkCheck({ lookup: unresolvable }),
+      linkCheck: createHttpLinkCheck({ lookup: unresolvable, allowedAddresses: ['127.0.0.1'] }),
       addressOf: (answer: LinkAnswer) => addressOnServer(base, answer),
     };
 

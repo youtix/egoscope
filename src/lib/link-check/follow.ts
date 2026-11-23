@@ -1,7 +1,7 @@
 // The rules every link-check adapter applies (CL-IMP-25): a GET of the address, up
 // to 5 redirects followed, the whole probe lasting the request's timeout at most,
 // then the verdict of the final answer. Each adapter only says how it sends one
-// request (`Hop`).
+// request (`Hop`), and may refuse to send it: a refused hop ends the probe.
 import { now } from '@/lib/time';
 
 import type { LinkCheckOutcome } from './port';
@@ -16,7 +16,9 @@ export type HopAnswer =
   /** The host name does not resolve. */
   | Readonly<{ kind: 'unresolved' }>
   /** No answer: a refused connection, a certificate failure, a timeout or an abort. */
-  | Readonly<{ kind: 'failed' }>;
+  | Readonly<{ kind: 'failed' }>
+  /** No request sent: the adapter refuses the address, which is not a public one (TRV-66). */
+  | Readonly<{ kind: 'refused' }>;
 
 /** Sends one GET of `address`, which `signal` can stop; a fake answers at once. */
 type Hop = (address: URL, signal: AbortSignal) => HopAnswer | Promise<HopAnswer>;
@@ -44,7 +46,8 @@ const REDIRECTS: ReadonlySet<number> = new Set([
   PERMANENT_REDIRECT,
 ]);
 const WEB_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:']);
-const NOT_A_WEB_ADDRESS: LinkProbe = { verdict: 'unreachable', status: null };
+// The verdict of an address never opened: not a web address, or one the adapter refuses.
+const NOT_OPENED: LinkProbe = { verdict: 'unreachable', status: null };
 
 const verdict = (value: LinkProbe, httpRequests: number): LinkCheckOutcome => ({
   ok: true,
@@ -111,6 +114,9 @@ async function follow(
     return aborted(made);
   }
   const answer = await hop(address, run.signal);
+  if (answer.kind === 'refused') {
+    return verdict(NOT_OPENED, made);
+  }
   const requests = made + 1;
   if (answer.kind !== 'answered') {
     return run.isCut() ? aborted(requests) : verdict(noAnswerVerdict(answer.kind), requests);
@@ -126,7 +132,9 @@ async function follow(
  * `not_found` for a 404, a 410 or a host name that does not resolve, `reachable` for
  * a success, `unreachable` for anything else, a timeout of the request's own
  * included. A probe that its call context stops, by its signal or by a deadline
- * nearer than the request's timeout, answers `aborted` instead.
+ * nearer than the request's timeout, answers `aborted` instead. A hop that `hop`
+ * refuses, the first or a redirect's, ends the probe `unreachable` with no status,
+ * and counts no request (TRV-66).
  */
 export async function probeThrough(
   hop: Hop,
@@ -135,6 +143,6 @@ export async function probeThrough(
 ): Promise<LinkCheckOutcome> {
   const address = webAddress(request.url);
   return address === undefined
-    ? verdict(NOT_A_WEB_ADDRESS, 0)
+    ? verdict(NOT_OPENED, 0)
     : follow(hop, runOf(ctx, request.timeoutMs), { address, made: 0 });
 }
