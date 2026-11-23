@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it, onTestFinished } from 'vitest';
 
 import { anonymize } from './anonymize-stats-source-fixtures';
-import { parseCsv, writeCsv } from './anonymize-stats-source-rows';
+import { anonymizer, parseCsv, writeCsv } from './anonymize-stats-source-rows';
 
 import type { RecordingPlan } from './anonymize-stats-source-fixtures';
 
@@ -49,12 +49,12 @@ const BOX_SCORES = [
   ['g4', '2026-11-15', '333', 'Octavian Brimblecombe', 'O. Brimblecombe', '9', '', '', '20'],
 ];
 const SCHEDULE = [
-  ['game_id', 'game_date', 'notes_headline', 'home_logo'],
-  ['g1', '2026-11-21', '', ''],
-  ['g2', '2026-11-10', '', ''],
-  ['g3', '2026-11-12', '', ''],
-  ['g4', '2026-11-15', '', ''],
-  ['g5', '2026-11-30', 'kept', ''],
+  ['game_id', 'uid', 'game_date', 'notes_headline', 'home_logo'],
+  ['g1', 's:40~l:46~e:g1~c:g1', '2026-11-21', '', ''],
+  ['g2', 's:40~l:46~e:g2~c:g2', '2026-11-10', '', ''],
+  ['g3', 's:40~l:46~e:g3~c:g3', '2026-11-12', '', ''],
+  ['g4', 's:40~l:46~e:g4~c:g4', '2026-11-15', '', ''],
+  ['g5', 's:40~l:46~e:g5~c:g5', '2026-11-30', 'kept', ''],
 ];
 const PLAYERS = [
   [
@@ -246,11 +246,55 @@ describe('the anonymizer of the recorded statistics-source fixtures', () => {
     ]);
   });
 
+  it('[TRV-15] keeps the game uid of every schedule row as recorded and invents no player for it', async () => {
+    const { originals, output } = foldersOf();
+    await anonymize(originals, output, PLAN);
+    expect(rowsOf(output, 'nba-schedule-2027.csv')).toStrictEqual([
+      SCHEDULE[0],
+      SCHEDULE[1],
+      SCHEDULE[2],
+      SCHEDULE[3],
+      SCHEDULE[5],
+    ]);
+    expect(rowsOf(output, 'player-core-2027.csv').map(([id = '']) => id)).toStrictEqual([
+      'athlete_id',
+      '9000001',
+      '9000002',
+    ]);
+  });
+
+  it('[TRV-15] blanks the player columns of a row without a player id, and gives the next player the first invented id', () => {
+    const anonymized = anonymizer('2026-11-22');
+    const header = ['athlete_id', 'display_name', 'uid', 'date_of_birth'];
+    expect(
+      anonymized({
+        header,
+        rows: [
+          ['', 'Zebulon Quartermaine', 's:40~l:46~a:111', '1998-03-04T08:00Z'],
+          ['222', 'Ignatius Fernsby', 's:40~l:46~a:222', ''],
+        ],
+      }),
+    ).toStrictEqual({
+      header,
+      rows: [
+        ['', '', '', ''],
+        ['9000001', 'Aran Braven', 's:40~l:46~a:9000001', ''],
+      ],
+    });
+    expect(
+      anonymized({
+        header: ['espn_athlete_id', 'espn_full_name'],
+        rows: [['', 'Octavian Brimblecombe']],
+      }).rows,
+    ).toStrictEqual([['', '']]);
+  });
+
   it('[TRV-15] removes every file it wrote and fails when a real name or a headshot address is left in one', async () => {
     const schedule = [
       ...SCHEDULE,
       [
         'g6',
+        's:40~l:46~e:g6~c:g6',
         '2026-12-01',
         'kept: Zebulon Quartermaine returns',
         'https://cdn.example/i/headshots/logo.png',

@@ -253,29 +253,27 @@ function ageOn(birthDate: string, day: string): string {
   return String(monthDay(day) < monthDay(birthDate) ? years - 1 : years);
 }
 
-/** How each person column is rewritten, a player's ages counted on `recordedOn`. */
-function rewritesOf(people: Pseudonyms, recordedOn: string): ReadonlyMap<string, Rewrite> {
-  const athlete = (row: Row): Person => people.person(row('athlete_id'));
-  const named: Rewrite = (value, row) =>
-    value === '' ? '' : fullName(people.person(row('espn_athlete_id')));
-  const remapped =
-    (provider: Provider): Rewrite =>
-    (value) =>
-      people.provider(provider, value);
-  return new Map<string, Rewrite>([
-    ['athlete_id', (value) => people.person(value).id],
-    ['espn_athlete_id', (value) => (value === '' ? '' : people.person(value).id)],
+/** Blanks a value. */
+const blank: Rewrite = () => '';
+
+/** The column that names a row's player in the player files: a table without it holds no player. */
+const PLAYER_COLUMN = 'athlete_id';
+
+/**
+ * How each column that describes the row's own player is rewritten, a player's ages
+ * counted on `recordedOn`. These columns are rewritten only in the tables that carry
+ * the player's `athlete_id`: elsewhere, as in the schedules, a column of the same name
+ * (`uid`) describes a game and stays as recorded (evaluation, section 13). A row with
+ * no player id invents no player: its player columns are blanked.
+ */
+function playerRewritesOf(people: Pseudonyms, recordedOn: string): ReadonlyMap<string, Rewrite> {
+  const athlete = (row: Row): Person => people.person(row(PLAYER_COLUMN));
+  const rewrites = new Map<string, Rewrite>([
     ...['athlete_display_name', 'full_name', 'display_name'].map(
       (column) => [column, (_: string, row: Row) => fullName(athlete(row))] as const,
     ),
     ...['athlete_short_name', 'short_name'].map(
       (column) => [column, (_: string, row: Row) => shortName(athlete(row))] as const,
-    ),
-    ...['player_name', 'espn_full_name', 'nba_player_name', 'fox_player', 'yahoo_player_name'].map(
-      (column) => [column, named] as const,
-    ),
-    ...(['nba_player_id', 'fox_athlete_id', 'yahoo_player_id'] as const).map(
-      (provider) => [provider, remapped(provider)] as const,
     ),
     ['first_name', (_, row) => athlete(row).first],
     ['last_name', (_, row) => athlete(row).last],
@@ -284,12 +282,38 @@ function rewritesOf(people: Pseudonyms, recordedOn: string): ReadonlyMap<string,
     ['guid', (_, row) => guidOf(athlete(row))],
     ['date_of_birth', (value, row) => birthDateOf(athlete(row), value)],
     ['age', (_, row) => ageOn(birthDateOf(athlete(row), row('date_of_birth')), recordedOn)],
+  ]);
+  return new Map(
+    Array.from(rewrites, ([column, rewrite]) => [
+      column,
+      (value: string, row: Row) => (row(PLAYER_COLUMN) === '' ? '' : rewrite(value, row)),
+    ]),
+  );
+}
+
+/** How each other column is rewritten: the ids of the players and of the other providers, the names of the crosswalk, the free text. */
+function otherRewritesOf(people: Pseudonyms): ReadonlyMap<string, Rewrite> {
+  const invented: Rewrite = (value) => (value === '' ? '' : people.person(value).id);
+  const named: Rewrite = (value, row) => {
+    const athleteId = row('espn_athlete_id');
+    return value === '' || athleteId === '' ? '' : fullName(people.person(athleteId));
+  };
+  const remapped =
+    (provider: Provider): Rewrite =>
+    (value) =>
+      people.provider(provider, value);
+  return new Map<string, Rewrite>([
+    [PLAYER_COLUMN, invented],
+    ['espn_athlete_id', invented],
+    ...['player_name', 'espn_full_name', 'nba_player_name', 'fox_player', 'yahoo_player_name'].map(
+      (column) => [column, named] as const,
+    ),
+    ...(['nba_player_id', 'fox_athlete_id', 'yahoo_player_id'] as const).map(
+      (provider) => [provider, remapped(provider)] as const,
+    ),
     ['highlights', (value) => (value === '' ? '' : '[]')],
   ]);
 }
-
-/** Blanks a value. */
-const blank: Rewrite = () => '';
 
 /**
  * What rewrites the tables of one recording: every row anonymized, its header
@@ -297,10 +321,15 @@ const blank: Rewrite = () => '';
  * counted on `recordedOn` (evaluation, section 13).
  */
 export function anonymizer(recordedOn: string): (table: Table) => Table {
-  const rewrites = rewritesOf(new Pseudonyms(), recordedOn);
+  const people = new Pseudonyms();
+  const playerRewrites = playerRewritesOf(people, recordedOn);
+  const otherRewrites = otherRewritesOf(people);
   return ({ header, rows }) => {
     const read = readerOf(header);
-    const byPlace = header.map((column) => (BLANKED.has(column) ? blank : rewrites.get(column)));
+    const hasPlayers = header.includes(PLAYER_COLUMN);
+    const rewriteOf = (column: string): Rewrite | undefined =>
+      (hasPlayers ? playerRewrites.get(column) : undefined) ?? otherRewrites.get(column);
+    const byPlace = header.map((column) => (BLANKED.has(column) ? blank : rewriteOf(column)));
     return {
       header,
       rows: rows.map((fields) =>
