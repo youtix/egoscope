@@ -38,7 +38,8 @@ const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/
 
 /**
  * A name or variant as two of them are compared (CL-JOU-13, JOU-09): Unicode NFC,
- * trimmed, inner runs of spaces collapsed to one, case folded; accents and other
+ * trimmed, inner runs of spaces collapsed to one, case folded by `toLowerCase` (a
+ * lowercasing, not Unicode full case folding: a final sigma stays apart); accents and other
  * diacritics stay significant, so "Josué" and "Josue" remain two variants.
  */
 export function normalizeName(name: string): string {
@@ -128,7 +129,7 @@ export type PlayerListQuery = Readonly<{
   status?: PlayerStatus;
   /** A part of a display name or a variant, compared after normalization (CL-JOU-13). */
   search?: string;
-  /** From 1, the first page when left out. */
+  /** From 1: the first page when left out or not a whole number of at least 1. */
   page?: number;
 }>;
 
@@ -150,13 +151,19 @@ function matchingName(search: string): SQL | undefined {
       );
 }
 
+/** `page` when it is a whole number of at least 1, the first page otherwise (IHM-18). */
+function pageNumber(page: number | undefined): number {
+  return page !== undefined && Number.isSafeInteger(page) && page >= FIRST_PAGE ? page : FIRST_PAGE;
+}
+
 /**
  * A page of the follow list in name order, `display.listPageSize` players a page
  * (IHM-18): filtered by status, the active players by default, and searched by name on
  * the normalized display name and variants (JOU-28, CL-JOU-13). Two queries.
  */
 export async function list(db: Reader, query: PlayerListQuery = {}): Promise<PlayerListPage> {
-  const { status = DEFAULT_LIST_STATUS, search = '', page = FIRST_PAGE } = query;
+  const { status = DEFAULT_LIST_STATUS, search = '' } = query;
+  const page = pageNumber(query.page);
   const pageSize = await getParam(db, 'display.listPageSize');
   const rows = await db
     .select({

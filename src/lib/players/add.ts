@@ -14,8 +14,8 @@ import type { NameVariantKind, SharedVariant } from './queries';
 import type { Transaction } from '@/lib/db';
 import type { Result } from '@/lib/result';
 
-// The transaction lock that an addition holds from its count of the active players to
-// its insert, so that two additions at once cannot both pass the maximum (JOU-05).
+// The transaction lock that an addition or a reactivation holds from its count of the
+// active players to its write, so that two at once cannot both pass the maximum (JOU-05).
 const ACTIVE_PLAYERS_LOCK = 'egoscope.active-players';
 
 /** A variant typed at addition (JOU-08, JOU-09). */
@@ -114,9 +114,19 @@ async function validTeam(
     : err(fields);
 }
 
+/**
+ * Takes, in the caller's transaction `tx`, the lock that every change raising the active
+ * count holds from its count to its write until `tx` ends, so that two at once cannot
+ * both take the last place under `players.maxActive` (JOU-04, JOU-05): an addition here,
+ * a reactivation in the status operations.
+ */
+export async function lockActivePlayers(tx: Transaction): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${ACTIVE_PLAYERS_LOCK}))`);
+}
+
 /** The refusal of a full list, or none while fewer players than the maximum are active (JOU-04, JOU-05). */
 async function fullList(tx: Transaction): Promise<AddRefusal | undefined> {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${ACTIVE_PLAYERS_LOCK}))`);
+  await lockActivePlayers(tx);
   const maxActive = await getParam(tx, 'players.maxActive');
   return (await activeCount(tx)) < maxActive
     ? undefined

@@ -178,6 +178,24 @@ describe('the players read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     expect(second.players.map(({ displayName }) => displayName)).toStrictEqual(['Player 10']);
   });
 
+  it('[IHM-18] gives the first page for a page number that is not a whole number of at least 1', async () => {
+    await db.transaction(async (tx) =>
+      setParam(tx, { key: 'display.listPageSize', value: 10, expectedVersion: 0 }),
+    );
+    const names = Array.from({ length: 11 }, (_, n) => `Player ${String(n)}`);
+    for (const name of names) {
+      await follow(name);
+    }
+    const first = await list(db);
+
+    const pages = await Promise.all(
+      [0, -1, 1.5, NaN, Infinity].map(async (page) => list(db, { page })),
+    );
+
+    expect(pages).toStrictEqual(Array.from({ length: 5 }, () => first));
+    expect(first).toMatchObject({ page: 1, hasNextPage: true });
+  });
+
   it('[JOU-08] [CL-IHM-18] gets a player with his identity, variants, team, birthday, declined suggestion and version', async () => {
     const team = await insertTeam('HBG', 'Harbor Gulls');
     const declinedAt = START - DAY;

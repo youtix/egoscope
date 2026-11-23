@@ -17,12 +17,12 @@ import { setParam } from '@/lib/params';
 import { DATABASE_TEST_TIMEOUT_MS, insertPlayer } from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
-import { add } from './add';
+import { add, lockActivePlayers } from './add';
 import { activeCount, get } from './queries';
 
 import type { NewPlayer } from './add';
 import type { PlayerStatus } from './queries';
-import type { Database } from '@/lib/db';
+import type { Database, Transaction } from '@/lib/db';
 
 const START = toEpochMs(Date.UTC(2026, 10, 23, 9, 0));
 // A random UUID, version 4, as Postgres generates them.
@@ -43,6 +43,8 @@ const tableName = z.object({ name: z.string() });
 const tableCount = z.object({ name: z.string(), count: z.number() });
 const tableNames = z.object({ rows: z.array(tableName) });
 const tableCounts = z.object({ rows: z.array(tableCount) });
+const heldLock = z.object({ classid: z.string(), objid: z.string(), objsubid: z.number() });
+const heldLocks = z.object({ rows: z.array(heldLock) });
 
 describe('the addition of a followed player', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
@@ -109,7 +111,42 @@ describe('the addition of a followed player', { timeout: DATABASE_TEST_TIMEOUT_M
     return new Map(tableCounts.parse(counted).rows.map(({ name, count }) => [name, count]));
   }
 
-  it('[JOU-04] [JOU-05] refuses a 31st active player with the maximum in force and the three ways out', async () => {
+  /** The advisory locks that the session holds, by key. */
+  async function advisoryLocks(reader: Database | Transaction) {
+    return heldLocks.parse(
+      await reader.execute(
+        sql`select classid::text as classid, objid::text as objid, objsubid::int as objsubid from pg_locks where locktype = 'advisory' order by 1, 2, 3`,
+      ),
+    ).rows;
+  }
+
+  it('[JOU-05] holds the lock of the active count until the caller commits, the same one that lockActivePlayers takes, a refused addition too', async () => {
+    const shared = await db.transaction(async (tx) => {
+      await lockActivePlayers(tx);
+      return advisoryLocks(tx);
+    });
+    const afterAdded = await db.transaction(async (tx) => {
+      await add(tx, newPlayer('Ansel Varga'));
+      return advisoryLocks(tx);
+    });
+    const afterCommit = await advisoryLocks(db);
+    const afterInvalid = await db.transaction(async (tx) => {
+      await add(tx, newPlayer(' '));
+      return advisoryLocks(tx);
+    });
+    await followMany(29, 'active');
+    const afterFull = await db.transaction(async (tx) => {
+      const refused = await add(tx, newPlayer('Bram Okafor'));
+      return { refused, locks: await advisoryLocks(tx) };
+    });
+
+    expect(shared).toHaveLength(1);
+    expect([afterAdded, afterCommit, afterInvalid]).toStrictEqual([shared, [], shared]);
+    expect(afterFull).toStrictEqual({ refused: FULL_LIST, locks: shared });
+    expect(await advisoryLocks(db)).toStrictEqual([]);
+  });
+
+  it('[JOU-04] [JOU-05] [CA-JOU-02] refuses a 31st active player with the maximum in force and the three ways out', async () => {
     await followMany(30, 'active');
 
     expect(await addPlayer(newPlayer('Ansel Varga'))).toStrictEqual(FULL_LIST);
