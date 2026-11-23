@@ -51,11 +51,11 @@ async function open(): Promise<IDBDatabase> {
 }
 
 /** Runs `work` on one store and closes the database when it settles. */
-async function withStore(
+async function withStore<T>(
   name: string,
   mode: IDBTransactionMode,
-  work: (store: IDBObjectStore) => IDBRequest<unknown>,
-): Promise<unknown> {
+  work: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
   const database = await open();
   try {
     return await settled(work(database.transaction(name, mode).objectStore(name)));
@@ -64,32 +64,35 @@ async function withStore(
   }
 }
 
-/** Says whether `value` is a record of an object store, which only this module writes. */
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null;
-}
-
 /** The retention a contact record holds, `null` when it holds none. */
-function retentionOf(contact: Readonly<Record<string, unknown>>): number | null {
-  return typeof contact.retentionDays === 'number' ? contact.retentionDays : null;
+function retentionOf(contact: object): number | null {
+  return 'retentionDays' in contact && typeof contact.retentionDays === 'number'
+    ? contact.retentionDays
+    : null;
 }
 
 /** Says whether a record of the copies store is a device copy. */
 function isCopy(value: unknown): value is DeviceCopy {
-  return isRecord(value) && typeof value.key === 'string' && typeof value.text === 'string';
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'key' in value &&
+    typeof value.key === 'string' &&
+    'text' in value &&
+    typeof value.text === 'string'
+  );
 }
 
 /** The device copy under `key`, or `undefined` (IHM-42). */
 export async function readCopy(key: string): Promise<DeviceCopy | undefined> {
-  const copy = await withStore(COPIES, 'readonly', (store) => store.get(key));
+  const copy = await withStore<unknown>(COPIES, 'readonly', (store) => store.get(key));
   return isCopy(copy) ? copy : undefined;
 }
 
 /** Every device copy (CL-DSN-22). */
 export async function listCopies(): Promise<DeviceCopy[]> {
-  const copies = await withStore(COPIES, 'readonly', (store) => store.getAll());
-  // getAll gives an array of the records, which flat() spreads.
-  return [copies].flat().filter((copy) => isCopy(copy));
+  const copies = await withStore<unknown[]>(COPIES, 'readonly', (store) => store.getAll());
+  return copies.filter((copy) => isCopy(copy));
 }
 
 /** Keeps `copy` on the device, replacing the copy of its key (IHM-42). */
@@ -104,8 +107,11 @@ export async function deleteCopy(key: string): Promise<void> {
 
 /** What the device last received from the server, `undefined` before any contact (CL-DSN-22). */
 export async function readContact(): Promise<DeviceContact | undefined> {
-  const contact = await withStore(CONTACT, 'readonly', (store) => store.get(LAST_CONTACT));
-  return isRecord(contact) && typeof contact.withdrawnEventCount === 'number'
+  const contact = await withStore<unknown>(CONTACT, 'readonly', (store) => store.get(LAST_CONTACT));
+  return typeof contact === 'object' &&
+    contact !== null &&
+    'withdrawnEventCount' in contact &&
+    typeof contact.withdrawnEventCount === 'number'
     ? { withdrawnEventCount: contact.withdrawnEventCount, retentionDays: retentionOf(contact) }
     : undefined;
 }
