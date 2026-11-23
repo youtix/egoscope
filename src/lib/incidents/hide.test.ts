@@ -1,7 +1,7 @@
 import { asc } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 
-import { createTestDatabase, incidents, journalEntries } from '@/lib/db';
+import { createTestDatabase, journalEntries } from '@/lib/db';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { hide } from './hide';
@@ -91,14 +91,10 @@ describe('hiding an incident', { timeout: 60_000 }, () => {
     await expect(hiddenCount(db)).resolves.toBe(0);
   });
 
-  it('names an incident of another kind by its kind alone, and calls a quota incident without its service a bug', async () => {
+  it('names an incident of another kind by its kind alone', async () => {
     await opened(BACKUP);
-    await db.insert(incidents).values({ kind: 'quota_warning', causeKey: 'database' });
 
     await expect(hidden(1)).resolves.toMatchObject({ ok: true });
-    await expect(hidden(2)).rejects.toThrow(
-      'The quota_warning incident holds no service, which open always stores.',
-    );
     await expect(journaled()).resolves.toStrictEqual([
       { messageKey: 'incident_opened', params: { incident: { kind: 'backup_failed' } } },
       { messageKey: 'incident_hidden', params: { incident: { kind: 'backup_failed' } } },

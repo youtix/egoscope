@@ -71,8 +71,11 @@ describe('the incidents table', { timeout: 60_000 }, () => {
     await db
       .insert(incidents)
       .values([
-        ...kinds.filter((kind) => kind !== 'quota_reached').map((kind) => ({ kind })),
-        { kind: 'quota_reached', quotaCauses: ['limit_reached'] },
+        ...kinds
+          .filter((kind) => kind !== 'quota_reached' && kind !== 'quota_warning')
+          .map((kind) => ({ kind })),
+        { kind: 'quota_warning', serviceRole: 'database' },
+        { kind: 'quota_reached', serviceRole: 'database', quotaCauses: ['limit_reached'] },
       ]);
 
     const stored = await db.select({ kind: incidents.kind }).from(incidents);
@@ -115,12 +118,19 @@ describe('the incidents table', { timeout: 60_000 }, () => {
 
   it('[CL-TRV-11] names the causes of a quota reached, of the glossary, and on no other kind', async () => {
     const causes = ['limit_reached', 'refused_before_limit', 'not_answering'] as const;
-    await db.insert(incidents).values({ kind: 'quota_reached', quotaCauses: [...causes] });
-
-    const unknown = db
+    await db
       .insert(incidents)
-      .values({ kind: 'quota_reached', causeKey: 'groq', quotaCauses: sql`ARRAY['over_budget']` });
-    const without = db.insert(incidents).values({ kind: 'quota_reached', causeKey: 'groq' });
+      .values({ kind: 'quota_reached', serviceRole: 'language_model', quotaCauses: [...causes] });
+
+    const unknown = db.insert(incidents).values({
+      kind: 'quota_reached',
+      causeKey: 'groq',
+      serviceRole: 'language_model',
+      quotaCauses: sql`ARRAY['over_budget']`,
+    });
+    const without = db
+      .insert(incidents)
+      .values({ kind: 'quota_reached', causeKey: 'groq', serviceRole: 'language_model' });
     const elsewhere = db
       .insert(incidents)
       .values({ kind: 'backup_failed', quotaCauses: ['limit_reached'] });
@@ -131,6 +141,37 @@ describe('the incidents table', { timeout: 60_000 }, () => {
     await expect(unknown).rejects.toMatchObject(violationOf('incidents_quota_causes_check'));
     await expect(without).rejects.toMatchObject(violationOf('incidents_quota_reached_check'));
     await expect(elsewhere).rejects.toMatchObject(violationOf('incidents_quota_reached_check'));
+  });
+
+  it('[TRV-09] requires the service of a quota incident, and of no other kind', async () => {
+    const quotaCauses = ['limit_reached' as const];
+    const warningWithout = db.insert(incidents).values({ kind: 'quota_warning' });
+    const reachedWithout = db.insert(incidents).values({ kind: 'quota_reached', quotaCauses });
+
+    await expect(warningWithout).rejects.toMatchObject(
+      violationOf('incidents_quota_service_role_check'),
+    );
+    await expect(reachedWithout).rejects.toMatchObject(
+      violationOf('incidents_quota_service_role_check'),
+    );
+
+    await db
+      .insert(incidents)
+      .values([
+        { kind: 'quota_warning', serviceRole: 'hosting' },
+        { kind: 'quota_reached', serviceRole: 'hosting', quotaCauses },
+        { kind: 'backup_failed' },
+        { kind: 'database_volume_warning', serviceRole: 'database' },
+      ]);
+
+    await expect(
+      db.select({ kind: incidents.kind }).from(incidents).orderBy(incidents.id),
+    ).resolves.toStrictEqual([
+      { kind: 'quota_warning' },
+      { kind: 'quota_reached' },
+      { kind: 'backup_failed' },
+      { kind: 'database_volume_warning' },
+    ]);
   });
 
   it('closes an incident with the instant it closed, and only then', async () => {

@@ -1,0 +1,1 @@
+ALTER TABLE "incidents" ADD CONSTRAINT "incidents_quota_service_role_check" CHECK (NOT ("incidents"."kind" IN ('quota_reached', 'quota_warning')) OR "incidents"."service_role" IS NOT NULL);

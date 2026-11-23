@@ -78,6 +78,57 @@ describe('serviceStatuses', () => {
     ]);
   });
 
+  // What an open incident of each kind says of a service, written by hand from TRV-46 and
+  // the glossary (9.2): the one service it concerns and its status, or no service at all.
+  const EFFECTS_BY_KIND: readonly (readonly [
+    IncidentKind,
+    ServiceRole | null,
+    ServiceStatus | null,
+  ])[] = [
+    ['database_volume_warning', 'database', 'degraded'],
+    ['stats_source_unavailable', 'stats_source', 'unavailable'],
+    ['stats_source_schema_changed', 'stats_source', 'degraded'],
+    ['backup_failed', 'backup_storage', 'unavailable'],
+    ['telegram_link_broken', 'notifications', 'unavailable'],
+    ['collection_impossible', 'news_feeds', 'unavailable'],
+    ['press_source_down', 'news_feeds', 'degraded'],
+    ['press_source_silent', 'news_feeds', 'degraded'],
+    ['feed_too_short', 'news_feeds', 'degraded'],
+    ['task_not_run', null, null],
+    ['logins_refused', null, null],
+    ['export_reminder', null, null],
+  ];
+
+  /** The statuses of every service with `service` at `status` and the rest normal. */
+  const only = (service: ServiceRole | null, status: ServiceStatus | null) =>
+    SERVICES.map((each) => ({ service: each, status: each === service ? status : 'normal' }));
+
+  it('[TRV-46] tables the effects of exactly the kinds of the glossary, the quota kinds apart', () => {
+    const tabled = [...EFFECTS_BY_KIND.map(([kind]) => kind), 'quota_reached', 'quota_warning'];
+
+    expect(tabled).toHaveLength(INCIDENT_KINDS.length);
+    expect(new Set(tabled)).toStrictEqual(new Set(INCIDENT_KINDS));
+  });
+
+  it.each(EFFECTS_BY_KIND)(
+    '[TRV-46] lets an open %s incident alone say %s is %s and every other service normal',
+    (kind, service, status) => {
+      expect(serviceStatuses([incident(kind)])).toStrictEqual(only(service, status));
+    },
+  );
+
+  it.each([
+    ['quota_reached', 'unavailable'],
+    ['quota_warning', 'degraded'],
+  ] as const)(
+    '[TRV-46] [TRV-09] lets an open %s incident alone say its own service is %s, whichever it is',
+    (kind, status) => {
+      for (const service of SERVICES) {
+        expect(serviceStatuses([incident(kind, service)])).toStrictEqual(only(service, status));
+      }
+    },
+  );
+
   it('[TRV-46] lets a missed task, refused logins, the export reminder and a quota incident without its service leave every service normal', () => {
     expect(
       serviceStatuses([
