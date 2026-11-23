@@ -27,6 +27,8 @@ const RAW_DIGITS = 9;
 // A gap is shown with two decimals, a baseline's mean and deviation with three (CL-STA-09).
 const GAP_DIGITS = 2;
 const BASELINE_DIGITS = 3;
+// The grid of the property below, in steps per unit: 2 to the power 10.
+const GRID = 1024;
 
 // CA-STA-02: the ten usable games of a finished season, the measured game left out.
 const CA_STA_02_INDICES = [0.42, 0.55, 0.61, 0.48, 0.7, 0.52, 0.66, 0.39, 0.58, 0.63];
@@ -107,16 +109,34 @@ describe('normalizedGap', () => {
     expect(gap.gapStatus).toBe(gapStatus);
   });
 
+  it('[SEN-08] [SEN-09] gives -0 for an index one subnormal step under a subnormal mean', () => {
+    // The difference is one subnormal step, and dividing it by 2 underflows to -0, which is
+    // the correct IEEE 754 result: the sign of the gap is not -1 there, and a property about
+    // signs holds only for numbers far from this edge.
+    const gap = normalizedGap(7e-323, { status: 'final', mean: 7.4e-323, standardDeviation: 2 });
+
+    expect(gap.normalizedGap).toBe(-0);
+    expect(gap.gapStatus).toBe('final');
+  });
+
   it('[SEN-08] [SEN-09] measures the index from the mean in deviations, above as below it, unrounded', () => {
+    // A performance index, a mean and a deviation come from sums and ratios of box-score
+    // statistics: finite numbers far from the subnormal range. So the test draws them in
+    // steps of 1/1024, which a double holds exactly: every difference is exact, and a
+    // difference other than zero is at least 1/1024, so its quotient by a deviation of 2
+    // at most never underflows and keeps the sign of the difference.
+    const step = 1 / GRID;
+    const onGrid = (min: number, max: number): fc.Arbitrary<number> =>
+      fc.integer({ min: Math.round(min * GRID), max: Math.round(max * GRID) }).map((n) => n * step);
     const baseline = fc.record({
       status: fc.constantFrom<GapBaseline['status']>('final', 'provisional'),
-      mean: fc.double({ min: 0, max: 3, noNaN: true }),
-      standardDeviation: fc.double({ min: 0.01, max: 2, noNaN: true }),
+      mean: onGrid(0, 3),
+      standardDeviation: onGrid(0.01, 2),
     });
 
     fc.assert(
       fc.property(
-        fc.double({ min: 0, max: 3, noNaN: true }),
+        onGrid(0, 3),
         baseline,
         (performanceIndex, { status, mean, standardDeviation }) => {
           const gap = normalizedGap(performanceIndex, { status, mean, standardDeviation });
