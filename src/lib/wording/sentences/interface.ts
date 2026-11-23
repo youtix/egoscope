@@ -24,5 +24,15 @@ export const interfaceSentences = {
   noAlertYet: 'an alert is produced when a profiled player has a new event',
   noPressSource: 'detection cannot work',
 
+  // The figures of ui/figures: the split of the valid cases by origin, "7 valid cases:
+  // 5 historical, 2 tracked", which names only the origins that hold cases (IHM-46,
+  // CL-IHM-24); the active filter of a profile list and its total, '3 "probable"
+  // profiles of 41' (IHM-49); the link of the short notice (IHM-50, IHM-69)
+  bothOrigins: '{k} valid {k|case|cases}: {historical} historical, {tracked} tracked',
+  historicalOnly: '{k} valid {k|case|cases}: {k} historical',
+  trackedOnly: '{k} valid {k|case|cases}: {k} tracked',
+  filterSummary: '{k} "{filter}" {k|profile|profiles} of {total}',
+  methodAndLimits: 'Method and limits',
+
   // An area adds its groups below, one commented group per screen or task.
 } as const;

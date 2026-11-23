@@ -5,6 +5,7 @@ import { LinkButton, PageHeader } from '@/lib/ui';
 import { ButtonSamples, NoticeSamples, TextSamples } from './action-samples';
 import { BlockSamples, ListSamples } from './content-samples';
 import { DialogSamples, PasteSample } from './dialog-samples';
+import { FigureSamples } from './figure-samples';
 import { ChangedElsewhereSample, FieldsSample } from './form-samples';
 
 import type { ReactNode } from 'react';
@@ -63,6 +64,9 @@ export function Gallery(): ReactNode {
       </Section>
       <Section title="Lists">
         <ListSamples />
+      </Section>
+      <Section title="Figures">
+        <FigureSamples />
       </Section>
     </main>
   );

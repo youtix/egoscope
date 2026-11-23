@@ -30,6 +30,7 @@ describe('Gallery', () => {
       'Notices',
       'Blocks',
       'Lists',
+      'Figures',
     ]);
   });
 

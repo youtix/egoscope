@@ -1,7 +1,14 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { formatCount, formatGap, formatIndex, formatShare } from './numbers';
+import {
+  formatChanceShare,
+  formatCount,
+  formatExpectedCount,
+  formatGap,
+  formatIndex,
+  formatShare,
+} from './numbers';
 
 const MINUS = '\u{2212}';
 // What people read: an optional sign, digits grouped by thousands, the decimals.
@@ -230,6 +237,76 @@ describe('number formats', () => {
       expect(() => formatShare(3, 2)).toThrow(RangeError);
       expect(() => formatShare(-1, 5)).toThrow(RangeError);
       expect(() => formatShare(1.5, 3)).toThrow(RangeError);
+    });
+  });
+
+  describe('what chance alone would give', () => {
+    // 2 × (1 − Φ(t)) at the default "possible" and "probable" thresholds, t = 2 and t = 3.
+    const POSSIBLE_BY_CHANCE = 0.04550026389635842;
+    const PROBABLE_BY_CHANCE = 0.0026997960632601866;
+    // The evaluated pairs of the example of CL-SEN-20.
+    const PAIRS = 50;
+    // 1 − Φ(0.25), the share of confirmed cases that chance gives at the default category threshold.
+    const CONFIRMED_BY_CHANCE = 0.40129367431707624;
+    const TRACKED_CASES = 7;
+
+    it('[CL-SEN-20] writes the shares of the default thresholds with two significant digits', () => {
+      expect([
+        formatChanceShare(POSSIBLE_BY_CHANCE),
+        formatChanceShare(PROBABLE_BY_CHANCE),
+      ]).toStrictEqual(['4.6%', '0.27%']);
+      expect([
+        formatChanceShare(0),
+        formatChanceShare(0.0996),
+        formatChanceShare(0.000999),
+        formatChanceShare(1),
+      ]).toStrictEqual(['0%', '10%', '0.10%', '100%']);
+    });
+
+    it('[CL-SEN-20] gives any share two significant digits and the nearest value', () => {
+      fc.assert(
+        fc.property(fc.double({ min: 1e-12, max: 1, noNaN: true }), (share) => {
+          const shown = formatChanceShare(share);
+          const value = Number(shown.replace(/%$/u, ''));
+          const digits = shown.replaceAll(/[.%]/gu, '').replace(/^0+/u, '');
+          // Half a unit of the second significant digit of the shown value.
+          const halfUnit = 10 ** (Math.floor(Math.log10(value)) - 1) / 2;
+
+          expect(shown).toMatch(/^\d+(?:\.\d+)?%$/u);
+          expect(digits).toHaveLength(value === 100 ? 3 : 2);
+          expect(Math.abs(value - share * 100)).toBeLessThanOrEqual(halfUnit * (1 + 1e-9));
+        }),
+      );
+    });
+
+    it('[CL-SEN-20] [CL-SUI-15] writes the expected counts with one decimal', () => {
+      expect([
+        formatExpectedCount(PAIRS * POSSIBLE_BY_CHANCE),
+        formatExpectedCount(PAIRS * PROBABLE_BY_CHANCE),
+        formatExpectedCount(TRACKED_CASES * CONFIRMED_BY_CHANCE),
+        formatExpectedCount(0),
+        formatExpectedCount(1204),
+      ]).toStrictEqual(['2.3', '0.1', '2.8', '0.0', '1,204.0']);
+    });
+
+    it('[CL-SEN-20] [CL-SUI-15] gives any expected count one decimal and the nearest value', () => {
+      fc.assert(
+        fc.property(fc.double({ min: 0, max: 1e6, noNaN: true }), (count) => {
+          const shown = readBack(formatExpectedCount(count));
+
+          expect(shown.sign).toBe('');
+          expect(shown.decimals).toBe(1);
+          expect(Math.abs(shown.value - count)).toBeLessThanOrEqual(0.05 + 1e-9);
+        }),
+      );
+    });
+
+    it('[CL-SEN-20] refuses what is not a share or an expected count', () => {
+      expect(() => formatChanceShare(1.5)).toThrow('1.5 is not a share');
+      expect(() => formatChanceShare(-0.1)).toThrow(RangeError);
+      expect(() => formatChanceShare(NaN)).toThrow(RangeError);
+      expect(() => formatExpectedCount(-1)).toThrow('-1 is not an expected count');
+      expect(() => formatExpectedCount(NaN)).toThrow(RangeError);
     });
   });
 });
