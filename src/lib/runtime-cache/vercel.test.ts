@@ -68,6 +68,21 @@ describe('vercelRuntimeCache', () => {
     expect(cache.set).toHaveBeenCalledWith('tick:last', { lastAcceptedAt: 1 }, { ttl: 2_592_000 });
   });
 
+  it('[TRV-12] asks Vercel for the cache in the namespace of the application, apart from the other projects of the team', async () => {
+    useVercelCacheInMemory();
+    vi.mocked(getCache).mockClear();
+
+    await vercelRuntimeCache.get('wake:plan');
+    await vercelRuntimeCache.set('wake:plan', null, 60);
+    await vercelRuntimeCache.delete('wake:plan');
+
+    expect(vi.mocked(getCache).mock.calls).toStrictEqual([
+      [{ namespace: 'egoscope' }],
+      [{ namespace: 'egoscope' }],
+      [{ namespace: 'egoscope' }],
+    ]);
+  });
+
   it('[TRV-31] answers unavailable when no cache can be had in the context', async () => {
     vi.mocked(getCache).mockImplementation(() => {
       throw new Error('No cache available in this context');

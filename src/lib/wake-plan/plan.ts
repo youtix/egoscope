@@ -148,9 +148,11 @@ export async function readPlan(at: EpochMs): Promise<PlanReading> {
  * Writes the wake plan in full, as this deployment's (module map §1.9): the database
  * pass at its end, with every due instant it computed (TRV-25), and a probe that moves
  * to its next instant, which keeps the plan's `computedAt` so that the hourly check
- * still comes.
+ * still comes. A content that `readPlan` could not read, such as a fraction or a text
+ * too long in a probe's state, is a caller's bug that would send every tick to the
+ * database, and throws without writing.
  */
 export async function writePlan(content: PlanContent): Promise<CacheWrite> {
-  const plan: WakePlan = { deploymentId: thisDeployment(), ...content };
+  const plan = planSchema.parse({ deploymentId: thisDeployment(), ...content });
   return runtimeCache().set(PLAN_KEY, plan, PLAN_TTL_SECONDS);
 }

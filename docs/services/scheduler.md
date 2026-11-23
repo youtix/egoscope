@@ -179,9 +179,16 @@ The flow is the design's ([module map](../engineering/module-map.md), section 1.
    [data model](../engineering/domain-model/operations.md), section 1.16), run the due tasks in
    resumable chunks (TRV-28, TRV-30), run the execution check (TRV-31), then rewrite the wake plan.
 
-An idle tick costs a few cache reads and one cache write: about 35,000 reads a month for both
-callers and, with the plan rewrites and the other writes of module map §1.9, about 14,000 writes,
-against 1,000,000 and 200,000 ([hosting.md](hosting.md)).
+The host meters the cache in units of 8 KB of the value read or written, one at least
+([hosting.md](hosting.md)): every entry of module map §1.9 costs one unit, and the counters entry
+two at most when it holds its 1,000 attempts. An idle tick costs two reads and one write. Over a
+30-day month, the simulation of `src/lib/wake-plan/index.test.ts` measures 25,210 read units and
+13,895 write units for both callers, the plan rewrites and the other writes of module map §1.9:
+2.5 % and 6.9 % of the 1,000,000 reads and 200,000 writes of the allowance. One instance under a
+stream of refused calls all month, one every 30 seconds or 23 a minute (what the invocation
+allowance sustains), adds a counters write a minute and the read before it: 68,180 read units and
+58,099 write units with a pass every 30 minutes (6.8 % and 29.0 %), 67,460 and 56,659 with a pass
+every hour (6.7 % and 28.3 %).
 
 Use the production domain: Vercel's Standard Protection blocks the generated deployment URLs
 ([Deployment Protection](https://vercel.com/docs/deployment-protection)).
