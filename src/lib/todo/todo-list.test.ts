@@ -231,7 +231,8 @@ describe('the to-do list', { timeout: 60_000 }, () => {
       INCIDENT_KINDS.map((kind, index) => ({
         kind,
         causeKey: String(index),
-        serviceRole: kind === 'quota_reached' || kind === 'quota_warning' ? 'database' : null,
+        serviceRole:
+          kind === 'quota_reached' || kind === 'quota_warning' ? ('database' as const) : null,
         quotaCauses: kind === 'quota_reached' ? ['limit_reached' as const] : [],
         openedAt: hoursBefore(100 - index),
       })),
