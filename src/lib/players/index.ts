@@ -21,6 +21,16 @@ export type {
 // status.ts: pause, reactivate, withdraw, declinePauseSuggestion
 
 // teams.ts: recordTeamChange, enterTeamChange
+export { enterTeamChange, recordTeamChange } from './teams';
+export type {
+  GameEvidence,
+  PlayerFileEvidence,
+  PlayerNotFound,
+  TeamChangeOutcome,
+  TeamEvidence,
+  TeamJudgment,
+  TeamUnchanged,
+} from './teams';
 
 // delete.ts: deleteRows
 
