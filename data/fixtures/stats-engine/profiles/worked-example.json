@@ -1,0 +1,284 @@
+{
+  "about": "Step 1 of the worked example of the sensitivity specification, built on an invented player of an invented team: his events, his team's games of seven seasons, every two days at 19:30 US Eastern against one invented opponent, and the states, grouping and tally they give.",
+  "playerId": "6f1c8e2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b",
+  "eventTypeId": "public-humiliation",
+  "teamId": 1,
+  "opponentTeamId": 2,
+  "nowOn": "2025-09-01",
+  "lines": {
+    "usual": {
+      "minutes": 35,
+      "seconds": 0,
+      "points": 20,
+      "fieldGoalsMade": 8,
+      "fieldGoalsAttempted": 16,
+      "threePointersMade": 1,
+      "freeThrowsMade": 3,
+      "freeThrowsAttempted": 4,
+      "offensiveRebounds": 1,
+      "defensiveRebounds": 5,
+      "assists": 4,
+      "steals": 1,
+      "blocks": 0,
+      "turnovers": 2,
+      "personalFouls": 2
+    },
+    "strong": {
+      "minutes": 35,
+      "seconds": 0,
+      "points": 31,
+      "fieldGoalsMade": 11,
+      "fieldGoalsAttempted": 20,
+      "threePointersMade": 2,
+      "freeThrowsMade": 7,
+      "freeThrowsAttempted": 8,
+      "offensiveRebounds": 1,
+      "defensiveRebounds": 6,
+      "assists": 7,
+      "steals": 2,
+      "blocks": 1,
+      "turnovers": 4,
+      "personalFouls": 3
+    },
+    "short": {
+      "minutes": 14,
+      "seconds": 0,
+      "points": 6,
+      "fieldGoalsMade": 3,
+      "fieldGoalsAttempted": 6,
+      "threePointersMade": 0,
+      "freeThrowsMade": 0,
+      "freeThrowsAttempted": 0,
+      "offensiveRebounds": 0,
+      "defensiveRebounds": 2,
+      "assists": 1,
+      "steals": 0,
+      "blocks": 0,
+      "turnovers": 1,
+      "personalFouls": 1
+    },
+    "huge": {
+      "minutes": 35,
+      "seconds": 0,
+      "points": 52,
+      "fieldGoalsMade": 19,
+      "fieldGoalsAttempted": 24,
+      "threePointersMade": 6,
+      "freeThrowsMade": 8,
+      "freeThrowsAttempted": 8,
+      "offensiveRebounds": 3,
+      "defensiveRebounds": 9,
+      "assists": 10,
+      "steals": 4,
+      "blocks": 2,
+      "turnovers": 1,
+      "personalFouls": 1
+    }
+  },
+  "seasons": [
+    {
+      "season": "2018-19",
+      "firstGameOn": "2018-10-17",
+      "gameCount": 12,
+      "playedTime": null,
+      "shortGamesOn": [],
+      "missedGamesOn": [],
+      "playoffs": null
+    },
+    {
+      "season": "2019-20",
+      "firstGameOn": "2019-10-16",
+      "gameCount": 12,
+      "playedTime": null,
+      "shortGamesOn": [],
+      "missedGamesOn": [],
+      "playoffs": null
+    },
+    {
+      "season": "2020-21",
+      "firstGameOn": "2021-01-01",
+      "gameCount": 13,
+      "playedTime": { "minutes": 36, "seconds": 45 },
+      "shortGamesOn": ["2021-01-05"],
+      "missedGamesOn": [],
+      "playoffs": null
+    },
+    {
+      "season": "2021-22",
+      "firstGameOn": "2021-10-19",
+      "gameCount": 12,
+      "playedTime": null,
+      "shortGamesOn": [],
+      "missedGamesOn": [],
+      "playoffs": null
+    },
+    {
+      "season": "2022-23",
+      "firstGameOn": "2022-10-18",
+      "gameCount": 12,
+      "playedTime": null,
+      "shortGamesOn": [],
+      "missedGamesOn": [],
+      "playoffs": {
+        "firstGameOn": "2023-04-16",
+        "gameCount": 12,
+        "eliminationGameOn": "2023-05-06"
+      }
+    },
+    {
+      "season": "2023-24",
+      "firstGameOn": "2023-10-25",
+      "gameCount": 12,
+      "playedTime": null,
+      "shortGamesOn": [],
+      "missedGamesOn": [],
+      "playoffs": null
+    },
+    {
+      "season": "2024-25",
+      "firstGameOn": "2024-10-22",
+      "gameCount": 13,
+      "playedTime": null,
+      "shortGamesOn": [],
+      "missedGamesOn": ["2024-10-28", "2024-10-30"],
+      "playoffs": null
+    }
+  ],
+  "events": [
+    { "eventId": 1, "on": "2018-10-29", "atEastern": "23:00" },
+    { "eventId": 2, "on": "2019-10-22", "atEastern": "22:10" },
+    { "eventId": 3, "on": "2019-11-02", "atEastern": "12:00" },
+    { "eventId": 4, "on": "2021-01-04", "atEastern": "12:00" },
+    { "eventId": 5, "on": "2021-01-15", "atEastern": null },
+    { "eventId": 6, "on": "2021-07-15", "atEastern": "12:00" },
+    { "eventId": 7, "on": "2021-10-26", "atEastern": "12:00" },
+    { "eventId": 8, "on": "2022-10-25", "atEastern": "12:00" },
+    { "eventId": 9, "on": "2023-05-05", "atEastern": "12:00" },
+    { "eventId": 10, "on": "2023-11-06", "atEastern": "23:00" },
+    { "eventId": 11, "on": "2023-11-07", "atEastern": "12:00" },
+    { "eventId": 12, "on": "2024-10-26", "atEastern": "23:00" }
+  ],
+  "expected": {
+    "cases": [
+      {
+        "eventIds": [1],
+        "status": "measured",
+        "statusReason": null,
+        "measuredGameOn": "2018-10-31",
+        "baselineGameCount": 11,
+        "triggeredCriteria": []
+      },
+      {
+        "eventIds": [2],
+        "status": "measured",
+        "statusReason": null,
+        "measuredGameOn": "2019-10-24",
+        "baselineGameCount": 11,
+        "triggeredCriteria": []
+      },
+      {
+        "eventIds": [3],
+        "status": "measured",
+        "statusReason": null,
+        "measuredGameOn": "2019-11-03",
+        "baselineGameCount": 11,
+        "triggeredCriteria": []
+      },
+      {
+        "eventIds": [4],
+        "status": "excluded",
+        "statusReason": null,
+        "measuredGameOn": "2021-01-05",
+        "baselineGameCount": 12,
+        "triggeredCriteria": [
+          {
+            "criterion": "playing_time_too_low",
+            "condition": null,
+            "triggeringValues": { "minutes": 14, "threshold": 17.5 }
+          }
+        ]
+      },
+      {
+        "eventIds": [5],
+        "status": "measured",
+        "statusReason": null,
+        "measuredGameOn": "2021-01-17",
+        "baselineGameCount": 11,
+        "triggeredCriteria": []
+      },
+      {
+        "eventIds": [6],
+        "status": "not_measurable",
+        "statusReason": "no_game_within_window",
+        "measuredGameOn": null,
+        "baselineGameCount": null,
+        "triggeredCriteria": []
+      },
+      {
+        "eventIds": [7],
+        "status": "measured",
+        "statusReason": null,
+        "measuredGameOn": "2021-10-27",
+        "baselineGameCount": 11,
+        "triggeredCriteria": []
+      },
+      {
+        "eventIds": [8],
+        "status": "measured",
+        "statusReason": null,
+        "measuredGameOn": "2022-10-26",
+        "baselineGameCount": 11,
+        "triggeredCriteria": []
+      },
+      {
+        "eventIds": [9],
+        "status": "excluded",
+        "statusReason": null,
+        "measuredGameOn": "2023-05-06",
+        "baselineGameCount": 11,
+        "triggeredCriteria": [
+          {
+            "criterion": "unusual_stakes",
+            "condition": "calculated",
+            "triggeringValues": { "phase": "playoffs", "isEliminationGame": true }
+          }
+        ]
+      },
+      {
+        "eventIds": [10, 11],
+        "status": "measured",
+        "statusReason": null,
+        "measuredGameOn": "2023-11-08",
+        "baselineGameCount": 11,
+        "triggeredCriteria": []
+      },
+      {
+        "eventIds": [12],
+        "status": "measured",
+        "statusReason": null,
+        "measuredGameOn": "2024-11-01",
+        "baselineGameCount": 10,
+        "triggeredCriteria": []
+      }
+    ],
+    "tally": {
+      "eventCount": 12,
+      "caseCount": 11,
+      "groupedEventCount": 1,
+      "awaitingCount": 0,
+      "validCount": 8,
+      "excludedCount": 2,
+      "manuallyExcludedCount": 0,
+      "notMeasurableCount": 1,
+      "coOccurringCount": 0,
+      "provisionalGapCount": 0,
+      "lowResearchConfidenceCount": 0,
+      "tallyReasons": {
+        "awaitingGame": {},
+        "notMeasurable": { "no_game_within_window": 1 },
+        "excluded": { "playing_time_too_low": 1, "unusual_stakes": 1 }
+      },
+      "exitCounts": {}
+    }
+  }
+}
