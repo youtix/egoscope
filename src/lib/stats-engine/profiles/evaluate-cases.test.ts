@@ -266,11 +266,12 @@ function coOccurring(coOccurringTypeIds: readonly string[]) {
   };
 }
 
-const BASE = evaluateCases(inputOf(), DEFAULTS);
+/** The cases of the example, evaluated afresh by each test that reads them, never as the file loads. */
+const base = (): readonly CaseEvaluation[] => evaluateCases(inputOf(), DEFAULTS);
 
 describe('evaluateCases', () => {
   it('[SEN-05] [SEN-07] [CL-SEN-06] gives each event its case, two events of one type on one game grouped into one, in the order of their earliest events', () => {
-    expect(statesOf(BASE)).toStrictEqual([
+    expect(statesOf(base())).toStrictEqual([
       [[1], 'measured', null, 2],
       [[2], 'excluded', null, 3],
       [[5], 'measured', null, 7],
@@ -291,7 +292,7 @@ describe('evaluateCases', () => {
   it('[SEN-03] [SEN-08] [SEN-10] [CL-SEN-05] [CL-SEN-09] records of a measured case its game, the games he missed before it, his minutes, index, baseline, gap and its status', () => {
     const mean = (4 * USUAL + 6 * STRONG) / 10;
     const deviation = Math.sqrt((4 * (USUAL - mean) ** 2 + 6 * (STRONG - mean) ** 2) / 9);
-    const { evaluated, profileCase, withoutDecision } = caseOf(BASE, 5);
+    const { evaluated, profileCase, withoutDecision } = caseOf(base(), 5);
     const { playingTimeThresholdMinutes, performanceIndex, baseline, normalizedGap, ...rest } =
       evaluated;
     const raw = [
@@ -349,14 +350,14 @@ describe('evaluateCases', () => {
   });
 
   it('[SEN-07] [SEN-11] [CL-SEN-05] excludes a case on its criteria with their values, and gives a case without a game nothing of one', () => {
-    const excluded = caseOf(BASE, 2);
+    const excluded = caseOf(base(), 2);
     expect(excluded.evaluated.triggeredCriteria).toStrictEqual([
       {
         criterion: 'playing_time_too_low',
         condition: null,
         triggeringValues: {
           minutes: 14,
-          threshold: caseOf(BASE, 5).evaluated.playingTimeThresholdMinutes,
+          threshold: caseOf(base(), 5).evaluated.playingTimeThresholdMinutes,
         },
       },
     ]);
@@ -364,7 +365,7 @@ describe('evaluateCases', () => {
       status: 'excluded',
       triggeredCriteria: ['playing_time_too_low'],
     });
-    const { evaluated, profileCase, withoutDecision } = caseOf(BASE, 6);
+    const { evaluated, profileCase, withoutDecision } = caseOf(base(), 6);
     expect(evaluated).toStrictEqual({
       eventTypeId: TYPE,
       eventIds: [6],
@@ -419,7 +420,7 @@ describe('evaluateCases', () => {
     };
     const evaluations = evaluateCases(inputOf(ROWS, { storedCaseOf }), DEFAULTS);
     expect(keys).toStrictEqual(
-      BASE.map(({ evaluated }) => ({
+      base().map(({ evaluated }) => ({
         eventTypeId: TYPE,
         measuredGameId: evaluated.measuredGameId,
         eventIds: evaluated.eventIds,
@@ -474,7 +475,7 @@ describe('evaluateCases', () => {
     const traded = ROWS.map((row) => (row.id >= 5 ? { ...row, teamId: NEW_TEAM } : row));
     const evaluations = evaluateCases(inputOf(traded), DEFAULTS);
     expect(evaluations).toStrictEqual(
-      BASE.map((each) =>
+      base().map((each) =>
         each.evaluated.measuredGameId === 7
           ? { ...each, evaluated: { ...each.evaluated, reviewFlags: ['first_game_with_new_team'] } }
           : each,

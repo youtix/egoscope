@@ -367,11 +367,26 @@ function caseEvaluation(
 }
 
 /**
+ * A case co-occurring with the validated types alone (SEN-06, SEN-19, TAX-11, TAX-31):
+ * only a validated type serves the profiles, so the case of a withdrawn type, which counts
+ * only in that type's archived profiles, marks no other case, nor does that of a proposed
+ * or rejected type; a case of any type co-occurs with the validated types' cases on its game.
+ */
+function amongValidated(
+  group: CaseGroup<StatedEvent>,
+  validatedTypeIds: ReadonlySet<EventTypeId>,
+): CaseGroup<StatedEvent> {
+  const coOccurringTypeIds = group.coOccurringTypeIds.filter((id) => validatedTypeIds.has(id));
+  return { ...group, isCoOccurring: coOccurringTypeIds.length > 0, coOccurringTypeIds };
+}
+
+/**
  * Evaluates every case of one followed player (SEN-05 to SEN-18, SEN-32, CL-SEN-05,
  * CL-SEN-06, JOU-14), whatever the order of its inputs: each of his events of the given
  * types is attached to its measured game on its own, the first game he played after it
  * with whichever team, and given its state; the events of one type on one game form one
- * case, the cases in the order of their earliest events. A case whose gap is computed is
+ * case, the cases in the order of their earliest events, and a case co-occurs with the
+ * cases of the validated types alone on its game (SEN-19, TAX-11). A case whose gap is computed is
  * judged by the doubtful-case criteria, then by the manual decision made on its game,
  * and every case with a measured game gets its review flags.
  */
@@ -386,5 +401,12 @@ export function evaluateCases(
       .filter((event) => event.eventTypeId === type.eventTypeId)
       .map((event) => statedEvent(event, type, context)),
   );
-  return groupCases(stated).map((group, caseId) => caseEvaluation(group, caseId, context));
+  const validatedTypeIds = new Set(
+    input.types
+      .filter(({ status }) => status === 'validated')
+      .map(({ eventTypeId }) => eventTypeId),
+  );
+  return groupCases(stated).map((group, caseId) =>
+    caseEvaluation(amongValidated(group, validatedTypeIds), caseId, context),
+  );
 }

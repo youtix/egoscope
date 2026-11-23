@@ -49,19 +49,8 @@ const NOON_MS = 12 * 60 * MS_PER_MINUTE;
 
 // A season of the example: its regular season, his minutes when not the line's, the days
 // he played short or missed, and its playoffs.
-type SeasonSpec = Readonly<{
-  season: string;
-  firstGameOn: IsoDate;
-  gameCount: number;
-  playedTime: Readonly<{ minutes: number; seconds: number }> | null;
-  shortGamesOn: readonly IsoDate[];
-  missedGamesOn: readonly IsoDate[];
-  playoffs: Readonly<{
-    firstGameOn: IsoDate;
-    gameCount: number;
-    eliminationGameOn: IsoDate;
-  }> | null;
-}>;
+type SeasonSpec = Omit<(typeof example.seasons)[number], 'shortGamesOn' | 'missedGamesOn'> &
+  Readonly<{ shortGamesOn: readonly IsoDate[]; missedGamesOn: readonly IsoDate[] }>;
 type EventSpec = (typeof example.events)[number];
 type GameRow = Readonly<{
   id: GameId;
@@ -315,23 +304,25 @@ function anyOrder<T>(items: readonly T[]): fc.Arbitrary<T[]> {
   return fc.shuffledSubarray([...items], { minLength: items.length, maxLength: items.length });
 }
 
-/** Each profile as its type, whether it is archived, and each view's events and exits. */
+/** Each profile as its type, whether it is archived, each view's events and exits, and its co-occurring cases. */
 function profilesOf({ profiles }: PlayerEvaluation): readonly string[] {
   return profiles.map(({ eventTypeId, isArchived, views }) =>
     [
       eventTypeId,
       isArchived ? 'archived' : 'current',
       ...views.map(({ tally }) => `${String(tally.eventCount)}${JSON.stringify(tally.exitCounts)}`),
+      `co-occurring ${String(views[0]?.tally.coOccurringCount)}`,
     ].join(' '),
   );
 }
 
-const BASE = evaluatePlayer(inputOf(), DEFAULTS);
+/** The evaluation of the example, made afresh by each test that reads it, never as the file loads. */
+const base = (): PlayerEvaluation => evaluatePlayer(inputOf(), DEFAULTS);
 
 describe('evaluatePlayer', () => {
   it('[SEN-32] [SEN-05] [SEN-01] [SEN-03] [SEN-12] [SEN-14] gives step 1 of the worked example: 12 events, 11 cases, 8 valid, 2 excluded, 1 not measurable, none awaiting, one event grouped', () => {
     expect(
-      BASE.cases.map((caseItem) => ({
+      base().cases.map((caseItem) => ({
         eventIds: caseItem.eventIds,
         status: caseItem.status,
         statusReason: caseItem.statusReason,
@@ -340,7 +331,7 @@ describe('evaluatePlayer', () => {
         triggeredCriteria: caseItem.triggeredCriteria,
       })),
     ).toStrictEqual(example.expected.cases);
-    const { tally } = viewOf(BASE);
+    const { tally } = viewOf(base());
     expect(tally).toStrictEqual(example.expected.tally);
     // SEN-32: 12 = 11 + 1 and 11 = 0 + 8 + 2 + 1.
     expect(tally.eventCount).toBe(tally.caseCount + tally.groupedEventCount);
@@ -349,7 +340,7 @@ describe('evaluatePlayer', () => {
     );
   });
 
-  it('[SEN-32] [SEN-19] gives the same cases and profiles, to the bit, whatever the order of its inputs', () => {
+  it('[SEN-32] [SEN-19] gives the same cases and profiles, to the bit, whatever the order of its inputs, the profiles in the order of its types', () => {
     const input = {
       ...inputOf(),
       types: [VALIDATED, { ...VALIDATED, eventTypeId: OTHER_TYPE }],
@@ -359,6 +350,7 @@ describe('evaluatePlayer', () => {
       ],
     };
     const expected = evaluatePlayer(input, DEFAULTS);
+    const profileOf = new Map(expected.profiles.map((profile) => [profile.eventTypeId, profile]));
     const schedules = fc
       .tuple(
         ...input.schedules.map(({ season, schedule }) =>
@@ -373,6 +365,7 @@ describe('evaluatePlayer', () => {
       schedules,
       spans: anyOrder(seasons.spans),
       readSeasons: anyOrder(seasons.readSeasons),
+      types: anyOrder(input.types),
     });
     fc.assert(
       fc.property(shuffledInputs, ({ spans, readSeasons, ...shuffled }) => {
@@ -380,7 +373,10 @@ describe('evaluatePlayer', () => {
           { ...input, ...shuffled, seasons: { ...seasons, spans, readSeasons } },
           DEFAULTS,
         );
-        expect(evaluation).toStrictEqual(expected);
+        expect(evaluation).toStrictEqual({
+          ...expected,
+          profiles: shuffled.types.map(({ eventTypeId }) => profileOf.get(eventTypeId)),
+        });
       }),
     );
   });
@@ -417,7 +413,7 @@ describe('evaluatePlayer', () => {
   });
 
   it('[CA-VUE-03] [VUE-03] weighs a valid case in a win of his team exactly as one of equal gap in a loss: the final scores change nothing', () => {
-    const [inLoss, inWin] = [caseOf(BASE, 1), caseOf(BASE, 3)];
+    const [inLoss, inWin] = [caseOf(base(), 1), caseOf(base(), 3)];
     const scoreOf = (caseItem: EvaluatedCase) =>
       inputOf().teamGames.find(({ game }) => game.id === caseItem.measuredGameId)?.game.finalScore;
     expect([scoreOf(inLoss), scoreOf(inWin)]).toStrictEqual([
@@ -426,18 +422,27 @@ describe('evaluatePlayer', () => {
     ]);
     expect(inLoss.normalizedGap).toBeCloseTo(inWin.normalizedGap ?? NaN, PRECISION);
     const flipped = ROWS.map((row) => ({ ...row, isHomeWin: !row.isHomeWin }));
-    expect(evaluatePlayer(inputOf(flipped), DEFAULTS)).toStrictEqual(BASE);
+    expect(evaluatePlayer(inputOf(flipped), DEFAULTS)).toStrictEqual(base());
   });
 
-  it('[SEN-19] [CL-SEN-26] gives a profile to a validated or withdrawn type while its tally holds an event, exits included, none to a proposed or rejected one, and an empty birthday profile to a player without a recorded birthday', () => {
+  it('[SEN-19] [CL-SEN-26] [TAX-11] [TAX-31] [SEN-06] gives a profile to a validated or withdrawn type while its tally holds an event, exits included, none to a proposed or rejected one, an empty birthday profile to a player without a recorded birthday, and lets a case co-occur with the validated types alone', () => {
     const typed = (eventTypeId: string, changes: Partial<EvaluationType>): EvaluationType => ({
       ...VALIDATED,
       eventTypeId,
       ...changes,
     });
-    const otherEvents = ['proposed', 'rejected', 'withdrawn'].map((eventTypeId, index) =>
-      eventOf({ eventId: 21 + index, on: '2019-11-02', atEastern: '12:00' }, { eventTypeId }),
+    // On the measured game of event 1, with co-occurring cases treated as doubtful.
+    const otherEvents = EVENTS.filter(({ eventId }) => eventId === 1).flatMap((event) =>
+      ['proposed', 'rejected', 'withdrawn'].map((eventTypeId, index) => ({
+        ...event,
+        eventId: 21 + index,
+        eventTypeId,
+      })),
     );
+    const params = {
+      ...DEFAULTS,
+      sensitivity: { ...DEFAULTS.sensitivity, coOccurringCasesDoubtful: true },
+    };
     const input = {
       ...inputOf(),
       player: { ...PLAYER, hasBirthday: false },
@@ -454,17 +459,32 @@ describe('evaluatePlayer', () => {
       ],
       events: [...EVENTS, ...otherEvents],
     };
-    const evaluation = evaluatePlayer(input, DEFAULTS);
+    const [evaluation, alone] = [evaluatePlayer(input, params), evaluatePlayer(inputOf(), params)];
     expect(profilesOf(evaluation)).toStrictEqual([
-      `${TYPE} current 12{} 12{} 0{}`,
-      'withdrawn archived 1{} 1{} 0{}',
-      'exits-only current 0{"dismissed":1} 0{} 0{}',
-      'birthday current 0{} 0{} 0{}',
+      `${TYPE} current 12{} 12{} 0{} co-occurring 0`,
+      'withdrawn archived 1{} 1{} 0{} co-occurring 1',
+      'exits-only current 0{"dismissed":1} 0{} 0{} co-occurring 0',
+      'birthday current 0{} 0{} 0{} co-occurring 0',
     ]);
+    // Their cases change neither his cases of the validated type nor its profile.
+    expect([
+      evaluation.cases.filter(({ eventTypeId }) => eventTypeId === TYPE),
+      evaluation.profiles[0],
+    ]).toStrictEqual([alone.cases, alone.profiles[0]]);
     expect(
-      evaluation.cases.map(({ eventTypeId }) => eventTypeId).filter((id) => id !== TYPE),
-    ).toStrictEqual(['proposed', 'rejected', 'withdrawn']);
-    const withBirthday = evaluatePlayer({ ...input, player: PLAYER }, DEFAULTS);
+      evaluation.cases
+        .filter(({ eventTypeId }) => eventTypeId !== TYPE)
+        .map(({ eventTypeId, coOccurringTypeIds, status }) => [
+          eventTypeId,
+          coOccurringTypeIds,
+          status,
+        ]),
+    ).toStrictEqual([
+      ['proposed', [TYPE], 'excluded'],
+      ['rejected', [TYPE], 'excluded'],
+      ['withdrawn', [TYPE], 'excluded'],
+    ]);
+    const withBirthday = evaluatePlayer({ ...input, player: PLAYER }, params);
     expect(withBirthday.profiles.map(({ eventTypeId }) => eventTypeId)).toStrictEqual([
       TYPE,
       'withdrawn',
@@ -477,9 +497,9 @@ describe('evaluatePlayer', () => {
       { ...inputOf(), player: { ...PLAYER, isWithdrawn: true } },
       DEFAULTS,
     );
-    expect(withdrawn.cases).toStrictEqual(BASE.cases);
+    expect(withdrawn.cases).toStrictEqual(base().cases);
     expect(withdrawn.profiles).toStrictEqual(
-      BASE.profiles.map((profile) => ({ ...profile, isArchived: true })),
+      base().profiles.map((profile) => ({ ...profile, isArchived: true })),
     );
   });
 
