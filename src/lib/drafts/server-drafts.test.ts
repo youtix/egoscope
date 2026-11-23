@@ -77,7 +77,7 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
   it('[IHM-42] finds from another device the draft one device saved, with its last change and its device', async () => {
     expect(await save(IMPORT, PASTED, 'Phone')).toStrictEqual({
       ok: true,
-      value: { withdrawnEventCount: 0 },
+      value: { withdrawnEventCount: 0, wasWritten: true },
     });
 
     expect(await getDraft(db, IMPORT)).toStrictEqual({
@@ -91,7 +91,10 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
   it('[IHM-42] [CL-DSN-17] keeps one draft per request and per exploration screen, the last change replacing the copy', async () => {
     await save(IMPORT, 'first text');
     clock.advance(HOUR_MS);
-    await save(IMPORT, PASTED, 'Laptop');
+    expect(await save(IMPORT, PASTED, 'Laptop')).toStrictEqual({
+      ok: true,
+      value: { withdrawnEventCount: 0, wasWritten: true },
+    });
     await save(GENERAL, 'general response');
     await save(TARGETED, 'targeted response');
 
@@ -142,13 +145,13 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
       await saveDraft(db, { ...upload, target: GENERAL, knownWithdrawnEventCount: 2 }),
     ).toStrictEqual({
       ok: true,
-      value: { withdrawnEventCount: 3 },
+      value: { withdrawnEventCount: 3, wasWritten: true },
     });
     expect(
       await saveDraft(db, { ...upload, target: IMPORT, knownWithdrawnEventCount: 3 }),
     ).toStrictEqual({
       ok: true,
-      value: { withdrawnEventCount: 3 },
+      value: { withdrawnEventCount: 3, wasWritten: true },
     });
   });
 
@@ -161,20 +164,22 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
         knownWithdrawnEventCount: null,
         originDevice: 'Phone',
       }),
-    ).toStrictEqual({ ok: true, value: { withdrawnEventCount: 0 } });
+    ).toStrictEqual({ ok: true, value: { withdrawnEventCount: 0, wasWritten: true } });
     expect(await getDraft(db, IMPORT)).toMatchObject({ text: PASTED });
   });
 
-  it('[CL-DSN-17] keeps the last change when a copy typed earlier arrives after it', async () => {
+  it('[CL-DSN-17] keeps the last change when a copy typed earlier arrives after it, and says it wrote nothing', async () => {
     clock.advance(HOUR_MS);
     await save(IMPORT, PASTED, 'Laptop');
-    await saveDraft(db, {
-      target: IMPORT,
-      text: 'Typed earlier on the phone.',
-      updatedAt: SAVED_AT,
-      knownWithdrawnEventCount: 0,
-      originDevice: 'Phone',
-    });
+    expect(
+      await saveDraft(db, {
+        target: IMPORT,
+        text: 'Typed earlier on the phone.',
+        updatedAt: SAVED_AT,
+        knownWithdrawnEventCount: 0,
+        originDevice: 'Phone',
+      }),
+    ).toStrictEqual({ ok: true, value: { withdrawnEventCount: 0, wasWritten: false } });
 
     expect(await getDraft(db, IMPORT)).toStrictEqual({
       text: PASTED,

@@ -26,6 +26,7 @@ const PASTED = 'EVENT 1: the Redwater Foxes forward changes agents.';
 const SAVED_ELSEWHERE_AT = toEpochMs(Date.UTC(2026, 10, 20));
 // The default of display.draftRetentionDays, 7 days.
 const RETENTION_MS = 7 * 86_400_000;
+const MINUTE_MS = 60_000;
 
 describe('the draft of a paste screen', { timeout: 60_000 }, () => {
   let db: Database;
@@ -245,6 +246,98 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
       updatedAt: SAVED_ELSEWHERE_AT,
       sent: true,
     });
+  });
+
+  /** Saves `text` as the copy that the laptop typed now, and returns that instant. */
+  async function saveFromLaptop(text: string) {
+    const typedAt = now();
+    await saveDraft(db, {
+      target: IMPORT,
+      text,
+      updatedAt: typedAt,
+      knownWithdrawnEventCount: 0,
+      originDevice: 'Laptop',
+    });
+    return typedAt;
+  }
+
+  it('[IHM-42] [H-IHM-08] [CL-DSN-17] shows the later change another device saved after this one sent its copy, and builds on it', async () => {
+    const clock = fixedClock(now());
+    onTestFinished(installFakeClock(clock));
+    const first = await open();
+    act(() => {
+      first.result.current.change('V1 typed on the phone.');
+    });
+    await waitFor(() => {
+      expect(first.result.current.sent).toBe(true);
+    });
+    first.unmount();
+    clock.advance(MINUTE_MS);
+    const laptopAt = await saveFromLaptop('V2 typed on the laptop.');
+
+    const view = await open();
+
+    expect(view.result.current).toMatchObject({
+      text: 'V2 typed on the laptop.',
+      updatedAt: laptopAt,
+      sent: true,
+    });
+    clock.advance(MINUTE_MS);
+    act(() => {
+      view.result.current.change('V2 typed on the laptop. Then on the phone.');
+    });
+    await waitFor(() => {
+      expect(view.result.current.sent).toBe(true);
+    });
+    expect(await getDraft(db, IMPORT)).toMatchObject({
+      text: 'V2 typed on the laptop. Then on the phone.',
+    });
+  });
+
+  it('[IHM-42] [H-IHM-08] [CL-DSN-17] takes the later change of another device over a copy typed offline before it', async () => {
+    const clock = fixedClock(now());
+    onTestFinished(installFakeClock(clock));
+    const view = await open();
+    onLine.mockReturnValue(false);
+    act(() => {
+      view.result.current.change('Typed offline on the phone.');
+    });
+    await waitFor(async () => {
+      await expect(hasUnsentDeviceDrafts()).resolves.toBe(true);
+    });
+    clock.advance(MINUTE_MS);
+    const laptopAt = await saveFromLaptop('Typed later on the laptop.');
+
+    goOnline();
+
+    await waitFor(() => {
+      expect(view.result.current.text).toBe('Typed later on the laptop.');
+    });
+    expect(view.result.current).toMatchObject({ updatedAt: laptopAt, sent: true });
+    expect(await readCopy(draftKey(IMPORT))).toMatchObject({
+      text: 'Typed later on the laptop.',
+      sent: true,
+    });
+    expect(await getDraft(db, IMPORT)).toMatchObject({ text: 'Typed later on the laptop.' });
+  });
+
+  it('[IHM-42] [CL-DSN-17] shows the later change the server kept over a change typed before it', async () => {
+    const clock = fixedClock(now());
+    onTestFinished(installFakeClock(clock));
+    const view = await open();
+    const laptopAt = await saveFromLaptop('Typed on the laptop.');
+    // The phone's clock runs a minute behind the laptop's.
+    clock.advance(-MINUTE_MS);
+
+    act(() => {
+      view.result.current.change('Typed on the phone.');
+    });
+
+    await waitFor(() => {
+      expect(view.result.current.text).toBe('Typed on the laptop.');
+    });
+    expect(view.result.current).toMatchObject({ updatedAt: laptopAt, sent: true });
+    expect(await getDraft(db, IMPORT)).toMatchObject({ text: 'Typed on the laptop.' });
   });
 
   it('[IHM-42] [DSN-32] deletes both copies when the draft is discarded', async () => {

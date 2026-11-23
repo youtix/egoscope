@@ -5,17 +5,21 @@ import { now } from '@/lib/time';
 
 import { copyFate } from './device-rules';
 import { deleteCopy, listCopies, putContact, putCopy, readContact, readCopy } from './device-store';
+import { draftKey } from './draft-target';
 
 import type { DraftServer } from './contract';
 import type { CopyFate } from './device-rules';
 import type { DeviceCopy } from './device-store';
+import type { DraftTarget } from './draft-target';
 
 /**
- * What a send did: the copy reached the server, was refused with a message, stays on the
- * device alone, or went (CL-DSN-22).
+ * What a send did: the copy reached the server; the server kept a later change, and
+ * `copy` is what the device then holds (CL-DSN-17); the copy was refused with a message,
+ * stays on the device alone, or went (CL-DSN-22).
  */
 export type SendOutcome =
   | Readonly<{ kind: 'sent' }>
+  | Readonly<{ kind: 'superseded'; copy: DeviceCopy | undefined }>
   | Readonly<{ kind: 'refused'; message: string }>
   | Readonly<{ kind: 'kept_unsent' }>
   | Readonly<{ kind: 'discarded_unsent' }>
@@ -46,8 +50,55 @@ async function markSent(copy: DeviceCopy, withdrawnEventCount: number): Promise<
 }
 
 /**
- * Sends `copy` to the server and marks it sent when the device still holds that text
- * (IHM-42); a text that the database cannot hold stays on the device alone (DSN-32); an
+ * Loads the server copy of `target`'s draft and keeps it on this device, as sent, when the
+ * device holds no copy or an earlier change, since a draft keeps its last change from
+ * whichever device (IHM-42, H-IHM-08, CL-DSN-17); returns the copy the device then holds.
+ */
+export async function takeServerCopy(
+  target: DraftTarget,
+  server: DraftServer,
+): Promise<DeviceCopy | undefined> {
+  const stored = await server.load(target);
+  const key = draftKey(target);
+  const current = await readCopy(key);
+  if (stored === null || (current !== undefined && current.updatedAt >= stored.updatedAt)) {
+    return current;
+  }
+  const contact = await readContact();
+  const taken: DeviceCopy = {
+    key,
+    target,
+    text: stored.text,
+    updatedAt: stored.updatedAt,
+    sent: true,
+    withdrawnEventCount: contact?.withdrawnEventCount ?? null,
+    status: 'kept',
+  };
+  await putCopy(taken);
+  return taken;
+}
+
+/**
+ * Marks `copy` sent when the server wrote it, or takes the later change that the server
+ * kept instead (IHM-42, CL-DSN-17), recording the counter it answered (CL-DSN-22).
+ */
+async function afterAccepted(
+  copy: DeviceCopy,
+  accepted: Readonly<{ withdrawnEventCount: number; wasWritten: boolean }>,
+  server: DraftServer,
+): Promise<SendOutcome> {
+  if (accepted.wasWritten) {
+    await markSent(copy, accepted.withdrawnEventCount);
+    return { kind: 'sent' };
+  }
+  await recordCount(accepted.withdrawnEventCount);
+  return { kind: 'superseded', copy: await takeServerCopy(copy.target, server) };
+}
+
+/**
+ * Sends `copy` to the server and marks it sent when the server wrote it and the device
+ * still holds that text, or takes the later change the server kept instead (IHM-42,
+ * CL-DSN-17); a text that the database cannot hold stays on the device alone (DSN-32); an
  * import copy typed before the counter grew is discarded, and a copy whose request or
  * proposal is gone is deleted (CL-DSN-22, CL-DSN-17).
  */
@@ -59,8 +110,7 @@ export async function sendCopy(copy: DeviceCopy, server: DraftServer): Promise<S
     knownWithdrawnEventCount: copy.withdrawnEventCount,
   });
   if (saved.ok) {
-    await markSent(copy, saved.value.withdrawnEventCount);
-    return { kind: 'sent' };
+    return afterAccepted(copy, saved.value, server);
   }
   if (saved.error.kind === 'text_too_large') {
     return { kind: 'refused', message: saved.error.message };
@@ -85,6 +135,10 @@ async function applyFate(
   if (fate === 'keep') {
     return null;
   }
+  if (fate === 'take_server') {
+    await takeServerCopy(copy.target, server);
+    return null;
+  }
   if (fate === 'mark_imported') {
     await putCopy({ ...copy, status: 'request_already_imported' });
     return null;
@@ -97,9 +151,10 @@ async function applyFate(
 }
 
 /**
- * The device's contact (CL-DSN-22, CL-IHM-11): sends the server the targets of the copies
- * it had sent, records the counter and the retention it answers, then keeps, marks,
- * drops, discards or sends each copy by `copyFate`.
+ * The device's contact (IHM-42, CL-DSN-17, CL-DSN-22, CL-IHM-11): sends the server the
+ * targets of the copies it had sent, records the counter and the retention it answers,
+ * then keeps, replaces by a later server copy, marks, drops, discards or sends each copy
+ * by `copyFate`.
  */
 export async function contactServer(server: DraftServer): Promise<ContactReport> {
   const copies = await listCopies();

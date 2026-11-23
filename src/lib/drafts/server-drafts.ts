@@ -58,21 +58,21 @@ async function doesTargetExist(executor: Executor, target: DraftTarget): Promise
 // The one character that a Postgres `text` cannot hold.
 const NUL = '\0';
 
-/** A copy that `writeCopy` keeps: its text, the instant it was typed at and its device. */
+/** A copy that `didWriteCopy` keeps: its text, the instant it was typed at and its device. */
 type WrittenCopy = Readonly<{ text: string; updatedAt: Date; originDevice: string }>;
 
 /**
  * Writes `copy` as the server copy of `target`'s draft, unless the server holds a later
- * change, since a draft keeps its last change (CL-DSN-17). A failed query carries every
+ * change, since a draft keeps its last change, and says whether it wrote it (CL-DSN-17). A failed query carries every
  * parameter in its message, the pasted text among them, and Next.js logs the error of a
  * Server Action: the failure leaves this module as an error that names no parameter and
  * keeps no cause (DSN-32, CL-IHM-10).
  */
-async function writeCopy(
+async function didWriteCopy(
   executor: Executor,
   target: DraftTarget,
   copy: WrittenCopy,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const inserted = await executor
       .insert(drafts)
@@ -84,13 +84,16 @@ async function writeCopy(
       })
       .onConflictDoNothing()
       .returning({ id: drafts.id });
-    if (inserted.length === 0) {
-      // A copy typed before the one the server holds, which arrives late, replaces nothing.
-      await executor
-        .update(drafts)
-        .set(copy)
-        .where(and(ofTarget(target), lte(drafts.updatedAt, copy.updatedAt)));
+    if (inserted.length > 0) {
+      return true;
     }
+    // A copy typed before the one the server holds, which arrives late, replaces nothing.
+    const updated = await executor
+      .update(drafts)
+      .set(copy)
+      .where(and(ofTarget(target), lte(drafts.updatedAt, copy.updatedAt)))
+      .returning({ id: drafts.id });
+    return updated.length > 0;
   } catch {
     // The query's error holds the pasted text: none of it may reach a log.
     throw new Error('The server copy of a draft could not be written.');
@@ -100,8 +103,8 @@ async function writeCopy(
 /**
  * Keeps a device's copy as the server copy of its draft, the one other record of the
  * pasted text, so that another device can resume it (IHM-42, DSN-32, CL-DSN-17). The copy
- * keeps the instant it was typed at, never later than now, and the device it came from;
- * no journal entry, log line or error holds its text (CL-IHM-10). Refuses a text above
+ * keeps the instant it was typed at, never later than now, and the device it came from,
+ * unless the server holds a later change, which it keeps and says so; no journal entry, log line or error holds its text (CL-IHM-10). Refuses a text above
  * `imports.maxPastedTextMegabytes` (CL-IMP-27), a text holding a NUL character, which the
  * database cannot keep and the device then keeps alone, a request or proposal that no
  * longer exists, and an import copy typed before the withdrawn-events counter grew
@@ -131,12 +134,12 @@ export async function saveDraft(
     return err({ kind: 'events_withdrawn', withdrawnEventCount: count });
   }
   const updatedAt = new Date(Math.min(upload.updatedAt, now()));
-  await writeCopy(executor, upload.target, {
+  const wasWritten = await didWriteCopy(executor, upload.target, {
     text: upload.text,
     updatedAt,
     originDevice: upload.originDevice,
   });
-  return ok({ withdrawnEventCount: count });
+  return ok({ withdrawnEventCount: count, wasWritten });
 }
 
 /**

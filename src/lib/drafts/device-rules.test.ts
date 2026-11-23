@@ -9,6 +9,7 @@ import { draftKey } from './draft-target';
 import type { DraftCheck } from './contract';
 import type { DeviceCopy } from './device-store';
 import type { DraftTarget } from './draft-target';
+import type { EpochMs } from '@/lib/time';
 
 const TYPED_AT = toEpochMs(Date.UTC(2026, 10, 20, 9));
 const DAY_MS = 86_400_000;
@@ -34,7 +35,7 @@ function copyOf(
 
 function checkOf(
   withdrawnEventCount: number,
-  status?: Readonly<{ exists: boolean; requestImported: boolean }>,
+  status?: Readonly<{ updatedAt: EpochMs | null; requestImported: boolean }>,
 ): DraftCheck {
   return {
     withdrawnEventCount,
@@ -46,14 +47,26 @@ function checkOf(
 describe('the fate of a device copy at a contact', () => {
   it('[CL-DSN-22] keeps a sent copy whose server copy exists', () => {
     expect(
-      copyFate(copyOf(IMPORT, true, 2), checkOf(5, { exists: true, requestImported: false }), AT),
+      copyFate(
+        copyOf(IMPORT, true, 2),
+        checkOf(5, { updatedAt: TYPED_AT, requestImported: false }),
+        AT,
+      ),
     ).toBe('keep');
     // A copy the answer does not cover was not asked about: it stays until the next contact.
     expect(copyFate(copyOf(IMPORT, true, 2), checkOf(5), AT)).toBe('keep');
   });
 
+  it('[IHM-42] [H-IHM-08] [CL-DSN-17] takes the server copy of a sent copy when another device changed it later', () => {
+    const changedLater = { updatedAt: toEpochMs(TYPED_AT + 1), requestImported: false };
+    const changedEarlier = { updatedAt: toEpochMs(TYPED_AT - 1), requestImported: false };
+
+    expect(copyFate(copyOf(IMPORT, true, 2), checkOf(2, changedLater), AT)).toBe('take_server');
+    expect(copyFate(copyOf(IMPORT, true, 2), checkOf(2, changedEarlier), AT)).toBe('keep');
+  });
+
   it('[CL-DSN-22] marks a sent copy "Request already imported" when its request was imported and the counter has not grown', () => {
-    const gone = { exists: false, requestImported: true };
+    const gone = { updatedAt: null, requestImported: true };
 
     expect(copyFate(copyOf(IMPORT, true, 2), checkOf(2, gone), AT)).toBe('mark_imported');
     expect(copyFate(copyOf(IMPORT, true, 2), checkOf(3, gone), AT)).toBe('drop');
@@ -61,7 +74,11 @@ describe('the fate of a device copy at a contact', () => {
 
   it('[CL-DSN-22] drops a sent copy whose server copy is gone otherwise, whatever ended it', () => {
     expect(
-      copyFate(copyOf(IMPORT, true, 2), checkOf(2, { exists: false, requestImported: false }), AT),
+      copyFate(
+        copyOf(IMPORT, true, 2),
+        checkOf(2, { updatedAt: null, requestImported: false }),
+        AT,
+      ),
     ).toBe('drop');
   });
 
@@ -90,7 +107,7 @@ describe('the fate of a device copy at a contact', () => {
     expect(
       copyFate(
         copyOf(IMPORT, true, 3),
-        checkOf(3, { exists: true, requestImported: false }),
+        checkOf(3, { updatedAt: TYPED_AT, requestImported: false }),
         expiry,
       ),
     ).toBe('drop');

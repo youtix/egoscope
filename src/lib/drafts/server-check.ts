@@ -4,6 +4,7 @@ import { and, eq, inArray, or } from 'drizzle-orm';
 
 import { backtestRequests, drafts } from '@/lib/db';
 import { getParam } from '@/lib/params';
+import { toEpochMs } from '@/lib/time';
 
 import { draftKey } from './draft-target';
 import { withdrawnEventCount } from './server-drafts';
@@ -11,6 +12,7 @@ import { withdrawnEventCount } from './server-drafts';
 import type { DraftCheck } from './contract';
 import type { DraftTarget } from './draft-target';
 import type { Executor } from '@/lib/params';
+import type { EpochMs } from '@/lib/time';
 
 /** The requests of the import targets among `targets`. */
 function requestIdsOf(targets: readonly DraftTarget[]): number[] {
@@ -19,22 +21,33 @@ function requestIdsOf(targets: readonly DraftTarget[]): number[] {
     .map((target) => target.requestId);
 }
 
-/** The keys of the server copies that exist among those of `requestIds`, and of every exploration draft. */
-async function existingKeys(executor: Executor, requestIds: number[]): Promise<Set<string>> {
+/**
+ * The last change of each server copy among those of `requestIds` and every exploration
+ * draft, by the key of its target (CL-DSN-17).
+ */
+async function lastChanges(
+  executor: Executor,
+  requestIds: number[],
+): Promise<Map<string, EpochMs>> {
   const rows = await executor
-    .select({ requestId: drafts.backtestRequestId, eventTypeId: drafts.explorationEventTypeId })
+    .select({
+      requestId: drafts.backtestRequestId,
+      eventTypeId: drafts.explorationEventTypeId,
+      updatedAt: drafts.updatedAt,
+    })
     .from(drafts)
     .where(
       or(inArray(drafts.backtestRequestId, requestIds), eq(drafts.kind, 'exploration_response')),
     );
-  return new Set(
-    rows.map((row) =>
+  return new Map(
+    rows.map((row) => [
       draftKey(
         row.requestId === null
           ? { kind: 'exploration_response', eventTypeId: row.eventTypeId }
           : { kind: 'research_result', requestId: row.requestId },
       ),
-    ),
+      toEpochMs(row.updatedAt.getTime()),
+    ]),
   );
 }
 
@@ -48,24 +61,25 @@ async function importedRequests(executor: Executor, requestIds: number[]): Promi
 }
 
 /**
- * The server's answer at a device's contact (CL-DSN-22, CL-IHM-11): the withdrawn-events
- * counter, the draft retention, and, for each copy that the device had sent, whether its
- * server copy still exists and whether its request is imported. The answer names only the
- * targets the device sent, and the server records nothing of the contact.
+ * The server's answer at a device's contact (IHM-42, CL-DSN-17, CL-DSN-22, CL-IHM-11): the
+ * withdrawn-events counter, the draft retention, and, for each copy that the device had
+ * sent, the last change of its server copy, `null` when it no longer exists, and whether
+ * its request is imported. The answer names only the targets the device sent, and the
+ * server records nothing of the contact.
  */
 export async function checkDeviceDrafts(
   executor: Executor,
   sent: readonly DraftTarget[],
 ): Promise<DraftCheck> {
   const requestIds = requestIdsOf(sent);
-  const existing = await existingKeys(executor, requestIds);
+  const changes = await lastChanges(executor, requestIds);
   const imported = await importedRequests(executor, requestIds);
   return {
     withdrawnEventCount: await withdrawnEventCount(executor),
     retentionDays: await getParam(executor, 'display.draftRetentionDays'),
     copies: sent.map((target) => ({
       target,
-      exists: existing.has(draftKey(target)),
+      updatedAt: changes.get(draftKey(target)) ?? null,
       requestImported: target.kind === 'research_result' && imported.has(target.requestId),
     })),
   };

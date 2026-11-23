@@ -16,9 +16,11 @@ import type { DraftServer } from './contract';
 import type { DeviceCopy } from './device-store';
 import type { DraftTarget } from './draft-target';
 import type { Database } from '@/lib/db';
+import type { FixedClock } from '@/lib/time';
 
 const NOW = toEpochMs(Date.UTC(2026, 10, 20, 9));
 const DAY_MS = 86_400_000;
+const MINUTE_MS = 60_000;
 // The request of an invented player, the first that a test's own database writes.
 const REQUEST_ID = 1;
 const IMPORT: DraftTarget = { kind: 'research_result', requestId: REQUEST_ID };
@@ -44,6 +46,7 @@ function copyOf(
 describe("a device's contact with the server about its drafts", { timeout: 60_000 }, () => {
   let db: Database;
   let server: DraftServer;
+  let clock: FixedClock;
 
   beforeEach(async () => {
     vi.stubGlobal('indexedDB', new IDBFactory());
@@ -58,7 +61,8 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
       save: async (upload) => saveDraft(db, { ...upload, originDevice: 'Phone' }),
       discard: async (target) => discardDraft(db, target),
     };
-    const restoreClock = installFakeClock(fixedClock(NOW));
+    clock = fixedClock(NOW);
+    const restoreClock = installFakeClock(clock);
     return async () => {
       restoreClock();
       vi.unstubAllGlobals();
@@ -195,5 +199,60 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
 
     expect(await sendCopy(copyOf(IMPORT, false, 0), server)).toStrictEqual({ kind: 'sent' });
     expect(await readCopy(draftKey(IMPORT))).toStrictEqual(later);
+  });
+
+  /** Saves the copy that the laptop typed a minute later, and returns the copy this device would take. */
+  async function saveLaterFromLaptop(): Promise<DeviceCopy> {
+    const text = 'Typed later on the laptop.';
+    clock.advance(MINUTE_MS);
+    const typedAt = toEpochMs(clock.now());
+    await saveDraft(db, {
+      target: IMPORT,
+      text,
+      updatedAt: typedAt,
+      knownWithdrawnEventCount: 0,
+      originDevice: 'Laptop',
+    });
+    return { ...copyOf(IMPORT, true, 0), text, updatedAt: typedAt };
+  }
+
+  it('[IHM-42] [H-IHM-08] [CL-DSN-17] at a contact, takes the later change another device saved over the copy this device sent', async () => {
+    await putContact({ withdrawnEventCount: 0, retentionDays: 7 });
+    await putCopy(copyOf(IMPORT, false, 0));
+    await sendCopy(copyOf(IMPORT, false, 0), server);
+    const laptops = await saveLaterFromLaptop();
+
+    await contactServer(server);
+
+    expect(await listCopies()).toStrictEqual([laptops]);
+  });
+
+  it('[IHM-42] [CL-DSN-17] takes the later server copy over a copy sent after it, which the server did not write', async () => {
+    await putContact({ withdrawnEventCount: 0, retentionDays: 7 });
+    const laptops = await saveLaterFromLaptop();
+    await putCopy(copyOf(IMPORT, false, 0));
+
+    expect(await sendCopy(copyOf(IMPORT, false, 0), server)).toStrictEqual({
+      kind: 'superseded',
+      copy: laptops,
+    });
+    expect(await readCopy(draftKey(IMPORT))).toStrictEqual(laptops);
+    expect(await getDraft(db, IMPORT)).toMatchObject({ text: 'Typed later on the laptop.' });
+  });
+
+  it('[IHM-42] [CL-DSN-17] keeps a change typed on the device after the server copy that superseded the copy sent', async () => {
+    const laptops = await saveLaterFromLaptop();
+    const typedLast = {
+      ...copyOf(IMPORT, false, 0),
+      text: 'Typed last on the phone.',
+      updatedAt: toEpochMs(laptops.updatedAt + 1),
+    };
+    await putCopy(typedLast);
+
+    expect(await sendCopy(copyOf(IMPORT, false, 0), server)).toStrictEqual({
+      kind: 'superseded',
+      copy: typedLast,
+    });
+    expect(await readCopy(draftKey(IMPORT))).toStrictEqual(typedLast);
   });
 });

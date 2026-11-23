@@ -6,7 +6,7 @@ import { now } from '@/lib/time';
 
 import { dropExpiredCopies } from './device-copies';
 import { deleteCopy, putCopy, readContact, readCopy } from './device-store';
-import { contactServer, sendCopy } from './device-sync';
+import { contactServer, sendCopy, takeServerCopy } from './device-sync';
 import { draftKey } from './draft-target';
 
 import type { DraftServer } from './contract';
@@ -61,22 +61,12 @@ function isOnline(): boolean {
 
 /**
  * Brings onto this device the server copy of a draft typed on another one, when this
- * device holds none (IHM-42, H-IHM-08).
+ * device holds none; the contact has already replaced a copy the device holds by a later
+ * server copy (IHM-42, H-IHM-08, CL-DSN-17).
  */
 async function adoptServerCopy(target: DraftTarget, server: DraftServer): Promise<void> {
-  const key = draftKey(target);
-  const stored = (await readCopy(key)) === undefined ? await server.load(target) : null;
-  const contact = await readContact();
-  if (stored !== null) {
-    await putCopy({
-      key,
-      target,
-      text: stored.text,
-      updatedAt: stored.updatedAt,
-      sent: true,
-      withdrawnEventCount: contact?.withdrawnEventCount ?? null,
-      status: 'kept',
-    });
+  if ((await readCopy(draftKey(target))) === undefined) {
+    await takeServerCopy(target, server);
   }
 }
 
@@ -139,15 +129,23 @@ async function discardBoth(target: DraftTarget, server: DraftServer): Promise<Di
   return 'discarded';
 }
 
+/** The copy the device holds after a send of `copy` (IHM-42, CL-DSN-17, CL-DSN-22). */
+function copyAfter(copy: DeviceCopy, outcome: SendOutcome): DeviceCopy | undefined {
+  if (outcome.kind === 'superseded') {
+    return outcome.copy;
+  }
+  const isGone = outcome.kind === 'discarded_unsent' || outcome.kind === 'gone';
+  return isGone ? undefined : { ...copy, sent: outcome.kind === 'sent' };
+}
+
 /** The state after a send of the copy typed at `updatedAt`, unless a later change replaced it. */
 function afterSend(previous: DraftState, updatedAt: EpochMs, outcome: SendOutcome): DraftState {
   if (previous.copy?.updatedAt !== updatedAt) {
     return previous;
   }
-  const isGone = outcome.kind === 'discarded_unsent' || outcome.kind === 'gone';
   return {
     ...previous,
-    copy: isGone ? undefined : { ...previous.copy, sent: outcome.kind === 'sent' },
+    copy: copyAfter(previous.copy, outcome),
     unsentDiscarded: previous.unsentDiscarded || outcome.kind === 'discarded_unsent',
     refusal: outcome.kind === 'refused' ? outcome.message : null,
   };

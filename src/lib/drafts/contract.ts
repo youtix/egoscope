@@ -29,16 +29,26 @@ export type SaveDraftError =
   | Readonly<{ kind: 'events_withdrawn'; withdrawnEventCount: number }>
   | Readonly<{ kind: 'target_gone' }>;
 
-/** A copy saved on the server, with the counter at that instant (CL-DSN-22). */
-export type SaveDraftResult = Result<Readonly<{ withdrawnEventCount: number }>, SaveDraftError>;
+/**
+ * A copy the server accepted, with the counter at that instant (CL-DSN-22), and whether
+ * it wrote it: `false` when the server holds a later change, which it keeps (CL-DSN-17).
+ */
+export type SaveDraftResult = Result<
+  Readonly<{ withdrawnEventCount: number; wasWritten: boolean }>,
+  SaveDraftError
+>;
 
 /** The server copy of a draft, for the screen of another device (IHM-42, CL-DSN-17). */
 export type StoredDraft = Readonly<{ text: string; updatedAt: EpochMs; originDevice: string }>;
 
-/** The server's answer about a copy that the device had sent (CL-DSN-22). */
+/**
+ * The server's answer about a copy that the device had sent: the last change of its server
+ * copy, `null` when there is none, so that the device takes a later change made on another
+ * device (IHM-42, CL-DSN-17), and whether its request is imported (CL-DSN-22).
+ */
 export type SentCopyStatus = Readonly<{
   target: DraftTarget;
-  exists: boolean;
+  updatedAt: EpochMs | null;
   requestImported: boolean;
 }>;
 

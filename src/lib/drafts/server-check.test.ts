@@ -12,6 +12,7 @@ import type { DraftTarget } from './draft-target';
 import type { Database } from '@/lib/db';
 
 const IMPORTED_AT = new Date(Date.UTC(2026, 10, 21));
+const SAVED_AT = toEpochMs(Date.UTC(2026, 10, 20));
 // The request of an invented player, the first that a test's own database writes.
 const REQUEST_ID = 1;
 const IMPORT: DraftTarget = { kind: 'research_result', requestId: REQUEST_ID };
@@ -34,13 +35,13 @@ describe("the server's answer at a device's contact", { timeout: 60_000 }, () =>
     await saveDraft(db, {
       target,
       text: 'Pasted text.',
-      updatedAt: toEpochMs(Date.UTC(2026, 10, 20)),
+      updatedAt: SAVED_AT,
       knownWithdrawnEventCount: 0,
       originDevice: 'Phone',
     });
   }
 
-  it('[CL-DSN-22] [CL-IHM-11] answers the counter, the retention, and only for the copies sent', async () => {
+  it('[IHM-42] [CL-DSN-17] [CL-DSN-22] [CL-IHM-11] answers the counter, the retention, and the last change of the server copy of each copy sent, only those', async () => {
     expect(await checkDeviceDrafts(db, [])).toStrictEqual({
       withdrawnEventCount: 0,
       retentionDays: 7,
@@ -55,9 +56,9 @@ describe("the server's answer at a device's contact", { timeout: 60_000 }, () =>
       withdrawnEventCount: 4,
       retentionDays: 7,
       copies: [
-        { target: IMPORT, exists: true, requestImported: false },
-        { target: TARGETED, exists: true, requestImported: false },
-        { target: GENERAL, exists: false, requestImported: false },
+        { target: IMPORT, updatedAt: SAVED_AT, requestImported: false },
+        { target: TARGETED, updatedAt: SAVED_AT, requestImported: false },
+        { target: GENERAL, updatedAt: null, requestImported: false },
       ],
     });
   });
@@ -67,7 +68,7 @@ describe("the server's answer at a device's contact", { timeout: 60_000 }, () =>
     await discardDraft(db, IMPORT);
 
     expect(await checkDeviceDrafts(db, [IMPORT])).toMatchObject({
-      copies: [{ target: IMPORT, exists: false, requestImported: false }],
+      copies: [{ target: IMPORT, updatedAt: null, requestImported: false }],
     });
 
     await db
@@ -76,7 +77,7 @@ describe("the server's answer at a device's contact", { timeout: 60_000 }, () =>
       .where(eq(backtestRequests.id, REQUEST_ID));
 
     expect(await checkDeviceDrafts(db, [IMPORT])).toMatchObject({
-      copies: [{ target: IMPORT, exists: false, requestImported: true }],
+      copies: [{ target: IMPORT, updatedAt: null, requestImported: true }],
     });
   });
 });
