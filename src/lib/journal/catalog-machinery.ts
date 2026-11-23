@@ -86,7 +86,7 @@ export const MACHINERY_MESSAGES = [
     key: 'parameter_changed',
     category: 'parameter_change',
     params: { parameter: 'parameter', oldValue: 'value', newValue: 'value' },
-    happened: 'The parameter {parameter} changed from {oldValue} to {newValue}.',
+    happened: '{parameter} changed from {oldValue} to {newValue}.',
     consequence: 'The new value applies from now on.',
     whatToDo: 'nothing.',
   },
@@ -94,7 +94,7 @@ export const MACHINERY_MESSAGES = [
     key: 'calculation_parameter_changed',
     category: 'parameter_change',
     params: { parameter: 'parameter', oldValue: 'value', newValue: 'value' },
-    happened: 'The parameter {parameter} changed from {oldValue} to {newValue}.',
+    happened: '{parameter} changed from {oldValue} to {newValue}.',
     consequence:
       'Every profile is recalculated with it, and the date of the last parameter change moves.',
     whatToDo: 'nothing.',
@@ -103,8 +103,7 @@ export const MACHINERY_MESSAGES = [
     key: 'parameter_reset',
     category: 'parameter_change',
     params: { parameter: 'parameter', oldValue: 'value', newValue: 'value' },
-    happened:
-      'The parameter {parameter} went back to its default value, {newValue}; it was {oldValue}.',
+    happened: '{parameter} went back to its default value, {newValue}; it was {oldValue}.',
     consequence: 'The default value applies from now on.',
     whatToDo: 'nothing.',
   },

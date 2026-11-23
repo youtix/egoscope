@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatChanceShare,
   formatCount,
+  formatDecimal,
   formatExpectedCount,
   formatGap,
   formatIndex,
@@ -174,6 +175,35 @@ describe('number formats', () => {
       expect(() => formatIndex(NaN)).toThrow(RangeError);
       expect(() => formatGap(Infinity)).toThrow('is not a number that people read');
       expect(() => formatGap(1e21)).toThrow(RangeError);
+    });
+  });
+
+  describe('the numbers of settings', () => {
+    it('[IHM-13] [CL-TRV-16] writes a setting with at most the decimals of its step, without the zeros that end them', () => {
+      expect(
+        [0.25, 0.4, 1.5, 2, 0.5, 1440, 1234.567, -0.25].map((value) => formatDecimal(value, 2)),
+      ).toStrictEqual(['0.25', '0.4', '1.5', '2', '0.5', '1,440', '1,234.57', '\u{2212}0.25']);
+      expect([formatDecimal(0.04, 1), formatDecimal(10, 1), formatDecimal(0, 2)]).toStrictEqual([
+        '0',
+        '10',
+        '0',
+      ]);
+    });
+
+    it('[IHM-13] [CL-TRV-16] writes any value of a step of hundredths so that it reads back as the value', () => {
+      fc.assert(
+        fc.property(fc.integer({ min: 0, max: 10_000_000 }), (hundredths) => {
+          const shown = formatDecimal(hundredths / 100, 2);
+
+          expect(shown).toMatch(/^\d{1,3}(?:,\d{3})*(?:\.\d?[1-9])?$/u);
+          expect(Number(shown.replaceAll(',', ''))).toBe(hundredths / 100);
+        }),
+      );
+    });
+
+    it('[IHM-13] refuses a number of decimals that is not a positive whole number', () => {
+      expect(() => formatDecimal(1, 0)).toThrow('0 is not a number of decimals.');
+      expect(() => formatDecimal(1, 1.5)).toThrow(RangeError);
     });
   });
 

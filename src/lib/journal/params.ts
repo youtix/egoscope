@@ -43,7 +43,7 @@ const PARAM_SCHEMAS = {
     z.object({ kind: z.enum(incidents.kind.enumValues).exclude(QUOTA_INCIDENT_KINDS) }),
   ]),
   parameter: z.string(),
-  value: z.json(),
+  value: z.string(),
   conversation: z.enum(codesOf(CONVERSATION_WORDS)),
   refusal: z.enum(codesOf(BLOCKING_ERROR_WORDS)),
   cause: z.enum(codesOf(CAUSE_WORDS)),
@@ -55,9 +55,10 @@ type Schemas = typeof PARAM_SCHEMAS;
 
 /**
  * The value each kind of parameter holds, as the caller of `record` gives it: counts,
- * instants, durations, the codes of stored sets, a parameter's key and values; never a
- * player, a type, a date, a description, a title, a link, a birthday or a request
- * reference, which the display reads through the entry's subject (CL-TRV-10, DSN-11).
+ * instants, durations, the codes of stored sets, a parameter's label and its values as
+ * the registry writes them, with their unit (TRV-42); never a player, a type, a date, a
+ * description, a title, a link, a birthday or a request reference, which the display
+ * reads through the entry's subject (CL-TRV-10, DSN-11).
  */
 export type ParamValues = {
   readonly [K in ParamKind]: K extends 'instant' ? EpochMs : z.input<Schemas[K]>;
@@ -93,7 +94,7 @@ const WRITERS: Readonly<Record<ParamKind, Writer>> = {
   service: writer(PARAM_SCHEMAS.service, (value) => wordsFor(SERVICE_WORDS, value)),
   incident: writer(PARAM_SCHEMAS.incident, writeIncident),
   parameter: writer(PARAM_SCHEMAS.parameter, (value) => value),
-  value: writer(PARAM_SCHEMAS.value, (value) => JSON.stringify(value)),
+  value: writer(PARAM_SCHEMAS.value, (value) => value),
   conversation: writer(PARAM_SCHEMAS.conversation, (value) => wordsFor(CONVERSATION_WORDS, value)),
   refusal: writer(PARAM_SCHEMAS.refusal, (value) => wordsFor(BLOCKING_ERROR_WORDS, value)),
   cause: writer(PARAM_SCHEMAS.cause, (value) => wordsFor(CAUSE_WORDS, value)),
