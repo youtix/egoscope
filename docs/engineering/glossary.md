@@ -3307,6 +3307,14 @@ The specs require these texts but do not quote them; the English below is the pr
 | To-do consequence of "Logins refused"                                    | Signing in is locked after repeated failures.                                                                                     | IHM-20, TRV-42    |
 | To-do consequence of "Telegram link broken"                              | Telegram messages are not delivered.                                                                                              | IHM-20, TRV-42    |
 | To-do consequence of "Export reminder"                                   | Your data has no recent full export.                                                                                              | IHM-20, TRV-42    |
+| Quota use of a calendar month on the status screen                       | {service}: {used} of {limit} this month, resets on {date}                                                                         | TRV-46, CL-TRV-12 |
+| Quota use of a minute on the status screen                               | {service}: {used} of {limit} this minute, resets at {time}                                                                        | TRV-46, CL-TRV-12 |
+| Quota use of a second on the status screen                               | {service}: {used} of {limit} this second                                                                                          | TRV-46, CL-TRV-12 |
+| Quota use over a rolling minute on the status screen                     | {service}: {used} of {limit} over the last minute                                                                                 | TRV-46, CL-TRV-12 |
+| Quota use over a rolling 24 hours on the status screen                   | {service}: {used} of {limit} over the last 24 hours                                                                               | TRV-46, CL-TRV-12 |
+| Quota limit not entered yet                                              | {limit}: not entered yet                                                                                                          | TRV-03, CL-TRV-12 |
+| Quota reference value on the status screen                               | {limit}: {value}, a reference value that the app does not enforce                                                                 | TRV-03, TRV-46    |
+| Services named in the quota use                                          | Stats source / Workers AI / Groq / Backup storage / Telegram / Database                                                           | TRV-46            |
 
 ### 7.7 One-sentence definitions shown in the application (IHM-15)
 
