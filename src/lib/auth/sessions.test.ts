@@ -4,6 +4,7 @@ import { asc } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 
 import { accounts, createTestDatabase, loginFailures, sessions } from '@/lib/db';
+import { setParam } from '@/lib/params';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { endAllSessions, purgeExpired } from './sessions';
@@ -96,5 +97,24 @@ describe('the sessions of the account', { timeout: 60_000 }, () => {
     await expect(
       db.select({ at: loginFailures.occurredAt }).from(loginFailures),
     ).resolves.toStrictEqual([{ at: new Date(START - 14 * MINUTE) }]);
+  });
+
+  it('[TRV-61] [H-TRV-10] keeps the failures within the auth.loginFailureWindowMinutes the owner set', async () => {
+    await expect(
+      db.transaction(async (tx) =>
+        setParam(tx, { key: 'auth.loginFailureWindowMinutes', value: 10, expectedVersion: 0 }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+    await db
+      .insert(loginFailures)
+      .values([
+        { occurredAt: new Date(START - 11 * MINUTE) },
+        { occurredAt: new Date(START - 9 * MINUTE) },
+      ]);
+
+    await expect(db.transaction(async (tx) => purgeExpired(tx, { now: START }))).resolves.toBe(1);
+    await expect(
+      db.select({ at: loginFailures.occurredAt }).from(loginFailures),
+    ).resolves.toStrictEqual([{ at: new Date(START - 9 * MINUTE) }]);
   });
 });

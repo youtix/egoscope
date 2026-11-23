@@ -128,6 +128,14 @@ describe('logging in and the sessions of the devices', { timeout: 60_000 }, () =
     const refused = await logIn(auth, device(), WRONG);
     return times > 1 ? wrongTimes(auth, times - 1) : refused;
   };
+  // The owner's overrides of parameters never set before, each saved in its own transaction.
+  const override = async (...changes: readonly Parameters<typeof setParam>[1][]) => {
+    for (const change of changes) {
+      await expect(db.transaction(async (tx) => setParam(tx, change))).resolves.toMatchObject({
+        ok: true,
+      });
+    }
+  };
   const journal = async () => db.select().from(journalEntries).orderBy(asc(journalEntries.id));
   const keys = async () => {
     const entries = await journal();
@@ -212,6 +220,50 @@ describe('logging in and the sessions of the devices', { timeout: 60_000 }, () =
     });
   });
 
+  it('[TRV-61] [H-TRV-10] locks logins after auth.loginFailureThreshold failures for auth.lockoutMinutes, then counts afresh', async () => {
+    const auth = await instance();
+    await override(
+      { key: 'auth.loginFailureThreshold', value: 3, expectedVersion: 0 },
+      { key: 'auth.lockoutMinutes', value: 5, expectedVersion: 0 },
+      { key: 'auth.loginFailureWindowMinutes', value: 30, expectedVersion: 0 },
+    );
+    const firstLock = START + 11 * MINUTE;
+
+    await expect(wrongTimes(auth, 3)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'wrong-password', lockedUntil: firstLock },
+    });
+    clock.advance(4 * MINUTE);
+    await expect(logIn(auth, device(), INITIAL)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'locked', lockedUntil: firstLock },
+    });
+    clock.advance(MINUTE);
+    await expect(wrongTimes(auth, 2)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'wrong-password', lockedUntil: null },
+    });
+    await expect(wrongTimes(auth, 1)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'wrong-password', lockedUntil: START + 22 * MINUTE },
+    });
+  });
+
+  it('[TRV-61] [H-TRV-10] counts only the failures within auth.loginFailureWindowMinutes', async () => {
+    const auth = await instance();
+    await override({ key: 'auth.loginFailureWindowMinutes', value: 7, expectedVersion: 0 });
+
+    await expect(wrongTimes(auth, 6)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'wrong-password', lockedUntil: null },
+    });
+    clock.advance(MINUTE);
+    await expect(logIn(auth, device(), WRONG)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'wrong-password', lockedUntil: START + 28 * MINUTE },
+    });
+  });
+
   it('[TRV-64] [TRV-61] keeps every password out of the journal', async () => {
     const auth = await instance();
     await wrongTimes(auth, 5);
@@ -257,6 +309,20 @@ describe('logging in and the sessions of the devices', { timeout: 60_000 }, () =
     clock.advance(29 * DAY);
     await expect(check(auth, phone)).resolves.toMatchObject({ ok: true });
     clock.advance(30 * DAY);
+    await expect(check(auth, phone)).resolves.toStrictEqual(ended('expired'));
+  });
+
+  it('[TRV-62] [H-TRV-10] ends a session unused for the auth.sessionIdleDays the owner set', async () => {
+    const auth = await instance();
+    await override({ key: 'auth.sessionIdleDays', value: 7, expectedVersion: 0 });
+    const phone = device();
+    await chosenOn(auth, phone);
+
+    clock.advance(6 * DAY);
+    await expect(check(auth, phone)).resolves.toMatchObject({ ok: true });
+    clock.advance(6 * DAY);
+    await expect(check(auth, phone)).resolves.toMatchObject({ ok: true });
+    clock.advance(7 * DAY);
     await expect(check(auth, phone)).resolves.toStrictEqual(ended('expired'));
   });
 
