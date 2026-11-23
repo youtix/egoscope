@@ -160,6 +160,38 @@ async function checkedValue<K extends OverridableKey>(
     : err({ kind: 'out_of_bounds', explanation: refusalOf(key, broken) });
 }
 
+// The name of the transaction lock that every save and reset of a parameter takes.
+const SAVES_LOCK = 'egoscope.parameter-saves';
+
+/**
+ * The state of `key` in `tx`, read once no other save or reset of a parameter runs: two
+ * related values saved at once, from two devices, then cannot each pass their bound
+ * against the other's old value (CL-TRV-16). The lock ends with the transaction, as the
+ * pooled connection requires.
+ */
+async function lockedStateOf<K extends OverridableKey>(tx: Transaction, key: K) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${SAVES_LOCK}))`);
+  return stateOf(tx, key);
+}
+
+/** Deletes the override of `key`: whether its version was still `expectedVersion`. */
+async function hasDeletedOverride(
+  tx: Transaction,
+  key: OverridableKey,
+  expectedVersion: number,
+): Promise<boolean> {
+  const deleted = await tx
+    .delete(parameterOverrides)
+    .where(
+      and(
+        eq(parameterOverrides.parameterKey, key),
+        eq(parameterOverrides.rowVersion, expectedVersion),
+      ),
+    )
+    .returning({ key: parameterOverrides.parameterKey });
+  return deleted.length > 0;
+}
+
 /** A save of a parameter: its key, its new value, and the version the screen showed (CL-IHM-18). */
 export type ParamChange<K extends OverridableKey> = Readonly<{
   key: K;
@@ -184,11 +216,11 @@ export async function setParam<K extends OverridableKey>(
   if (!isOverridable(key)) {
     return err(READ_ONLY);
   }
+  const current = await lockedStateOf(tx, key);
   const checked = await checkedValue(tx, key, change.value);
   if (!checked.ok) {
     return err(checked.error);
   }
-  const current = await stateOf(tx, key);
   if (current.version !== expectedVersion) {
     return stale(current);
   }
@@ -214,7 +246,8 @@ export async function setParam<K extends OverridableKey>(
  * the owner's override, when the version is still `change.expectedVersion` (TRV-35,
  * CL-IHM-18): journaled and kept in the history like a save, and invalidating the wake
  * plan for a parameter that moves a due instant. A parameter at its default changes
- * nothing.
+ * nothing; a default that would break a bound with the value in force of another
+ * parameter is refused, as a save of it would be (CL-TRV-16).
  */
 export async function resetParam<K extends OverridableKey>(
   tx: Transaction,
@@ -224,23 +257,18 @@ export async function resetParam<K extends OverridableKey>(
   if (!isOverridable(key)) {
     return err(READ_ONLY);
   }
-  const current = await stateOf(tx, key);
+  const current = await lockedStateOf(tx, key);
   if (current.version !== expectedVersion) {
     return stale(current);
   }
   if (!current.overridden) {
     return ok({ changed: false, version: current.version });
   }
-  const deleted = await tx
-    .delete(parameterOverrides)
-    .where(
-      and(
-        eq(parameterOverrides.parameterKey, key),
-        eq(parameterOverrides.rowVersion, expectedVersion),
-      ),
-    )
-    .returning({ key: parameterOverrides.parameterKey });
-  if (deleted.length === 0) {
+  const broken = brokenRelation(key, ENTRIES[key].defaultValue, await getParams(tx));
+  if (broken !== undefined) {
+    return err({ kind: 'out_of_bounds', explanation: refusalOf(key, broken) });
+  }
+  if (!(await hasDeletedOverride(tx, key, expectedVersion))) {
     return stale(await stateOf(tx, key));
   }
   await trace(tx, key, {

@@ -24,6 +24,7 @@ export type ValueKind<V> = Readonly<{
 
 // How far from a whole number of steps a double may fall and still be one.
 const STEP_TOLERANCE = 1e-9;
+const DECIMAL_BASE = 10;
 const URL_MAX_LENGTH = 2000;
 // A lowercase domain name of at least two labels, without scheme, port or path: the
 // engineering reading of CL-TRV-16's "domain names, lowercase, without scheme or path".
@@ -69,15 +70,24 @@ export function decimal(
 ): ValueKind<number> {
   const decimals = decimalsOf(bounds.step);
   const write = (value: number): string => formatDecimal(value, decimals);
-  const isStep = (value: number): boolean => {
-    const steps = value / bounds.step;
-    return Math.abs(steps - Math.round(steps)) < STEP_TOLERANCE;
+  // The whole number of steps that `value` is, within the tolerance of a double, if any.
+  const stepsOf = (value: number): number | undefined => {
+    const steps = Math.round(value / bounds.step);
+    return Math.abs(value / bounds.step - steps) < STEP_TOLERANCE ? steps : undefined;
   };
+  // A whole number of steps as the value it is written, 2.00000000001 stored as 2: the
+  // value in units of its last decimal is a whole number, divided back exactly.
+  const lastDecimals = DECIMAL_BASE ** decimals;
+  const onStep = (steps: number): number =>
+    Math.round(steps * bounds.step * lastDecimals) / lastDecimals;
   return {
-    parse: (value) =>
-      typeof value === 'number' && value >= bounds.min && value <= bounds.max && isStep(value)
-        ? value
-        : undefined,
+    parse: (value) => {
+      const steps =
+        typeof value === 'number' && value >= bounds.min && value <= bounds.max
+          ? stepsOf(value)
+          : undefined;
+      return steps === undefined ? undefined : onStep(steps);
+    },
     write: (value) => withUnit(write(value), value, unit),
     allowed: `${write(bounds.min)} to ${write(bounds.max)}${unit.many}, step ${write(bounds.step)}`,
   };

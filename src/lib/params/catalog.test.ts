@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { OVERRIDABLE_PARAMETER_KEYS } from '@/lib/db';
+import { assertNoBettingWords } from '@/lib/wording';
 import registryKeys from '@data/fixtures/params/registry-keys.json';
 import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 
@@ -21,6 +22,15 @@ const ENGINE_DEFAULTS = Object.entries(engineParams).flatMap(([family, values]) 
 // The keys that the Lot 2 modules alone read (ADR 0001).
 const LOT_2_KEY =
   /^(?:collection|detection|languageModel|alerts|tracking|notifications)\.|^players\.exposureWindowDays$|^quotas\.(?:workersAi|groq|telegram)\./u;
+
+// The bounds and the step that the allowed values of a number state: "0.5 to 4 MB, step 0.5".
+const NUMBER = String.raw`(\d{1,3}(?:,\d{3})*(?:\.\d+)?)`;
+const BOUNDS = new RegExp(`^${NUMBER} to ${NUMBER}`, 'u');
+const STEP = new RegExp(`, step ${NUMBER}`, 'u');
+
+/** The number written `written`, "1,440", or not a number when nothing is written. */
+const numberOf = (written: string | undefined): number =>
+  written === undefined ? NaN : Number(written.replaceAll(',', ''));
 
 /** The order of `left` and `right` by their code units. */
 const byCodeUnits = (left: string, right: string): number => (left < right ? -1 : 1);
@@ -56,6 +66,36 @@ describe('the parameter registry', () => {
     expect(withDefault).toHaveLength(110);
   });
 
+  it('[TRV-39] [CL-TRV-16] gives every key the default and the allowed values of section 6 and CL-TRV-16', () => {
+    // The criterion switch holds no value of its own: its value lives on each type sheet.
+    const facts = ALL_FACTS.map(([key, { allowed }]) => ({
+      key,
+      default: isOverridable(key) ? ENTRIES[key].defaultValue : null,
+      allowed,
+    }));
+
+    expect(facts).toStrictEqual(
+      registryKeys.map(({ key, default: value, allowed }) => ({ key, default: value, allowed })),
+    );
+  });
+
+  it('[TRV-35] [CL-TRV-16] accepts the bounds that a numeric parameter states, and refuses one step beyond each', () => {
+    const numeric = OVERRIDABLE_KEYS.filter((key) => typeof ENTRIES[key].defaultValue === 'number');
+    const bounds = numeric.map((key) => {
+      const [, min, max] = BOUNDS.exec(ENTRIES[key].allowed) ?? [];
+      const step = STEP.exec(ENTRIES[key].allowed)?.[1] ?? '1';
+      return { key, min: numberOf(min), max: numberOf(max), step: numberOf(step) };
+    });
+
+    expect(
+      bounds.map(({ key, min, max, step }) => {
+        const { parse } = ENTRIES[key].kind;
+        return [key, parse(min), parse(max), parse(min - step), parse(max + step)];
+      }),
+    ).toStrictEqual(bounds.map(({ key, min, max }) => [key, min, max, undefined, undefined]));
+    expect(numeric).toHaveLength(83);
+  });
+
   it('[TRV-34] [TRV-38] states each fact of every entry, under a label of its own', () => {
     const labels = ALL_FACTS.map(([, facts]) => facts.label);
 
@@ -75,6 +115,21 @@ describe('the parameter registry', () => {
       ),
     ).toStrictEqual([]);
     expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it('[VUE-02] writes no betting word in the label, sentence, unit or allowed values of any parameter', () => {
+    const texts = ALL_FACTS.flatMap(([, facts]) => [
+      facts.label,
+      facts.sentence,
+      facts.unit,
+      facts.allowed,
+    ]);
+
+    expect(() => {
+      for (const text of texts) {
+        assertNoBettingWords(text);
+      }
+    }).not.toThrow();
   });
 
   it('[CL-TRV-17] marks Calc every parameter of files 07, 08 and 10 and the criterion switch, as section 6 does', () => {
@@ -151,7 +206,7 @@ describe('the parameter registry', () => {
     expect(origins).toStrictEqual({
       'players.maxActive': 'local_hypothesis',
       'collection.times': 'journal_decision',
-      'display.timeZone': 'local_hypothesis',
+      'display.timeZone': 'journal_decision',
       'languageModel.primaryModel': 'local_hypothesis',
     });
   });

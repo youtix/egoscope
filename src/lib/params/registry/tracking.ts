@@ -16,8 +16,8 @@ export const TRACKING = {
   'tracking.categoryThreshold': entry({
     label: 'Category threshold',
     sentence:
-      'A tracked case is confirmed when its gap in the forecast direction reaches this, belied when it reaches the opposite.',
-    unit: 'normalized gap in the forecast direction',
+      'A tracked case is confirmed when its gap in forecast direction reaches this, belied when it reaches the opposite.',
+    unit: 'normalized gap in forecast direction',
     kind: decimal(GAP_BOUNDS),
     defaultValue: CATEGORY_THRESHOLD,
     requirement: 'SUI-22',
@@ -27,8 +27,8 @@ export const TRACKING = {
   'tracking.minTrackedCasesForAssessment': entry({
     label: 'Minimum tracked cases for an assessment',
     sentence:
-      'The validation table gives an assessment only from this many tracked cases with a forecast.',
-    unit: 'tracked cases with a forecast',
+      'The validation table gives an assessment only from this many tracked cases with a frozen forecast.',
+    unit: 'tracked cases with a frozen forecast',
     kind: integer(1, MOST_MIN_TRACKED_CASES, noun('tracked case', 'tracked cases')),
     defaultValue: MIN_TRACKED_CASES,
     requirement: 'SUI-26',

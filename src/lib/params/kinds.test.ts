@@ -61,6 +61,14 @@ describe('the kinds of values', () => {
     expect(delay.allowed).toBe('0.25 to 24 hours, step 0.25');
   });
 
+  it('[CL-TRV-16] stores a decimal a rounding error away from its step on the step itself, as it is written', () => {
+    const ratio = decimal({ min: 0.5, max: 10, step: 0.1 });
+    const delay = decimal({ min: 0.25, max: 24, step: 0.25 }, HOURS);
+
+    expect(parsed(ratio, [2 + 1e-11, 1.1 + 2.2, 2 - 1e-11])).toStrictEqual([2, 3.3, 2]);
+    expect(parsed(delay, [0.75 + 1e-12, 23.75 - 1e-12])).toStrictEqual([0.75, 23.75]);
+  });
+
   it('[TRV-42] [CL-TRV-16] writes a decimal with no more decimals than its step, and its unit', () => {
     const delay = decimal({ min: 0.25, max: 24, step: 0.25 }, HOURS);
 

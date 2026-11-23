@@ -24,7 +24,7 @@ export const DISPLAY = {
     kind: timeZone(),
     defaultValue: TIME_ZONE_DEFAULT,
     requirement: 'IHM-14',
-    source: 'H-IHM-02',
+    source: 'ADR 0010',
     movesSchedule: true,
     editedOn: '/settings/display',
   }),

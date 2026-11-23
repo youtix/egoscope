@@ -30,6 +30,39 @@ describe('the bounds between two parameters', () => {
     ]);
   });
 
+  it('[CL-TRV-16] keeps the dedup trace retention at least the maximum article age, whichever of the two changes', () => {
+    const shortTrace = valuesWith({ 'collection.dedupTraceRetentionDays': 10 });
+    const oldArticles = valuesWith({ 'collection.maxArticleAgeDays': 8 });
+
+    expect([
+      brokenRelation('collection.maxArticleAgeDays', 10, shortTrace),
+      brokenRelation('collection.maxArticleAgeDays', 11, shortTrace),
+      brokenRelation('collection.dedupTraceRetentionDays', 8, oldArticles),
+      brokenRelation('collection.dedupTraceRetentionDays', 7, oldArticles),
+    ]).toStrictEqual([
+      undefined,
+      { key: 'collection.dedupTraceRetentionDays', written: '10 days' },
+      undefined,
+      { key: 'collection.maxArticleAgeDays', written: '8 days' },
+    ]);
+  });
+
+  it('[CL-TRV-16] keeps the delay before a box score is unavailable at least the correction window, whichever of the two changes', () => {
+    const shortDelay = valuesWith({ 'games.boxScoreUnavailableAfterDays': 20 });
+
+    expect([
+      brokenRelation('games.boxScoreUnavailableAfterDays', 7, DEFAULTS),
+      brokenRelation('games.boxScoreUnavailableAfterDays', 6, DEFAULTS),
+      brokenRelation('games.correctionWindowDays', 20, shortDelay),
+      brokenRelation('games.correctionWindowDays', 21, shortDelay),
+    ]).toStrictEqual([
+      undefined,
+      { key: 'games.correctionWindowDays', written: '7 days' },
+      undefined,
+      { key: 'games.boxScoreUnavailableAfterDays', written: '20 days' },
+    ]);
+  });
+
   it('[CL-TRV-16] keeps high confidence one case above medium at least', () => {
     expect([
       brokenRelation('sensitivity.confidenceHighFromCases', 9, DEFAULTS),

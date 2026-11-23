@@ -1,5 +1,6 @@
-import { asc } from 'drizzle-orm';
+import { asc, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { createTestDatabase, eventTypes, parameterChanges, parameterOverrides } from '@/lib/db';
 import { list, record } from '@/lib/journal';
@@ -16,6 +17,11 @@ const SAVED_AT = toEpochMs(Date.UTC(2026, 10, 23, 9, 0));
 const PROCESS_FAKE = Symbol.for('egoscope.runtime-cache.process-fake');
 const RETENTION = 'journal.retentionDays';
 const SWITCH = 'taxonomy.switchedOffCriterion';
+
+/** The rows of the result of a raw query. */
+const rowsOf = (result: unknown): readonly unknown[] =>
+  z.object({ rows: z.array(z.unknown()) }).parse(result).rows;
+
 const REFUSED_RETENTION = {
   ok: false,
   error: { kind: 'out_of_bounds', explanation: 'Journal retention accepts 7 to 365 days.' },
@@ -144,6 +150,42 @@ describe('the overrides of the parameters', { timeout: 60_000 }, () => {
       ok: true,
       value: { changed: true, version: 1 },
     });
+  });
+
+  it('[CL-TRV-16] [CA-TRV-11] refuses to restore a default that would break a bound with another parameter', async () => {
+    await save('players.maxActive', 60, 0);
+    await save('players.indicativeMin', 50, 0);
+
+    expect(
+      await db.transaction(async (tx) =>
+        resetParam(tx, { key: 'players.maxActive', expectedVersion: 1 }),
+      ),
+    ).toStrictEqual({
+      ok: false,
+      error: {
+        kind: 'out_of_bounds',
+        explanation:
+          'Maximum active players accepts 1 to 100 active players, at least the indicative minimum. Indicative minimum of players is 50 active players.',
+      },
+    });
+    expect(await getParam(db, 'players.maxActive')).toBe(60);
+  });
+
+  it('[CL-TRV-16] holds one lock over every save and reset of a parameter until its transaction ends', async () => {
+    const advisoryLocks = sql`select count(*)::int as held from pg_locks where locktype = 'advisory'`;
+    const held: unknown[] = [];
+    await db.transaction(async (tx) => {
+      await setParam(tx, { key: RETENTION, value: 120, expectedVersion: 0 });
+      const afterSave = await tx.execute(advisoryLocks);
+      held.push(rowsOf(afterSave));
+      await resetParam(tx, { key: RETENTION, expectedVersion: 1 });
+      const afterReset = await tx.execute(advisoryLocks);
+      held.push(rowsOf(afterReset));
+    });
+    const afterCommit = await db.execute(advisoryLocks);
+    held.push(rowsOf(afterCommit));
+
+    expect(held).toStrictEqual([[{ held: 1 }], [{ held: 1 }], [{ held: 0 }]]);
   });
 
   it('[CL-IHM-18] refuses a save sent with a stale version, with the value as it now stands', async () => {

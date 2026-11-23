@@ -1,133 +1,919 @@
 [
-  { "key": "players.maxActive", "calc": false, "sched": false },
-  { "key": "players.indicativeMin", "calc": false, "sched": false },
-  { "key": "players.prolongedAbsenceGames", "calc": false, "sched": false },
-  { "key": "players.exposureWindowDays", "calc": false, "sched": false },
-  { "key": "collection.times", "calc": false, "sched": true },
-  { "key": "collection.readAttempts", "calc": false, "sched": false },
-  { "key": "collection.maxArticleAgeDays", "calc": false, "sched": false },
-  { "key": "collection.titleDedupWindowHours", "calc": false, "sched": false },
-  { "key": "collection.excerptMaxLength", "calc": false, "sched": false },
-  { "key": "collection.notRelevantRetentionDays", "calc": false, "sched": false },
-  { "key": "collection.dedupTraceRetentionDays", "calc": false, "sched": false },
-  { "key": "collection.failedRunsBeforeDown", "calc": false, "sched": false },
-  { "key": "collection.silencePeriodDays", "calc": false, "sched": false },
-  { "key": "collection.indicatorWindowDays", "calc": false, "sched": false },
-  { "key": "detection.threshold", "calc": false, "sched": false },
-  { "key": "detection.confidenceBandWidth", "calc": false, "sched": false },
-  { "key": "detection.classificationAttempts", "calc": false, "sched": false },
-  { "key": "detection.groupingWindowHours", "calc": false, "sched": false },
-  { "key": "detection.priorityHorizonHours", "calc": false, "sched": false },
-  { "key": "detection.queueResumeIntervalHours", "calc": false, "sched": true },
-  { "key": "languageModel.primaryModel", "calc": false, "sched": false },
-  { "key": "languageModel.fallbackModel", "calc": false, "sched": false },
-  { "key": "backtests.maxSourcesPerEvent", "calc": false, "sched": false },
-  { "key": "imports.maxPastedTextMegabytes", "calc": false, "sched": false },
-  { "key": "imports.duplicateMaxDateGapDays", "calc": false, "sched": false },
-  { "key": "imports.maxSourceLeadDays", "calc": false, "sched": false },
-  { "key": "imports.spotCheckSources", "calc": false, "sched": false },
-  { "key": "imports.linkCheckEnabled", "calc": false, "sched": true },
-  { "key": "imports.linkCheckTimeoutSeconds", "calc": false, "sched": false },
-  { "key": "imports.disallowedSourceDomains", "calc": false, "sched": false },
-  { "key": "games.minutesFloor", "calc": true, "sched": false },
-  { "key": "games.minutesAverageShare", "calc": true, "sched": false },
-  { "key": "games.minBaselineGames", "calc": true, "sched": false },
-  { "key": "games.postseasonBaseline", "calc": true, "sched": false },
-  { "key": "games.partialBaselineShare", "calc": true, "sched": false },
-  { "key": "games.dailyUpdateDelayHours", "calc": true, "sched": true },
-  { "key": "games.correctionWindowDays", "calc": true, "sched": false },
-  { "key": "games.boxScoreUnavailableAfterDays", "calc": true, "sched": false },
-  { "key": "games.retryFirstDelayHours", "calc": true, "sched": true },
-  { "key": "games.retryIntervalHours", "calc": true, "sched": true },
-  { "key": "games.incidentAfterHours", "calc": true, "sched": false },
-  { "key": "games.quotaReserveShare", "calc": true, "sched": false },
-  { "key": "sensitivity.maxAttachmentDays", "calc": true, "sched": false },
-  { "key": "sensitivity.coOccurringCasesDoubtful", "calc": true, "sched": false },
-  { "key": "sensitivity.injuryReturnMinGamesMissed", "calc": true, "sched": false },
-  { "key": "sensitivity.injuryReturnFirstGames", "calc": true, "sched": false },
-  { "key": "sensitivity.allPlayoffGamesUnusualStakes", "calc": true, "sched": false },
-  { "key": "sensitivity.opponentWinShareLow", "calc": true, "sched": false },
-  { "key": "sensitivity.opponentWinShareHigh", "calc": true, "sched": false },
-  { "key": "sensitivity.opponentMinGames", "calc": true, "sched": false },
-  { "key": "taxonomy.switchedOffCriterion", "calc": true, "sched": false },
-  { "key": "sensitivity.minValidCases", "calc": true, "sched": false },
-  { "key": "sensitivity.possibleSignalToNoise", "calc": true, "sched": false },
-  { "key": "sensitivity.possibleMeanGap", "calc": true, "sched": false },
-  { "key": "sensitivity.probableSignalToNoise", "calc": true, "sched": false },
-  { "key": "sensitivity.probableMeanGap", "calc": true, "sched": false },
-  { "key": "sensitivity.confidenceMediumFromCases", "calc": true, "sched": false },
-  { "key": "sensitivity.confidenceHighFromCases", "calc": true, "sched": false },
-  { "key": "sensitivity.confidenceDispersionDrop", "calc": true, "sched": false },
-  { "key": "sensitivity.confidenceDoubtfulShareDrop", "calc": true, "sched": false },
-  { "key": "sensitivity.trendMinPlayers", "calc": true, "sched": false },
-  { "key": "sensitivity.trendMaxTopShare", "calc": true, "sched": false },
-  { "key": "sensitivity.countsBelowCases", "calc": true, "sched": false },
-  { "key": "alerts.confidenceVigilanceMargin", "calc": false, "sched": false },
-  { "key": "tracking.categoryThreshold", "calc": true, "sched": false },
-  { "key": "tracking.minTrackedCasesForAssessment", "calc": true, "sched": false },
-  { "key": "notifications.enabled", "calc": false, "sched": true },
-  { "key": "notifications.quietHours", "calc": false, "sched": true },
-  { "key": "notifications.urgentException", "calc": false, "sched": false },
-  { "key": "notifications.category.backtestRequests", "calc": false, "sched": false },
-  { "key": "notifications.category.alerts", "calc": false, "sched": false },
-  { "key": "notifications.category.trackedResults", "calc": false, "sched": false },
-  { "key": "notifications.category.typeProposals", "calc": false, "sched": false },
-  { "key": "notifications.category.incidents", "calc": false, "sched": false },
-  { "key": "notifications.inconclusiveAlerts", "calc": false, "sched": false },
-  { "key": "notifications.incidentEnd", "calc": false, "sched": false },
-  { "key": "notifications.reminderEnabled", "calc": false, "sched": true },
-  { "key": "notifications.reminderLeadHours", "calc": false, "sched": true },
-  { "key": "notifications.alertGroupingThreshold", "calc": false, "sched": false },
-  { "key": "notifications.maxDetailedFacts", "calc": false, "sched": false },
-  { "key": "notifications.dailyCap", "calc": false, "sched": false },
-  { "key": "notifications.retryIntervalsMinutes", "calc": false, "sched": true },
-  { "key": "notifications.catchUpIntervalMinutes", "calc": false, "sched": true },
-  { "key": "notifications.incidentReminderDays", "calc": false, "sched": true },
-  { "key": "notifications.incidentRecurrenceGraceHours", "calc": false, "sched": true },
-  { "key": "notifications.linkCodeValidityMinutes", "calc": false, "sched": false },
-  { "key": "display.timeZone", "calc": false, "sched": true },
-  { "key": "display.listPageSize", "calc": false, "sched": false },
-  { "key": "display.deadlineSoonHours", "calc": false, "sched": false },
-  { "key": "display.draftRetentionDays", "calc": false, "sched": true },
-  { "key": "display.researchToolUrl", "calc": false, "sched": false },
-  { "key": "events.maxDescriptionLength", "calc": false, "sched": false },
-  { "key": "quotas.statsSource.requestsPerDay", "calc": false, "sched": false },
-  { "key": "quotas.statsSource.megabytesPerDay", "calc": false, "sched": false },
-  { "key": "quotas.workersAi.neuronsPerDay", "calc": false, "sched": false },
-  { "key": "quotas.workersAi.requestsPerMinute", "calc": false, "sched": false },
-  { "key": "quotas.groq.requestsPerMinute", "calc": false, "sched": false },
-  { "key": "quotas.groq.requestsPerDay", "calc": false, "sched": false },
-  { "key": "quotas.groq.tokensPerMinute", "calc": false, "sched": false },
-  { "key": "quotas.groq.tokensPerDay", "calc": false, "sched": false },
-  { "key": "quotas.database.capacityMegabytes", "calc": false, "sched": false },
-  { "key": "quotas.database.computeHoursPerMonth", "calc": false, "sched": false },
-  { "key": "quotas.database.transferMegabytesPerMonth", "calc": false, "sched": false },
-  { "key": "quotas.hosting.invocationsPerMonth", "calc": false, "sched": false },
-  { "key": "quotas.hosting.activeCpuHoursPerMonth", "calc": false, "sched": false },
-  { "key": "quotas.hosting.memoryGbHoursPerMonth", "calc": false, "sched": false },
-  { "key": "quotas.hosting.runtimeCacheReadsPerMonth", "calc": false, "sched": false },
-  { "key": "quotas.hosting.runtimeCacheWritesPerMonth", "calc": false, "sched": false },
-  { "key": "quotas.hosting.schedulesRunsPerMonth", "calc": false, "sched": false },
-  { "key": "quotas.telegram.messagesPerSecond", "calc": false, "sched": false },
-  { "key": "quotas.backupStorage.maxFileMegabytes", "calc": false, "sched": false },
-  { "key": "quotas.backupStorage.requestsPerHour", "calc": false, "sched": false },
-  { "key": "quotas.warningShare", "calc": false, "sched": false },
-  { "key": "quotas.databaseWarningShare", "calc": false, "sched": false },
-  { "key": "scheduler.statsUpdateTime", "calc": false, "sched": true },
-  { "key": "scheduler.statsUpdateCutoff", "calc": false, "sched": true },
-  { "key": "scheduler.statsProbeIntervalMinutes", "calc": false, "sched": true },
-  { "key": "scheduler.statsLateDaysBeforeIncident", "calc": false, "sched": false },
-  { "key": "scheduler.purgeTime", "calc": false, "sched": true },
-  { "key": "scheduler.missedRunMarginHours", "calc": false, "sched": false },
-  { "key": "scheduler.expectedTickIntervalMinutes", "calc": false, "sched": false },
-  { "key": "journal.retentionDays", "calc": false, "sched": false },
-  { "key": "backups.weekday", "calc": false, "sched": true },
-  { "key": "backups.time", "calc": false, "sched": true },
-  { "key": "backups.kept", "calc": false, "sched": false },
-  { "key": "backups.exportReminderDays", "calc": false, "sched": false },
-  { "key": "auth.passwordMinLength", "calc": false, "sched": false },
-  { "key": "auth.loginFailureThreshold", "calc": false, "sched": false },
-  { "key": "auth.loginFailureWindowMinutes", "calc": false, "sched": false },
-  { "key": "auth.lockoutMinutes", "calc": false, "sched": false },
-  { "key": "auth.sessionIdleDays", "calc": false, "sched": false }
+  {
+    "key": "players.maxActive",
+    "calc": false,
+    "sched": false,
+    "default": 30,
+    "allowed": "1 to 100 active players, at least the indicative minimum"
+  },
+  {
+    "key": "players.indicativeMin",
+    "calc": false,
+    "sched": false,
+    "default": 20,
+    "allowed": "0 to 100 active players, at most the maximum; 0 means no reminder"
+  },
+  {
+    "key": "players.prolongedAbsenceGames",
+    "calc": false,
+    "sched": false,
+    "default": 10,
+    "allowed": "1 to 82 games"
+  },
+  {
+    "key": "players.exposureWindowDays",
+    "calc": false,
+    "sched": false,
+    "default": 30,
+    "allowed": "1 to 90 days"
+  },
+  {
+    "key": "collection.times",
+    "calc": false,
+    "sched": true,
+    "default": ["16:30", "23:00"],
+    "allowed": "1 to 6 distinct times of day, at least 60 minutes apart"
+  },
+  {
+    "key": "collection.readAttempts",
+    "calc": false,
+    "sched": false,
+    "default": 3,
+    "allowed": "1 to 5 attempts"
+  },
+  {
+    "key": "collection.maxArticleAgeDays",
+    "calc": false,
+    "sched": false,
+    "default": 3,
+    "allowed": "1 to 14 days, at most the dedup trace retention"
+  },
+  {
+    "key": "collection.titleDedupWindowHours",
+    "calc": false,
+    "sched": false,
+    "default": 6,
+    "allowed": "1 to 72 hours"
+  },
+  {
+    "key": "collection.excerptMaxLength",
+    "calc": false,
+    "sched": false,
+    "default": 500,
+    "allowed": "100 to 1,000 characters"
+  },
+  {
+    "key": "collection.notRelevantRetentionDays",
+    "calc": false,
+    "sched": false,
+    "default": 30,
+    "allowed": "1 to 180 days"
+  },
+  {
+    "key": "collection.dedupTraceRetentionDays",
+    "calc": false,
+    "sched": false,
+    "default": 180,
+    "allowed": "7 to 365 days, at least the maximum article age"
+  },
+  {
+    "key": "collection.failedRunsBeforeDown",
+    "calc": false,
+    "sched": false,
+    "default": 2,
+    "allowed": "1 to 10 runs"
+  },
+  {
+    "key": "collection.silencePeriodDays",
+    "calc": false,
+    "sched": false,
+    "default": 3,
+    "allowed": "1 to 30 days"
+  },
+  {
+    "key": "collection.indicatorWindowDays",
+    "calc": false,
+    "sched": false,
+    "default": 30,
+    "allowed": "1 to 90 days"
+  },
+  {
+    "key": "detection.threshold",
+    "calc": false,
+    "sched": false,
+    "default": 70,
+    "allowed": "1 to 100 points"
+  },
+  {
+    "key": "detection.confidenceBandWidth",
+    "calc": false,
+    "sched": false,
+    "default": 10,
+    "allowed": "1 to 50 points"
+  },
+  {
+    "key": "detection.classificationAttempts",
+    "calc": false,
+    "sched": false,
+    "default": 2,
+    "allowed": "1 to 5 attempts"
+  },
+  {
+    "key": "detection.groupingWindowHours",
+    "calc": false,
+    "sched": false,
+    "default": 72,
+    "allowed": "1 to 240 hours"
+  },
+  {
+    "key": "detection.priorityHorizonHours",
+    "calc": false,
+    "sched": false,
+    "default": 48,
+    "allowed": "1 to 240 hours"
+  },
+  {
+    "key": "detection.queueResumeIntervalHours",
+    "calc": false,
+    "sched": true,
+    "default": 6,
+    "allowed": "1 to 24 hours"
+  },
+  {
+    "key": "languageModel.primaryModel",
+    "calc": false,
+    "sched": false,
+    "default": "@cf/zai-org/glm-4.7-flash",
+    "allowed": "a model identifier, without spaces, of at most 200 characters"
+  },
+  {
+    "key": "languageModel.fallbackModel",
+    "calc": false,
+    "sched": false,
+    "default": "openai/gpt-oss-120b",
+    "allowed": "a model identifier, without spaces, of at most 200 characters"
+  },
+  {
+    "key": "backtests.maxSourcesPerEvent",
+    "calc": false,
+    "sched": false,
+    "default": 3,
+    "allowed": "1 to 10 sources"
+  },
+  {
+    "key": "imports.maxPastedTextMegabytes",
+    "calc": false,
+    "sched": false,
+    "default": 2,
+    "allowed": "0.5 to 4 MB, step 0.5"
+  },
+  {
+    "key": "imports.duplicateMaxDateGapDays",
+    "calc": false,
+    "sched": false,
+    "default": 2,
+    "allowed": "0 to 7 days"
+  },
+  {
+    "key": "imports.maxSourceLeadDays",
+    "calc": false,
+    "sched": false,
+    "default": 1,
+    "allowed": "0 to 7 days"
+  },
+  {
+    "key": "imports.spotCheckSources",
+    "calc": false,
+    "sched": false,
+    "default": 3,
+    "allowed": "1 to 20 sources"
+  },
+  {
+    "key": "imports.linkCheckEnabled",
+    "calc": false,
+    "sched": true,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "imports.linkCheckTimeoutSeconds",
+    "calc": false,
+    "sched": false,
+    "default": 10,
+    "allowed": "1 to 60 seconds"
+  },
+  {
+    "key": "imports.disallowedSourceDomains",
+    "calc": false,
+    "sched": false,
+    "default": [],
+    "allowed": "0 to 500 domain names, lowercase, without scheme or path"
+  },
+  {
+    "key": "games.minutesFloor",
+    "calc": true,
+    "sched": false,
+    "default": 15,
+    "allowed": "0 to 48 minutes"
+  },
+  {
+    "key": "games.minutesAverageShare",
+    "calc": true,
+    "sched": false,
+    "default": 50,
+    "allowed": "0 to 100%"
+  },
+  {
+    "key": "games.minBaselineGames",
+    "calc": true,
+    "sched": false,
+    "default": 10,
+    "allowed": "2 to 82 games"
+  },
+  {
+    "key": "games.postseasonBaseline",
+    "calc": true,
+    "sched": false,
+    "default": "postseason",
+    "allowed": "postseason / regular season"
+  },
+  {
+    "key": "games.partialBaselineShare",
+    "calc": true,
+    "sched": false,
+    "default": 20,
+    "allowed": "0 to 100%"
+  },
+  {
+    "key": "games.dailyUpdateDelayHours",
+    "calc": true,
+    "sched": true,
+    "default": 3,
+    "allowed": "1 to 12 hours"
+  },
+  {
+    "key": "games.correctionWindowDays",
+    "calc": true,
+    "sched": false,
+    "default": 7,
+    "allowed": "1 to 30 days, at most the delay before a box score is unavailable"
+  },
+  {
+    "key": "games.boxScoreUnavailableAfterDays",
+    "calc": true,
+    "sched": false,
+    "default": 30,
+    "allowed": "1 to 365 days, at least the correction window"
+  },
+  {
+    "key": "games.retryFirstDelayHours",
+    "calc": true,
+    "sched": true,
+    "default": 1,
+    "allowed": "0.25 to 24 hours, step 0.25"
+  },
+  {
+    "key": "games.retryIntervalHours",
+    "calc": true,
+    "sched": true,
+    "default": 4,
+    "allowed": "1 to 24 hours, step 0.25"
+  },
+  {
+    "key": "games.incidentAfterHours",
+    "calc": true,
+    "sched": false,
+    "default": 12,
+    "allowed": "1 to 72 hours"
+  },
+  {
+    "key": "games.quotaReserveShare",
+    "calc": true,
+    "sched": false,
+    "default": 10,
+    "allowed": "0 to 50%"
+  },
+  {
+    "key": "sensitivity.maxAttachmentDays",
+    "calc": true,
+    "sched": false,
+    "default": 10,
+    "allowed": "1 to 60 days"
+  },
+  {
+    "key": "sensitivity.coOccurringCasesDoubtful",
+    "calc": true,
+    "sched": false,
+    "default": false,
+    "allowed": "on / off"
+  },
+  {
+    "key": "sensitivity.injuryReturnMinGamesMissed",
+    "calc": true,
+    "sched": false,
+    "default": 4,
+    "allowed": "1 to 82 games"
+  },
+  {
+    "key": "sensitivity.injuryReturnFirstGames",
+    "calc": true,
+    "sched": false,
+    "default": 2,
+    "allowed": "1 to 10 games"
+  },
+  {
+    "key": "sensitivity.allPlayoffGamesUnusualStakes",
+    "calc": true,
+    "sched": false,
+    "default": false,
+    "allowed": "on / off"
+  },
+  {
+    "key": "sensitivity.opponentWinShareLow",
+    "calc": true,
+    "sched": false,
+    "default": 25,
+    "allowed": "0 to 49%"
+  },
+  {
+    "key": "sensitivity.opponentWinShareHigh",
+    "calc": true,
+    "sched": false,
+    "default": 75,
+    "allowed": "51 to 100%"
+  },
+  {
+    "key": "sensitivity.opponentMinGames",
+    "calc": true,
+    "sched": false,
+    "default": 10,
+    "allowed": "1 to 82 games"
+  },
+  {
+    "key": "taxonomy.switchedOffCriterion",
+    "calc": true,
+    "sched": false,
+    "default": null,
+    "allowed": "at most one of SEN-12 to SEN-15, or SEN-06 while \"Treat co-occurring cases as doubtful\" is on"
+  },
+  {
+    "key": "sensitivity.minValidCases",
+    "calc": true,
+    "sched": false,
+    "default": 5,
+    "allowed": "2 to 100 valid cases"
+  },
+  {
+    "key": "sensitivity.possibleSignalToNoise",
+    "calc": true,
+    "sched": false,
+    "default": 2,
+    "allowed": "0.5 to 10 times the expected noise, step 0.1; at most the \"probable\" value"
+  },
+  {
+    "key": "sensitivity.possibleMeanGap",
+    "calc": true,
+    "sched": false,
+    "default": 0.25,
+    "allowed": "0 to 5, step 0.01; at most the \"probable\" value"
+  },
+  {
+    "key": "sensitivity.probableSignalToNoise",
+    "calc": true,
+    "sched": false,
+    "default": 3,
+    "allowed": "0.5 to 10 times the expected noise, step 0.1; at least the \"possible\" value"
+  },
+  {
+    "key": "sensitivity.probableMeanGap",
+    "calc": true,
+    "sched": false,
+    "default": 0.4,
+    "allowed": "0 to 5, step 0.01; at least the \"possible\" value"
+  },
+  {
+    "key": "sensitivity.confidenceMediumFromCases",
+    "calc": true,
+    "sched": false,
+    "default": 8,
+    "allowed": "1 to 200 valid cases, below high"
+  },
+  {
+    "key": "sensitivity.confidenceHighFromCases",
+    "calc": true,
+    "sched": false,
+    "default": 15,
+    "allowed": "2 to 500 valid cases, above medium"
+  },
+  {
+    "key": "sensitivity.confidenceDispersionDrop",
+    "calc": true,
+    "sched": false,
+    "default": 1.5,
+    "allowed": "0.1 to 10, step 0.1"
+  },
+  {
+    "key": "sensitivity.confidenceDoubtfulShareDrop",
+    "calc": true,
+    "sched": false,
+    "default": 30,
+    "allowed": "0 to 100%"
+  },
+  {
+    "key": "sensitivity.trendMinPlayers",
+    "calc": true,
+    "sched": false,
+    "default": 3,
+    "allowed": "1 to 30 players"
+  },
+  {
+    "key": "sensitivity.trendMaxTopShare",
+    "calc": true,
+    "sched": false,
+    "default": 50,
+    "allowed": "1 to 100%"
+  },
+  {
+    "key": "sensitivity.countsBelowCases",
+    "calc": true,
+    "sched": false,
+    "default": 20,
+    "allowed": "1 to 200 cases"
+  },
+  {
+    "key": "alerts.confidenceVigilanceMargin",
+    "calc": false,
+    "sched": false,
+    "default": 10,
+    "allowed": "0 to 100 points"
+  },
+  {
+    "key": "tracking.categoryThreshold",
+    "calc": true,
+    "sched": false,
+    "default": 0.25,
+    "allowed": "0 to 5, step 0.01"
+  },
+  {
+    "key": "tracking.minTrackedCasesForAssessment",
+    "calc": true,
+    "sched": false,
+    "default": 10,
+    "allowed": "1 to 200 tracked cases"
+  },
+  {
+    "key": "notifications.enabled",
+    "calc": false,
+    "sched": true,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.quietHours",
+    "calc": false,
+    "sched": true,
+    "default": { "start": "23:00", "end": "08:00" },
+    "allowed": "any start and end; equal means none; may span midnight"
+  },
+  {
+    "key": "notifications.urgentException",
+    "calc": false,
+    "sched": false,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.category.backtestRequests",
+    "calc": false,
+    "sched": false,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.category.alerts",
+    "calc": false,
+    "sched": false,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.category.trackedResults",
+    "calc": false,
+    "sched": false,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.category.typeProposals",
+    "calc": false,
+    "sched": false,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.category.incidents",
+    "calc": false,
+    "sched": false,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.inconclusiveAlerts",
+    "calc": false,
+    "sched": false,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.incidentEnd",
+    "calc": false,
+    "sched": false,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.reminderEnabled",
+    "calc": false,
+    "sched": true,
+    "default": true,
+    "allowed": "on / off"
+  },
+  {
+    "key": "notifications.reminderLeadHours",
+    "calc": false,
+    "sched": true,
+    "default": 6,
+    "allowed": "1 to 48 hours"
+  },
+  {
+    "key": "notifications.alertGroupingThreshold",
+    "calc": false,
+    "sched": false,
+    "default": 3,
+    "allowed": "1 to 20 alerts"
+  },
+  {
+    "key": "notifications.maxDetailedFacts",
+    "calc": false,
+    "sched": false,
+    "default": 10,
+    "allowed": "1 to 50 facts"
+  },
+  {
+    "key": "notifications.dailyCap",
+    "calc": false,
+    "sched": false,
+    "default": 20,
+    "allowed": "1 to 200 messages"
+  },
+  {
+    "key": "notifications.retryIntervalsMinutes",
+    "calc": false,
+    "sched": true,
+    "default": [1, 5, 15, 30, 60],
+    "allowed": "1 to 10 values, strictly increasing, each 1 to 1,440 minutes"
+  },
+  {
+    "key": "notifications.catchUpIntervalMinutes",
+    "calc": false,
+    "sched": true,
+    "default": 60,
+    "allowed": "15 to 1,440 minutes"
+  },
+  {
+    "key": "notifications.incidentReminderDays",
+    "calc": false,
+    "sched": true,
+    "default": 3,
+    "allowed": "1 to 30 days"
+  },
+  {
+    "key": "notifications.incidentRecurrenceGraceHours",
+    "calc": false,
+    "sched": true,
+    "default": 6,
+    "allowed": "0 to 48 hours"
+  },
+  {
+    "key": "notifications.linkCodeValidityMinutes",
+    "calc": false,
+    "sched": false,
+    "default": 15,
+    "allowed": "5 to 60 minutes"
+  },
+  {
+    "key": "display.timeZone",
+    "calc": false,
+    "sched": true,
+    "default": "Europe/Paris",
+    "allowed": "any zone of the IANA time-zone database"
+  },
+  {
+    "key": "display.listPageSize",
+    "calc": false,
+    "sched": false,
+    "default": 50,
+    "allowed": "10 to 200 items"
+  },
+  {
+    "key": "display.deadlineSoonHours",
+    "calc": false,
+    "sched": false,
+    "default": 24,
+    "allowed": "1 to 168 hours"
+  },
+  {
+    "key": "display.draftRetentionDays",
+    "calc": false,
+    "sched": true,
+    "default": 7,
+    "allowed": "1 to 30 days"
+  },
+  {
+    "key": "display.researchToolUrl",
+    "calc": false,
+    "sched": false,
+    "default": "",
+    "allowed": "empty, or an https address of at most 2,000 characters"
+  },
+  {
+    "key": "events.maxDescriptionLength",
+    "calc": false,
+    "sched": false,
+    "default": 200,
+    "allowed": "80 to 500 characters"
+  },
+  {
+    "key": "quotas.statsSource.requestsPerDay",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.statsSource.megabytesPerDay",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.workersAi.neuronsPerDay",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.workersAi.requestsPerMinute",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.groq.requestsPerMinute",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.groq.requestsPerDay",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.groq.tokensPerMinute",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.groq.tokensPerDay",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.database.capacityMegabytes",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.database.computeHoursPerMonth",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.database.transferMegabytesPerMonth",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.hosting.invocationsPerMonth",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.hosting.activeCpuHoursPerMonth",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.hosting.memoryGbHoursPerMonth",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.hosting.runtimeCacheReadsPerMonth",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.hosting.runtimeCacheWritesPerMonth",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.hosting.schedulesRunsPerMonth",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.telegram.messagesPerSecond",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.backupStorage.maxFileMegabytes",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.backupStorage.requestsPerHour",
+    "calc": false,
+    "sched": false,
+    "default": null,
+    "allowed": "empty until entered, then an integer of at least 1; an unset limit fails the installation check"
+  },
+  {
+    "key": "quotas.warningShare",
+    "calc": false,
+    "sched": false,
+    "default": 80,
+    "allowed": "1 to 99%"
+  },
+  {
+    "key": "quotas.databaseWarningShare",
+    "calc": false,
+    "sched": false,
+    "default": 80,
+    "allowed": "1 to 99%"
+  },
+  {
+    "key": "scheduler.statsUpdateTime",
+    "calc": false,
+    "sched": true,
+    "default": "15:00",
+    "allowed": "any time of day, at least one hour before the cut-off"
+  },
+  {
+    "key": "scheduler.statsUpdateCutoff",
+    "calc": false,
+    "sched": true,
+    "default": "20:00",
+    "allowed": "any time of day, at least one hour after the start"
+  },
+  {
+    "key": "scheduler.statsProbeIntervalMinutes",
+    "calc": false,
+    "sched": true,
+    "default": 60,
+    "allowed": "15 to 120 minutes"
+  },
+  {
+    "key": "scheduler.statsLateDaysBeforeIncident",
+    "calc": false,
+    "sched": false,
+    "default": 2,
+    "allowed": "1 to 7 late days"
+  },
+  {
+    "key": "scheduler.purgeTime",
+    "calc": false,
+    "sched": true,
+    "default": "04:00",
+    "allowed": "any time of day"
+  },
+  {
+    "key": "scheduler.missedRunMarginHours",
+    "calc": false,
+    "sched": false,
+    "default": 2,
+    "allowed": "0.25 to 24 hours, step 0.25"
+  },
+  {
+    "key": "scheduler.expectedTickIntervalMinutes",
+    "calc": false,
+    "sched": false,
+    "default": 5,
+    "allowed": "1 to 60 minutes"
+  },
+  {
+    "key": "journal.retentionDays",
+    "calc": false,
+    "sched": false,
+    "default": 90,
+    "allowed": "7 to 365 days"
+  },
+  {
+    "key": "backups.weekday",
+    "calc": false,
+    "sched": true,
+    "default": "monday",
+    "allowed": "Monday / Tuesday / Wednesday / Thursday / Friday / Saturday / Sunday / every day"
+  },
+  {
+    "key": "backups.time",
+    "calc": false,
+    "sched": true,
+    "default": "05:00",
+    "allowed": "a time of day"
+  },
+  {
+    "key": "backups.kept",
+    "calc": false,
+    "sched": false,
+    "default": 8,
+    "allowed": "1 to 52 backups"
+  },
+  {
+    "key": "backups.exportReminderDays",
+    "calc": false,
+    "sched": false,
+    "default": 30,
+    "allowed": "1 to 365 days"
+  },
+  {
+    "key": "auth.passwordMinLength",
+    "calc": false,
+    "sched": false,
+    "default": 12,
+    "allowed": "12 to 128 characters"
+  },
+  {
+    "key": "auth.loginFailureThreshold",
+    "calc": false,
+    "sched": false,
+    "default": 5,
+    "allowed": "3 to 20 failures"
+  },
+  {
+    "key": "auth.loginFailureWindowMinutes",
+    "calc": false,
+    "sched": false,
+    "default": 15,
+    "allowed": "1 to 1,440 minutes"
+  },
+  {
+    "key": "auth.lockoutMinutes",
+    "calc": false,
+    "sched": false,
+    "default": 15,
+    "allowed": "1 to 1,440 minutes"
+  },
+  {
+    "key": "auth.sessionIdleDays",
+    "calc": false,
+    "sched": false,
+    "default": 30,
+    "allowed": "1 to 365 days"
+  }
 ]
