@@ -29,6 +29,13 @@
       "when": 1795185615623,
       "tag": "0003_events_backtests_imports_and_sensitivity",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795435132536,
+      "tag": "0004_incident_quota_service_role",
+      "breakpoints": true
     }
   ]
 }

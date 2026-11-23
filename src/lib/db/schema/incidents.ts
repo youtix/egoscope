@@ -20,6 +20,11 @@ const INCIDENT_KINDS = [
   'telegram_link_broken',
   'export_reminder',
 ] as const;
+// The quota incidents, which always name their service (TRV-09).
+const QUOTA_KINDS = [
+  'quota_reached',
+  'quota_warning',
+] as const satisfies readonly (typeof INCIDENT_KINDS)[number][];
 // ServiceRole: the "{service function}" of a quota incident (TRV-05, TRV-09).
 const SERVICE_ROLES = [
   'hosting',
@@ -70,6 +75,10 @@ export const incidents = pgTable(
     check(
       'incidents_quota_reached_check',
       sql`(${table.kind} = 'quota_reached') = (${table.quotaCauses} <> '{}')`,
+    ),
+    check(
+      'incidents_quota_service_role_check',
+      sql`NOT (${oneOf(table.kind, QUOTA_KINDS)}) OR ${table.serviceRole} IS NOT NULL`,
     ),
     uniqueIndex('incidents_open_cause_key')
       .on(table.kind, table.causeKey)
