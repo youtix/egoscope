@@ -4,11 +4,13 @@
  * statistics-source adapter (data/fixtures/stats-source/recorded/), by the rules of
  * the statistics-source evaluation, section 13: it keeps the rows that the tests
  * need, gives every player an invented id and an invented name, the same in every
- * file, remaps the other providers' ids of the crosswalk, blanks the personal and
- * free-text columns and never removes a column. Its last step scans every file it
- * wrote for the real names of the originals and for headshot addresses: on any
- * match, it removes every file it wrote and fails. The originals hold real names, so
- * keep them outside the repository:
+ * file, gives every team that is no franchise and no placeholder, such as an
+ * All-Star team named after a real person, an invented name, the same in every file,
+ * its id kept, remaps the other providers' ids of the crosswalk, blanks the personal
+ * and free-text columns and never removes a column. Its last step scans every file it
+ * wrote for the real player names of the originals, the real names of the teams it
+ * renamed and headshot addresses: on any match, it removes every file it wrote and
+ * fails. The originals hold real names, so keep them outside the repository:
  * `bun scripts/anonymize-stats-source-fixtures.ts <originals folder> [<output folder>]`.
  */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -17,9 +19,10 @@ import { fileURLToPath } from 'node:url';
 
 import { format } from 'prettier';
 
-import { anonymizer, parseCsv, readerOf, writeCsv } from './anonymize-stats-source-rows';
+import { parseCsv, readerOf, writeCsv } from './anonymize-stats-source-csv';
+import { anonymizer, FRANCHISE, teamNamesOf } from './anonymize-stats-source-rows';
 
-import type { Row, Table } from './anonymize-stats-source-rows';
+import type { Row, Table } from './anonymize-stats-source-csv';
 
 /** The rows to keep of a box-score file: those of `days`, and every row of its first traded player. */
 type BoxSelection = Readonly<{ file: string; days: readonly string[]; keepsTraded: boolean }>;
@@ -43,17 +46,20 @@ export type AnonymizeResult =
   | Readonly<{ ok: true; written: readonly string[] }>
   | Readonly<{ ok: false; matches: readonly Match[] }>;
 
-/** The rows kept so far, the originals read, and the games and players of the kept box scores. */
+/**
+ * The rows kept so far, the originals read (those that name players, and those that
+ * name teams), and the games and players of the kept box scores.
+ */
 type Recording = Readonly<{
   outputs: Map<string, Table>;
   originals: Table[];
+  teamOriginals: Table[];
   games: Set<string>;
   players: Set<string>;
 }>;
 
 const PROBE = 'timestamp.json';
 const RECORDED_DAY = /"last_updated"\s*:\s*"(?<day>\d{4}-\d{2}-\d{2})/u;
-const FRANCHISE = /^(?:[1-9]|[12]\d|30)$/u;
 const HEADSHOT = 'headshots';
 const SHORTEST_NAME = 5;
 
@@ -111,6 +117,7 @@ function recordBoxScores(recording: Recording, folder: string, selection: BoxSel
     recording.players.add(row('athlete_id'));
   }
   recording.originals.push(table);
+  recording.teamOriginals.push(table);
   recording.outputs.set(selection.file, rows);
 }
 
@@ -119,6 +126,7 @@ function record(folder: string, plan: RecordingPlan): Recording {
   const recording: Recording = {
     outputs: new Map(),
     originals: [],
+    teamOriginals: [],
     games: new Set(),
     players: new Set(),
   };
@@ -127,6 +135,7 @@ function record(folder: string, plan: RecordingPlan): Recording {
   }
   for (const { file, isKept } of plan.schedules) {
     const table = tableOf(folder, file);
+    recording.teamOriginals.push(table);
     recording.outputs.set(
       file,
       kept(table, (row) => recording.games.has(row('game_id')) || isKept(row)),
@@ -147,12 +156,18 @@ function record(folder: string, plan: RecordingPlan): Recording {
   return recording;
 }
 
-/** What the final scan looks for: every player name of the originals, and headshot addresses. */
-function realNamesOf(originals: readonly Table[]): readonly string[] {
-  const names = originals.flatMap(({ header, rows }) => {
-    const read = readerOf(header);
-    return rows.flatMap((fields) => NAME_COLUMNS.map((column) => read(fields)(column)));
-  });
+/**
+ * What the final scan looks for: every player name of the originals, the recorded
+ * names, slugs and logos of the teams that get invented names, and headshot addresses.
+ */
+function realNamesOf({ originals, teamOriginals }: Recording): readonly string[] {
+  const names = [
+    ...originals.flatMap(({ header, rows }) => {
+      const read = readerOf(header);
+      return rows.flatMap((fields) => NAME_COLUMNS.map((column) => read(fields)(column)));
+    }),
+    ...teamNamesOf(teamOriginals),
+  ];
   const lowered = names
     .filter((name) => name.length >= SHORTEST_NAME)
     .map((name) => name.toLowerCase());
@@ -200,7 +215,7 @@ export async function anonymize(
   // Prettier's form of the probe, which says the same as the source's.
   writeFileSync(path.join(output, PROBE), await format(probe, { parser: 'json' }));
   const files = [...written, PROBE];
-  const matches = matchesIn(output, files, realNamesOf(recording.originals));
+  const matches = matchesIn(output, files, realNamesOf(recording));
   if (matches.length === 0) {
     return { ok: true, written: files };
   }

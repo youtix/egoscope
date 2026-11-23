@@ -1,21 +1,24 @@
 /**
  * The rows of the anonymizer of the statistics-source fixtures
- * (anonymize-stats-source-fixtures.ts): how it reads and writes CSV, and how it
- * rewrites every row by the rules of the statistics-source evaluation, section 13.
+ * (anonymize-stats-source-fixtures.ts): how it rewrites every row by the rules of
+ * the statistics-source evaluation, section 13.
  * Every player gets an invented id and an invented name, the same in every file;
+ * every team that is no franchise and no placeholder, such as an All-Star team named
+ * after a real person, gets an invented name, the same in every file, its id kept;
  * the other providers' ids of the crosswalk are remapped; the personal and free-text
  * columns are blanked; no column is ever removed.
  */
 import { createHash } from 'node:crypto';
 
-/** A row of a file, read by column name. */
-export type Row = (column: string) => string;
+import { readerOf } from './anonymize-stats-source-csv';
 
-/** A CSV file: its header and its rows of fields. */
-export type Table = Readonly<{ header: readonly string[]; rows: readonly (readonly string[])[] }>;
+import type { Row, Table } from './anonymize-stats-source-csv';
 
 /** An invented player. */
 type Person = Readonly<{ id: string; first: string; last: string }>;
+
+/** An invented team: its name, after "Team ", and its abbreviation. */
+type Team = Readonly<{ name: string; abbreviation: string }>;
 
 /** How one column is rewritten, from its value and its original row. */
 type Rewrite = (value: string, row: Row) => string;
@@ -23,10 +26,6 @@ type Rewrite = (value: string, row: Row) => string;
 /** A provider of the crosswalk whose ids are remapped. */
 type Provider = 'nba_player_id' | 'fox_athlete_id' | 'yahoo_player_id';
 
-const QUOTE = '"';
-const NEWLINE = '\n';
-const SPECIAL = /[",\n]/gu;
-const NEEDS_QUOTES = /[",\n\r]/u;
 const BIRTH_YEAR = /^(?<year>\d{4})-\d{2}-\d{2}T/u;
 const GUID_FORM = /^(?<first>.{8})(?<second>.{4})(?<third>.{4})(?<fourth>.{4})(?<fifth>.{12})/u;
 const FIRST_ATHLETE_ID = 9_000_001;
@@ -63,6 +62,35 @@ const MONTH_DAY_START = 5;
 const DATE_LENGTH = 10;
 const TWO_DIGITS = 2;
 
+/** The ids of the 30 franchises, whose real team names stay (evaluation, section 13). */
+export const FRANCHISE = /^(?:[1-9]|[12]\d|30)$/u;
+/** The abbreviation of a team still to be determined, a placeholder that names nobody. */
+const PLACEHOLDER = 'TBD';
+/** The prefixes of the columns that describe a team, each with its `<prefix>id`. */
+const TEAM_PREFIXES = ['team_', 'opponent_team_', 'home_', 'away_'];
+const TEAM_ABBREVIATION_LENGTH = 3;
+// The names of the other teams, such as the All-Star teams, can name real people:
+// each such team gets one of these invented names, whose first three letters, its
+// abbreviation, are no franchise's.
+const TEAM_NAMES = [
+  'Alder',
+  'Birch',
+  'Cedar',
+  'Dogwood',
+  'Elm',
+  'Fir',
+  'Ginkgo',
+  'Hemlock',
+  'Larch',
+  'Maple',
+  'Oak',
+  'Poplar',
+  'Spruce',
+  'Teak',
+  'Walnut',
+  'Yew',
+];
+
 /** Personal and free-text columns, blanked wherever they appear. */
 const BLANKED: ReadonlySet<string> = new Set([
   'athlete_headshot_href',
@@ -77,81 +105,6 @@ const BLANKED: ReadonlySet<string> = new Set([
   'weight',
   'display_weight',
 ]);
-
-/**
- * Splits CSV text into rows of fields: a quoted field may hold separators, line
- * breaks and doubled quotes (RFC 4180).
- */
-class CsvSplitter {
-  readonly #rows: string[][] = [];
-  #row: string[] = [];
-  #field = '';
-  #isQuoted = false;
-  /** The last character read closed a quoted field, so a quote now is a doubled one. */
-  #hasClosed = false;
-
-  /** Reads `before`, then the special character `char`. */
-  #take(char: string, before: string): void {
-    const hasClosed = before === '' && this.#hasClosed;
-    this.#hasClosed = false;
-    this.#field += before;
-    if (char === QUOTE || this.#isQuoted) {
-      this.#quote(char, hasClosed);
-      return;
-    }
-    this.#row.push(this.#field);
-    this.#field = '';
-    if (char !== NEWLINE) {
-      return;
-    }
-    this.#rows.push(this.#row);
-    this.#row = [];
-  }
-
-  /** Reads a quote, or a separator or line break inside a quoted field. */
-  #quote(char: string, hasClosed: boolean): void {
-    if (!this.#isQuoted) {
-      this.#field += hasClosed ? QUOTE : '';
-      this.#isQuoted = true;
-    } else if (char === QUOTE) {
-      this.#isQuoted = false;
-      this.#hasClosed = true;
-    } else {
-      this.#field += char;
-    }
-  }
-
-  /** The rows of `text`, the last one included when no line break ends it. */
-  split(text: string): string[][] {
-    let start = 0;
-    const special = new RegExp(SPECIAL);
-    for (let match = special.exec(text); match !== null; match = special.exec(text)) {
-      this.#take(match[0], text.slice(start, match.index));
-      start = match.index + 1;
-    }
-    this.#field += text.slice(start);
-    const isLastRowOpen = this.#row.length > 0 || this.#field !== '';
-    return isLastRowOpen ? [...this.#rows, [...this.#row, this.#field]] : this.#rows;
-  }
-}
-
-/** Splits a whole CSV text into rows of fields (RFC 4180). */
-export const parseCsv = (text: string): string[][] => new CsvSplitter().split(text);
-
-/** A field as CSV writes it, quoted only when it needs it. */
-const written = (field: string): string =>
-  NEEDS_QUOTES.test(field) ? `"${field.replaceAll(QUOTE, '""')}"` : field;
-
-/** Writes rows of fields as CSV, quoting only the fields that need it. */
-export function writeCsv(rows: readonly (readonly string[])[]): string {
-  return rows.map((fields) => `${fields.map((field) => written(field)).join(',')}\n`).join('');
-}
-
-/** A reader of a row's fields by the columns of `header`. */
-export function readerOf(header: readonly string[]): (fields: readonly string[]) => Row {
-  const places = new Map(header.map((column, place) => [column, place]));
-  return (fields) => (column) => fields[places.get(column) ?? fields.length] ?? '';
-}
 
 /** The bytes of a hash of `text`, from which invented values are drawn alike at every run. */
 const bytesOf = (text: string): Buffer => createHash('sha256').update(text).digest();
@@ -316,19 +269,119 @@ function otherRewritesOf(people: Pseudonyms): ReadonlyMap<string, Rewrite> {
 }
 
 /**
+ * Whether the team that the columns of `prefix` describe in `row` gets an invented
+ * name: a team with an id that is no franchise's, and that is no placeholder.
+ */
+function isInventedTeam(prefix: string, row: Row): boolean {
+  const id = row(`${prefix}id`);
+  return id !== '' && !FRANCHISE.test(id) && row(`${prefix}abbreviation`) !== PLACEHOLDER;
+}
+
+/** The invented teams, each given in order of first appearance, the same in every table. */
+class Teams {
+  readonly #teams = new Map<string, Team>();
+
+  /** The invented team of the real team `id`. */
+  team(id: string): Team {
+    const known = this.#teams.get(id);
+    if (known !== undefined) {
+      return known;
+    }
+    const name = TEAM_NAMES[this.#teams.size];
+    if (name === undefined) {
+      throw new Error(`No invented name is left for team ${id}.`);
+    }
+    const team = { name, abbreviation: name.slice(0, TEAM_ABBREVIATION_LENGTH).toUpperCase() };
+    this.#teams.set(id, team);
+    return team;
+  }
+}
+
+/** A logo address whose file, named after the real abbreviation, is named after the invented one. */
+function logoOf({ abbreviation }: Team, address: string): string {
+  const folderEnd = address.lastIndexOf('/') + 1;
+  const extensionStart = address.lastIndexOf('.');
+  return extensionStart < folderEnd
+    ? address
+    : `${address.slice(0, folderEnd)}${abbreviation.toLowerCase()}${address.slice(extensionStart)}`;
+}
+
+/** How each column that names a team is rewritten, from the invented team. */
+const TEAM_COLUMNS: ReadonlyMap<string, (team: Team, value: string) => string> = new Map([
+  ...['name', 'location', 'display_name', 'short_display_name'].map(
+    (suffix) => [suffix, ({ name }: Team) => `Team ${name}`] as const,
+  ),
+  ['slug', ({ name }) => `team-${name.toLowerCase()}`],
+  ['abbreviation', ({ abbreviation }) => abbreviation],
+  ['logo', logoOf],
+  ['logo_dark', logoOf],
+]);
+
+/**
+ * How each column that names a team is rewritten: a team that is no franchise and no
+ * placeholder, such as an All-Star team named after a real person, gets its invented
+ * name in every such column, its id kept; any other team stays as recorded.
+ */
+function teamRewritesOf(teams: Teams): ReadonlyMap<string, Rewrite> {
+  return new Map(
+    TEAM_PREFIXES.flatMap((prefix) =>
+      Array.from(TEAM_COLUMNS, ([suffix, rewrite]) => [
+        `${prefix}${suffix}`,
+        (value: string, row: Row) =>
+          isInventedTeam(prefix, row) ? rewrite(teams.team(row(`${prefix}id`)), value) : value,
+      ]),
+    ),
+  );
+}
+
+/** The recorded values of the columns of `table` that name a team, split by whether the team gets an invented name. */
+function teamValuesOf({ header, rows }: Table): Readonly<{ invented: string[]; kept: string[] }> {
+  const read = readerOf(header);
+  const columns = TEAM_PREFIXES.flatMap((prefix) =>
+    Array.from(TEAM_COLUMNS.keys(), (suffix) => [prefix, `${prefix}${suffix}`] as const),
+  ).filter(([, column]) => header.includes(column));
+  const values = { invented: [] as string[], kept: [] as string[] };
+  for (const fields of rows) {
+    const row = read(fields);
+    for (const [prefix, column] of columns) {
+      values[isInventedTeam(prefix, row) ? 'invented' : 'kept'].push(row(column));
+    }
+  }
+  return values;
+}
+
+/**
+ * The real names that the anonymizer replaces, for its final scan: the recorded
+ * values, in `tables`, of the columns that name a team that gets an invented name,
+ * except those that a kept team bears too, as a franchise does under a stray id.
+ */
+export function teamNamesOf(tables: readonly Table[]): readonly string[] {
+  const values = tables.map((table) => teamValuesOf(table));
+  const names = new Set(values.flatMap(({ invented }) => invented));
+  const keptNames = values.flatMap(({ kept }) => kept);
+  for (const name of keptNames) {
+    names.delete(name);
+  }
+  return [...names];
+}
+
+/**
  * What rewrites the tables of one recording: every row anonymized, its header
- * unchanged, the same invented player for the same real one in every table, ages
- * counted on `recordedOn` (evaluation, section 13).
+ * unchanged, the same invented player and team for the same real one in every table,
+ * ages counted on `recordedOn` (evaluation, section 13).
  */
 export function anonymizer(recordedOn: string): (table: Table) => Table {
   const people = new Pseudonyms();
   const playerRewrites = playerRewritesOf(people, recordedOn);
+  const teamRewrites = teamRewritesOf(new Teams());
   const otherRewrites = otherRewritesOf(people);
   return ({ header, rows }) => {
     const read = readerOf(header);
     const hasPlayers = header.includes(PLAYER_COLUMN);
     const rewriteOf = (column: string): Rewrite | undefined =>
-      (hasPlayers ? playerRewrites.get(column) : undefined) ?? otherRewrites.get(column);
+      (hasPlayers ? playerRewrites.get(column) : undefined) ??
+      teamRewrites.get(column) ??
+      otherRewrites.get(column);
     const byPlace = header.map((column) => (BLANKED.has(column) ? blank : rewriteOf(column)));
     return {
       header,

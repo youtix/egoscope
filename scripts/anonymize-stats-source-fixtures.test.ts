@@ -4,8 +4,9 @@ import path from 'node:path';
 
 import { describe, expect, it, onTestFinished } from 'vitest';
 
+import { parseCsv, writeCsv } from './anonymize-stats-source-csv';
 import { anonymize } from './anonymize-stats-source-fixtures';
-import { anonymizer, parseCsv, writeCsv } from './anonymize-stats-source-rows';
+import { anonymizer } from './anonymize-stats-source-rows';
 
 import type { RecordingPlan } from './anonymize-stats-source-fixtures';
 
@@ -137,6 +138,7 @@ const CROSSWALK = [
   ],
 ];
 const PROBE = '{"last_updated":"2026-11-22 07:33:59 EST"}';
+const LOGOS = 'https://a.espncdn.com/i/teamlogos/nba/500/';
 
 const PLAN: RecordingPlan = {
   boxScores: [{ file: 'player_box_2027.csv', days: ['2026-11-21'], keepsTraded: true }],
@@ -287,6 +289,196 @@ describe('the anonymizer of the recorded statistics-source fixtures', () => {
         rows: [['', 'Octavian Brimblecombe']],
       }).rows,
     ).toStrictEqual([['', '']]);
+  });
+
+  it('[TRV-15] gives every team that is not a franchise nor a placeholder an invented name, the same in every file, and keeps its id', () => {
+    const anonymized = anonymizer('2026-11-22');
+    const header = [
+      'athlete_id',
+      'team_id',
+      'team_name',
+      'team_location',
+      'team_display_name',
+      'team_short_display_name',
+      'team_slug',
+      'team_abbreviation',
+      'team_logo',
+      'team_uid',
+      'opponent_team_id',
+      'opponent_team_name',
+      'opponent_team_abbreviation',
+      'opponent_team_logo',
+    ];
+    const thaddeus = ['Team Thaddeus', 'Team Thaddeus', 'Team Thaddeus', 'Team Thaddeus'];
+    const wilhelmina = ['Team Wilhelmina', 'Team Wilhelmina', 'Team Wilhelmina', 'Team Wilhelmina'];
+    expect(
+      anonymized({
+        header,
+        rows: [
+          [
+            '111',
+            '130579',
+            ...thaddeus,
+            'team-thaddeus',
+            'THD',
+            `${LOGOS}thd.png`,
+            's:40~l:46~t:130579',
+            '130580',
+            'Team Wilhelmina',
+            'WIL',
+            `${LOGOS}wil.png`,
+          ],
+          [
+            '222',
+            '130580',
+            ...wilhelmina,
+            'team-wilhelmina',
+            'WIL',
+            '',
+            's:40~l:46~t:130580',
+            '130579',
+            'Team Thaddeus',
+            'THD',
+            `${LOGOS}thd.png`,
+          ],
+          [
+            '333',
+            '4',
+            'Bulls',
+            'Chicago',
+            'Chicago Bulls',
+            'Bulls',
+            'chicago-bulls',
+            'CHI',
+            `${LOGOS}chi.png`,
+            's:40~l:46~t:4',
+            '-1',
+            'TBD',
+            'TBD',
+            '',
+          ],
+        ],
+      }).rows,
+    ).toStrictEqual([
+      [
+        '9000001',
+        '130579',
+        'Team Alder',
+        'Team Alder',
+        'Team Alder',
+        'Team Alder',
+        'team-alder',
+        'ALD',
+        `${LOGOS}ald.png`,
+        's:40~l:46~t:130579',
+        '130580',
+        'Team Birch',
+        'BIR',
+        `${LOGOS}bir.png`,
+      ],
+      [
+        '9000002',
+        '130580',
+        'Team Birch',
+        'Team Birch',
+        'Team Birch',
+        'Team Birch',
+        'team-birch',
+        'BIR',
+        '',
+        's:40~l:46~t:130580',
+        '130579',
+        'Team Alder',
+        'ALD',
+        `${LOGOS}ald.png`,
+      ],
+      [
+        '9000003',
+        '4',
+        'Bulls',
+        'Chicago',
+        'Chicago Bulls',
+        'Bulls',
+        'chicago-bulls',
+        'CHI',
+        `${LOGOS}chi.png`,
+        's:40~l:46~t:4',
+        '-1',
+        'TBD',
+        'TBD',
+        '',
+      ],
+    ]);
+    expect(
+      anonymized({
+        header: [
+          'game_id',
+          'home_id',
+          'home_location',
+          'home_abbreviation',
+          'home_logo_dark',
+          'away_id',
+          'away_display_name',
+          'away_short_display_name',
+        ],
+        rows: [
+          [
+            'g7',
+            '130581',
+            'Team Cornelius',
+            'COR',
+            `${LOGOS}cor.png`,
+            '130579',
+            'Team Thaddeus',
+            'Team Thaddeus',
+          ],
+        ],
+      }).rows,
+    ).toStrictEqual([
+      [
+        'g7',
+        '130581',
+        'Team Cedar',
+        'CED',
+        `${LOGOS}ced.png`,
+        '130579',
+        'Team Alder',
+        'Team Alder',
+      ],
+    ]);
+  });
+
+  it('[TRV-15] invents the names of the teams that are not franchises in the schedules, and fails when a real team name is left in a file', async () => {
+    const header = [...(SCHEDULE[0] ?? []), 'home_id', 'home_name', 'home_abbreviation'];
+    const exhibition = ['130579', 'Team Thaddeus', 'THD'];
+    const schedule = [
+      header,
+      ...SCHEDULE.slice(1).map((row) => [...row, '5', 'Bulls', 'CHI']),
+      ['g6', 's:40~l:46~e:g6~c:g6', '2026-12-01', 'kept', '', ...exhibition],
+      // A franchise under a stray id, in a row that is not kept: its name stays elsewhere.
+      ['g9', 's:40~l:46~e:g9~c:g9', '2026-12-03', '', '', '75', 'Bulls', 'CHI'],
+    ];
+    const kept = foldersOf(schedule);
+    const result = await anonymize(kept.originals, kept.output, PLAN);
+    expect(result.ok).toBe(true);
+    expect(rowsOf(kept.output, 'nba-schedule-2027.csv').at(-1)).toStrictEqual([
+      'g6',
+      's:40~l:46~e:g6~c:g6',
+      '2026-12-01',
+      'kept',
+      '',
+      '130579',
+      'Team Alder',
+      'ALD',
+    ]);
+    const left = foldersOf([
+      ...schedule,
+      ['g8', 's:40~l:46~e:g8~c:g8', '2026-12-02', 'kept: Team Thaddeus wins', '', ...exhibition],
+    ]);
+    expect(await anonymize(left.originals, left.output, PLAN)).toStrictEqual({
+      ok: false,
+      matches: [{ file: 'nba-schedule-2027.csv', count: 1 }],
+    });
   });
 
   it('[TRV-15] removes every file it wrote and fails when a real name or a headshot address is left in one', async () => {

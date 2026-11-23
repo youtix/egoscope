@@ -3,7 +3,10 @@
 These files are rows of the SportsDataverse hoopR NBA release (compiled from ESPN, licensed CC BY
 4.0), downloaded from the addresses that `docs/services/statistics-source.md` documents and
 anonymized by the rules of the statistics-source evaluation, section 13. Every player id and name
-is invented. The tests of the adapter (`src/lib/stats-source/sportsdataverse*.test.ts`) serve them
+is invented. So is the name of every team that is neither one of the 30 franchises nor a placeholder
+(`TBD`), such as the All-Star teams, which the source names after real people: it is invented in
+every team column (names, slug, abbreviation, logo), the same in every file, and its id is kept.
+The tests of the adapter (`src/lib/stats-source/sportsdataverse*.test.ts`) serve them
 from a local replay of the release (`sportsdataverse-replay.ts`), so that no test reaches the
 network. Each file keeps its release name, in kebab case, and every column of the original.
 
@@ -24,6 +27,7 @@ What they hold:
 To refresh them, download the original files into a new, empty folder outside the repository
 (they hold real names), then run
 `bun scripts/anonymize-stats-source-fixtures.ts <that folder>`. The script rewrites the files of this
-folder, and its last step scans what it wrote for real names and headshot addresses: on any match, it
+folder, and its last step scans what it wrote for real player names, the real names of the teams it
+renamed and headshot addresses: on any match, it
 removes every file it wrote and fails. Then run `bun run test src/lib/stats-source`, whose tests
 pin what the recording holds, and delete the originals.
