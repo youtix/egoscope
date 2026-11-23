@@ -1,0 +1,72 @@
+import 'server-only';
+
+import { and, eq, inArray, or } from 'drizzle-orm';
+
+import { backtestRequests, drafts } from '@/lib/db';
+import { getParam } from '@/lib/params';
+
+import { draftKey } from './draft-target';
+import { withdrawnEventCount } from './server-drafts';
+
+import type { DraftCheck } from './contract';
+import type { DraftTarget } from './draft-target';
+import type { Executor } from '@/lib/params';
+
+/** The requests of the import targets among `targets`. */
+function requestIdsOf(targets: readonly DraftTarget[]): number[] {
+  return targets
+    .filter((target) => target.kind === 'research_result')
+    .map((target) => target.requestId);
+}
+
+/** The keys of the server copies that exist among those of `requestIds`, and of every exploration draft. */
+async function existingKeys(executor: Executor, requestIds: number[]): Promise<Set<string>> {
+  const rows = await executor
+    .select({ requestId: drafts.backtestRequestId, eventTypeId: drafts.explorationEventTypeId })
+    .from(drafts)
+    .where(
+      or(inArray(drafts.backtestRequestId, requestIds), eq(drafts.kind, 'exploration_response')),
+    );
+  return new Set(
+    rows.map((row) =>
+      draftKey(
+        row.requestId === null
+          ? { kind: 'exploration_response', eventTypeId: row.eventTypeId }
+          : { kind: 'research_result', requestId: row.requestId },
+      ),
+    ),
+  );
+}
+
+/** The requests among `requestIds` whose status is `imported`. */
+async function importedRequests(executor: Executor, requestIds: number[]): Promise<Set<number>> {
+  const rows = await executor
+    .select({ id: backtestRequests.id })
+    .from(backtestRequests)
+    .where(and(inArray(backtestRequests.id, requestIds), eq(backtestRequests.status, 'imported')));
+  return new Set(rows.map((row) => row.id));
+}
+
+/**
+ * The server's answer at a device's contact (CL-DSN-22, CL-IHM-11): the withdrawn-events
+ * counter, the draft retention, and, for each copy that the device had sent, whether its
+ * server copy still exists and whether its request is imported. The answer names only the
+ * targets the device sent, and the server records nothing of the contact.
+ */
+export async function checkDeviceDrafts(
+  executor: Executor,
+  sent: readonly DraftTarget[],
+): Promise<DraftCheck> {
+  const requestIds = requestIdsOf(sent);
+  const existing = await existingKeys(executor, requestIds);
+  const imported = await importedRequests(executor, requestIds);
+  return {
+    withdrawnEventCount: await withdrawnEventCount(executor),
+    retentionDays: await getParam(executor, 'display.draftRetentionDays'),
+    copies: sent.map((target) => ({
+      target,
+      exists: existing.has(draftKey(target)),
+      requestImported: target.kind === 'research_result' && imported.has(target.requestId),
+    })),
+  };
+}
