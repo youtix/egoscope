@@ -78,39 +78,80 @@ const IPV6_BLOCKS: readonly (readonly [string, string, AddressKind])[] = [
   ['fc00::', 'fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'unique-local'],
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
   ['fe80::', 'febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'link-local'],
+  // The site-local block (RFC 3879).
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['fec0::', 'feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'deprecated'],
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
   ['ff00::', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'multicast'],
 ];
 
-// The neighbors outside each IPv6 block that lie in no other refused block: :: and ::1
-// touch, and ::2 is the IPv4-compatible address of 0.0.0.2, so the neighbor of both is
-// that of 1.0.0.0; 100::/64 and 100:0:0:1::/64 touch; nothing lies above ff00::/8.
+// The neighbors that lie in no refused block on each side of every refused IPv6 block
+// inside the global unicast block 2000::/3 (RFC 4291), and that of :: and ::1, which
+// touch: ::2 is the IPv4-compatible address of 0.0.0.2, so their neighbor is ::100:0,
+// that of 1.0.0.0.
 const IPV6_NEIGHBORS: readonly (readonly [string, readonly string[]])[] = [
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
   ['::/128 and ::1/128', ['::100:0']],
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
-  ['64:ff9b:1::/48', ['64:ff9b:0:ffff:ffff:ffff:ffff:ffff', '64:ff9b:2::']],
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
-  ['100::/64 and 100:0:0:1::/64', ['ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '100:0:0:2::']],
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
   ['2001::/23', ['2000:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '2001:200::']],
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
   ['2001:db8::/32', ['2001:db7:ffff:ffff:ffff:ffff:ffff:ffff', '2001:db9::']],
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
   ['3fff::/20', ['3ffe:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '3fff:1000::']],
+];
+
+// The edges of the global unicast block 2000::/3, which holds every public IPv6 address
+// that holds no IPv4 one, and its neighbors outside it.
+const GLOBAL_UNICAST_EDGES: readonly (readonly [string, AddressKind])[] = [
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
-  ['5f00::/16', ['5eff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '5f01::']],
+  ['2000::', 'public'],
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
-  ['fc00::/7', ['fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'fe00::']],
+  ['3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'public'],
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
-  ['fe80::/10', ['fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'fec0::']],
+  ['1fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'reserved'],
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
-  ['ff00::/8', ['feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff']],
+  ['4000::', 'reserved'],
+];
+
+// Addresses outside 2000::/3 that hold no IPv4 address: the neighbors of the refused
+// blocks outside it, and the forms that a system may still route. Each one is refused,
+// as `reserved` unless it lies in a refused block, whose kind it keeps.
+const OUTSIDE_GLOBAL_UNICAST: readonly (readonly [string, string, AddressKind])[] = [
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['64:ff9b:0:ffff:ffff:ffff:ffff:ffff', 'below 64:ff9b:1::/48', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['64:ff9b:2::', 'above 64:ff9b:1::/48', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'below 100::/64', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['100:0:0:2::', 'above 100:0:0:1::/64', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['5eff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'below 5f00::/16', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['5f01::', 'above 5f00::/16', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'below fc00::/7', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['fe00::', 'above fc00::/7', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'below fe80::/10', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['fec0::', 'above fe80::/10, site-local', 'deprecated'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'below ff00::/8, site-local', 'deprecated'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['fec0::1', 'a site-local address', 'deprecated'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['4000::1', 'an address of no special-purpose block', 'reserved'],
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
+  ['::ffff:0:7f00:1', 'a SIIT address, outside the IPv4-mapped block', 'reserved'],
 ];
 
 // IPv6 addresses that hold an IPv4 one, in two written forms each, and the kind of
 // the IPv4 address they hold. The dotted tail of a 6to4 address is its interface, not
-// the address it holds.
+// the address it holds. An IPv4-compatible, IPv4-mapped or NAT64 address lies outside
+// 2000::/3, yet one that holds a public IPv4 address, such as ::ffff:11.0.0.1, stays
+// public: it is judged by that IPv4 address alone, which is where it leads.
 const EMBEDDED: readonly (readonly [string, string, AddressKind])[] = [
   // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a test address, judged and never contacted
   ['::127.0.0.1', '::7f00:1', 'loopback'],
@@ -155,6 +196,20 @@ describe('addressKind', () => {
   it.each(IPV6_NEIGHBORS)('[TRV-66] accepts the neighbors outside %s', (_blocks, neighbors) => {
     expect(judged(neighbors)).toStrictEqual(allPublic(neighbors));
   });
+
+  it.each(GLOBAL_UNICAST_EDGES)(
+    '[TRV-66] [CL-IMP-25] judges %s, at an edge of the global unicast block 2000::/3, as %s',
+    (address, kind) => {
+      expect(addressKind(address)).toBe(kind);
+    },
+  );
+
+  it.each(OUTSIDE_GLOBAL_UNICAST)(
+    '[TRV-66] [CL-IMP-25] refuses %s (%s), which lies outside 2000::/3, as %s',
+    (address, _where, kind) => {
+      expect(addressKind(address)).toBe(kind);
+    },
+  );
 
   it.each(EMBEDDED)(
     '[TRV-66] judges %s, also written %s, by the IPv4 address it holds: %s',
