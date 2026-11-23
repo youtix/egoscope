@@ -1,4 +1,4 @@
-import { formatCount, formatGap, sentence } from '@/lib/wording';
+import { definition, formatCount, formatGap, sentence } from '@/lib/wording';
 
 import { Direction, shownDirection } from './direction';
 import { GlossaryTerm } from './glossary-term';
@@ -13,6 +13,12 @@ export type MeanGapProps = Readonly<{
   rangeHigh: number;
   /** The number of valid cases the mean rests on, which no mean gap is shown without (SEN-38). */
   validCount: number;
+  /**
+   * Whether the label "Range" is written as plain text, for a later occurrence of the
+   * term on the screen; absent, it opens its definition, as the first occurrence does
+   * (IHM-15, CL-IHM-26).
+   */
+  plain?: boolean;
 }>;
 
 /**
@@ -20,9 +26,15 @@ export type MeanGapProps = Readonly<{
  * written in full, its plausible range and the number of valid cases it rests on
  * (SEN-38, IHM-45, IHM-47, CA-IHM-10). Its props need all four, so that no screen
  * can show a mean gap without its case count. The range's label opens its
- * definition (IHM-15, CL-IHM-26).
+ * definition, unless `plain` writes it as text (IHM-15, CL-IHM-26).
  */
-export function MeanGap({ meanGap, rangeLow, rangeHigh, validCount }: MeanGapProps): ReactNode {
+export function MeanGap({
+  meanGap,
+  rangeLow,
+  rangeHigh,
+  validCount,
+  plain,
+}: MeanGapProps): ReactNode {
   const written = formatGap(meanGap);
   const direction = shownDirection(written);
   return (
@@ -33,7 +45,11 @@ export function MeanGap({ meanGap, rangeLow, rangeHigh, validCount }: MeanGapPro
         {direction !== undefined && <Direction direction={direction} />}
       </p>
       <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-        <GlossaryTerm term="plausibleRange" />
+        {plain === true ? (
+          <span>{definition('plausibleRange').label}</span>
+        ) : (
+          <GlossaryTerm term="plausibleRange" />
+        )}
         <span className="tabular-nums">
           {sentence('sensitivity.rangeBounds', {
             low: formatGap(rangeLow),

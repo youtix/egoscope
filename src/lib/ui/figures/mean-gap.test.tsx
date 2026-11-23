@@ -41,6 +41,23 @@ describe('MeanGap', () => {
     expect(screen.getByRole('button', { name: 'Range' })).toHaveAttribute('popovertarget');
   });
 
+  it('[IHM-15] [CL-IHM-26] writes the label of the range as plain text, in no button, when plain', () => {
+    render(<MeanGap meanGap={0.8} rangeLow={0.09} rangeHigh={1.51} validCount={8} plain />);
+
+    expect(screen.queryAllByRole('button')).toStrictEqual([]);
+    expect(
+      shown(['Mean gap', '+0.80', 'Range', 'from +0.09 to +1.51', '8 valid cases']),
+    ).toStrictEqual([true, true, true, true, true]);
+  });
+
+  it('[CL-IHM-26] keeps the definition of the range when plain is false', () => {
+    render(<MeanGap meanGap={0.8} rangeLow={0.09} rangeHigh={1.51} validCount={8} plain={false} />);
+
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toStrictEqual([
+      'Range',
+    ]);
+  });
+
   it('[IHM-47] [CA-IHM-10] gives gaps of +0.60 and −0.60 on the same case count the same presentation, with "increase" and "decrease"', () => {
     const { asFragment: increase } = render(
       <MeanGap meanGap={0.6} rangeLow={0.1} rangeHigh={1.1} validCount={9} />,

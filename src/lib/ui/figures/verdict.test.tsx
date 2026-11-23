@@ -99,6 +99,38 @@ describe('Verdict', () => {
     ]);
   });
 
+  it('[IHM-15] [CL-IHM-26] writes the labels as plain text, in no button, when plain', () => {
+    render(
+      <Verdict
+        verdict={{ level: 'probable', direction: 'increase' }}
+        confidence="high"
+        validCount={30}
+        plain
+      />,
+    );
+
+    expect(screen.queryAllByRole('button')).toStrictEqual([]);
+    expect(
+      shown(['Verdict', 'probable, increase', 'Profile confidence', 'High', '30 valid cases']),
+    ).toStrictEqual([true, true, true, true, true]);
+  });
+
+  it('[CL-IHM-26] keeps the definitions of the labels when plain is false', () => {
+    render(
+      <Verdict
+        verdict={{ level: 'inconclusive', direction: null }}
+        confidence="low"
+        validCount={4}
+        plain={false}
+      />,
+    );
+
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toStrictEqual([
+      'Verdict',
+      'Profile confidence',
+    ]);
+  });
+
   it('[IHM-61] passes the WCAG 2.2 AA rules', async () => {
     const { container } = render(
       <Verdict

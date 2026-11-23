@@ -66,6 +66,7 @@ export type { TabItem } from './tabs';
 // glossary term with its one-tap definition (GlossaryTerm) and the drill-down links.
 export { CountOrShare } from './figures/count-or-share';
 export { Direction } from './figures/direction';
+export type { FigureVerdictDirection } from './figures/direction';
 export { DrillDownLink } from './figures/drill-down-link';
 export { FilterSummary } from './figures/filter-summary';
 export { GlossaryTerm } from './figures/glossary-term';
@@ -73,6 +74,7 @@ export { MeanGap } from './figures/mean-gap';
 export { MethodNotice } from './figures/method-notice';
 export { OriginBreakdown } from './figures/origin-breakdown';
 export { Verdict } from './figures/verdict';
+export type { FigureProfileConfidence, FigureVerdictLevel } from './figures/verdict';
 
 // Sub-slots: each planning area of the module map (section 9.2) exports here the
 // figures that several of its screens share, files of its own under figures/.
