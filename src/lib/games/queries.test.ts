@@ -229,7 +229,7 @@ describe('the games read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     const query = { playerId: P01, season: '2025-26', phase: { regularSeasonAt: NOW } };
     const inputs = await baselineInputs(db, query, PARAMS);
     const of = inputs.games.map((game) => [
-      gameDay(game.scheduledStartAt),
+      gameDay(toEpochMs(game.scheduledStartAt)),
       game.classification,
       rounded(game.performanceIndex),
     ]);
