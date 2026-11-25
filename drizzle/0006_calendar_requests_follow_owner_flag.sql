@@ -1,0 +1,2 @@
+ALTER TABLE "calendar_derivation_requests" DROP CONSTRAINT "calendar_derivation_requests_follows_owner_change_check";--> statement-breakpoint
+ALTER TABLE "calendar_derivation_requests" ADD CONSTRAINT "calendar_derivation_requests_follows_owner_change_check" CHECK (NOT "calendar_derivation_requests"."follows_owner_change" OR "calendar_derivation_requests"."cause" IN ('type_validated', 'type_reactivated', 'type_changed', 'birthday_changed', 'mapping_changed', 'team_change_entered'));

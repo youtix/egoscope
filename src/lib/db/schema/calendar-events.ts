@@ -68,7 +68,7 @@ export const calendarDerivationRequests = pgTable(
     ),
     check(
       'calendar_derivation_requests_follows_owner_change_check',
-      sql`${table.followsOwnerChange} = (${oneOf(table.cause, OWNER_CAUSES)})`,
+      sql`NOT ${table.followsOwnerChange} OR ${oneOf(table.cause, OWNER_CAUSES)}`,
     ),
     // NULLS NOT DISTINCT, which Drizzle cannot write on a partial index: a request for
     // every player, or for both types, is keyed by the empty string, which neither a

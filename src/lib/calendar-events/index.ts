@@ -14,3 +14,5 @@ export type {
 // derive.ts: processDerivations, previewBirthdayChange
 
 // requests.ts: requestDerivation, nextDueAt
+export { nextDueAt, requestDerivation } from './requests';
+export type { DerivationRefusal, DerivationRequest, FullCause, RegularCause } from './requests';

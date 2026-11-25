@@ -126,16 +126,6 @@ describe('the calendar derivation requests', { timeout: 60_000 }, () => {
     ['regular after a change of birthday', { ...BIRTHDAY, kind: 'regular' }, 'regular'],
     ['full after a statistics update', { ...REGULAR, kind: 'full' }, 'regular'],
     [
-      'after a change of the owner that it does not mark',
-      { ...BIRTHDAY, followsOwnerChange: false },
-      'follows_owner_change',
-    ],
-    [
-      'after an entered team change that it does not mark',
-      { ...BIRTHDAY, cause: 'team_change_entered', followsOwnerChange: false },
-      'follows_owner_change',
-    ],
-    [
       'after a stored history, marked as following the owner',
       { ...BIRTHDAY, cause: 'history_stored' },
       'follows_owner_change',
@@ -151,6 +141,19 @@ describe('the calendar derivation requests', { timeout: 60_000 }, () => {
     await expect(insert).rejects.toMatchObject(
       violationOf(`calendar_derivation_requests_${check}_check`),
     );
+  });
+
+  it('[CL-TEL-21] keeps the cause of a request of the owner whose flag a need of the program turned off', async () => {
+    await db.insert(calendarDerivationRequests).values({ ...BIRTHDAY, followsOwnerChange: false });
+
+    const rows = await db
+      .select({
+        cause: calendarDerivationRequests.cause,
+        followsOwnerChange: calendarDerivationRequests.followsOwnerChange,
+      })
+      .from(calendarDerivationRequests);
+
+    expect(rows).toStrictEqual([{ cause: BIRTHDAY.cause, followsOwnerChange: false }]);
   });
 
   it('[CL-TAX-19] joins a need to the pending request of its scope, all players or both types included, and queues one behind a running request', async () => {

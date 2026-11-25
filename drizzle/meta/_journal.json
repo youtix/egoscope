@@ -43,6 +43,13 @@
       "when": 1795612650428,
       "tag": "0005_fetch_failure_and_layout_state",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795635088049,
+      "tag": "0006_calendar_requests_follow_owner_flag",
+      "breakpoints": true
     }
   ]
 }
