@@ -177,6 +177,159 @@ const EMBEDDED: readonly (readonly [string, string, AddressKind])[] = [
   ['2002:7f00:1::', '2002:7f00:0001:0000:0000:0000:0000:0000', 'loopback'],
 ];
 
+const IPV6_GROUP_COUNT = 8;
+const GROUP_BITS = 16n;
+const GROUP_MASK = 0xff_ffn;
+const IPV6_MAX = (1n << 128n) - 1n;
+const IPV4_MASK = 0xff_ff_ff_ffn;
+const IPV4_OCTET_BITS = 8n;
+const IPV4_OCTET_MASK = 0xffn;
+const HOLDER_FILLER_BITS = 80n;
+const SIX_TO_FOUR_PREFIX_BITS = 112n;
+// The global unicast block 2000::/3: the addresses whose three top bits are 001.
+const GLOBAL_UNICAST_FIRST = 1n << 125n;
+const GLOBAL_UNICAST_LAST = (2n << 125n) - 1n;
+
+/** The hexadecimal groups of one side of a `::`. */
+const groupsOfSide = (side: string): string[] => (side === '' ? [] : side.split(':'));
+
+/** The value of an IPv6 address written in hexadecimal groups, with or without one `::`, and no dotted tail. */
+const ipv6Number = (text: string): bigint => {
+  const [head = '', tail = ''] = text.split('::', 2);
+  const before = groupsOfSide(head);
+  const after = groupsOfSide(tail);
+  const zeros = Array.from({ length: IPV6_GROUP_COUNT - before.length - after.length }, () => '0');
+  return [...before, ...zeros, ...after].reduce(
+    (value, group) => (value << GROUP_BITS) | BigInt(`0x${group}`),
+    0n,
+  );
+};
+
+/** The eight 16-bit groups of `value`, written in hexadecimal and joined by colons. */
+const ipv6Text = (value: bigint): string =>
+  Array.from({ length: IPV6_GROUP_COUNT }, (_, index) =>
+    ((value >> (GROUP_BITS * BigInt(IPV6_GROUP_COUNT - 1 - index))) & GROUP_MASK).toString(16),
+  ).join(':');
+
+/** The dotted-quad IPv4 address of the 32-bit `value`. */
+const ipv4Text = (value: bigint): string =>
+  [3n, 2n, 1n, 0n]
+    .map((octet) => String((value >> (octet * IPV4_OCTET_BITS)) & IPV4_OCTET_MASK))
+    .join('.');
+
+/**
+ * The blocks of IPv6 addresses that hold an IPv4 address, each with the range it covers,
+ * where it keeps the IPv4 address, and how to write an address of it holding a given one.
+ */
+const IPV4_HOLDERS: readonly Readonly<{
+  first: bigint;
+  last: bigint;
+  held: (address: bigint) => bigint;
+  place: (ipv4: bigint, filler: bigint) => bigint;
+}>[] = [
+  // IPv4-compatible, ::/96.
+  { first: 0n, last: IPV4_MASK, held: (a) => a & IPV4_MASK, place: (ipv4) => ipv4 },
+  // IPv4-mapped, ::ffff:0:0/96.
+  {
+    first: 0xff_ffn << 32n,
+    last: (0xff_ffn << 32n) | IPV4_MASK,
+    held: (a) => a & IPV4_MASK,
+    place: (ipv4) => (0xff_ffn << 32n) | ipv4,
+  },
+  // NAT64, 64:ff9b::/96.
+  {
+    first: 0x00_64_ff_9bn << 96n,
+    last: (0x00_64_ff_9bn << 96n) | IPV4_MASK,
+    held: (a) => a & IPV4_MASK,
+    place: (ipv4) => (0x00_64_ff_9bn << 96n) | ipv4,
+  },
+  // 6to4, 2002::/16: the IPv4 address follows the prefix.
+  {
+    first: 0x20_02n << SIX_TO_FOUR_PREFIX_BITS,
+    last: (0x20_02n << SIX_TO_FOUR_PREFIX_BITS) | ((1n << SIX_TO_FOUR_PREFIX_BITS) - 1n),
+    held: (a) => (a >> HOLDER_FILLER_BITS) & IPV4_MASK,
+    place: (ipv4, filler) =>
+      (0x20_02n << SIX_TO_FOUR_PREFIX_BITS) | (ipv4 << HOLDER_FILLER_BITS) | filler,
+  },
+];
+
+/** The refused IPv6 blocks as the tables above write them: first and last value, and kind. */
+const REFUSED_RANGES = IPV6_BLOCKS.map(
+  ([first, last, kind]) => [ipv6Number(first), ipv6Number(last), kind] as const,
+);
+
+/** What an address that lies in a refused block, holds an IPv4 address or lies in none, must be judged. */
+type Oracle = Readonly<{ kind: AddressKind; source: 'refused' | 'held' | 'complement' }>;
+
+/**
+ * The verdict of the rule, written from its definition and from the tables of this file
+ * alone: a refused block gives its kind, an IPv4-holding block the kind of the IPv4 address
+ * it holds, and any other address is public inside 2000::/3 and reserved outside it.
+ */
+const oracle = (address: bigint): Oracle => {
+  const refused = REFUSED_RANGES.find(([first, last]) => address >= first && address <= last);
+  if (refused !== undefined) {
+    return { kind: refused[2], source: 'refused' };
+  }
+  const holder = IPV4_HOLDERS.find(({ first, last }) => address >= first && address <= last);
+  if (holder !== undefined) {
+    return { kind: addressKind(ipv4Text(holder.held(address))), source: 'held' };
+  }
+  const isGlobalUnicast = address >= GLOBAL_UNICAST_FIRST && address <= GLOBAL_UNICAST_LAST;
+  return { kind: isGlobalUnicast ? 'public' : 'reserved', source: 'complement' };
+};
+
+const clamped = (value: bigint): bigint => {
+  if (value < 0n) {
+    return 0n;
+  }
+  return value > IPV6_MAX ? IPV6_MAX : value;
+};
+
+/** First, last, one below and one above of every range of the rule: where a wrong edge shows. */
+const RANGE_EDGES: readonly bigint[] = [
+  ...REFUSED_RANGES.map(([first, last]) => [first, last] as const),
+  ...IPV4_HOLDERS.map(({ first, last }) => [first, last] as const),
+  [GLOBAL_UNICAST_FIRST, GLOBAL_UNICAST_LAST] as const,
+].flatMap(([first, last]) => [first - 1n, first, last, last + 1n].map((value) => clamped(value)));
+
+// The first octets of the refused IPv4 blocks, which a uniform draw of 32 bits seldom hits.
+const REFUSED_IPV4_OCTETS = [0n, 10n, 100n, 127n, 169n, 172n, 192n, 198n, 224n, 240n, 255n];
+const IPV4_LOW_BITS = 24n;
+
+/** A 32-bit value, uniform or in a refused IPv4 block. */
+const heldIpv4 = fc.oneof(
+  fc.bigInt({ min: 0n, max: IPV4_MASK }),
+  fc
+    .tuple(
+      fc.constantFrom(...REFUSED_IPV4_OCTETS),
+      fc.bigInt({ min: 0n, max: (1n << IPV4_LOW_BITS) - 1n }),
+    )
+    .map(([octet, rest]) => (octet << IPV4_LOW_BITS) | rest),
+);
+
+/** Addresses of the whole 128-bit space, with a share at the edges, in 2000::/3 and in IPv4-holding blocks. */
+const ipv6Values = fc.oneof(
+  { arbitrary: fc.bigInt({ min: 0n, max: IPV6_MAX }), weight: 3 },
+  { arbitrary: fc.constantFrom(...RANGE_EDGES), weight: 3 },
+  {
+    arbitrary: fc
+      .bigInt({ min: 0n, max: GLOBAL_UNICAST_FIRST - 1n })
+      .map((rest) => GLOBAL_UNICAST_FIRST | rest),
+    weight: 2,
+  },
+  {
+    arbitrary: fc
+      .tuple(
+        fc.constantFrom(...IPV4_HOLDERS),
+        heldIpv4,
+        fc.bigInt({ min: 0n, max: (1n << HOLDER_FILLER_BITS) - 1n }),
+      )
+      .map(([holder, ipv4, filler]) => holder.place(ipv4, filler)),
+    weight: 2,
+  },
+);
+
 describe('addressKind', () => {
   it.each(IPV4_BLOCKS.map(([first, last, kind, neighbors]) => ({ first, last, kind, neighbors })))(
     '[TRV-66] refuses the IPv4 block from $first to $last as $kind, and accepts its neighbors outside it',
@@ -266,5 +419,41 @@ describe('addressKind', () => {
         expect(addressKind(ipv6)).toBe(addressKind(canonical(ipv6)));
       }),
     );
+  });
+
+  it('[TRV-66] [CL-IMP-25] judges every address of the 128-bit space by the complement of the refused blocks', () => {
+    fc.assert(
+      fc.property(ipv6Values, (address) => {
+        const text = ipv6Text(address);
+
+        expect({ address: text, kind: addressKind(text) }).toStrictEqual({
+          address: text,
+          kind: oracle(address).kind,
+        });
+      }),
+    );
+  });
+
+  it('[TRV-66] draws addresses of every case of the rule: each refused block, each IPv4 holder, 2000::/3 and its complement', () => {
+    const sampled = fc.sample(ipv6Values, { numRuns: 5000 });
+    const count = (isCounted: (address: bigint) => boolean) =>
+      sampled.filter((address) => isCounted(address)).length;
+    const minimum = 40;
+
+    expect(
+      count((a) => oracle(a).source === 'complement' && oracle(a).kind === 'public'),
+    ).toBeGreaterThan(minimum);
+    expect(
+      count((a) => oracle(a).source === 'complement' && oracle(a).kind === 'reserved'),
+    ).toBeGreaterThan(minimum);
+    for (const [first, last] of REFUSED_RANGES) {
+      expect(count((a) => a >= first && a <= last)).toBeGreaterThan(0);
+    }
+    for (const { first, last } of IPV4_HOLDERS) {
+      const isHeld = (a: bigint) => a >= first && a <= last && oracle(a).source === 'held';
+      expect(count(isHeld)).toBeGreaterThan(0);
+      expect(count((a) => isHeld(a) && oracle(a).kind !== 'public')).toBeGreaterThan(0);
+      expect(count((a) => isHeld(a) && oracle(a).kind === 'public')).toBeGreaterThan(0);
+    }
   });
 });
