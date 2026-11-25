@@ -1,8 +1,17 @@
 import { asc, eq, TransactionRollbackError } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import { createTestDatabase, recalculationJobs } from '@/lib/db';
-import { DATABASE_TEST_TIMEOUT_MS, leaguePlayerId, MEDIA_STORM } from '@/lib/testing';
+import { boxScores, createTestDatabase, games, recalculationJobs } from '@/lib/db';
+import {
+  DATABASE_TEST_TIMEOUT_MS,
+  insertBoxScores,
+  insertEventType,
+  insertLeagueSeason,
+  insertPlayer,
+  insertValidCase,
+  leaguePlayerId,
+  MEDIA_STORM,
+} from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import type { RecalculationCause, RecalculationScope } from './recalculate';
@@ -211,6 +220,31 @@ describe('the recalculation jobs', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
       await expect(isInProgress(FIRST, MEDIA_STORM)).resolves.toBe(true);
       await expect(isInProgress(SECOND, MEDIA_STORM)).resolves.toBe(true);
       await expect(isInProgress(FIRST, BEREAVEMENT)).resolves.toBe(false);
+      await expect(isInProgress(SECOND, BEREAVEMENT)).resolves.toBe(false);
+    });
+
+    it("[SEN-34] [CL-SEN-16] is true for the general trend of each type of the players' cases, for a job that names no type, whoever the player", async () => {
+      await insertEventType(db);
+      await insertLeagueSeason(db, '2024-25');
+      await insertPlayer(db, { source: 'p01' });
+      await insertBoxScores(db, { playerId: FIRST, source: 'p01', season: '2024-25' });
+      const [first] = await db
+        .select({ id: games.id })
+        .from(boxScores)
+        .innerJoin(games, eq(games.id, boxScores.gameId))
+        .where(eq(boxScores.playerId, FIRST))
+        .orderBy(asc(games.scheduledStartAt))
+        .limit(1);
+      const gameId = first?.id ?? 0;
+      await insertValidCase(db, { playerId: FIRST, measuredGameId: gameId });
+
+      await request(
+        { kind: 'statistics_update', playerIds: [FIRST], gameIds: [gameId] },
+        'stats_correction',
+      );
+
+      await expect(isInProgress(FIRST, MEDIA_STORM)).resolves.toBe(true);
+      await expect(isInProgress(SECOND, MEDIA_STORM)).resolves.toBe(true);
       await expect(isInProgress(SECOND, BEREAVEMENT)).resolves.toBe(false);
     });
 

@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 
-import { recalculationJobs } from '@/lib/db';
+import { cases, recalculationJobs } from '@/lib/db';
 import { now } from '@/lib/time';
 import { wakeAt } from '@/lib/wake-plan';
 
@@ -82,7 +82,8 @@ export async function requestRecalculation(
  * Whether a pending or running job covers a player's profile of an event type, or the
  * general trend of that type: a full job covers everything, a job of explicit types covers
  * the trend of each, and a job of players covers their profiles of those types, or of every
- * type when it names none. While it does, the screens show "recalculation in progress"
+ * type when it names none, and then also the trend of every type in which one of those
+ * players has a case. While it does, the screens show "recalculation in progress"
  * next to the last values (SEN-36, CL-SEN-16). A job ends by being deleted, so every
  * recorded job counts.
  */
@@ -97,7 +98,14 @@ export async function isRecalculating(
     .where(
       sql`${recalculationJobs.scope} = 'full'
         OR ${eventTypeId} = ANY(${recalculationJobs.eventTypeIds})
-        OR (${recalculationJobs.eventTypeIds} IS NULL AND ${playerId} = ANY(${recalculationJobs.playerIds}))`,
+        OR (${recalculationJobs.eventTypeIds} IS NULL AND (
+          ${playerId} = ANY(${recalculationJobs.playerIds})
+          OR EXISTS (
+            SELECT 1 FROM ${cases}
+            WHERE ${cases.eventTypeId} = ${eventTypeId}
+              AND ${cases.playerId} = ANY(${recalculationJobs.playerIds})
+          )
+        ))`,
     )
     .limit(1);
   return covering !== undefined;
