@@ -12,6 +12,8 @@
  *   name, which branch protection requires.
  * - No trigger of such a workflow is filtered by path, so its final job always
  *   reports a result.
+ * - Only the workflows of TEXT_READING_WORKFLOWS list `edited` among the types of
+ *   their `pull_request` trigger.
  * - No job or step of any workflow continues on error.
  *
  * A workflow that is not a check needs an entry in NON_CHECK_WORKFLOWS.
@@ -27,6 +29,16 @@ import type { StructureViolation } from './structure-rules';
  * only when someone dispatches it (`bun run test:remote`), and no pull request waits for it.
  */
 const NON_CHECK_WORKFLOWS: readonly string[] = ['.github/workflows/remote-test.yml'];
+
+/**
+ * The check workflows that read the pull request's own text, its description and its
+ * title, so the only ones that run again on `edited`. An edit of either changes no
+ * file, so any other check workflow would repeat its whole run for nothing: the job
+ * that reads the title or the description belongs to trace.yml instead.
+ */
+const TEXT_READING_WORKFLOWS: ReadonlySet<string> = new Set(['.github/workflows/trace.yml']);
+
+const EDITED = 'edited';
 
 type Mapping = Readonly<Record<string, unknown>>;
 
@@ -52,11 +64,11 @@ function readWorkflow(text: string): Mapping | undefined {
   }
 }
 
-/** The job ids that a `needs` value names: one id, or a list of them. */
-function neededJobs(needs: unknown): readonly string[] {
-  return typeof needs === 'string'
-    ? [needs]
-    : listOf(needs).filter((job): job is string => typeof job === 'string');
+/** The names that a `needs` or a `types` value lists: one name, or a list of them. */
+function namesOf(value: unknown): readonly string[] {
+  return typeof value === 'string'
+    ? [value]
+    : listOf(value).filter((name): name is string => typeof name === 'string');
 }
 
 /** The final job of the check workflow at `workflowPath`: `ci-ok`, or the file's name. */
@@ -102,7 +114,7 @@ function finalJobViolations(workflowPath: string, jobs: Mapping): readonly strin
       `The workflow needs a final job named ${id}, which branch protection requires by name (CLAUDE.md).`,
     ];
   }
-  const needs = neededJobs(final['needs']);
+  const needs = namesOf(final['needs']);
   const condition = final['if'];
   return [
     ...(typeof condition === 'string' && ALWAYS.test(condition)
@@ -133,6 +145,17 @@ function pathFilterViolations(triggers: unknown): readonly string[] {
       ([event]) =>
         `The ${event} trigger has a path filter: the workflow must always run, so that its final job reports a result (CLAUDE.md).`,
     );
+}
+
+function editedViolations(workflowPath: string, triggers: unknown): readonly string[] {
+  const pullRequest = isMapping(triggers) ? triggers['pull_request'] : undefined;
+  const types = namesOf(isMapping(pullRequest) ? pullRequest['types'] : undefined);
+  const file = path.posix.basename(workflowPath);
+  return types.includes(EDITED) && !TEXT_READING_WORKFLOWS.has(workflowPath)
+    ? [
+        `${file} lists \`edited\` among its pull_request types, so an edit of the title or of the description, which changes no file, runs it again: remove \`edited\`, and move the job that reads the title or the description to trace.yml.`,
+      ]
+    : [];
 }
 
 const isContinuingOnError = (value: unknown): boolean =>
@@ -170,6 +193,7 @@ export function workflowViolations(
   return [
     ...(isCheck ? finalJobViolations(workflowPath, jobs) : []),
     ...(isCheck ? pathFilterViolations(workflow?.['on']) : []),
+    ...(isCheck ? editedViolations(workflowPath, workflow?.['on']) : []),
     ...continueOnErrorViolations(jobs),
   ].map((problem) => ({ path: workflowPath, problem }));
 }

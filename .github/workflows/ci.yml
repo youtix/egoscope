@@ -7,8 +7,11 @@ name: CI
 
 on:
   pull_request:
-    # `edited` re-checks the title, which becomes the squash-merge commit subject.
-    types: [opened, synchronize, reopened, edited]
+    # No `edited`: an edit of the title or of the description changes no file, and
+    # trace.yml checks both texts. A change of the base branch, which GitHub also sends
+    # as `edited`, runs nothing here either, since every pull request targets `main`:
+    # push, or close and reopen the pull request, to check it against its new base.
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
 
@@ -168,27 +171,10 @@ jobs:
       - name: Next.js production build
         run: bun run build
 
-  pr-title:
-    name: pr-title
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-project
-      - name: Conventional Commits title
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: printf '%s\n' "$PR_TITLE" | bun x --no-install commitlint --verbose
-
   ci-ok:
     name: ci-ok
     if: ${{ always() }}
-    needs: [lint, actionlint, typecheck, test, coverage, migrations, build, pr-title]
+    needs: [lint, actionlint, typecheck, test, coverage, migrations, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -199,7 +185,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: scripts/ci-ok.sh
           sparse-checkout-cone-mode: false
-      - name: Require every job to succeed (pr-title may be skipped on a push only)
+      - name: Require every job to succeed
         env:
           NEEDS: ${{ toJSON(needs) }}
           EVENT: ${{ github.event_name }}

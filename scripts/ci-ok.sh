@@ -2,7 +2,7 @@
 # The verdict of the final job of every check workflow, which branch protection
 # requires by name: ci-ok in ci.yml, and the job named after its file elsewhere
 # (scripts/workflow-rules.ts). It passes only when every job that the final job
-# needs succeeded. The one exception is ci.yml's pr-title, which runs on pull
+# needs succeeded. The one exception is trace.yml's pr-title, which runs on pull
 # requests only and so is skipped on a push to main. A job that failed, was
 # canceled or skipped, or has no result fails the gate, so a job that someone gives
 # an `if:` cannot pass silently.

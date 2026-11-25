@@ -112,17 +112,17 @@ scripts/                 Tooling: the shared lock, the structure and fast checks
 ## Quality gate
 
 Every pull request runs the CI workflow, whose ordinary checks (lint, actionlint, typecheck, test,
-coverage, migrations, build and pr-title) all feed one final job, `ci-ok`, which passes only when
-each of them succeeded: the unit tests run on three runners, and `coverage` judges the thresholds on
-their merged reports.
-A concern with its own triggers, permissions or runtime gets its own workflow instead: end-to-end
-tests (planned), mutation testing, requirement traceability and security scanning, with
+coverage, migrations and build) all feed one final job, `ci-ok`, which passes only when each of them
+succeeded: the unit tests run on three runners, and `coverage` judges the thresholds on their merged
+reports. A concern with its own triggers, permissions or runtime gets its own workflow instead:
+end-to-end tests (planned), mutation testing, requirement traceability and security scanning, with
 the final jobs `e2e`, `mutation`, `trace` and `security`. Such a final job always starts and always
 reports a result, even when nothing relevant changed: no path filter ever skips it. `ci-ok` and
-those final jobs are the required checks of `main`. Lint rules have no warnings, coverage is
-enforced per file (100% on the statistics core, 90% elsewhere), and pull requests are squash-merged
-with a Conventional Commits title. The rules that every contributor, human or agent, must follow
-are in [`CLAUDE.md`](CLAUDE.md).
+those final jobs are the required checks of `main`. The title of a pull request is checked by the
+trace workflow (`pr-title`), the only one that runs again when the title or the description is
+edited. Lint rules have no warnings, coverage is enforced per file (100% on the statistics core, 90%
+elsewhere), and pull requests are squash-merged with a Conventional Commits title. The rules that
+every contributor, human or agent, must follow are in [`CLAUDE.md`](CLAUDE.md).
 
 ## Security
 

@@ -1,16 +1,20 @@
-# Requirement traceability (scripts/trace-requirements.ts). On a pull request, the
+# The checks that read the pull request's own text, its description and its title, so
+# the one check workflow that runs again when either is edited (scripts/workflow-rules.ts).
+# Requirement traceability (scripts/trace-requirements.ts): on a pull request, the
 # description must have a "Requirements covered" heading, unless the dependency-update
 # bot opened the pull request, and each requirement and acceptance criterion listed
 # under it must have a test that names it, or a waiver. Whatever the event, every ID
 # that a test title cites must exist in the specs and sit in the square brackets that
 # the title starts with, the waiver register must hold, and the criteria index must be
-# up to date. `main` requires the final job, `trace`, which passes only when every other
-# job succeeded (scripts/ci-ok.sh).
+# up to date. The title of a pull request, which becomes the squash-merge commit
+# subject, must follow Conventional Commits (pr-title). `main` requires the final job,
+# `trace`, which passes only when every other job succeeded (scripts/ci-ok.sh).
 name: Trace
 
 on:
   pull_request:
-    # `edited` checks the claims again when the description changes.
+    # `edited` checks the claims and the title again when the description or the title
+    # changes.
     types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
@@ -65,10 +69,27 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: printf '%s\n' "$PR_BODY" | bun run trace --require-claimed --author="$PR_AUTHOR"
 
+  pr-title:
+    name: pr-title
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Conventional Commits title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | bun x --no-install commitlint --verbose
+
   trace:
     name: trace
     if: ${{ always() }}
-    needs: [requirements]
+    needs: [requirements, pr-title]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -79,7 +100,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: scripts/ci-ok.sh
           sparse-checkout-cone-mode: false
-      - name: Require every job to succeed
+      - name: Require every job to succeed (pr-title may be skipped on a push only)
         env:
           NEEDS: ${{ toJSON(needs) }}
           EVENT: ${{ github.event_name }}
