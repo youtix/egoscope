@@ -60,3 +60,25 @@ export type {
 
 // queries.ts: nextGame, expectedGame, gameLog, baselineInputs, teamRecords, seasonBaseline,
 //   indicators, firstNbaGame, pendingMappings, seasonsOf, coveredSeasons, changedSince
+export {
+  baselineInputs,
+  changedSince,
+  coveredSeasons,
+  expectedGame,
+  firstNbaGame,
+  gameLog,
+  indicators,
+  nextGame,
+  seasonBaseline,
+  seasonSpans,
+  seasonsOf,
+  teamRecords,
+} from './queries';
+export type {
+  BaselineInputs,
+  BaselineQuery,
+  CoveredSeason,
+  ReadRefusal,
+  TeamRecords,
+} from './queries';
+export type { CoverageQuery, SeasonCoverage, StoredGame } from './stored-schedule';
