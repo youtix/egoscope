@@ -28,6 +28,11 @@ function unavailable(message: string, context: Readonly<Record<string, unknown>>
   );
 }
 
+/** The answer to an invalid server environment, whose variables only the server log names (TRV-64). */
+function invalidEnv(variables: readonly string[]): Response {
+  return unavailable('The server environment is invalid.', { variables });
+}
+
 /** The answer to a session that `requireSession` refused, or could not check. */
 function refused(error: ReadyError | SessionRefusal): Response {
   switch (error.kind) {
@@ -37,8 +42,12 @@ function refused(error: ReadyError | SessionRefusal): Response {
     case 'choose-password': {
       return unauthorized(null);
     }
+    case 'invalid-server-env': {
+      return invalidEnv(error.variables);
+    }
     case 'database-not-configured':
-    case 'initial-password-missing': {
+    case 'initial-password-missing':
+    case 'initial-password-too-short': {
       return unavailable('The session could not be checked.', { cause: error.kind });
     }
   }
@@ -63,5 +72,5 @@ export async function GET(): Promise<Response> {
   const env = readServerEnv();
   return env.ok
     ? Response.json({ status: 'ok' }, { headers: NO_STORE })
-    : unavailable('The server environment is invalid.', { variables: env.error.variables });
+    : invalidEnv(env.error.variables);
 }

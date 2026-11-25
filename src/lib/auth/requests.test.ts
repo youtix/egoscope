@@ -58,10 +58,10 @@ const LOG_IN = '/log-in?next=%2Fplayers';
 
 type Auth = Awaited<ReturnType<typeof instance>>;
 
-/** A new server instance, configured with the initial password. */
-async function instance() {
+/** A new server instance, configured with the initial password `initial`. */
+async function instance(initial = INITIAL) {
   vi.resetModules();
-  vi.stubEnv('INITIAL_PASSWORD', INITIAL);
+  vi.stubEnv('INITIAL_PASSWORD', initial);
   return import('./requests');
 }
 
@@ -384,7 +384,7 @@ describe('logging in and the sessions of the devices', { timeout: 60_000 }, () =
       phone.request(async () =>
         auth.changePassword({ currentPassword: WRONG, newPassword: NEWER }),
       ),
-    ).resolves.toStrictEqual({ ok: false, error: { kind: 'wrong-password' } });
+    ).resolves.toStrictEqual({ ok: false, error: { kind: 'wrong-password', lockedUntil: null } });
     await expect(phone.request(async () => auth.choosePassword(NEWER))).resolves.toStrictEqual({
       ok: false,
       error: { kind: 'password-already-chosen' },
@@ -394,6 +394,33 @@ describe('logging in and the sessions of the devices', { timeout: 60_000 }, () =
         auth.changePassword({ currentPassword: CHOSEN, newPassword: NEWER }),
       ),
     ).resolves.toStrictEqual({ ok: false, error: { kind: 'no-session' } });
+  });
+
+  it('[TRV-60] [TRV-61] refuses a too-short new password before examining the current one, and counts nothing', async () => {
+    const auth = await instance();
+    const phone = device();
+    await chosenOn(auth, phone);
+
+    await expect(
+      phone.request(async () =>
+        auth.changePassword({ currentPassword: WRONG, newPassword: 'a'.repeat(11) }),
+      ),
+    ).resolves.toStrictEqual({ ok: false, error: { kind: 'too-short', minLength: 12 } });
+    await expect(db.select().from(loginFailures)).resolves.toStrictEqual([]);
+    await expect(keys()).resolves.toStrictEqual(['password_changed']);
+  });
+
+  it('[TRV-60] [TRV-57] refuses every login while the initial password is shorter than auth.passwordMinLength, and sets no cookie', async () => {
+    const short = 'a'.repeat(11);
+    const auth = await instance(short);
+    const phone = device();
+
+    await expect(logIn(auth, phone, short)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'initial-password-too-short', minLength: 12 },
+    });
+    expect(lastSent()).toBeUndefined();
+    expect(phone.kept.cookie).toBeUndefined();
   });
 
   it('[IHM-08] tells a device logged out of all devices, even once its token is gone', async () => {

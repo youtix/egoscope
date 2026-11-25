@@ -5,30 +5,50 @@ import { eq, lte } from 'drizzle-orm';
 import { accounts, getDb, loginFailures } from '@/lib/db';
 import { readServerEnv } from '@/lib/env';
 import { record } from '@/lib/journal';
+import { getParam } from '@/lib/params';
 import { err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
 
-import { hashPassword, isSamePassword } from './password';
+import { hashPassword, isLongEnough, isSamePassword } from './password';
 import { ACCOUNT_ID, endAllSessions } from './sessions';
 
 import type { Database, DatabaseError, Transaction } from '@/lib/db';
+import type { ServerEnvError } from '@/lib/env';
 import type { Result } from '@/lib/result';
 
-/** The deployment configuration lacks the initial password that the account starts from (TRV-57). */
-export type AccountError = Readonly<{ kind: 'initial-password-missing' }>;
+/** A valid server environment that sets no initial password, outside a deployment (TRV-57). */
+type InitialPasswordMissing = Readonly<{ kind: 'initial-password-missing' }>;
 
-/** Why a request cannot reach the account: no database, or no initial password. */
+/**
+ * Why the account cannot start from the deployment configuration (TRV-57, TRV-60, TRV-63):
+ * the server environment is invalid, which names its variables and never a value; it sets
+ * no initial password; or the initial password is shorter than `auth.passwordMinLength`,
+ * whose value `minLength` is, never the length of the password (TRV-64).
+ */
+export type AccountError =
+  | ServerEnvError
+  | InitialPasswordMissing
+  | Readonly<{ kind: 'initial-password-too-short'; minLength: number }>;
+
+/** Why a request cannot reach the account: no database, or a configuration it cannot start from. */
 export type ReadyError = AccountError | DatabaseError;
 
 /** The single account's row. */
 type AccountRow = typeof accounts.$inferSelect;
 
-const MISSING = { kind: 'initial-password-missing' } as const satisfies AccountError;
+const MISSING = { kind: 'initial-password-missing' } as const satisfies InitialPasswordMissing;
 
-/** The configured initial password (TRV-57, TRV-64), revealed only to be hashed or compared. */
-function initialPassword(): string | undefined {
+/**
+ * The configured initial password (TRV-57, TRV-64), revealed only to be measured, hashed or
+ * compared; or why there is none: an invalid server environment, or one that sets none.
+ */
+function initialPassword(): Result<string, ServerEnvError | InitialPasswordMissing> {
   const env = readServerEnv();
-  return env.ok ? env.env.INITIAL_PASSWORD?.reveal() : undefined;
+  if (!env.ok) {
+    return err(env.error);
+  }
+  const initial = env.env.INITIAL_PASSWORD?.reveal();
+  return initial === undefined ? err(MISSING) : ok(initial);
 }
 
 /** The account on its initial password, whose hash is also the fingerprint kept to detect a reset. */
@@ -67,22 +87,33 @@ async function reset(tx: Transaction, initial: string): Promise<void> {
  * owner must then replace; when the configured initial password no longer matches the
  * fingerprint of the one the account started from, makes it the account's password again,
  * ends every session with `reset`, lifts the lockout and journals the reset. No other data
- * changes. Refused while the configuration lacks the initial password.
+ * changes. Refused while the server environment is invalid or lacks the initial password;
+ * and, when the initial password would become the account's, while it is shorter than
+ * `auth.passwordMinLength` (TRV-60, TRV-76), which then leaves everything as it was. An
+ * initial password that still matches the fingerprint is not measured again: the account
+ * may long since use a password of its own, and a minimum raised later must not lock it out.
  */
 export async function ensureAccount(tx: Transaction): Promise<Result<void, AccountError>> {
   const initial = initialPassword();
-  if (initial === undefined) {
-    return err(MISSING);
+  if (!initial.ok) {
+    return initial;
   }
   const [account] = await tx
     .select({ fingerprint: accounts.initialPasswordFingerprint })
     .from(accounts)
     .for('update');
+  if (account !== undefined && (await isSamePassword(initial.value, account.fingerprint))) {
+    return ok(undefined);
+  }
+  const minLength = await getParam(tx, 'auth.passwordMinLength');
+  if (!isLongEnough(initial.value, minLength)) {
+    return err({ kind: 'initial-password-too-short', minLength });
+  }
   if (account === undefined) {
-    const hash = await hashPassword(initial);
+    const hash = await hashPassword(initial.value);
     await tx.insert(accounts).values(initialState(hash)).onConflictDoNothing();
-  } else if (!(await isSamePassword(initial, account.fingerprint))) {
-    await reset(tx, initial);
+  } else {
+    await reset(tx, initial.value);
   }
   return ok(undefined);
 }

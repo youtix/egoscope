@@ -21,37 +21,58 @@ export type LoginRefusal =
   | Readonly<{ kind: 'locked'; lockedUntil: EpochMs }>
   | Readonly<{ kind: 'wrong-password'; lockedUntil: EpochMs | null }>;
 
+/**
+ * What asked for the password: a login, or a password change from the settings, whose
+ * wrong current password counts as a refused login (TRV-61, IHM-09).
+ */
+type Attempt = 'login' | 'password-change';
+
+// The journal message of each attempt, refused for a wrong password or while locked.
+const REFUSED = {
+  login: { wrong: 'login_refused', locked: 'login_refused_while_locked' },
+  'password-change': {
+    wrong: 'password_change_refused',
+    locked: 'password_change_refused_while_locked',
+  },
+} as const;
+
 /** The end of the lockout in force at `at`, or null when logins are allowed (TRV-61). */
 export function lockEnd(lockedUntil: Date | null, at: EpochMs): EpochMs | null {
   const end = lockedUntil?.getTime();
   return end !== undefined && end > at ? toEpochMs(end) : null;
 }
 
-/** Refuses a login while logins are locked: journaled, and neither examined nor counted (TRV-61). */
+/**
+ * Refuses an `attempt` while logins are locked: journaled as a refused attempt, and its
+ * passwords neither examined nor counted (TRV-61, IHM-07).
+ */
 export async function refuseWhileLocked(
   tx: Transaction,
   lockedUntil: EpochMs,
+  attempt: Attempt,
 ): Promise<LoginRefusal> {
   await record(tx, {
-    messageKey: 'login_refused_while_locked',
+    messageKey: REFUSED[attempt].locked,
     params: { lockedUntilAt: lockedUntil },
   });
   return { kind: 'locked', lockedUntil };
 }
 
 /**
- * Records a wrong password given at `at`, in `tx` (TRV-61): the failure is journaled and
- * counted; the one that brings the failures within `auth.loginFailureWindowMinutes`, since
- * the last lockout ended, to `auth.loginFailureThreshold` locks logins for
- * `auth.lockoutMinutes`, journals the lockout and opens the "Logins refused" incident.
+ * Records in `tx` the wrong password that an `attempt` gave at `at`, after the lockout that
+ * ended at `lastLockEnd` (TRV-61): the failure is journaled and counted, a login's and a
+ * password change's alike; the one that brings the failures within
+ * `auth.loginFailureWindowMinutes`, since the last lockout ended, to
+ * `auth.loginFailureThreshold` locks logins for `auth.lockoutMinutes`, journals the lockout
+ * and opens the "Logins refused" incident.
  */
 export async function recordFailure(
   tx: Transaction,
-  at: EpochMs,
-  lastLockEnd: Date | null,
+  failure: Readonly<{ attempt: Attempt; at: EpochMs; lastLockEnd: Date | null }>,
 ): Promise<LoginRefusal> {
+  const { attempt, at, lastLockEnd } = failure;
   await tx.insert(loginFailures).values({ occurredAt: new Date(at) });
-  await record(tx, { messageKey: 'login_refused' });
+  await record(tx, { messageKey: REFUSED[attempt].wrong });
   const params = await getParams(tx);
   const windowStart = at - params.get('auth.loginFailureWindowMinutes') * MS_PER_MINUTE;
   const since = Math.max(windowStart, lastLockEnd?.getTime() ?? windowStart);
