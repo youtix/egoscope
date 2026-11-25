@@ -89,7 +89,10 @@ export const CORRECTABLE: Readonly<Record<EventRow['origin'], readonly Corrected
   ],
   calendar: CONTEXT_FIELDS,
   // The detected branch, with the values before and after of its structured fields
-  // (DET-52), is the one that the detected-event task fills.
+  // (DET-52), is the one that the detected-event task fills. It changes three places: this
+  // entry; `correctionRows` in corrections.ts, which keeps values before and after only
+  // for a calendar-derived event; and `PLANNERS` below, which has no planner for `player`,
+  // so that an allowed `playerId` would otherwise change nothing and answer no change.
   detected: [],
 };
 

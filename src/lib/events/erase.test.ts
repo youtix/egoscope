@@ -5,9 +5,11 @@ import {
   cases,
   createTestDatabase,
   eventCorrections,
+  eventImportWarnings,
   events,
   eventSources,
   imports,
+  journalEntries,
   tallyExits,
 } from '@/lib/db';
 import {
@@ -107,8 +109,20 @@ describe('eraseEvent', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     };
   }, DATABASE_TEST_TIMEOUT_MS);
 
-  it('[SEN-33] [DSN-27] [CL-TAX-09] removes the event with its sources and corrections and gives its player, type and case', async () => {
+  it('[SEN-33] [DSN-27] [CL-TAX-09] removes the event with its sources, corrections and warnings, clears its journal reference and gives its player, type and case', async () => {
     const event = await eventWithChildren();
+    await db
+      .insert(eventImportWarnings)
+      .values({ playerEventId: event.id, importId, kind: 'confidence_defaulted' });
+    const [entry] = await db
+      .insert(journalEntries)
+      .values({
+        category: 'profile_recalculation',
+        level: 'info',
+        messageKey: 'events.corrected',
+        playerEventId: event.id,
+      })
+      .returning({ id: journalEntries.id });
 
     await expect(erase(event.id, { kind: 'requalification_erasure' })).resolves.toStrictEqual({
       ok: true,
@@ -119,10 +133,22 @@ describe('eraseEvent', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         db.select().from(events),
         db.select().from(eventSources),
         db.select().from(eventCorrections),
+        db.select().from(eventImportWarnings),
+        db
+          .select({ id: journalEntries.id, playerEventId: journalEntries.playerEventId })
+          .from(journalEntries),
         db.select({ id: imports.id }).from(imports),
         db.select({ id: cases.id }).from(cases),
       ]),
-    ).resolves.toStrictEqual([[], [], [], [{ id: importId }], [{ id: caseId }]]);
+    ).resolves.toStrictEqual([
+      [],
+      [],
+      [],
+      [],
+      [{ id: entry?.id, playerEventId: null }],
+      [{ id: importId }],
+      [{ id: caseId }],
+    ]);
   });
 
   it('[SEN-33] [CL-SEN-25] [CL-TAX-09] writes the tally exit of each variant that leaves one, as a count with no date', async () => {

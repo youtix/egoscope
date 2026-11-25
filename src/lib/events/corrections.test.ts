@@ -1,7 +1,14 @@
 import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDatabase, eventCorrections, events, eventSources, eventTypes } from '@/lib/db';
+import {
+  cases,
+  createTestDatabase,
+  eventCorrections,
+  events,
+  eventSources,
+  eventTypes,
+} from '@/lib/db';
 import {
   DATABASE_TEST_TIMEOUT_MS,
   insertCalendarType,
@@ -232,12 +239,27 @@ describe('applyCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       status: 'proposed',
       origin: 'scoping',
     });
+    const [written] = await db
+      .insert(cases)
+      .values({
+        playerId,
+        eventTypeId: MEDIA_STORM,
+        origin: 'historical',
+        status: 'not_measurable',
+        statusReason: 'no_game_within_window',
+        referenceInstantAt: new Date(AT),
+        referenceInstantOrigin: 'date_only',
+      })
+      .returning({ id: cases.id });
+    await db.update(events).set({ caseId: written?.id }).where(eq(events.id, historical.id));
+    const inCase = await storedEvent(historical.id);
+    expect(inCase.caseId).toBe(written?.id);
 
-    await expect(correct(historical, { eventTypeId: 'proposed-type' })).resolves.toStrictEqual({
+    await expect(correct(inCase, { eventTypeId: 'proposed-type' })).resolves.toStrictEqual({
       ok: false,
       error: { kind: 'invalid_fields', fields: { eventTypeId: 'not_validated' } },
     });
-    await expect(correct(historical, { eventTypeId: OTHER_TYPE })).resolves.toMatchObject({
+    await expect(correct(inCase, { eventTypeId: OTHER_TYPE })).resolves.toMatchObject({
       ok: true,
       value: {
         changed: ['event_type'],
@@ -248,6 +270,10 @@ describe('applyCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
           caseId: null,
         },
       },
+    });
+    await expect(storedEvent(historical.id)).resolves.toMatchObject({
+      eventTypeId: OTHER_TYPE,
+      caseId: null,
     });
   });
 
@@ -406,6 +432,26 @@ describe('applyCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         ok: false,
         error: { kind: 'not_correctable', fields: ['player', 'event_type', 'reference_date'] },
       });
+      expect(await correctionsOf(calendar.id)).toStrictEqual([]);
+    });
+
+    it('[CL-IHM-21] [CL-DSN-20] [H-09] refuses a change of its template description, its sources, its confidence or an unverified note, the context alone being correctable', async () => {
+      const outcome = await correct(calendar, {
+        description: 'Another sentence about the birthday.',
+        sources: [source(KEPT_LINK, '2024-11-20')],
+        researchConfidence: 'high',
+        unverifiedNote: 'Nothing to add.',
+        gameStakes: 'high',
+      });
+
+      expect(outcome).toStrictEqual({
+        ok: false,
+        error: {
+          kind: 'not_correctable',
+          fields: ['description', 'sources', 'research_confidence', 'unverified_note'],
+        },
+      });
+      await expect(storedEvent(calendar.id)).resolves.toStrictEqual(calendar);
       expect(await correctionsOf(calendar.id)).toStrictEqual([]);
     });
   });
