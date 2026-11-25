@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
-import { usePathname } from 'next/navigation';
+import { redirect, usePathname } from 'next/navigation';
 import { describe, expect, it, vi } from 'vitest';
 
 import { requireSession } from '@/lib/auth';
+import { logger } from '@/lib/log';
 import { recordDatabaseActivity } from '@/lib/quotas';
 import { toEpochMs } from '@/lib/time';
 import { todoCount } from '@/lib/todo';
@@ -16,6 +17,9 @@ vi.mock(import('next/navigation'), async (importOriginal) => ({
 vi.mock(import('@/lib/auth'), () => ({ requireSession: vi.fn() }));
 const { getDb } = vi.hoisted(() => ({ getDb: vi.fn() }));
 vi.mock(import('@/lib/db'), () => ({ getDb }));
+vi.mock(import('@/lib/log'), () => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 vi.mock(import('@/lib/quotas'), () => ({ recordDatabaseActivity: vi.fn() }));
 vi.mock(import('@/lib/todo'), () => ({ todoCount: vi.fn() }));
 
@@ -84,5 +88,54 @@ describe('SignedInNavigation', () => {
     expect(screen.getByRole('link', { name: 'Home' })).toBeVisible();
     expect(recordDatabaseActivity).not.toHaveBeenCalled();
     expect(todoCount).not.toHaveBeenCalled();
+  });
+
+  it('[IHM-16] keeps the bar, without a count, when the session check loses the database', async () => {
+    const failure = new Error('connect ECONNREFUSED');
+    vi.mocked(requireSession).mockRejectedValue(failure);
+
+    await renderNavigation();
+
+    expect(screen.getByRole('link', { name: 'Home' })).toBeVisible();
+    expect(screen.getAllByRole('link')).toHaveLength(4);
+    expect(logger.error).toHaveBeenCalledExactlyOnceWith(
+      'The navigation bar is shown without the number of items to do, which could not be read.',
+      { error: failure },
+    );
+  });
+
+  it('[IHM-16] keeps the bar, without a count, when the activity record fails', async () => {
+    signedIn(5);
+    vi.mocked(recordDatabaseActivity).mockRejectedValue(new Error('Connection terminated'));
+
+    await renderNavigation();
+
+    expect(screen.getByRole('link', { name: 'Home' })).toBeVisible();
+    expect(todoCount).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledOnce();
+  });
+
+  it('[IHM-16] keeps the bar, without a count, when the count fails', async () => {
+    signedIn(5);
+    const failure = new Error('Connection terminated unexpectedly');
+    vi.mocked(todoCount).mockRejectedValue(failure);
+
+    await renderNavigation();
+
+    expect(screen.getByRole('link', { name: 'Home' })).toBeVisible();
+    expect(screen.queryByText('5 to do')).not.toBeInTheDocument();
+    expect(logger.error).toHaveBeenCalledExactlyOnceWith(
+      'The navigation bar is shown without the number of items to do, which could not be read.',
+      { error: failure },
+    );
+  });
+
+  it('leaves to Next.js the errors through which it controls a request', async () => {
+    vi.mocked(requireSession).mockImplementation(() => {
+      redirect('/log-in');
+    });
+
+    await expect(SignedInNavigation()).rejects.toThrow('NEXT_REDIRECT');
+    expect(logger.error).not.toHaveBeenCalled();
   });
 });

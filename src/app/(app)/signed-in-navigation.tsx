@@ -1,5 +1,8 @@
+import { unstable_rethrow } from 'next/navigation';
+
 import { requireSession } from '@/lib/auth';
 import { getDb } from '@/lib/db';
+import { logger } from '@/lib/log';
 import { NavigationBar, navigationEntries, paths } from '@/lib/navigation';
 import { recordDatabaseActivity } from '@/lib/quotas';
 import { todoCount } from '@/lib/todo';
@@ -27,9 +30,29 @@ async function signedInTodoCount(): Promise<number | null> {
 }
 
 /**
+ * The count, or none when the database fails while it is read: the count is only a badge,
+ * so the bar stays and the screen below it answers for itself, with the error screen of the
+ * group when the server fails it (IHM-16, edge case « Erreur du serveur »). The errors
+ * through which Next.js controls the request go on to it.
+ */
+async function countOrNone(): Promise<number | null> {
+  try {
+    return await signedInTodoCount();
+  } catch (error) {
+    unstable_rethrow(error);
+    logger.error(
+      'The navigation bar is shown without the number of items to do, which could not be read.',
+      { error },
+    );
+    return null;
+  }
+}
+
+/**
  * The navigation bar of a signed-in owner, whose Home entry carries the number of items to
- * do (IHM-16, IHM-20); the bar alone, without a count, for any other request.
+ * do (IHM-16, IHM-20); the bar alone, without a count, for any other request and when the
+ * database fails while the count is read.
  */
 export async function SignedInNavigation(): Promise<ReactNode> {
-  return <NavigationBar entries={navigationEntries()} todoCount={await signedInTodoCount()} />;
+  return <NavigationBar entries={navigationEntries()} todoCount={await countOrNone()} />;
 }
