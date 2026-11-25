@@ -191,7 +191,7 @@ describe('createFakeLanguageModel', () => {
     ]);
     expect(outcome).toMatchObject({
       ok: true,
-      call: { neurons: 4, requestsResetAt: null, tokensResetAt: null },
+      call: { neurons: 5, requestsResetAt: null, tokensResetAt: null },
     });
   });
 });
