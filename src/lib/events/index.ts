@@ -30,17 +30,37 @@ export type {
 
 // sources.ts: addSources, recordLinkCheck, recordSpotCheck
 
-// corrections.ts: applyCorrection, reassignType, markTypeLink, clearTypeLink, restampSheetVersion,
-//   recordCaseLinks
+// corrections.ts
+export { applyCorrection } from './corrections';
+export type { Corrected, CorrectionRefusal, EventCorrection } from './corrections';
+export {
+  clearTypeLink,
+  markTypeLink,
+  reassignType,
+  recordCaseLinks,
+  restampSheetVersion,
+} from './links';
+export type { CaseLink, TypeNotValidated } from './links';
+export type {
+  CorrectedField,
+  CorrectionFieldErrors,
+  EventChanges,
+  TextProblem,
+} from './correction-fields';
+export type { CorrectedSource, PublicDate } from './correction-sources';
 
 // status.ts: setDetectedStatus (Lot 2)
 
-// delete.ts: deleteHistorical
+// delete.ts
+export { deleteHistorical } from './delete';
+export type { DeletionReason, DeletionRefusal, HistoricalDeletion } from './delete';
 
 // ledger.ts: incrementWithdrawnEventCount, withdrawnEventCount, keepWithdrawnCountAtLeast,
 //   recordFingerprint, matchesWithdrawalFingerprint, eraseMatchingFingerprints,
 //   recordDeletedPlayer, isDeletedPlayer, purgeExpiredFingerprints
 
-// erase.ts: eraseEvent, scrubPlayerFromCorrections
+// erase.ts
+export { eraseEvent, scrubPlayerFromCorrections } from './erase';
+export type { ErasedEvent, ErasureVariant } from './erase';
 
 // queries.ts: getEvent, eventsOfPlayer, uncheckedSources
