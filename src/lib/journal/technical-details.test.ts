@@ -143,4 +143,29 @@ describe('technical details', { timeout: 60_000 }, () => {
       { service: 'stats_source', httpStatus: 503, errorMessage: 'Unavailable' },
     ]);
   });
+
+  it('[CL-STA-17] [CL-DSN-11] keeps the source game identifier in the details of a held-back schedule row only', async () => {
+    const journal = await journalWith({});
+    const sourceGameRef = '401700001';
+
+    await journal.db.transaction(async (tx) => {
+      await journal.record(tx, {
+        messageKey: 'stats_status_unknown',
+        params: { status: 'Suspended' },
+        occurredAt: OPENED_AT,
+        technicalDetails: { service: 'stats_source', sourceGameRef },
+      });
+      await journal.record(tx, {
+        messageKey: 'service_call_failed',
+        params: { service: 'stats_source' },
+        occurredAt: OPENED_AT,
+        technicalDetails: { service: 'stats_source', sourceGameRef },
+      });
+    });
+
+    await expect(storedDetails(journal)).resolves.toStrictEqual([
+      { service: 'stats_source', sourceGameRef },
+      { service: 'stats_source' },
+    ]);
+  });
 });

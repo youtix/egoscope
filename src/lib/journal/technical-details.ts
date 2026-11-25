@@ -47,22 +47,34 @@ const technicalDetailsSchema = z.object({
     .optional(),
 });
 
+// The warning of a schedule row held back with a status value not recognized yet, whose
+// details alone also hold the source's game identifier (CL-STA-17, CL-DSN-11).
+const HELD_BACK_ROW_MESSAGE = 'stats_status_unknown';
+
+const heldBackRowDetailsSchema = technicalDetailsSchema.extend({
+  sourceGameRef: detailText.optional(),
+});
+
 /** The technical details of an entry, as its writer gives them (TRV-44, CL-DSN-11). */
-export type TechnicalDetails = Readonly<z.input<typeof technicalDetailsSchema>>;
+export type TechnicalDetails = Readonly<z.input<typeof heldBackRowDetailsSchema>>;
 
 /** The technical details as the journal keeps and shows them: no secret, an error message cut at 300 characters. */
-export type StoredTechnicalDetails = Readonly<z.output<typeof technicalDetailsSchema>>;
+export type StoredTechnicalDetails = Readonly<z.output<typeof heldBackRowDetailsSchema>>;
 
 /**
- * The details that the journal keeps of `details`: the allowlisted keys only, whatever
- * else a caller's object carries, every secret of the configuration masked in their
- * texts, then an error message cut at 300 characters (TRV-44, TRV-64, DSN-11, CL-DSN-11).
+ * The details that the journal keeps of `details`, given to an entry of `messageKey`:
+ * the allowlisted keys only, whatever else a caller's object carries, the source's game
+ * identifier for the warning of a held-back schedule row alone, every secret of the
+ * configuration masked in their texts, then an error message cut at 300 characters
+ * (TRV-44, TRV-64, DSN-11, CL-DSN-11, CL-STA-17).
  */
-export function keptDetails(details: TechnicalDetails): StoredTechnicalDetails {
-  return technicalDetailsSchema.parse(details);
+export function keptDetails(details: TechnicalDetails, messageKey: string): StoredTechnicalDetails {
+  const schema =
+    messageKey === HELD_BACK_ROW_MESSAGE ? heldBackRowDetailsSchema : technicalDetailsSchema;
+  return schema.parse(details);
 }
 
 /** The kept details of a stored row, read back for whoever asks to see them (TRV-44). */
 export function readDetails(stored: unknown): StoredTechnicalDetails {
-  return technicalDetailsSchema.parse(stored);
+  return heldBackRowDetailsSchema.parse(stored);
 }

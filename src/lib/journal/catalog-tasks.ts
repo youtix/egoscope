@@ -138,6 +138,8 @@ export const TASK_MESSAGES = [
     key: 'stats_status_unknown',
     category: 'task_pass',
     level: 'warning',
+    // The status value as the source wrote it, public schedule data, which its writer
+    // cuts to a bounded length (CL-STA-17).
     params: { status: 'code' },
     happened: 'The stats source gave a game a status that the app does not know yet: "{status}".',
     consequence: 'The game keeps what is stored, and its cases wait with "statistics pending".',
