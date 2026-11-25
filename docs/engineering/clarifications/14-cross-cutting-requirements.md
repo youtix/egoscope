@@ -68,7 +68,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
     - a restored player whose identifier matches a deleted-player entry (CL-JOU-24) is deleted again, with the scope of JOU-24, with no new attempt to delete Telegram messages;
     - for each live fingerprint, the restored events of the same player and type are compared with its day: exactly one on that day is withdrawn again with the scope of DSN-27, with no new attempt to delete Telegram messages; when several fall on that day, or none does but some fall within the correspondence window (CL-DSN-06, CL-IMP-34), none is withdrawn and the restore summary lists them, each with a link, for the owner to check.
   - The counter keeps the larger of the ledger's value and the backup's.
-  - After the load, each gapless counter (request references, import numbers) and each identity sequence continues from the larger of the target database's value and the backup's — for an identity sequence, the last value it had issued when the backup was made, which the backup records, erased rows included; for a new database, the previous database's value when it can still be read —, so that no number or identifier is issued twice (CL-BKT-11, CL-ALE-11, CL-IHM-19). Without the previous database it continues from the backup's: numbers and identifiers issued after the backup's date may then be issued again, an accepted limit.
+  - After the load, each gapless counter (request references, import numbers) and each identity sequence continues from the larger of the target database's value and the backup's — for an identity sequence, the last value it had issued when the backup was made, erased rows included, which every manifest records (`identity_sequences`), a full export's as a backup's, so that a full export restored into an empty database continues its sequences too (TRV-53); for a new database, the previous database's value when it can still be read —, so that no number or identifier is issued twice (CL-BKT-11, CL-ALE-11, CL-IHM-19). Without the previous database it continues from the backup's: numbers and identifiers issued after the backup's date may then be issued again, an accepted limit.
   - The re-application records a full recalculation (SEN-34), which the first database pass after the restore runs; the restore itself runs the consistency check. The summary (TRV-53, CA-TRV-16) shows the counts, the backup's date, the number of withdrawals and deletions re-applied (numbers only), the events to check, and these warnings: changes made after the backup's date — imports, corrections, dismissals, requalifications, settings — are lost; when the ledger could not be carried over, events withdrawn after that date may be back and must be withdrawn again; when the file is older than the fingerprint horizon (an old export), events withdrawn between the file's date and the start of the horizon may be back. Every draft is erased and every session closed.
 - **Why:** every withdrawal and deletion made since the backup still holds whenever the application can know it; a restored event is withdrawn automatically only when it is certainly the same one.
 - **Owner review:** yes — a restore withdraws and deletes again on its own, with no new attempt to delete Telegram messages, and asks the owner to check the ambiguous cases; it continues every number and identifier from the larger of the target's value and the backup's, a restore into a new database without the previous one continuing from the backup's.
@@ -153,9 +153,9 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## CL-TRV-15 — TRV-60 cited twice by IHM-09
 
-- **Affects:** TRV-60, IHM-09
+- **Affects:** TRV-60, IHM-09; CL-TRV-29
 - **Problem:** IHM-09 cites TRV-60 for two different rules.
-- **Ruling:** as written: TRV-60 covers both the minimum length and the closing of the other sessions when the password changes.
+- **Ruling:** as written: TRV-60 covers both the minimum length and the closing of the other sessions when the password changes, at every change of the password, the forced first choice (`choosePassword`) included. A wrong current password at a change is a refused attempt under TRV-61 (CL-TRV-29).
 - **Why:** both rules are in TRV-60.
 - **Owner review:** no
 
@@ -354,6 +354,54 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - **Why:** record 0025 forbids a database connection on these paths; one cache write a minute per busy instance keeps a flood from exhausting the cache's allowance, the cap bounds the cache entry and the journal, and keeping the buffer until a write succeeds loses nothing to a single failed write; an isolated refusal, the usual case, written at once, is lost only when the cache evicts its entry or is paused for the month.
 - **Owner review:** yes — a flood of refused calls is journaled as a count beyond 1,000 per instance, the last minute of a burst can be lost when the host recycles the instance, attempts can also be lost when the cache evicts their entry or pauses for the month, and refused triggers get a journal category of their own.
 
+## CL-TRV-26 — A rate paces the calls and never warns
+
+- **Affects:** TRV-03, TRV-04, TRV-05, TRV-06, CA-TRV-02; CL-TRV-12; register row TRV-05; the Telegram and detection-model service sheets
+- **Problem:** two limits of the parameter registry are rates, as their units say: `quotas.telegram.messagesPerSecond` ("a rate, no reset") and `quotas.workersAi.requestsPerMinute` ("a rate"). Read literally, TRV-05 gives a warning at 80 % of them and an incident when they are reached; at the Telegram sheet's value of 1 a second every message fills its own second, so the warning and "quota reached" would stay open while the application works normally. Neither sheet says where a rate's period starts.
+- **Ruling:**
+  - A rate paces the calls: the call that would exceed it is deferred until the rate allows it (TRV-04), and by its own count it never gives the warning of TRV-05 nor opens "quota reached". TRV-05 is read as applying to the quotas with a period, and CA-TRV-02, a daily limit, is unchanged.
+  - A service's refusal for a rate still applies TRV-06: it opens "quota reached" with the cause `refused_before_limit`.
+  - Workers AI's rate is counted over a rolling minute, since its sheet gives no boundary (CL-TRV-12). Telegram's second is a fixed second, its own 429 answer's `retry_after` covering the boundary.
+- **Why:** a rate bounds how fast the application calls, not how much it consumes in a period; a warning or an incident that stays open in normal work would tell the owner nothing, and the deferral alone keeps TRV-04.
+- **Owner review:** no
+
+## CL-TRV-27 — A refusal's retry-after and the windows a provider reports
+
+- **Affects:** TRV-03, TRV-06, CA-TRV-03; CL-TRV-12
+- **Problem:** some providers report a limit's window and its reset in the headers of their answers, and a refusal for quota (TRV-06) can also carry a retry-after; nothing says which of the two sets the instant until which a limit stays reached when both exist.
+- **Ruling:** a refusal's retry-after marks reached, until the instant it gives, only the limits of the service that no header reports; a limit whose window a header reports keeps its header's reset (CL-TRV-12). A refusal without a retry-after marks every limit of the call reached as CL-TRV-12 says, a reported window until its header's reset.
+- **Why:** a header names the window it reports, while a retry-after names none, so it can stand only for the limits that nothing else reports.
+- **Owner review:** no
+
+## CL-TRV-28 — How quota consumption is counted
+
+- **Affects:** TRV-03, TRV-04, TRV-05, TRV-06, TRV-07, TRV-46, STA-39; CL-TRV-12, CL-IHM-04; CL-DET-04, CL-DET-05 (file 04 rulings); the service sheets
+- **Problem:** the service sheets give each limit in the provider's own units and terms, and the specs do not say how the application counts them, which incident a deferral opens for each kind of service, nor which calls count.
+- **Ruling:**
+  - A megabyte is 1,000,000 bytes, for every limit and capacity given in megabytes.
+  - An active minute of the database counts as compute for six minutes: the minute itself and the five minutes before the database suspends.
+  - A call deferred because a limit is reached by count opens `quota_reached` with the cause `limit_reached` for every service other than the language models, whose stop the classification incident of CL-DET-04 reports: the stats source (STA-39), and the backup storage for a file above its size limit. Such a file is deferred with `availableAt` null, since no instant lets it through.
+  - `quota_warning` also opens for the language-model role: CL-DET-04 and CL-DET-05 replace only its `quota_reached`.
+  - The link check is not a guarded service: it has no quota parameter. Telegram's probe calls count no message.
+  - `quotas.backupStorage.requestsPerHour` is a reference value, counted in the window the provider reports and never deferring a call by its count; a refusal holds the storage until the reported reset (CL-TRV-27).
+  - The usage sentences of the status screen follow the glossary's (§7.4) without "Paris time": the screen states the zone once (CL-IHM-04).
+- **Why:** one unit per measure and one rule per kind of service make the counts testable and keep the status screen consistent; the provider's own counting decides where it reports it.
+- **Owner review:** no
+
+## CL-TRV-29 — A wrong current password at a password change is a refused attempt
+
+- **Affects:** TRV-41, TRV-60, TRV-61, IHM-07, IHM-09, CA-TRV-20, CA-TRV-31; CL-TRV-15; register rows IHM-09, TRV-60 and TRV-61
+- **Problem:** a password change asks for the current password (IHM-09), but TRV-61 limits only the failures of a login. Read literally, a change checks the current password as often as it is asked, with no limit and no journal entry, so whoever holds an open session can guess the password, change it and close the owner's other sessions (TRV-60).
+- **Ruling:**
+  - A wrong current password at a password change counts as a refused attempt under the limits of TRV-61, with the same failure table (`login_failures`), the same counters and the same lockout as a refused login, the two kinds of failure adding up.
+  - A change is refused while logins are locked, without examining either password, as a login is (IHM-07).
+  - Each refusal is journaled under the category of a refused login, with two entries of its own, since the login messages would be false of a change: `password_change_refused`, "A password change was refused: the current password was wrong.", and, while logins are locked, `password_change_refused_while_locked`, "A password change was refused while logins are locked, until {lockedUntilAt}.". The failure that reaches the threshold also writes `login_locked` and opens the incident `logins_refused`, as a login failure does.
+  - A successful change neither closes that incident nor erases failures: TRV-61 closes it at the first successful login, and a change is not one.
+  - `choosePassword`, the forced first choice (TRV-57, TRV-63), has no current password to check and is not concerned.
+  - The form shows the refusal of a wrong password, or the lockout and its end, as the login screen does (IHM-07).
+- **Why:** a limit on logins alone leaves the password change as an unlimited way to test guesses for whoever finds a session open; one count of failures keeps one limit on guesses, whatever form they come through.
+- **Owner review:** no
+
 ## Ruled elsewhere
 
 - **The start of a game's day and the waiting rule in 07's terms** — owned by 07 (STA-31, STA-32, STA-36, STA-37): ruled by CL-STA-14 (a game whose time is to be determined is deemed to start at 00:00 US Eastern time on its date, the start of its day under CL-TRV-03) and CL-STA-10 (the wait, the cut-off ending "source late" and the late-source incident of CL-TRV-23, applied as written).
@@ -367,3 +415,4 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 - Date and time patterns, zone labels ("Paris time"), the phrasing of the US-date recall.
 - Run results "succeeded", "failed", "interrupted", "source late"; "on demand"; "an event was withdrawn"; "an item that no longer exists"; "a deleted player".
 - The status-screen lines of CL-TRV-23 and the restore summary's warnings (CL-TRV-06).
+- The two journal entries of a refused password change (CL-TRV-29).

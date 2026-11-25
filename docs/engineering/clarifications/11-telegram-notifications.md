@@ -151,7 +151,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 
 - **Affects:** TEL-13, CA-TEL-21
 - **Problem:** the example's line for player D, who has no backtest, omits the new profile values TEL-13 requires.
-- **Ruling:** TEL-13 wins: every result line gives the new profile values (mean gap, range, number of valid cases) and any change of verdict, with SEN-31's label below the threshold — for player D, in the glossary's words, "−0.35 over 1 valid case, range −2.35 to +1.65, inconclusive for this player (1 valid case of 5 needed)". The "no backtest yet" mention applies only to researched types, never to calendar-derived ones (CL-TEL-21).
+- **Ruling:** TEL-13 wins: every result line gives the new profile values (mean gap, range, number of valid cases) and any change of verdict, with SEN-31's label below the threshold — for player D, in the glossary's words, "−0.35 over 1 valid case, range −2.35 to +1.65, inconclusive for this player (1 valid case of the 5 needed)". The "no backtest yet" mention applies only to researched types, never to calendar-derived ones (CL-TEL-21).
 - **Why:** a requirement wins over an example.
 - **Owner review:** no
 

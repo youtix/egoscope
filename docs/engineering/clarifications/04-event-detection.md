@@ -119,7 +119,7 @@ The decision records (`docs/adr/`, listed in `docs/engineering/spec-deviations.m
 - **Affects:** DET-43, DET-52, DET-58, IHM-20, IHM-32, IHM-67, CA-DET-35
 - **Problem:** DET-58 describes only the "same fact" outcome (dismissal); there is no way to clear the mark when the facts are distinct, IHM-32 does not list it among the marks shown, and nothing draws the owner's attention while the case counts.
 - **Ruling:**
-  - The mark is set when an event is created with a type different from that of a historical event of the same player whose public date is within the correspondence window of IMP-25 (file 06 parameter, default 2 days).
+  - The mark follows the import's classification of two events (`classify`, CL-IMP-13): it is set when an event is created with a type different from that of a historical event of the same player whose public date is within the correspondence window of IMP-25 (file 06 parameter, default 2 days, CL-IMP-34), or that shares a cleaned link with it (CL-IMP-14), and never between a calendar-derived event and another (CL-IMP-29).
   - It is shown wherever the other two marks are: detected-events list (IHM-32), event page (IHM-67), alert sheet.
   - The event page offers "not the same fact", which lifts the mark; the lift is traced (DET-52), changes no calculation and is no post-tip-off decision (SUI-17), since the mark never changed the counts.
   - A marked event appears in the to-do section « événements et cas à examiner » (IHM-20) until the mark is lifted or the event dismissed.
