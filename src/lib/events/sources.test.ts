@@ -14,8 +14,8 @@ import { fixedClock, installFakeClock, toEpochMs, toIsoDate } from '@/lib/time';
 import { getEvent, uncheckedSources } from './queries';
 import { addSources, recordLinkCheck, recordSpotCheck } from './sources';
 
-import type { PlayerEventSource } from './queries';
 import type { NewSource } from './sources';
+import type { PlayerEventSource } from './views';
 import type { Database } from '@/lib/db';
 import type { FixedClock } from '@/lib/time';
 

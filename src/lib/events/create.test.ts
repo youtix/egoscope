@@ -379,6 +379,17 @@ describe('the creation of events', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
     ).rejects.toThrow(new RangeError('No event of the import has the index 1.'));
   });
 
+  it('[DSN-06] [IMP-14] refuses, as a bug, an event without a source, writing nothing', async () => {
+    const before = await db.$count(events);
+
+    await expect(save([historical(), historical({ sources: [] })])).rejects.toThrow(
+      new RangeError(
+        'The event of the import at the index 1 has no source, which DSN-06 requires.',
+      ),
+    );
+    expect(await db.$count(events)).toBe(before);
+  });
+
   it('saves nothing for an import without events', async () => {
     expect(await save([])).toStrictEqual({ ok: true, value: [] });
   });
@@ -386,12 +397,14 @@ describe('the creation of events', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
   describe('of calendar-derived events', () => {
     let birthdayGame: number;
     let otherGame: number;
+    let thirdGame: number;
+    let fourthGame: number;
     let gameDay: string;
 
     beforeAll(async () => {
       await insertCalendarType(db);
       const season = await insertLeagueSeason(db, '2024-25');
-      [birthdayGame = 0, otherGame = 0] = season.values();
+      [birthdayGame = 0, otherGame = 0, thirdGame = 0, fourthGame = 0] = season.values();
       const [game] = await db
         .select({ day: games.gameDayOn })
         .from(games)
@@ -446,6 +459,41 @@ describe('the creation of events', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
       expect(rows).toBe(1);
     });
 
+    it('[DSN-20] [CL-TAX-18] gives back a recorded event whose description a lowered limit would refuse, checking only a new one', async () => {
+      const lowest = 80;
+      const first = await derive(derived({ derivedGameId: thirdGame }));
+      // The earlier test of the limit set it once and reset it: two changes, so version 2.
+      const lowered = await db.transaction(async (tx) =>
+        setParam(tx, { key: 'events.maxDescriptionLength', value: lowest, expectedVersion: 2 }),
+      );
+      const longName = 'n'.repeat(lowest);
+      const { id: newcomer } = await insertPlayer(db, { source: 'p03' });
+      const again = await derive(
+        derived({
+          derivedGameId: thirdGame,
+          description: { template: 'birthday', player: longName },
+        }),
+      );
+      const fresh = await derive(
+        derived({
+          derivedGameId: birthdayGame,
+          eventTypeId: BIRTHDAY,
+          playerId: newcomer,
+          description: { template: 'birthday', player: longName },
+        }),
+      );
+      const reset = await db.transaction(async (tx) =>
+        resetParam(tx, { key: 'events.maxDescriptionLength', expectedVersion: 3 }),
+      );
+
+      expect([lowered.ok, reset.ok]).toStrictEqual([true, true]);
+      expect(first.ok).toBe(true);
+      expect(again).toStrictEqual(
+        first.ok ? { ok: true, value: { ...first.value, created: false } } : first,
+      );
+      expect(fresh).toMatchObject({ ok: false, error: { kind: 'text_refused' } });
+    });
+
     it('[DSN-06] writes the former-team template, naming the player and that team only', async () => {
       const former = await insertCalendarType(db, {
         id: 'former-team',
@@ -471,11 +519,17 @@ describe('the creation of events', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
     it('[DSN-20] [DSN-21] checks the template description like any other', async () => {
       const longName = 'e'.repeat(MAX_LENGTH);
       const tooLong = await derive(
-        derived({ description: { template: 'birthday', player: longName } }),
+        derived({
+          derivedGameId: fourthGame,
+          description: { template: 'birthday', player: longName },
+        }),
       );
       const nickname = `${player.displayName} “The Wall”`;
       const withQuote = await derive(
-        derived({ description: { template: 'birthday', player: nickname } }),
+        derived({
+          derivedGameId: fourthGame,
+          description: { template: 'birthday', player: nickname },
+        }),
       );
       const length = `${longName} plays on his birthday.`.length;
 
