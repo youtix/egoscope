@@ -80,7 +80,7 @@ describe('deleteHistorical', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     });
     await db
       .insert(eventImportWarnings)
-      .values({ playerEventId: historical.id, importId, kind: 'possible_statistics' });
+      .values({ playerEventId: historical.id, importId, kind: 'confidence_defaulted' });
     await db
       .insert(eventCorrections)
       .values({ playerEventId: historical.id, correctedAt: new Date(AT), field: 'description' });

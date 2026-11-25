@@ -93,7 +93,10 @@ export async function eraseEvent(
 }
 
 /** The value `column` keeps once the identifier `playerId` is taken out of it. */
-function withoutPlayer(column: typeof eventCorrections.beforeValue, playerId: string) {
+function withoutPlayer(
+  column: typeof eventCorrections.beforeValue | typeof eventCorrections.afterValue,
+  playerId: string,
+) {
   return sql`CASE WHEN ${column} = ${playerId} THEN NULL ELSE ${column} END`;
 }
 

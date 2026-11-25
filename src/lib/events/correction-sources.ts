@@ -32,21 +32,17 @@ type DateColumns = Readonly<{
   offset: number | null;
 }>;
 
-type SourceColumns = Readonly<
-  Required<
-    Pick<
-      NewEventSourceRow,
-      | 'position'
-      | 'url'
-      | 'cleanedUrl'
-      | 'outlet'
-      | 'title'
-      | 'publicationDateOn'
-      | 'publicationAt'
-      | 'publicationOffsetMinutes'
-    >
-  >
->;
+/** The columns of a source that a correction writes (`event_sources`). */
+type SourceColumns = Readonly<{
+  position: NewEventSourceRow['position'];
+  url: NewEventSourceRow['url'];
+  cleanedUrl: NewEventSourceRow['cleanedUrl'];
+  outlet: string | null;
+  title: string | null;
+  publicationDateOn: NewEventSourceRow['publicationDateOn'];
+  publicationAt: Date | null;
+  publicationOffsetMinutes: number | null;
+}>;
 
 /** How the stored sources of an event become the corrected ones. */
 type SourcePlan = Readonly<{

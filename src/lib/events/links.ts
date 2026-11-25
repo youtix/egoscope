@@ -26,7 +26,8 @@ export type CaseLink = Readonly<{
   precedence?: NonNullable<EventRow['precedence']>;
 }>;
 
-type EventSet = Partial<NewEventRow>;
+/** The columns an update sets, each to a value or to an SQL expression of the row. */
+type EventSet = { [Column in keyof NewEventRow]?: NewEventRow[Column] | SQL };
 
 /** Changes the events that `where` selects, each save moving its version on (CL-IHM-18): the number changed. */
 async function updateEvents(
