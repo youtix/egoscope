@@ -38,5 +38,7 @@ export type {
 //   reviewFlags, isRecalculating, profileValueVersionsUntil, changedSince
 
 // erase.ts: eraseEventData, erasePlayerJobs, purgeValueVersions
+export { eraseEventData, erasePlayerJobs } from './erase';
+export type { ErasureCause } from './erase';
 
 // detected-case.ts: createCaseOfDetectedEvent (Lot 2)
