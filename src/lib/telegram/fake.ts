@@ -66,13 +66,13 @@ const BLOCKED: TelegramError = { kind: 'blocked' };
 const CHAT_NOT_FOUND: TelegramError = { kind: 'chat_not_found' };
 const DELETED: DeleteAnswer = { kind: 'deleted' };
 const NOT_FOUND: DeleteAnswer = { kind: 'not_found' };
-// What Telegram counts of a text in HTML mode: the characters, its tags left out and
-// each entity counted once.
-const TAG = /<[^<>]*>/gu;
+// The markup of a text in HTML mode that Telegram does not count as written: a tag,
+// which it leaves out, or an entity, which it counts as one character.
+const MARKUP = /<[^<>]*>|&(?:lt|gt|amp|quot|#\d+|#x[\da-f]+);/giu;
+const ENTITY_START = '&';
 // The Bot API's names of the fields that the fake's updates carry besides the chat.
 const MESSAGE_ID = 'message_id';
 const NEW_CHAT_MEMBER = 'new_chat_member';
-const ENTITY = /&(?:lt|gt|amp|quot|#\d+|#x[\da-f]+);/giu;
 
 const answered = <T>(value: T, messages = 0): TelegramOutcome<T> => ({
   ok: true,
@@ -86,7 +86,14 @@ const refused = <T>(error: TelegramError, call = ONE_REQUEST): TelegramOutcome<T
   call,
 });
 
-const lengthOf = (html: string): number => html.replaceAll(TAG, '').replaceAll(ENTITY, '&').length;
+/** The length that Telegram counts of a text in HTML mode, its markup measured, never removed. */
+function lengthOf(html: string): number {
+  let length = html.length;
+  for (const [markup] of html.matchAll(MARKUP)) {
+    length -= markup.startsWith(ENTITY_START) ? markup.length - 1 : markup.length;
+  }
+  return length;
+}
 
 class Fake implements FakeTelegram {
   readonly #inboxes = new Map<number, ReceivedMessage[]>();
