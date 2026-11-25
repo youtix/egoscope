@@ -4,9 +4,9 @@
 // engine; the flags of the teams whose lines the source holds say "not played" for the
 // rest; a correction in the window, or on a manual refetch, replaces the stored values
 // and traces each one (CL-STA-26).
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray } from 'drizzle-orm';
 
-import { boxScores, games, statCorrections, statsSourceMappings } from '@/lib/db';
+import { boxScores, games, statCorrections, statsSourceMappings, teamSourceRefs } from '@/lib/db';
 import { now } from '@/lib/time';
 
 import { differencesOf, isPlayed, isUnchanged, valuesOf } from './line-values';
@@ -20,6 +20,7 @@ import type {
   SourceBoxScore,
   SourceGameId,
   SourcePlayerId,
+  SourceTeamId,
   StatsSource,
 } from '@/lib/stats-source';
 
@@ -60,15 +61,23 @@ export type LinesChange = Readonly<{
 }>;
 
 type Side = 'home' | 'away';
-/** What the answer holds of one game: the sides with lines, and the requested players' lines. */
-type GameAnswer = { sides: Set<Side>; lines: Map<PlayerId, SourceBoxScore> };
+type TeamSide = Readonly<{ side: Side; teamId: number }>;
+/** What the answer holds of one game: the teams with lines, and the requested players' lines. */
+type GameAnswer = { teams: Set<SourceTeamId>; lines: Map<PlayerId, SourceBoxScore> };
 
-/** One requested player in one answered game, with his stored line if any. */
+/**
+ * One requested player in one answered game, with his stored line if any, and whether
+ * an earlier read of the season's file gave him lines: only then can the game hold a
+ * line of his to correct (STA-33).
+ */
 type LineTarget = Readonly<{
   game: GameRow;
   answer: GameAnswer;
+  /** The sides of the game whose lines the answer holds. */
+  sides: ReadonlySet<Side>;
   playerId: PlayerId;
   stored: BoxScoreRow | undefined;
+  wasRead: boolean;
 }>;
 
 type IdSets = Readonly<{ players: Set<PlayerId>; games: Set<GameId> }>;
@@ -77,6 +86,8 @@ type IdSets = Readonly<{ players: Set<PlayerId>; games: Set<GameId> }>;
 type Run = Readonly<{
   at: Date;
   isManualRefetch: boolean;
+  /** The application team of each source team. */
+  teamIds: ReadonlyMap<SourceTeamId, number>;
   inserts: NewBoxScoreRow[];
   updates: { id: number; values: LineValues }[];
   deletes: number[];
@@ -89,7 +100,20 @@ type Run = Readonly<{
 
 const idSets = (): IdSets => ({ players: new Set(), games: new Set() });
 
-const sideOf = (line: SourceBoxScore): Side => (line.isHome ? 'home' : 'away');
+/**
+ * The side of the game that a source team plays, from the game's own teams, whatever
+ * a line's home flag says: none for a team foreign to the game.
+ */
+function sideOf(run: Run, game: GameRow, team: SourceTeamId): TeamSide | undefined {
+  const teamId = run.teamIds.get(team);
+  if (teamId === undefined) {
+    return undefined;
+  }
+  if (teamId === game.homeTeamId) {
+    return { side: 'home', teamId };
+  }
+  return teamId === game.awayTeamId ? { side: 'away', teamId } : undefined;
+}
 
 /** Whether the source held the lines of that side of the game before this read (CL-STA-04). */
 const isPublished = (game: GameRow, side: Side): boolean =>
@@ -133,21 +157,24 @@ const newRow = (run: Run, { playerId, game }: LineTarget, values: LineValues): N
   fetchedAt: run.at,
 });
 
-/** Stores a line he played: a first one untraced, else as a correction. */
+/**
+ * Stores a line he played, filed under the game's team that the source names: a first
+ * one untraced, else as a correction. A first line is one of a player whom no earlier
+ * read gave lines of the season, or of a team whose lines were never published.
+ */
 function storePlayed(run: Run, target: LineTarget, line: SourceBoxScore): void {
   const { game, stored } = target;
-  const side = sideOf(line);
-  const teamId = side === 'home' ? game.homeTeamId : game.awayTeamId;
-  if (teamId === null) {
+  const team = sideOf(run, game, line.team);
+  if (team === undefined) {
     return;
   }
-  const values = valuesOf(line, teamId, game.overtimeCount);
-  if (stored === undefined && !isPublished(game, side)) {
-    // The first lines of his team in this game: no stored value to correct.
+  const values = valuesOf(line, team.teamId, game.overtimeCount);
+  if (stored === undefined && (!target.wasRead || !isPublished(game, team.side))) {
+    // No line of his read in this game before: no stored value to correct.
     run.inserts.push(newRow(run, target, values));
     markChanged(run, target);
   } else if (stored === undefined) {
-    // A line that the source adds once his team's lines were published.
+    // A line that the source adds once his team's lines were read for him.
     if (didCorrect(run, target, values)) {
       run.inserts.push(newRow(run, target, values));
     }
@@ -161,12 +188,12 @@ function storePlayed(run: Run, target: LineTarget, line: SourceBoxScore): void {
  * lines of his stored team without one of his (CL-STA-04). The placeholder of an
  * unavailable sheet stays until a line he played replaces it (STA-35).
  */
-function isNotPlayed({ game, answer, playerId }: LineTarget, stored: BoxScoreRow): boolean {
+function isNotPlayed({ game, answer, sides, playerId }: LineTarget, stored: BoxScoreRow): boolean {
   if (stored.status === 'unavailable') {
     return false;
   }
   const side = stored.teamId === game.homeTeamId ? 'home' : 'away';
-  return answer.lines.has(playerId) || answer.sides.has(side);
+  return answer.lines.has(playerId) || sides.has(side);
 }
 
 function judgeLine(run: Run, target: LineTarget): void {
@@ -181,8 +208,8 @@ function judgeLine(run: Run, target: LineTarget): void {
 }
 
 /** Sets the flag of each side of the game whose lines the answer holds for the first time (CL-STA-04). */
-function publishSides(run: Run, game: GameRow, answer: GameAnswer): void {
-  for (const side of answer.sides) {
+function publishSides(run: Run, game: GameRow, sides: ReadonlySet<Side>): void {
+  for (const side of sides) {
     if (isPublished(game, side)) {
       continue;
     }
@@ -198,8 +225,8 @@ function indexAnswer(
 ): Map<SourceGameId, GameAnswer> {
   const byGame = new Map<SourceGameId, GameAnswer>();
   for (const line of lines) {
-    const answer = byGame.get(line.game) ?? { sides: new Set(), lines: new Map() };
-    answer.sides.add(sideOf(line));
+    const answer = byGame.get(line.game) ?? { teams: new Set(), lines: new Map() };
+    answer.teams.add(line.team);
     const playerId = players.get(line.player);
     if (playerId !== undefined) {
       answer.lines.set(playerId, line);
@@ -242,25 +269,41 @@ async function answeredGames(
   });
 }
 
-/** The stored lines of these players in these games, by game and player. */
+/**
+ * The stored lines of these players in the season's games, by game and player, and the
+ * players whom an earlier read of the season gave lines: those with a stored line there
+ * other than the placeholder of an unavailable sheet, which no read gives. A mapping
+ * change deletes the former identity's lines, so a newly mapped player has none.
+ */
 async function storedLines(
   tx: Transaction,
   playerIds: readonly PlayerId[],
-  gameIds: readonly GameId[],
-): Promise<Map<string, BoxScoreRow>> {
-  const rows =
-    playerIds.length === 0 || gameIds.length === 0
-      ? []
-      : await tx
-          .select()
-          .from(boxScores)
-          .where(
-            and(
-              inArray(boxScores.playerId, [...playerIds]),
-              inArray(boxScores.gameId, [...gameIds]),
-            ),
-          );
-  return new Map(rows.map((row) => [`${String(row.gameId)}:${row.playerId}`, row]));
+  season: string,
+): Promise<Readonly<{ byGame: Map<string, BoxScoreRow>; read: Set<PlayerId> }>> {
+  const rows = await tx
+    .select(getTableColumns(boxScores))
+    .from(boxScores)
+    .innerJoin(games, eq(games.id, boxScores.gameId))
+    .where(
+      and(
+        eq(games.statsSource, STATS_SOURCE),
+        eq(games.season, season),
+        inArray(boxScores.playerId, [...playerIds]),
+      ),
+    );
+  return {
+    byGame: new Map(rows.map((row) => [`${String(row.gameId)}:${row.playerId}`, row])),
+    read: new Set(rows.flatMap((row) => (row.status === 'unavailable' ? [] : row.playerId))),
+  };
+}
+
+/** The application team of each of the source's teams (CL-STA-23). */
+async function teamIdsOf(tx: Transaction): Promise<Map<SourceTeamId, number>> {
+  const rows = await tx
+    .select({ ref: teamSourceRefs.sourceTeamRef, teamId: teamSourceRefs.teamId })
+    .from(teamSourceRefs)
+    .where(eq(teamSourceRefs.statsSource, STATS_SOURCE));
+  return new Map(rows.map(({ ref, teamId }) => [ref, teamId]));
 }
 
 async function insertAll<T>(
@@ -323,16 +366,13 @@ async function judge(tx: Transaction, read: LinesRead, run: Run): Promise<readon
   const players = new Map(mapped.map(({ playerId, ref }) => [ref ?? '', playerId]));
   const playerIds = mapped.map(({ playerId }) => playerId);
   const answered = await answeredGames(tx, read, indexAnswer(read.lines, players));
-  const lines = await storedLines(
-    tx,
-    playerIds,
-    answered.map(({ game }) => game.id),
-  );
+  const lines = await storedLines(tx, playerIds, read.request.season);
   for (const { game, answer } of answered) {
-    publishSides(run, game, answer);
+    const sides = new Set([...answer.teams].flatMap((team) => sideOf(run, game, team)?.side ?? []));
+    publishSides(run, game, sides);
     for (const playerId of playerIds) {
-      const stored = lines.get(`${String(game.id)}:${playerId}`);
-      judgeLine(run, { game, answer, playerId, stored });
+      const stored = lines.byGame.get(`${String(game.id)}:${playerId}`);
+      judgeLine(run, { game, answer, sides, playerId, stored, wasRead: lines.read.has(playerId) });
     }
   }
   return playerIds;
@@ -345,18 +385,21 @@ async function judge(tx: Transaction, read: LinesRead, run: Run): Promise<readon
  * source's. Only the requested players with an established mapping get lines, only in
  * the games of that season, and only lines they played: a did-not-play line, its reason
  * included, is never stored. Each line keeps the engine's status and failed checks, a
- * missing value as null, the "rounded minutes" mention of whole minutes, the team he
- * played for and the ejection as the source gives it. Each side whose lines the answer
- * holds gets its lines-published flag, so that no line there means not played. While a
- * game is not consolidated, or on a manual refetch, every element that differs from a
- * stored or published state replaces it and is traced with the origin "correction
- * window" or "manual refetch", and a line that turns "not played" is deleted after its
- * trace; a consolidated game otherwise only gets the lines of a team never published.
+ * missing value as null, the "rounded minutes" mention of whole minutes, the team of the
+ * game that the source says he played for and the ejection as the source gives it. Each
+ * side whose lines the answer holds gets its lines-published flag, so that no line there
+ * means not played. A player whom no earlier read gave lines of the season gets his
+ * lines as first lines, untraced, whatever those flags say. While a game is not
+ * consolidated, or on a manual refetch, every element that differs from a stored or
+ * published state replaces it and is traced with the origin "correction window" or
+ * "manual refetch", and a line that turns "not played" is deleted after its trace; a
+ * consolidated game otherwise only gets first lines.
  */
 export async function ingestLines(tx: Transaction, read: LinesRead): Promise<LinesChange> {
   const run: Run = {
     at: new Date(now()),
     isManualRefetch: read.isManualRefetch,
+    teamIds: await teamIdsOf(tx),
     inserts: [],
     updates: [],
     deletes: [],

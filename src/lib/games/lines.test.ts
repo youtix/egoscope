@@ -358,6 +358,52 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
       expect(await corrections()).toStrictEqual([]);
     });
 
+    it('[STA-08] [STA-33] stores the lines of a player read after a teammate as first lines, in a consolidated game too', async () => {
+      await ingest(await read(['p01']), { players: ['p01'] });
+      await consolidateFirstGame();
+
+      const change = await ingest(await read());
+
+      expect(await lineOf(P06)).toMatchObject({ status: 'complete', teamId: idOf(teamIds, '1') });
+      expect(await corrections()).toStrictEqual([]);
+      expect(change.changed.playerIds).toStrictEqual([P06]);
+      expect(change.changed.gameIds).toHaveLength(10);
+      expect(change).toMatchObject({ corrected: NO_SCOPE, teamHistoryChanged: [] });
+    });
+
+    it('[STA-08] files a line under the game team the source names, whatever its home flag says, and leaves out a line of a team foreign to the game', async () => {
+      const lines = edited(
+        edited(await read(), { isHome: false }),
+        { team: '3' },
+        { player: 'p06' },
+      );
+
+      await ingest(edited(lines, { team: 'x9' }, { game: SECOND_GAME, player: 'p06' }));
+
+      expect(await lineOf(P01)).toMatchObject({ teamId: idOf(teamIds, '1') });
+      expect(await lineOf(P06)).toBeUndefined();
+      expect(await lineOf(P06, SECOND_GAME)).toBeUndefined();
+      expect(await gameRow(firstGameId())).toMatchObject({ awayLinesPublished: false });
+    });
+
+    it('[STA-33] [STA-34] traces a line the source adds for a player read before, and leaves it out of a consolidated game', async () => {
+      // p01 read without a line in the first two games, which p06's lines publish for team 1.
+      const lines = await read();
+      await ingest(edited(edited(lines, NOT_PLAYED), NOT_PLAYED, { game: SECOND_GAME }));
+      await consolidateFirstGame();
+
+      const change = await ingest(lines);
+
+      expect(await lineOf(P01)).toBeUndefined();
+      expect(await lineOf(P01, SECOND_GAME)).toBeDefined();
+      const second = { playerIds: [P01], gameIds: [idOf(gameIds, SECOND_GAME)] };
+      expect(change).toStrictEqual({
+        changed: second,
+        corrected: second,
+        teamHistoryChanged: [P01],
+      });
+    });
+
     it('[STA-33] changes nothing when the same answer is read again', async () => {
       const lines = await read();
       await ingest(lines);
@@ -458,20 +504,6 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
       expect(await ingest(await read(['p06']), { players: ['p06'] })).toStrictEqual(NO_CHANGE);
 
       expect(await lineOf(P01)).toBeDefined();
-    });
-
-    it('[STA-33] traces a line the source adds once his team lines were published', async () => {
-      const lines = await read();
-      await db.delete(boxScores).where(eq(boxScores.playerId, P01));
-
-      const change = await ingest(lines);
-
-      expect(await lineOf(P01)).toMatchObject({ points: 21 });
-      expect(await corrections()).toContainEqual(
-        expect.objectContaining({ element: 'points', oldValue: null, newValue: 21 }),
-      );
-      expect(change.corrected.gameIds).toHaveLength(10);
-      expect(change.teamHistoryChanged).toStrictEqual([P01]);
     });
 
     it('[STA-33] leaves a consolidated game as it is without a manual refetch', async () => {
