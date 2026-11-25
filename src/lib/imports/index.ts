@@ -23,5 +23,14 @@ export type {
 // link-checks.ts: processLinkChecks, nextDueAt
 
 // queries.ts: history, remainingRefusals, eventTrace
+export { eventTrace, history, remainingRefusals, remainingRefusalSum } from './queries';
+export type {
+  EventTrace,
+  ImportHistoryEntry,
+  ImportTally,
+  RemainingRefusal,
+  TracedSource,
+} from './queries';
 
 // erase.ts: eraseEventData
+export { eraseEventData } from './erase';
