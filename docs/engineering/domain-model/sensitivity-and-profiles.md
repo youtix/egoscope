@@ -22,49 +22,51 @@ Lot 1 a case is historical except that of a calendar-derived event created befor
 scheduled start, which is tracked in Lot 1 as in Lot 2 (CL-VUE-13, CL-IHM-24); the views on one
 origin only are shown in Lot 2 (SEN-21).
 
-| column                          | type             | null | default  | constraint or reference                                                                                    | class | spec IDs          |
-| ------------------------------- | ---------------- | ---- | -------- | ---------------------------------------------------------------------------------------------------------- | ----- | ----------------- |
-| `id`                            | integer          | no   | identity | primary key                                                                                                | EV    | —                 |
-| `player_id`                     | uuid             | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                        | EV    | SEN-19            |
-| `event_type_id`                 | text             | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                            | EV    | SEN-19            |
-| `view`                          | text             | no   | —        | `CHECK (view IN ('all_cases','historical_only','tracked_only'))`                                           | —     | SEN-21, CL-SEN-19 |
-| `event_count`                   | integer          | no   | —        | events counted (exits excluded)                                                                            | EV    | SEN-20, SEN-32    |
-| `case_count`                    | integer          | no   | —        | —                                                                                                          | EV    | SEN-20, SEN-32    |
-| `grouped_event_count`           | integer          | no   | —        | events joined to an existing case                                                                          | EV    | SEN-20, SEN-32    |
-| `awaiting_count`                | integer          | no   | —        | cases awaiting their game                                                                                  | EV    | SEN-20            |
-| `valid_count`                   | integer          | no   | —        | n, the measured cases                                                                                      | EV    | SEN-20, SEN-38    |
-| `excluded_count`                | integer          | no   | —        | —                                                                                                          | EV    | SEN-20            |
-| `manually_excluded_count`       | integer          | no   | —        | of which by a manual decision                                                                              | EV    | SEN-20, SEN-27    |
-| `not_measurable_count`          | integer          | no   | —        | —                                                                                                          | EV    | SEN-20            |
-| `co_occurring_count`            | integer          | no   | —        | —                                                                                                          | EV    | SEN-06, SEN-20    |
-| `provisional_gap_count`         | integer          | no   | —        | cases whose gap is provisional                                                                             | EV    | SEN-20            |
-| `historical_valid_count`        | integer          | no   | —        | valid cases of historical origin                                                                           | EV    | SEN-21, IHM-46    |
-| `tracked_valid_count`           | integer          | no   | —        | valid cases of tracked origin                                                                              | EV    | SEN-21, IHM-46    |
-| `tally_reasons`                 | jsonb            | no   | —        | immutable snapshot: counts by awaiting reason, by not-measurable reason and by triggered criterion         | EV    | SEN-20            |
-| `exit_counts`                   | jsonb            | no   | —        | immutable snapshot: events that left the count, by `TallyExitReason`; never a withdrawal                   | EV    | SEN-20, SEN-33    |
-| `low_research_confidence_count` | integer          | no   | —        | valid cases resting on a low-confidence event; calendar-derived cases never counted                        | EV    | SEN-43, CL-SEN-03 |
-| `mean_gap`                      | double precision | yes  | —        | null when n = 0                                                                                            | EV    | SEN-20, CL-SEN-15 |
-| `gap_dispersion`                | double precision | yes  | —        | sample deviation of the valid gaps; null when n < 2                                                        | EV    | SEN-20, CL-SEN-15 |
-| `retained_dispersion`           | double precision | yes  | —        | max(dispersion, 1), 1 when n < 2; null when n = 0                                                          | EV    | SEN-22            |
-| `expected_noise`                | double precision | yes  | —        | null when n = 0                                                                                            | EV    | SEN-22            |
-| `signal_to_noise`               | double precision | yes  | —        | null when n = 0                                                                                            | EV    | SEN-22            |
-| `range_low`                     | double precision | yes  | —        | mean − 2 × noise                                                                                           | EV    | SEN-22, SEN-38    |
-| `range_high`                    | double precision | yes  | —        | mean + 2 × noise                                                                                           | EV    | SEN-22, SEN-38    |
-| `above_zero_count`              | integer          | no   | —        | —                                                                                                          | EV    | SEN-20, SEN-39    |
-| `below_zero_count`              | integer          | no   | —        | —                                                                                                          | EV    | SEN-20, SEN-39    |
-| `verdict_level`                 | text             | no   | —        | `CHECK (verdict_level IN ('inconclusive','possible','probable'))`                                          | EV    | SEN-23            |
-| `verdict_direction`             | text             | yes  | —        | `CHECK (verdict_direction IN ('increase','decrease'))`                                                     | EV    | SEN-24            |
-| `is_fragile`                    | boolean          | no   | —        | the robustness test, run only when n reaches the threshold                                                 | EV    | SEN-26, CL-SEN-14 |
-| `profile_confidence`            | text             | no   | —        | `CHECK (profile_confidence IN ('low','medium','high'))`                                                    | EV    | SEN-25            |
-| `confidence_step_down_reasons`  | text[]           | no   | `'{}'`   | `CHECK (confidence_step_down_reasons <@ ARRAY['high_dispersion','high_doubtful_share','fragile_verdict'])` | EV    | SEN-25            |
-| `control_case_count`            | integer          | no   | —        | valid cases plus excluded cases with a computable gap                                                      | EV    | SEN-27            |
-| `control_mean_gap`              | double precision | yes  | —        | —                                                                                                          | EV    | SEN-27            |
-| `control_verdict_level`         | text             | no   | —        | values of `verdict_level`                                                                                  | EV    | SEN-27            |
-| `control_verdict_direction`     | text             | yes  | —        | values of `verdict_direction`                                                                              | EV    | SEN-27            |
-| `depends_on_manual_exclusions`  | boolean          | no   | —        | undoing every manual decision would change level or direction                                              | EV    | SEN-27            |
-| `valid_case_threshold`          | smallint         | no   | —        | the parameter in force at this calculation                                                                 | —     | SEN-20, SEN-31    |
-| `parameter_snapshot_id`         | integer          | no   | —        | `REFERENCES parameter_snapshots(id) ON DELETE RESTRICT`; every parameter value used                        | —     | SEN-36, TRV-35    |
-| `computed_at`                   | timestamptz      | no   | —        | date of the last calculation                                                                               | —     | SEN-20            |
+| column                          | type             | null | default  | constraint or reference                                                                                                          | class | spec IDs          |
+| ------------------------------- | ---------------- | ---- | -------- | -------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------- |
+| `id`                            | integer          | no   | identity | primary key                                                                                                                      | EV    | —                 |
+| `player_id`                     | uuid             | no   | —        | `REFERENCES followed_players(id) ON DELETE CASCADE`                                                                              | EV    | SEN-19            |
+| `event_type_id`                 | text             | no   | —        | `REFERENCES event_types(id) ON DELETE RESTRICT`                                                                                  | EV    | SEN-19            |
+| `view`                          | text             | no   | —        | `CHECK (view IN ('all_cases','historical_only','tracked_only'))`                                                                 | —     | SEN-21, CL-SEN-19 |
+| `event_count`                   | integer          | no   | —        | events counted (exits excluded)                                                                                                  | EV    | SEN-20, SEN-32    |
+| `case_count`                    | integer          | no   | —        | —                                                                                                                                | EV    | SEN-20, SEN-32    |
+| `grouped_event_count`           | integer          | no   | —        | events joined to an existing case                                                                                                | EV    | SEN-20, SEN-32    |
+| `awaiting_count`                | integer          | no   | —        | cases awaiting their game                                                                                                        | EV    | SEN-20            |
+| `valid_count`                   | integer          | no   | —        | n, the measured cases                                                                                                            | EV    | SEN-20, SEN-38    |
+| `excluded_count`                | integer          | no   | —        | —                                                                                                                                | EV    | SEN-20            |
+| `manually_excluded_count`       | integer          | no   | —        | of which by a manual decision                                                                                                    | EV    | SEN-20, SEN-27    |
+| `not_measurable_count`          | integer          | no   | —        | —                                                                                                                                | EV    | SEN-20            |
+| `co_occurring_count`            | integer          | no   | —        | —                                                                                                                                | EV    | SEN-06, SEN-20    |
+| `provisional_gap_count`         | integer          | no   | —        | cases whose gap is provisional                                                                                                   | EV    | SEN-20            |
+| `historical_valid_count`        | integer          | no   | —        | valid cases of historical origin                                                                                                 | EV    | SEN-21, IHM-46    |
+| `tracked_valid_count`           | integer          | no   | —        | valid cases of tracked origin                                                                                                    | EV    | SEN-21, IHM-46    |
+| `tally_reasons`                 | jsonb            | no   | —        | immutable snapshot: counts by awaiting reason, by not-measurable reason and by triggered criterion                               | EV    | SEN-20            |
+| `exit_counts`                   | jsonb            | no   | —        | immutable snapshot: events that left the count, by `TallyExitReason`; never a withdrawal                                         | EV    | SEN-20, SEN-33    |
+| `low_research_confidence_count` | integer          | no   | —        | valid cases resting on a low-confidence event; calendar-derived cases never counted                                              | EV    | SEN-43, CL-SEN-03 |
+| `mean_gap`                      | double precision | yes  | —        | null when n = 0                                                                                                                  | EV    | SEN-20, CL-SEN-15 |
+| `gap_dispersion`                | double precision | yes  | —        | sample deviation of the valid gaps; null when n < 2                                                                              | EV    | SEN-20, CL-SEN-15 |
+| `retained_dispersion`           | double precision | yes  | —        | max(dispersion, 1), 1 when n < 2; null when n = 0                                                                                | EV    | SEN-22            |
+| `expected_noise`                | double precision | yes  | —        | null when n = 0                                                                                                                  | EV    | SEN-22            |
+| `signal_to_noise`               | double precision | yes  | —        | null when n = 0                                                                                                                  | EV    | SEN-22            |
+| `range_low`                     | double precision | yes  | —        | mean − 2 × noise                                                                                                                 | EV    | SEN-22, SEN-38    |
+| `range_high`                    | double precision | yes  | —        | mean + 2 × noise                                                                                                                 | EV    | SEN-22, SEN-38    |
+| `above_zero_count`              | integer          | no   | —        | —                                                                                                                                | EV    | SEN-20, SEN-39    |
+| `below_zero_count`              | integer          | no   | —        | —                                                                                                                                | EV    | SEN-20, SEN-39    |
+| `verdict_level`                 | text             | no   | —        | `CHECK (verdict_level IN ('inconclusive','possible','probable'))`                                                                | EV    | SEN-23            |
+| `verdict_direction`             | text             | yes  | —        | `CHECK (verdict_direction IN ('increase','decrease'))`                                                                           | EV    | SEN-24            |
+| `is_fragile`                    | boolean          | no   | —        | the robustness test, run only when n reaches the threshold                                                                       | EV    | SEN-26, CL-SEN-14 |
+| `profile_confidence`            | text             | no   | —        | `CHECK (profile_confidence IN ('low','medium','high'))`                                                                          | EV    | SEN-25            |
+| `confidence_step_down_reasons`  | text[]           | no   | `'{}'`   | `CHECK (confidence_step_down_reasons <@ ARRAY['high_dispersion','high_doubtful_share','fragile_verdict'])`                       | EV    | SEN-25            |
+| `control_case_count`            | integer          | no   | —        | valid cases plus excluded cases with a computable gap                                                                            | EV    | SEN-27            |
+| `control_mean_gap`              | double precision | yes  | —        | —                                                                                                                                | EV    | SEN-27            |
+| `control_range_low`             | double precision | yes  | —        | mean − 2 × noise of the control: `control_mean_gap` minus twice its expected noise; null exactly when `control_mean_gap` is null | EV    | SEN-27, SEN-38    |
+| `control_range_high`            | double precision | yes  | —        | mean + 2 × noise of the control; null exactly when `control_mean_gap` is null                                                    | EV    | SEN-27, SEN-38    |
+| `control_verdict_level`         | text             | no   | —        | values of `verdict_level`                                                                                                        | EV    | SEN-27            |
+| `control_verdict_direction`     | text             | yes  | —        | values of `verdict_direction`                                                                                                    | EV    | SEN-27            |
+| `depends_on_manual_exclusions`  | boolean          | no   | —        | undoing every manual decision would change level or direction                                                                    | EV    | SEN-27            |
+| `valid_case_threshold`          | smallint         | no   | —        | the parameter in force at this calculation                                                                                       | —     | SEN-20, SEN-31    |
+| `parameter_snapshot_id`         | integer          | no   | —        | `REFERENCES parameter_snapshots(id) ON DELETE RESTRICT`; every parameter value used                                              | —     | SEN-36, TRV-35    |
+| `computed_at`                   | timestamptz      | no   | —        | date of the last calculation                                                                                                     | —     | SEN-20            |
 
 Row checks:
 
@@ -74,6 +76,9 @@ Row checks:
 - `(verdict_level = 'inconclusive') = (verdict_direction IS NULL)`, and the same for the control
   verdict (SEN-24).
 - `(valid_count = 0) = (mean_gap IS NULL)`; `valid_count < 2` iff `gap_dispersion IS NULL`.
+- `sensitivity_profiles_control_range_check`: `(control_range_low IS NULL) = (control_mean_gap IS NULL)
+AND (control_range_high IS NULL) = (control_mean_gap IS NULL)` (SEN-27, SEN-38;
+  `src/lib/db/schema/sensitivity-profiles.ts`).
 
 Unique: `sensitivity_profiles_key (player_id, event_type_id, view)`.
 
@@ -102,7 +107,9 @@ cases keep counting (H-JOU-07).
 
 Columns: `id`, `event_type_id` (`REFERENCES event_types(id) ON DELETE RESTRICT`), `view`, and every
 column of `sensitivity_profiles` from `event_count` to `computed_at` with the same types and checks,
-except that `confidence_step_down_reasons` also admits `dominant_player` (SEN-29). Plus:
+except that `confidence_step_down_reasons` also admits `dominant_player` (SEN-29), the control range
+`control_range_low` and `control_range_high` included, under `general_trends_control_range_check`.
+Plus:
 
 | column                        | type    | null | default | constraint or reference                                                             | class | spec IDs       |
 | ----------------------------- | ------- | ---- | ------- | ----------------------------------------------------------------------------------- | ----- | -------------- |
@@ -312,6 +319,7 @@ interface ProfileValueVersion {
 | Doubtful share, top contributor's share, proportions as counts                                                                                                                      | derived           | from stored counts; shown as "k out of m" below `sensitivity.countsBelowCases`                                                                                                                                                                                                                                                                                                    | SEN-25, SEN-29, SEN-39, CL-SEN-21          |
 | Evaluated pairs and verdicts chance alone would produce                                                                                                                             | derived           | on read: the evaluated pairs are the player–type pairs, archived ones included, whose default-view profile has n at least the valid-case threshold in force; the verdicts chance alone would produce are the pairs × 2 × (1 − Φ(t)), t being the "possible" or the "probable" signal-to-noise threshold (CL-SEN-20)                                                               | SEN-41, CL-SEN-20, ADR 0021                |
 | Date of the last change of a parameter that affects calculations                                                                                                                    | derived           | latest of `parameter_changes` (affects calculations) and criterion-switch changes                                                                                                                                                                                                                                                                                                 | SEN-37, TRV-35, CL-TRV-17                  |
+| The cases without which a fragile verdict changes ("The verdict no longer holds without case C7.")                                                                                  | derived           | on read, by the robustness test over the profile's valid cases; never stored                                                                                                                                                                                                                                                                                                      | SEN-26                                     |
 | The values a profile was computed with                                                                                                                                              | stored            | `parameter_snapshot_id` at each write                                                                                                                                                                                                                                                                                                                                             | SEN-36, TRV-35                             |
 
 ## 5. Exchange formats
