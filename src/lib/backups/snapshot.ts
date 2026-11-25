@@ -35,10 +35,10 @@ export function snapshotStream(db: Database, work: SnapshotWork): ReadableStream
       const completed = work.completed === undefined ? ok(undefined) : await work.completed();
       if (completed.ok) {
         await writer.close();
-        return;
+      } else {
+        logger.error('A download could not be recorded.', { cause: completed.error.kind });
+        await writer.abort(completed.error);
       }
-      logger.error('A download could not be recorded.', { cause: completed.error.kind });
-      await writer.abort(completed.error);
     } catch (error) {
       logger.warn('An export ended before its last part.', { error });
       await writer.abort(error);
