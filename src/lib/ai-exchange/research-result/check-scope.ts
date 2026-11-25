@@ -155,7 +155,12 @@ function splitType(
     : { kind: 'type', typeId: chosen.id, sheetVersion: chosen.version, toRequalify: false };
 }
 
-/** The type that an event of a requested type takes (IMP-11, CL-IMP-21), or why it is ignored. */
+/**
+ * The type that an event takes under the type of the request that judges it (IMP-11,
+ * CL-IMP-21): for a merge, the survivor, with the version of the merged sheet when the
+ * owner declared that it covers the union, and otherwise the version of the request;
+ * or why it is ignored.
+ */
 function takeType(
   type: Exclude<TaxonomyType, Readonly<{ standing: 'calendar_derived' }>>,
   requested: RequestedType,
@@ -185,12 +190,35 @@ function takeType(
 }
 
 /**
- * The type of an event (IMP-11, CL-IMP-22, CL-IMP-29): missing or of no type of the
- * taxonomy, it refuses the event; calendar-derived, not in the request, or not validated
- * today, it ignores it. A requested type absorbed by a merge attaches to the survivor
- * with a warning, and a split one takes the owner's choice, both in the requested period
- * of the type as written (CL-IMP-09). A requested type that the result does not declare
- * covered gives a warning.
+ * The type of the request that judges an event of a type (IMP-11, CL-IMP-21): the type
+ * itself when the request holds it. An event of a type absorbed by a merge is first
+ * attached to the surviving type, so that, when the request holds the survivor and not
+ * the absorbed type, the survivor judges it; when the request holds neither, nothing
+ * does, since the request gives no period and no version to judge it by.
+ */
+function judgingType(
+  type: Exclude<TaxonomyType, Readonly<{ standing: 'calendar_derived' }>>,
+  requestedTypes: readonly RequestedType[],
+): RequestedType | undefined {
+  const own = requestedTypes.find(({ id }) => id === type.id);
+  switch (type.standing) {
+    case 'merged': {
+      return own ?? requestedTypes.find(({ id }) => id === type.survivorId);
+    }
+    case 'split':
+    case 'research': {
+      return own;
+    }
+  }
+}
+
+/**
+ * The type of an event (IMP-11, CL-IMP-21, CL-IMP-22, CL-IMP-29): missing or of no type of
+ * the taxonomy, it refuses the event; calendar-derived, not in the request, or not
+ * validated today, it ignores it. A type absorbed by a merge attaches to the survivor with
+ * a warning, when the request holds either, and a requested split type takes the owner's
+ * choice, both in the requested period of the type of the request that judges the event
+ * (CL-IMP-09). That type, when the result does not declare it covered, gives a warning.
  */
 function resolveType(
   eventType: string | undefined,
@@ -203,14 +231,17 @@ function resolveType(
   );
   const type = facts.taxonomy.find(({ id }) => id === typeId);
   if (type === undefined) {
-    const reason = eventType === undefined ? 'type_missing' : 'type_unknown';
-    return { kind: 'refused', refusal: { reason } };
+    return {
+      kind: 'refused',
+      refusal: { reason: eventType === undefined ? 'type_missing' : 'type_unknown' },
+    };
   }
-  const requested = facts.requestedTypes.find(({ id }) => id === typeId);
-  if (requested === undefined || type.standing === 'calendar_derived') {
-    const reason =
-      type.standing === 'calendar_derived' ? 'calendar_derived_type' : 'type_not_requested';
-    return { kind: 'ignored', reason };
+  if (type.standing === 'calendar_derived') {
+    return { kind: 'ignored', reason: 'calendar_derived_type' };
+  }
+  const requested = judgingType(type, facts.requestedTypes);
+  if (requested === undefined) {
+    return { kind: 'ignored', reason: 'type_not_requested' };
   }
   const choice = facts.splitChoices.find((answer) => answer.position === position)?.choice;
   const taken = takeType(type, requested, choice);
@@ -278,13 +309,14 @@ function checkPublicDate(reading: DateReading, type: TypeResolution, facts: Scop
 
 /**
  * The scope of an event at its 1-based position (IMP-11, IMP-12, CL-IMP-09, CL-IMP-21,
- * CL-IMP-29): ignored when its type is calendar-derived, not in the request, not
- * validated today or a split type that the owner chose to ignore, or when its public
- * date lies outside the requested period of its type or before the player's first NBA
- * game; refused, with every defect found, when its type is missing or unknown or its
- * public date missing, malformed or nonexistent; valid otherwise, with the type it takes:
- * its own, the survivor of a merge with the CL-IMP-21 version, the owner's choice for a
- * split type, or that choice still to make.
+ * CL-IMP-29): ignored when its type is calendar-derived, not in the request (nor, for a
+ * type absorbed by a merge, its survivor), not validated today or a split type that the
+ * owner chose to ignore, or when its public date lies outside the requested period of
+ * the type of the request that judges it or before the player's first NBA game; refused,
+ * with every defect found, when its type is missing or unknown or its public date
+ * missing, malformed or nonexistent; valid otherwise, with the type it takes: its own,
+ * the survivor of a merge with the CL-IMP-21 version, the owner's choice for a split
+ * type, or that choice still to make.
  */
 export function checkScope(event: ResearchEvent, position: number, facts: ScopeFacts): Scope {
   const type = resolveType(event.eventType, position, facts);

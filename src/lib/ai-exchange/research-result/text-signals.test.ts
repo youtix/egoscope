@@ -222,6 +222,24 @@ describe('hasPossibleStatistics', () => {
     );
   });
 
+  it('[CL-IMP-03] [IMP-13] reads no score in a time of day, a pair that a digit and a colon come just before, or a colon and a digit just after, and reads one without them', () => {
+    const clock = fc.stringMatching(/^\d{1,2}$/u);
+    const scoreNumber = fc.stringMatching(/^\d{2,3}$/u);
+    const dash = fc.constantFrom(...HYPHENS_AND_DASHES);
+    const pair = fc.tuple(scoreNumber, dash, scoreNumber).map((parts) => parts.join(''));
+
+    fc.assert(
+      fc.property(clock, pair, (time, scorePair) => {
+        expect([
+          hasPossibleStatistics(`The forward spoke at ${time}:${scorePair} that night.`),
+          hasPossibleStatistics(`The forward spoke at ${scorePair}:${time} that night.`),
+          hasPossibleStatistics(`The forward spoke at ${time}: ${scorePair}: that night.`),
+          hasPossibleStatistics(`The forward spoke at ${scorePair} that night.`),
+        ]).toStrictEqual([false, false, true, true]);
+      }),
+    );
+  });
+
   it('[CL-IMP-03] gives the same answer each time it checks a text', () => {
     const texts = Object.values(statisticTexts).flat();
 

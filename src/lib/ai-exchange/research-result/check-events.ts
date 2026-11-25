@@ -47,20 +47,29 @@ export type ImportRefusal =
   | Readonly<{ reason: 'description_quotation_mark'; character: string }>
   | Readonly<{ reason: 'source_before_public_date'; sourcePosition: number }>;
 
-/** The format 1.0 key of the text that a warning names (CL-IMP-02, CL-IMP-07). */
-type TextField = 'description' | 'unverified_note' | 'detail' | 'outlet' | 'title';
+/** The format 1.0 key of a text of the event itself that a warning names (CL-IMP-02, CL-IMP-07). */
+type EventTextField = 'description' | 'unverified_note' | 'detail';
 
 /**
  * A warning on an event (IMP-11 to IMP-17), an event-scope code of the glossary's
  * `ImportWarningKind`, with the surviving type, the source, the text or the other event
  * citing the same link that it names, and what its message needs (CL-IMP-02, CL-IMP-05):
- * the length and the maximum of a text too long, the quotation mark found.
+ * the length and the maximum of a text too long, the quotation mark found. A warning
+ * raised on a source, on its outlet, its title or its publication date, carries the
+ * source's 1-based position in the event's sources; the same kind raised on the event's
+ * own text or public date carries none (CL-IMP-02).
  */
 export type ImportWarning =
   | ScopeWarning
   | SourceWarning
   | Readonly<{ kind: 'confidence_defaulted' | 'context_defaulted' }>
-  | Readonly<{ kind: 'possible_statistics' | 'possible_citation_marker'; field: TextField }>
+  | Readonly<{ kind: 'possible_statistics' | 'possible_citation_marker'; field: EventTextField }>
+  | Readonly<{
+      kind: 'possible_citation_marker';
+      field: 'outlet' | 'title';
+      sourcePosition: number;
+    }>
+  | Readonly<{ kind: 'non_standard_date' | 'time_ignored'; sourcePosition: number }>
   | Readonly<{
       kind: 'text_too_long_ignored';
       field: 'unverified_note' | 'detail';
@@ -113,6 +122,9 @@ type Accepted = Readonly<{
   warnings: readonly ImportWarning[];
 }>;
 
+// An accepted event, by its position, and another that cites one of its cleaned links.
+type LinkPair = Readonly<{ position: number; other: number }>;
+
 // What the check of a part of an event keeps of it, and its warnings.
 type PartCheck<T> = Readonly<{ value: T; warnings: readonly ImportWarning[] }>;
 
@@ -128,14 +140,32 @@ type SourcesCheck = PartCheck<readonly CheckedSource[]> &
 /** The one item when it is given, none otherwise. */
 const when = <T>(isGiven: boolean, item: T): readonly T[] => (isGiven ? [item] : []);
 
-function statisticsWarning(text: string, field: TextField): readonly ImportWarning[] {
+function statisticsWarning(text: string, field: EventTextField): readonly ImportWarning[] {
   return when(hasPossibleStatistics(text), { kind: 'possible_statistics', field });
 }
 
-function markerWarning(text: string | undefined, field: TextField): readonly ImportWarning[] {
-  // Stryker disable next-line ConditionalExpression: a missing text holds no marker, and a pattern tests undefined as the text undefined, which holds none either
-  const isMarked = text !== undefined && hasPossibleCitationMarker(text);
-  return when(isMarked, { kind: 'possible_citation_marker', field });
+function markerWarning(text: string, field: EventTextField): readonly ImportWarning[] {
+  return when(hasPossibleCitationMarker(text), { kind: 'possible_citation_marker', field });
+}
+
+/**
+ * The warnings on a kept source, each with its position (CL-IMP-02, CL-IMP-07, CL-IMP-08):
+ * of its publication date written in a non-standard form or whose time is ignored, then
+ * of a possible citation marker in its outlet and in its title.
+ */
+function sourceWarnings(source: CheckedSource): readonly ImportWarning[] {
+  const { position: sourcePosition, dateWarning } = source;
+  const marked = (field: 'outlet' | 'title'): readonly ImportWarning[] => {
+    const text = source[field];
+    // Stryker disable next-line ConditionalExpression: a missing text holds no marker, and a pattern tests undefined as the text undefined, which holds none either
+    const isMarked = text !== undefined && hasPossibleCitationMarker(text);
+    return when(isMarked, { kind: 'possible_citation_marker', field, sourcePosition });
+  };
+  return [
+    ...(dateWarning === undefined ? [] : [{ kind: dateWarning, sourcePosition }]),
+    ...marked('outlet'),
+    ...marked('title'),
+  ];
 }
 
 /**
@@ -237,24 +267,13 @@ function checkEventSources(event: ResearchEvent, context: EventCheckContext): So
   ];
   const sources = oldestFirst(kept).slice(0, context.maxSourcesPerEvent);
   const positions = new Set(sources.map(({ position }) => position));
-  const sourceWarnings = sources.flatMap((source): readonly ImportWarning[] => [
-    ...(source.dateWarning === undefined ? [] : [{ kind: source.dateWarning }]),
-    ...markerWarning(source.outlet, 'outlet'),
-    ...markerWarning(source.title, 'title'),
-  ]);
   const allWarnings = [
     ...warnings.filter(
       (warning) => warning.kind === 'source_dropped' || positions.has(warning.position),
     ),
-    ...sourceWarnings,
+    ...sources.flatMap((source) => sourceWarnings(source)),
   ];
   return { value: sources, refusals, warnings: allWarnings };
-}
-
-/** The warnings once each, in the order of their first occurrence. */
-function distinct(warnings: readonly ImportWarning[]): readonly ImportWarning[] {
-  const keys = warnings.map((warning) => JSON.stringify(warning));
-  return warnings.filter((warning, index) => keys.indexOf(JSON.stringify(warning)) === index);
 }
 
 /** The checks of one event (IMP-11 to IMP-15, IMP-19), before the links of the others are compared. */
@@ -273,14 +292,17 @@ function checkEvent(
   const eventContext = checkContext(event.context, maxLength);
   const note = checkNote(event.unverifiedNote, maxLength);
   const isConfidenceMissing = event.researchConfidence === undefined;
-  const warnings = distinct([
+  // One warning per kind and field of the event, and per kind, field and source
+  // (CL-IMP-02): each check raises a kind once on a field, and a source's warnings carry
+  // its position, so that none repeats another.
+  const warnings = [
     ...scope.warnings,
     ...description.warnings,
     ...sources.warnings,
     ...eventContext.warnings,
     ...when(isConfidenceMissing, { kind: 'confidence_defaulted' } as const),
     ...note.warnings,
-  ]);
+  ];
   if (scope.kind === 'valid' && description.ok && sources.refusals.length === 0) {
     const accepted: AcceptedEvent = {
       type: scope.type,
@@ -302,23 +324,39 @@ function checkEvent(
 }
 
 /**
- * An accepted event with the warning of IMP-17 for each other accepted event that cites
- * one of its links once cleaned (CL-IMP-13), and its outcome: added with warning when it
- * has any warning, added otherwise.
+ * For each accepted event that shares a cleaned link with another (IMP-17, CL-IMP-13), by
+ * its position, the positions of the others that cite one of its links: the events that
+ * cite each link are grouped once, so that the work grows with the citations and the
+ * pairs of events that share a link, never with the square of the events.
  */
-function settle(check: Accepted, accepted: readonly Accepted[]): EventCheck {
-  const links = new Set(check.event.sources.map(({ cleanedUrl }) => cleanedUrl));
-  const sharing = accepted.filter(
-    (other) =>
-      other.position !== check.position &&
-      other.event.sources.some(({ cleanedUrl }) => links.has(cleanedUrl)),
+function sharingPositions(accepted: readonly Accepted[]): ReadonlyMap<number, readonly LinkPair[]> {
+  const citations = accepted.flatMap(({ position, event }) =>
+    event.sources.map(({ cleanedUrl }) => ({ position, cleanedUrl })),
   );
+  const citing = Map.groupBy(citations, ({ cleanedUrl }) => cleanedUrl);
+  const pairs = Array.from(citing.values(), (group) =>
+    group.flatMap(({ position }) =>
+      group
+        .filter((citation) => citation.position !== position)
+        .map((citation) => ({ position, other: citation.position })),
+    ),
+  ).flat();
+  return Map.groupBy(pairs, ({ position }) => position);
+}
+
+/**
+ * An accepted event with the warning of IMP-17 for each other accepted event that cites
+ * one of its links once cleaned (CL-IMP-13), once each, in the order of the events, and
+ * its outcome: added with warning when it has any warning, added otherwise.
+ */
+function settle(check: Accepted, sharing: ReadonlyMap<number, readonly LinkPair[]>): EventCheck {
+  const pairs = sharing.get(check.position) ?? [];
+  const others = new Set(pairs.map(({ other }) => other));
   const warnings = [
     ...check.warnings,
-    ...sharing.map((other): ImportWarning => ({
-      kind: 'shared_link',
-      otherPosition: other.position,
-    })),
+    ...[...others]
+      .toSorted((left, right) => left - right)
+      .map((otherPosition): ImportWarning => ({ kind: 'shared_link', otherPosition })),
   ];
   const outcome = warnings.length > 0 ? 'added_with_warning' : 'added';
   return { position: check.position, outcome, event: check.event, warnings };
@@ -345,5 +383,6 @@ export function checkEvents(
 ): readonly EventCheck[] {
   const checks = events.map((event, index) => checkEvent(event, index + 1, context));
   const accepted = checks.filter((check): check is Accepted => check.outcome === 'accepted');
-  return checks.map((check) => (check.outcome === 'accepted' ? settle(check, accepted) : check));
+  const sharing = sharingPositions(accepted);
+  return checks.map((check) => (check.outcome === 'accepted' ? settle(check, sharing) : check));
 }
