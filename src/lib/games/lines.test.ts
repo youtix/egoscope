@@ -61,6 +61,7 @@ const NO_COUNTS = {
 const NOT_PLAYED = { didNotPlay: true, playingTime: null, counts: NO_COUNTS } as const;
 const P01 = leaguePlayerId('p01');
 const P06 = leaguePlayerId('p06');
+const UNPUBLISHED = { homeLinesPublished: false, awayLinesPublished: false } as const;
 
 /** What a first read of the fake gives, which always reads. */
 function dataOf<T>(outcome: StatsSourceOutcome<ConditionalRead<T>>): T {
@@ -160,9 +161,33 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
       .orderBy(asc(statCorrections.id));
   }
 
+  /** p01's trace of one element of the first game, [old, new], two days after the first read. */
+  const trace = (element: string, [oldValue, newValue]: [number, number], origin: string) => ({
+    playerId: P01,
+    gameId: firstGameId(),
+    element,
+    oldValue,
+    newValue,
+    correctedAt: new Date(LATER),
+    origin,
+  });
+
   async function gameRow(id: number) {
     const rows = await db.select().from(games).where(eq(games.id, id));
     return rows[0];
+  }
+
+  /** The placeholder of p01's unavailable sheet in the first game (STA-35). */
+  async function insertPlaceholder() {
+    await db.insert(boxScores).values({
+      playerId: P01,
+      gameId: firstGameId(),
+      statsSource: 'sportsdataverse_espn',
+      sourcePlayerRef: 'p01',
+      status: 'unavailable',
+      hasRoundedMinutes: false,
+      fetchedAt: new Date(AT),
+    });
   }
 
   async function consolidateFirstGame() {
@@ -273,12 +298,8 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
 
       await ingest(lines);
 
-      expect(await lineOf(P01)).toMatchObject({
-        status: 'complete',
-        minutes: 34,
-        seconds: 12,
-        hasRoundedMinutes: false,
-      });
+      const inSeconds = { status: 'complete', minutes: 34, seconds: 12, hasRoundedMinutes: false };
+      expect(await lineOf(P01)).toMatchObject(inSeconds);
     });
 
     it('[STA-08] keeps the checks that a suspect line fails, and a line without time unrounded', async () => {
@@ -322,14 +343,9 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
 
       const change = await ingest(lines, { players: ['p01'] });
 
-      expect(await gameRow(firstGameId())).toMatchObject({
-        homeLinesPublished: true,
-        awayLinesPublished: false,
-      });
-      expect(await gameRow(idOf(gameIds, SECOND_GAME))).toMatchObject({
-        homeLinesPublished: false,
-        awayLinesPublished: false,
-      });
+      const first = await gameRow(firstGameId());
+      expect(first).toMatchObject({ ...UNPUBLISHED, homeLinesPublished: true });
+      expect(await gameRow(idOf(gameIds, SECOND_GAME))).toMatchObject(UNPUBLISHED);
       expect(change.changed).toStrictEqual({ playerIds: [P01], gameIds: [firstGameId()] });
     });
 
@@ -343,10 +359,7 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
       expect(await ingest(await read(FOLLOWED, '2025-26'))).toStrictEqual(NO_CHANGE);
 
       expect(await db.select().from(boxScores)).toStrictEqual([]);
-      expect(await gameRow(idOf(otherSeason, '2025-26:r01:h1'))).toMatchObject({
-        homeLinesPublished: false,
-        awayLinesPublished: false,
-      });
+      expect(await gameRow(idOf(otherSeason, '2025-26:r01:h1'))).toMatchObject(UNPUBLISHED);
     });
 
     it('[CL-STA-04] stores a first line of a consolidated game whose team lines were never published', async () => {
@@ -369,6 +382,34 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
       expect(change.changed.playerIds).toStrictEqual([P06]);
       expect(change.changed.gameIds).toHaveLength(10);
       expect(change).toMatchObject({ corrected: NO_SCOPE, teamHistoryChanged: [] });
+    });
+
+    it('[STA-08] [STA-33] stores the lines of a new game of players read before as first lines, untraced', async () => {
+      // The daily update: the season read the day before, without the game played since.
+      const lines = await read();
+      await ingest(lines.filter(({ game }) => game !== SECOND_GAME));
+      clock.advance(DAY_MS);
+
+      const change = await ingest(lines);
+
+      expect(await lineOf(P01, SECOND_GAME)).toMatchObject({ fetchedAt: new Date(AT + DAY_MS) });
+      expect(await corrections()).toStrictEqual([]);
+      const changed = { playerIds: [P01, P06], gameIds: [idOf(gameIds, SECOND_GAME)] };
+      expect(change).toStrictEqual({ changed, corrected: NO_SCOPE, teamHistoryChanged: [] });
+    });
+
+    it('[STA-08] [STA-33] [CL-STA-04] counts no unavailable placeholder as a read, so its player gets first lines where his team lines were published', async () => {
+      await insertPlaceholder();
+      await ingest(await read(['p06']), { players: ['p06'] });
+      await consolidateFirstGame();
+
+      const change = await ingest(await read());
+
+      expect(await lineOf(P01)).toMatchObject({ status: 'unavailable' });
+      expect(await lineOf(P01, SECOND_GAME)).toMatchObject({ status: 'complete' });
+      expect(await corrections()).toStrictEqual([]);
+      expect(change.changed.gameIds).toHaveLength(9);
+      expect(change).toMatchObject({ changed: { playerIds: [P01] }, corrected: NO_SCOPE });
     });
 
     it('[STA-08] files a line under the game team the source names, whatever its home flag says, and leaves out a line of a team foreign to the game', async () => {
@@ -426,21 +467,10 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
 
       const change = await ingest(await read());
 
-      expect(await lineOf(P01)).toMatchObject({
-        defensiveRebounds: 9,
-        status: 'complete',
-        fetchedAt: new Date(LATER),
-      });
+      const line = { defensiveRebounds: 9, status: 'complete', fetchedAt: new Date(LATER) };
+      expect(await lineOf(P01)).toMatchObject(line);
       expect(await corrections()).toStrictEqual([
-        {
-          playerId: P01,
-          gameId: firstGameId(),
-          element: 'defensive_rebounds',
-          oldValue: 6,
-          newValue: 9,
-          correctedAt: new Date(LATER),
-          origin: 'correction_window',
-        },
+        trace('defensive_rebounds', [6, 9], 'correction_window'),
       ]);
       const corrected = { playerIds: [P01], gameIds: [firstGameId()] };
       expect(change).toStrictEqual({ changed: corrected, corrected, teamHistoryChanged: [] });
@@ -525,31 +555,13 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
       const change = await ingest(await read(), { isManualRefetch: true });
 
       expect(await lineOf(P01)).toMatchObject({ assists: 7 });
-      expect(await corrections()).toStrictEqual([
-        {
-          playerId: P01,
-          gameId: firstGameId(),
-          element: 'assists',
-          oldValue: 5,
-          newValue: 7,
-          correctedAt: new Date(LATER),
-          origin: 'manual_refetch',
-        },
-      ]);
+      expect(await corrections()).toStrictEqual([trace('assists', [5, 7], 'manual_refetch')]);
       expect(change.corrected).toStrictEqual({ playerIds: [P01], gameIds: [firstGameId()] });
     });
 
     it('[STA-34] [CL-STA-04] keeps an unavailable placeholder until a manual refetch brings a played line', async () => {
       await db.delete(boxScores).where(eq(boxScores.playerId, P01));
-      await db.insert(boxScores).values({
-        playerId: P01,
-        gameId: firstGameId(),
-        statsSource: 'sportsdataverse_espn',
-        sourcePlayerRef: 'p01',
-        status: 'unavailable',
-        hasRoundedMinutes: false,
-        fetchedAt: new Date(AT),
-      });
+      await insertPlaceholder();
       await consolidateFirstGame();
       const lines = await read();
       await ingest(edited(lines, NOT_PLAYED), { isManualRefetch: true });
