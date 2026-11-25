@@ -58,6 +58,10 @@ export type { SeasonBaselineInput } from './baseline/season-baseline';
 export type { SeasonBaselineStatus } from './baseline/season-baseline';
 
 // baseline/indicative-comparison.ts
+export { indicativeComparison } from './baseline/indicative-comparison';
+export type { IndicativeComparison } from './baseline/indicative-comparison';
+export type { IndicativeComparisonInput } from './baseline/indicative-comparison';
+export type { IndicativeSeason } from './baseline/indicative-comparison';
 
 // --- schedule/ -------------------------------------------------------------------
 
@@ -137,6 +141,8 @@ export type { PrecedenceGame } from './measured-game/precedence';
 export type { PrecedenceSource } from './measured-game/precedence';
 
 // measured-game/late-detection.ts
+export { isDetectedAfterTipOff } from './measured-game/late-detection';
+export type { LateDetectionInput } from './measured-game/late-detection';
 
 // --- cases/ ----------------------------------------------------------------------
 
