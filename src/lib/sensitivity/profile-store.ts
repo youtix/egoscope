@@ -6,7 +6,7 @@
 // and profile-rows.ts builds and compares the rows.
 import 'server-only';
 
-import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 
 import {
   generalTrends,
@@ -26,7 +26,7 @@ import {
   VIEWS,
 } from './profile-rows';
 
-import type { CalculationRow, JobWrite, StoredRow } from './profile-rows';
+import type { CalculationRow, CaseScope, JobWrite, StoredRow } from './profile-rows';
 import type { Database, Transaction } from '@/lib/db';
 import type {
   EvaluatedTrend,
@@ -60,14 +60,6 @@ export type ProfilePair = Readonly<{ playerId: PlayerId; eventTypeId: EventTypeI
 
 const DEFAULT_VIEW = 'all_cases';
 const HISTORICAL_VIEW = 'historical_only';
-// The five values that a value version holds (SUI-08).
-const VERSION_VALUES = {
-  validCount: profileValueVersions.validCount,
-  meanGap: profileValueVersions.meanGap,
-  verdictLevel: profileValueVersions.verdictLevel,
-  verdictDirection: profileValueVersions.verdictDirection,
-  profileConfidence: profileValueVersions.profileConfidence,
-};
 
 /** The row a history entry or a value version belongs to, and the versions' column that names it. */
 type Owner = Readonly<{
@@ -85,46 +77,50 @@ const TREND_OWNER: Owner = {
 
 /**
  * How one profile or trend is read and written whole, its three views in one statement:
- * its type, its owner, the rows it writes, and the reading of its stored rows and the
- * upsert of its rows, which gives the identifier of each view.
+ * its pair or type, its owner, the rows it writes, and the reading of its stored rows and
+ * the upsert of its rows, which gives the identifier of each view.
  */
 type Whole = Readonly<{
-  eventTypeId: EventTypeId;
+  scope: CaseScope;
   owner: Owner;
   rows: readonly CalculationRow[];
   read: (tx: Transaction) => Promise<readonly StoredRow[]>;
   upsert: (tx: Transaction) => Promise<readonly Readonly<{ id: number; view: ProfileView }>[]>;
 }>;
 
-/** A write of a profile or trend, with the identifiers its upsert gave. */
-type Written = Whole & Readonly<{ ids: readonly Readonly<{ id: number; view: ProfileView }>[] }>;
+/** A write of a profile or trend: its rows as they were stored, and the identifiers its upsert gave. */
+type Written = Whole &
+  Readonly<{
+    stored: readonly StoredRow[];
+    ids: readonly Readonly<{ id: number; view: ProfileView }>[];
+  }>;
+
+/** The stored row of `view`, none before a first calculation. */
+const storedView = (written: Written, view: ProfileView): StoredRow | undefined =>
+  written.stored.find((row) => row.view === view);
 
 /**
- * Records the value version of the historical-only view (SUI-08, CL-SEN-18, CL-SEN-19):
- * nothing when its five values are those of its latest version; otherwise one version
- * appended at the job's instant, or every version replaced by one.
+ * Records the value version of the historical-only view (SUI-08, CL-SEN-18, CL-SEN-19). A job
+ * appends one at its instant when one of the five values differs from the stored row, which
+ * its latest version holds, since the daily purge keeps the version in force. The full job
+ * after a withdrawal, a player-data deletion or a restore's re-application replaces every
+ * version by one when it changes any value of the row, a tally count alone included, so
+ * that no count or mean gap from before the withdrawal stays beside the new one.
  */
 async function recordVersion(tx: Transaction, written: Written, write: JobWrite): Promise<void> {
-  const { validCount, meanGap, verdictLevel, verdictDirection, profileConfidence } = viewOf(
-    written.rows,
-    HISTORICAL_VIEW,
-  );
+  const row = viewOf(written.rows, HISTORICAL_VIEW);
+  const { validCount, meanGap, verdictLevel, verdictDirection, profileConfidence } = row;
   const values = { validCount, meanGap, verdictLevel, verdictDirection, profileConfidence };
-  const { id } = viewOf(written.ids, HISTORICAL_VIEW);
-  const owned = eq(written.owner.versionColumn, id);
-  const [latest] = await tx
-    .select(VERSION_VALUES)
-    .from(profileValueVersions)
-    .where(owned)
-    .orderBy(desc(profileValueVersions.effectiveAt), desc(profileValueVersions.id))
-    .limit(1);
-  if (latest !== undefined && hasSameValues(latest, values)) {
+  const isReplace = write.versions.kind === 'replace';
+  const before = storedView(written, HISTORICAL_VIEW);
+  if (before !== undefined && hasSameValues(before, isReplace ? row : values)) {
     return;
   }
-  if (write.versions.kind === 'replace') {
-    await tx.delete(profileValueVersions).where(owned);
+  const { id } = viewOf(written.ids, HISTORICAL_VIEW);
+  if (isReplace) {
+    await tx.delete(profileValueVersions).where(eq(written.owner.versionColumn, id));
   }
-  const effectiveAt = new Date(versionInstant(written.eventTypeId, write));
+  const effectiveAt = new Date(versionInstant(written.scope, write));
   await tx
     .insert(profileValueVersions)
     .values({ ...written.owner.key(id), ...values, effectiveAt });
@@ -135,12 +131,8 @@ async function recordVersion(tx: Transaction, written: Written, write: JobWrite)
  * or profile confidence changed, with the job's cause (SEN-37, CL-SEN-17, CL-SEN-19); none
  * for a first calculation.
  */
-async function recordHistory(
-  tx: Transaction,
-  written: Written & Readonly<{ before: StoredRow | undefined }>,
-  write: JobWrite,
-): Promise<void> {
-  const { before } = written;
+async function recordHistory(tx: Transaction, written: Written, write: JobWrite): Promise<void> {
+  const before = storedView(written, DEFAULT_VIEW);
   const after = verdictOf(viewOf(written.rows, DEFAULT_VIEW));
   const change = verdictChanges(before === undefined ? null : verdictOf(before), after);
   if (change === null) {
@@ -155,7 +147,7 @@ async function recordHistory(
     newVerdictLevel: change.newVerdict.level,
     newVerdictDirection: change.newVerdict.direction,
     newProfileConfidence: change.newProfileConfidence,
-    cause: write.causeOf(written.eventTypeId),
+    cause: write.causeOf(written.scope.eventTypeId),
   });
 }
 
@@ -167,12 +159,12 @@ async function recordHistory(
 async function writeWhole(db: Executor, whole: Whole, write: JobWrite): Promise<EventTypeId[]> {
   return db.transaction(async (tx) => {
     const stored = await whole.read(tx);
-    const before = stored.find(({ view }) => view === DEFAULT_VIEW);
-    const written = { ...whole, ids: await whole.upsert(tx) };
-    await recordHistory(tx, { ...written, before }, write);
+    const written = { ...whole, stored, ids: await whole.upsert(tx) };
+    await recordHistory(tx, written, write);
     await recordVersion(tx, written, write);
+    const before = storedView(written, DEFAULT_VIEW);
     const isSame = before !== undefined && hasSameValues(before, viewOf(whole.rows, DEFAULT_VIEW));
-    return isSame ? [] : [whole.eventTypeId];
+    return isSame ? [] : [whole.scope.eventTypeId];
   });
 }
 
@@ -208,7 +200,7 @@ function profileWhole(playerId: PlayerId, profile: PlayerProfile, write: JobWrit
   const table = sensitivityProfiles;
   const pair = and(eq(table.playerId, playerId), eq(table.eventTypeId, eventTypeId));
   return {
-    eventTypeId,
+    scope: { playerId, eventTypeId },
     owner: PROFILE_OWNER,
     rows,
     read: async (tx) => tx.select().from(table).where(pair),
@@ -235,7 +227,7 @@ function trendWhole(eventTypeId: EventTypeId, trend: EvaluatedTrend, write: JobW
   });
   const table = generalTrends;
   return {
-    eventTypeId,
+    scope: { playerId: null, eventTypeId },
     owner: TREND_OWNER,
     rows,
     read: async (tx) => tx.select().from(table).where(eq(table.eventTypeId, eventTypeId)),
@@ -273,10 +265,13 @@ export async function writePlayerProfiles(
   const kept = new Set(write.profiles.map(({ eventTypeId }) => eventTypeId));
   const left = write.eventTypeIds.filter((eventTypeId) => !kept.has(eventTypeId));
   const { playerId, eventTypeId } = sensitivityProfiles;
-  const erased = await db
-    .delete(sensitivityProfiles)
-    .where(and(eq(playerId, write.playerId), inArray(eventTypeId, left)))
-    .returning({ eventTypeId });
+  const erased =
+    left.length === 0
+      ? []
+      : await db
+          .delete(sensitivityProfiles)
+          .where(and(eq(playerId, write.playerId), inArray(eventTypeId, left)))
+          .returning({ eventTypeId });
   return distinct([...changed, ...erased.map((row) => row.eventTypeId)]).map((typeId) => ({
     playerId: write.playerId,
     eventTypeId: typeId,
@@ -305,9 +300,9 @@ export async function writeTrends(
     }
   }
   const { eventTypeId } = generalTrends;
-  const erased = await db
-    .delete(generalTrends)
-    .where(inArray(eventTypeId, left))
-    .returning({ eventTypeId });
+  const erased =
+    left.length === 0
+      ? []
+      : await db.delete(generalTrends).where(inArray(eventTypeId, left)).returning({ eventTypeId });
   return distinct([...changed, ...erased.map((row) => row.eventTypeId)]);
 }

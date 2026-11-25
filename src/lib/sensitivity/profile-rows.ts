@@ -10,6 +10,7 @@ import type {
   ConfidenceStepDownReason,
   EvaluatedTrend,
   EventTypeId,
+  PlayerId,
   ProfileView,
   ProfileViewValues,
   Verdict,
@@ -22,10 +23,11 @@ export type VerdictChangeCause = VerdictHistoryEntryRow['cause'];
 
 /**
  * A tracked case, as the replacement of the value versions dates it (CL-SEN-18, CL-SUI-03):
- * its type, its creation, and the scheduled start of its measured game, else of its
- * expected game while no measured game is established, null while no game is known.
+ * its player and type, its creation, and the scheduled start of its measured game, else of
+ * its expected game while no measured game is established, null while no game is known.
  */
 export type TrackedCaseTiming = Readonly<{
+  playerId: PlayerId;
   eventTypeId: EventTypeId;
   createdAt: EpochMs;
   gameStartAt: EpochMs | null;
@@ -40,6 +42,13 @@ export type TrackedCaseTiming = Readonly<{
 export type VersionWrite =
   | Readonly<{ kind: 'append' }>
   | Readonly<{ kind: 'replace'; trackedCases: readonly TrackedCaseTiming[] }>;
+
+/**
+ * Whose tracked cases date the version that replaces a profile's or a trend's others
+ * (CL-SEN-18): the pair's for a profile, the type's, every player's, for a trend (`playerId`
+ * null).
+ */
+export type CaseScope = Readonly<{ playerId: PlayerId | null; eventTypeId: EventTypeId }>;
 
 /** What each write of a job carries (SEN-36, SEN-37, CL-SEN-16, CL-SEN-17). */
 export type JobWrite = Readonly<{
@@ -179,19 +188,21 @@ export function verdictOf(
 }
 
 /**
- * The instant a value version of `eventTypeId`'s profile or trend takes effect (CL-SEN-16,
+ * The instant a value version of the profile or trend of `scope` takes effect (CL-SEN-16,
  * CL-SEN-18, CL-SUI-03): an appended one at the job's instant; the single one that replaces
- * all the others at the creation of the earliest tracked case of the type whose game has
- * not started at the job's instant, or has none known, else at the job's instant.
+ * all the others at the creation of the earliest tracked case of the pair (of the type, for a
+ * trend) whose game has not started at the job's instant, or has none known, else at the
+ * job's instant.
  */
-export function versionInstant(eventTypeId: EventTypeId, write: JobWrite): EpochMs {
+export function versionInstant(scope: CaseScope, write: JobWrite): EpochMs {
   const { versions, computedAt } = write;
   if (versions.kind === 'append') {
     return computedAt;
   }
   const waiting = versions.trackedCases.filter(
     (tracked) =>
-      tracked.eventTypeId === eventTypeId &&
+      tracked.eventTypeId === scope.eventTypeId &&
+      (scope.playerId === null || tracked.playerId === scope.playerId) &&
       (tracked.gameStartAt === null || computedAt < tracked.gameStartAt),
   );
   return toEpochMs(Math.min(computedAt, ...waiting.map(({ createdAt }) => createdAt)));

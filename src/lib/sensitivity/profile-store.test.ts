@@ -12,6 +12,8 @@ import { snapshotCalculationParams } from '@/lib/params';
 import { evaluatePlayer, statisticsUpdateCause } from '@/lib/stats-engine';
 import {
   BIRTHDAY,
+  buildProfile,
+  buildTrend,
   DATABASE_TEST_TIMEOUT_MS,
   insertCalendarType,
   insertEventType,
@@ -28,17 +30,15 @@ import type { VerdictChangeCause, VersionWrite } from './profile-rows';
 import type { PlayerProfilesWrite } from './profile-store';
 import type { Database } from '@/lib/db';
 import type {
-  ConfidenceStepDownReason,
   EngineParams,
-  EvaluatedTrend,
   EventTypeId,
   PlayerEvaluationInput,
   PlayerProfile,
   ProfileConfidence,
   ProfileView,
-  ProfileViewValues,
   Verdict,
 } from '@/lib/stats-engine';
+import type { ViewShape } from '@/lib/testing';
 import type { EpochMs } from '@/lib/time';
 
 // The registry's defaults; JSON gives the baseline phase as a string, narrowed here.
@@ -56,105 +56,16 @@ const at = (hours: number): EpochMs => toEpochMs(T1 + hours * 3_600_000);
 const T2 = at(1);
 const T3 = at(2);
 const PLAYER = leaguePlayerId('p01');
+const OTHER_PLAYER = leaguePlayerId('p02');
 const TRADE_RUMOR = 'trade-rumor';
 const COVERED = [MEDIA_STORM, TRADE_RUMOR, BIRTHDAY];
-const INCONCLUSIVE: Verdict = { level: 'inconclusive', direction: null };
 const POSSIBLE_UP: Verdict = { level: 'possible', direction: 'increase' };
-
-/** What a hand-built view varies: its valid cases and mean gap, verdict, confidence, reasons. */
-type Shape = Readonly<{
-  validCount: number;
-  meanGap?: number;
-  verdict?: Verdict;
-  confidence?: ProfileConfidence;
-  reasons?: readonly ConfidenceStepDownReason[];
-}>;
-
-/**
- * The quantities of `validCount` valid cases around `meanGap`, none without a valid case:
- * exact binary fractions, compared exactly.
- */
-function quantitiesOf(validCount: number, meanGap: number) {
-  return validCount === 0
-    ? null
-    : {
-        meanGap,
-        gapDispersion: validCount < 2 ? null : 1.5,
-        retainedDispersion: 1.5,
-        expectedNoise: 0.25,
-        signalToNoise: meanGap / 0.25,
-        rangeLow: meanGap - 0.5,
-        rangeHigh: meanGap + 0.5,
-      };
-}
-
-/** A view with one case awaiting its game beside its valid cases, every row check met. */
-function viewOf(view: ProfileView, shape: Shape): ProfileViewValues {
-  const { validCount, meanGap = 0.5, verdict = INCONCLUSIVE, confidence = 'low' } = shape;
-  const isTracked = view === 'tracked_only';
-  return {
-    view,
-    tally: {
-      groupedEventCount: 0,
-      excludedCount: 0,
-      manuallyExcludedCount: 0,
-      notMeasurableCount: 0,
-      coOccurringCount: 0,
-      provisionalGapCount: 0,
-      lowResearchConfidenceCount: 0,
-      eventCount: validCount + 1,
-      caseCount: validCount + 1,
-      awaitingCount: 1,
-      validCount,
-      tallyReasons: { awaitingGame: {}, notMeasurable: {}, excluded: {} },
-      exitCounts: {},
-    },
-    quantities: quantitiesOf(validCount, meanGap),
-    aboveZeroCount: validCount,
-    belowZeroCount: 0,
-    verdict,
-    isFragile: false,
-    profileConfidence: confidence,
-    confidenceStepDownReasons: shape.reasons ?? [],
-    controlCaseCount: validCount,
-    controlQuantities: quantitiesOf(validCount, meanGap - 0.125),
-    controlVerdict: verdict,
-    dependsOnManualExclusions: false,
-    historicalValidCount: isTracked ? 0 : validCount,
-    trackedValidCount: isTracked ? validCount : 0,
-    validCaseThreshold: 5,
-  };
-}
-
-/** The shapes of the three views: the historical one as the default one, no tracked case. */
-type Shapes = Readonly<{ all: Shape; historical?: Shape; tracked?: Shape }>;
-
-function viewsOf({ all, historical = all, tracked = { validCount: 0 } }: Shapes) {
-  return [
-    viewOf('all_cases', all),
-    viewOf('historical_only', historical),
-    viewOf('tracked_only', tracked),
-  ];
-}
-
-function profileOf(eventTypeId: EventTypeId, shapes: Shapes): PlayerProfile {
-  return { eventTypeId, isArchived: false, views: viewsOf(shapes) };
-}
-
-function trendOf(shapes: Shapes): EvaluatedTrend {
-  return {
-    isArchived: false,
-    views: viewsOf(shapes).map((view) => ({
-      ...view,
-      distinctPlayerCount: Math.min(view.tally.validCount, 2),
-      topContributorValidCount: view.tally.validCount,
-    })),
-  };
-}
 
 /** The media storm's and the trade rumor's profiles, `confidence` in every view. */
 const bothProfiles = (confidence: ProfileConfidence) =>
-  [MEDIA_STORM, TRADE_RUMOR].map((type) => profileOf(type, { all: { validCount: 5, confidence } }));
+  [MEDIA_STORM, TRADE_RUMOR].map((type) =>
+    buildProfile(type, { all: { validCount: 5, confidence } }),
+  );
 
 /** A statistics update that corrected a statistic of the media storm's cases and moved the other baselines. */
 function statisticsCauseOf(eventTypeId: EventTypeId): VerdictChangeCause {
@@ -276,7 +187,7 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   }
 
   it('[SEN-20] [SEN-36] [CL-SEN-16] [CL-SEN-19] writes a profile whole in its three views, with the job instant, the snapshot of the parameters in force and the control range, and rewrites it in place', async () => {
-    const profile = profileOf(MEDIA_STORM, {
+    const profile = buildProfile(MEDIA_STORM, {
       all: { validCount: 3, reasons: ['high_dispersion'] },
       historical: { validCount: 2 },
     });
@@ -319,7 +230,7 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       await writePlayerProfiles(tx, {
         playerId: PLAYER,
         eventTypeIds: COVERED,
-        profiles: [profileOf(MEDIA_STORM, { all: { validCount: 3 } })],
+        profiles: [buildProfile(MEDIA_STORM, { all: { validCount: 3 } })],
         ...job(T1),
       });
       expect(await tx.select().from(sensitivityProfiles)).toHaveLength(3);
@@ -331,11 +242,11 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   });
 
   it('[SEN-37] [CL-SEN-17] [CL-SEN-19] records each change of verdict or confidence of the default view with its old and new values and the job cause, and none for the other views', async () => {
-    await writeProfiles([profileOf(MEDIA_STORM, { all: { validCount: 3 } })], T1);
+    await writeProfiles([buildProfile(MEDIA_STORM, { all: { validCount: 3 } })], T1);
     const first = await historyRows();
     const changed = await writeProfiles(
       [
-        profileOf(MEDIA_STORM, {
+        buildProfile(MEDIA_STORM, {
           all: { validCount: 5, meanGap: 1, verdict: POSSIBLE_UP, confidence: 'medium' },
           historical: { validCount: 3, verdict: POSSIBLE_UP, confidence: 'high' },
           tracked: { validCount: 2, verdict: POSSIBLE_UP },
@@ -347,7 +258,7 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     const sameVerdict = { validCount: 6, meanGap: 1.25, verdict: POSSIBLE_UP } as const;
 
     const later = await writeProfiles(
-      [profileOf(MEDIA_STORM, { all: { ...sameVerdict, confidence: 'medium' } })],
+      [buildProfile(MEDIA_STORM, { all: { ...sameVerdict, confidence: 'medium' } })],
       T3,
     );
 
@@ -385,7 +296,7 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   });
 
   it('[CL-SEN-18] [CL-SEN-19] appends a value version of the historical-only view only when one of its five values changes, and never updates one', async () => {
-    await writeProfiles([profileOf(MEDIA_STORM, { all: { validCount: 3 } })], T1);
+    await writeProfiles([buildProfile(MEDIA_STORM, { all: { validCount: 3 } })], T1);
     const [first] = await versionRows();
     const sameValues = { validCount: 3, reasons: ['high_dispersion'] } as const;
     const otherValues = {
@@ -393,12 +304,12 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       historical: sameValues,
       tracked: { validCount: 1 },
     };
-    await writeProfiles([profileOf(MEDIA_STORM, otherValues)], T2);
+    await writeProfiles([buildProfile(MEDIA_STORM, otherValues)], T2);
     const unchanged = await versionRows();
 
     await writeProfiles(
       [
-        profileOf(MEDIA_STORM, {
+        buildProfile(MEDIA_STORM, {
           all: { validCount: 3 },
           historical: { validCount: 3, meanGap: 0.75 },
         }),
@@ -425,21 +336,29 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ]);
   });
 
-  it('[CL-SEN-18] [CL-SUI-03] replaces every version of a changed historical-only profile by one, effective at the creation of the earliest tracked case whose game has not started, else at the job instant', async () => {
+  it('[CL-SEN-18] [CL-SUI-03] replaces every version of a changed historical-only profile by one, effective at the creation of the earliest tracked case of the pair whose game has not started, else at the job instant', async () => {
     const profiles = (meanGap: number) => [
-      profileOf(MEDIA_STORM, { all: { validCount: 3, meanGap } }),
-      profileOf(TRADE_RUMOR, { all: { validCount: 3, meanGap } }),
-      profileOf(BIRTHDAY, { all: { validCount: 3 } }),
+      buildProfile(MEDIA_STORM, { all: { validCount: 3, meanGap } }),
+      buildProfile(TRADE_RUMOR, { all: { validCount: 3, meanGap } }),
+      buildProfile(BIRTHDAY, { all: { validCount: 3 } }),
     ];
     await writeProfiles(profiles(0.5), T1);
     await writeProfiles(profiles(0.75), T2);
     const before = await versionRows();
-    // At the job's instant T3, the media storm's case waits for a game; the trade rumor's game started.
+    // At the job's instant T3, his media storm's case waits for a game, his trade rumor's game
+    // started; another player's earlier cases of both types wait, and date none of his versions.
     const versions: VersionWrite = {
       kind: 'replace',
       trackedCases: [
-        { eventTypeId: MEDIA_STORM, createdAt: at(-10), gameStartAt: at(4) },
-        { eventTypeId: TRADE_RUMOR, createdAt: at(-40), gameStartAt: at(0) },
+        { playerId: PLAYER, eventTypeId: MEDIA_STORM, createdAt: at(-10), gameStartAt: at(4) },
+        { playerId: PLAYER, eventTypeId: TRADE_RUMOR, createdAt: at(-40), gameStartAt: at(0) },
+        { playerId: OTHER_PLAYER, eventTypeId: MEDIA_STORM, createdAt: at(-20), gameStartAt: null },
+        {
+          playerId: OTHER_PLAYER,
+          eventTypeId: TRADE_RUMOR,
+          createdAt: at(-30),
+          gameStartAt: at(5),
+        },
       ],
     };
 
@@ -453,14 +372,79 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ]);
   });
 
+  it('[CL-SEN-18] replaces the versions of a historical-only profile whose tally alone the job changes, so that no gap from before a withdrawal stays', async () => {
+    const historical = (shape: ViewShape) => [buildProfile(MEDIA_STORM, { all: shape })];
+    await writeProfiles(historical({ validCount: 3, meanGap: 0.5 }), T1);
+    // One case excluded by hand, which stays in the tally, then withdrawn: the five values stay.
+    await writeProfiles(historical({ validCount: 2, meanGap: 0.25, excludedCount: 1 }), T2);
+    const before = await profileVersions();
+    const versions: VersionWrite = { kind: 'replace', trackedCases: [] };
+
+    const pairs = await writeProfiles(historical({ validCount: 2, meanGap: 0.25 }), T3, {
+      versions,
+    });
+
+    const rows = await profileRows();
+    expect([before, pairs]).toStrictEqual([
+      [
+        [MEDIA_STORM, 'historical_only', T1, 0.5],
+        [MEDIA_STORM, 'historical_only', T2, 0.25],
+      ],
+      [{ playerId: PLAYER, eventTypeId: MEDIA_STORM }],
+    ]);
+    expect(rows.map((row) => [row.view, row.eventCount, row.excludedCount])).toStrictEqual([
+      ['all_cases', 3, 0],
+      ['historical_only', 3, 0],
+      ['tracked_only', 1, 0],
+    ]);
+    expect(await profileVersions()).toStrictEqual([[MEDIA_STORM, 'historical_only', T3, 0.25]]);
+  });
+
+  it('[SEN-37] [CL-SEN-16] writes each profile in a transaction of its own, which a failure after its upsert undoes with its history entry and its version', async () => {
+    await writeProfiles(bothProfiles('low'), T1);
+    const changed = [MEDIA_STORM, TRADE_RUMOR].map((type) =>
+      buildProfile(type, { all: { validCount: 6, meanGap: 1, confidence: 'medium' } }),
+    );
+    const causeOf = (eventTypeId: EventTypeId): VerdictChangeCause => {
+      if (eventTypeId === TRADE_RUMOR) {
+        throw new Error('No cause resolved for the trade rumor.');
+      }
+      return 'new_cases';
+    };
+
+    const failed = writeProfiles(changed, T2, { causeOf });
+
+    await expect(failed).rejects.toThrow('No cause resolved for the trade rumor.');
+    const rows = await profileRows();
+    const history = await historyRows();
+    expect(
+      rows.map((row) => [row.eventTypeId, row.view, row.validCount, row.computedAt.getTime()]),
+    ).toStrictEqual([
+      [MEDIA_STORM, 'all_cases', 6, T2],
+      [MEDIA_STORM, 'historical_only', 6, T2],
+      [MEDIA_STORM, 'tracked_only', 0, T2],
+      [TRADE_RUMOR, 'all_cases', 5, T1],
+      [TRADE_RUMOR, 'historical_only', 5, T1],
+      [TRADE_RUMOR, 'tracked_only', 0, T1],
+    ]);
+    expect(
+      history.map(({ cause, newProfileConfidence }) => [cause, newProfileConfidence]),
+    ).toStrictEqual([['new_cases', 'medium']]);
+    expect(await profileVersions()).toStrictEqual([
+      [MEDIA_STORM, 'historical_only', T1, 0.5],
+      [TRADE_RUMOR, 'historical_only', T1, 0.5],
+      [MEDIA_STORM, 'historical_only', T2, 1],
+    ]);
+  });
+
   it('[SEN-28] [SEN-37] [CL-SEN-18] [CL-SEN-19] writes each trend whole with its history and versions, and erases a trend left with no event with them', async () => {
-    const trend = trendOf({
+    const trend = buildTrend({
       all: { validCount: 5, verdict: POSSIBLE_UP, reasons: ['dominant_player'] },
     });
     const first = await writeTrends(db, {
       trends: [
-        { eventTypeId: MEDIA_STORM, trend: trendOf({ all: { validCount: 3 } }) },
-        { eventTypeId: TRADE_RUMOR, trend: trendOf({ all: { validCount: 2 } }) },
+        { eventTypeId: MEDIA_STORM, trend: buildTrend({ all: { validCount: 3 } }) },
+        { eventTypeId: TRADE_RUMOR, trend: buildTrend({ all: { validCount: 2 } }) },
       ],
       ...job(T1),
     });
@@ -516,9 +500,9 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   });
 
   it('[CL-SEN-18] [CL-SEN-26] erases a profile left with no event with its history and versions, keeps a pair with only exits, and the empty birthday profile until the birthday is recorded', async () => {
-    await writeProfiles([profileOf(TRADE_RUMOR, { all: { validCount: 3 } })], T1);
+    await writeProfiles([buildProfile(TRADE_RUMOR, { all: { validCount: 3 } })], T1);
     await writeProfiles(
-      [profileOf(TRADE_RUMOR, { all: { validCount: 5, verdict: POSSIBLE_UP } })],
+      [buildProfile(TRADE_RUMOR, { all: { validCount: 5, verdict: POSSIBLE_UP } })],
       T2,
     );
     const history = await historyRows();

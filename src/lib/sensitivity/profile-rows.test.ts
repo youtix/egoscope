@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { leaguePlayerId } from '@/lib/testing';
 import { toEpochMs } from '@/lib/time';
 
 import { hasSameValues, profileReasons, verdictOf, versionInstant, viewOf } from './profile-rows';
 
-import type { JobWrite, TrackedCaseTiming } from './profile-rows';
+import type { CaseScope, JobWrite, TrackedCaseTiming } from './profile-rows';
 import type { EpochMs } from '@/lib/time';
 
 // 2025-01-10 at noon UTC, the job's instant; the cases are dated by the hour around it.
@@ -13,6 +14,11 @@ const HOUR_MS = 3_600_000;
 const at = (hours: number): EpochMs => toEpochMs(JOB_AT + hours * HOUR_MS);
 const TYPE = 'media-storm';
 const OTHER_TYPE = 'trade-rumor';
+const PLAYER = leaguePlayerId('p01');
+const OTHER_PLAYER = leaguePlayerId('p02');
+// His profile of the type, and the type's trend, of every player.
+const PAIR = { playerId: PLAYER, eventTypeId: TYPE };
+const TREND = { playerId: null, eventTypeId: TYPE };
 
 /** A job's write at `JOB_AT`, replacing the versions from `trackedCases` when given. */
 function jobWith(trackedCases?: readonly TrackedCaseTiming[]): JobWrite {
@@ -76,36 +82,45 @@ describe('the rows of profiles and trends', () => {
     ]);
   });
 
-  it('[CL-SEN-18] [CL-SUI-03] dates an appended version at the job instant, and the replacing one at the creation of the earliest tracked case of the type whose game has not started', () => {
+  it('[CL-SEN-18] [CL-SUI-03] dates an appended version at the job instant, and the replacing one at the creation of the earliest tracked case of the pair, or of the type for a trend, whose game has not started', () => {
     // The tracked cases by the hours of their creation and of their game's start, from the job's instant.
-    const replacementAt = (cases: readonly (readonly [number, number | null, string?])[]) =>
+    type Case = readonly [number, number | null, string?, typeof PLAYER?];
+    const replacementAt = (scope: CaseScope, cases: readonly Case[]) =>
       versionInstant(
-        TYPE,
+        scope,
         jobWith(
-          cases.map(([created, start, eventTypeId = TYPE]) => ({
+          cases.map(([created, start, eventTypeId = TYPE, playerId = PLAYER]) => ({
+            playerId,
             eventTypeId,
             createdAt: at(created),
             gameStartAt: start === null ? null : at(start),
           })),
         ),
       );
-    const cases = [
+    const cases: readonly Case[] = [
       [-30, -1],
       [-20, 0],
       [-10, null],
       [-5, 2],
       [-40, null, OTHER_TYPE],
-    ] as const;
+    ];
+    const otherPlayerCases: readonly Case[] = [
+      [-5, 2],
+      [-15, 3, TYPE, OTHER_PLAYER],
+    ];
 
-    expect(versionInstant(TYPE, jobWith())).toBe(JOB_AT);
+    expect(versionInstant(PAIR, jobWith())).toBe(JOB_AT);
     expect([
-      replacementAt([]),
-      replacementAt(cases),
-      replacementAt([
+      replacementAt(PAIR, []),
+      replacementAt(PAIR, cases),
+      replacementAt(PAIR, [
         [-5, 2],
         [-3, null],
       ]),
-      replacementAt([[-30, -1]]),
-    ]).toStrictEqual([JOB_AT, at(-10), at(-5), JOB_AT]);
+      replacementAt(PAIR, [[-30, -1]]),
+      replacementAt(PAIR, otherPlayerCases),
+      replacementAt(TREND, otherPlayerCases),
+      replacementAt(TREND, cases),
+    ]).toStrictEqual([JOB_AT, at(-10), at(-5), JOB_AT, at(-5), at(-15), at(-10)]);
   });
 });
