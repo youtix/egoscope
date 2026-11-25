@@ -10,11 +10,11 @@
  *   `egoscope-heavy.lock.json` and `egoscope-heavy-2.lock.json`, says who holds it.
  *   Slot 1 keeps the protocol of the older wrapper, which knows that slot alone, so
  *   an older wrapper and this one exclude each other there.
- * - A whole-project command takes slot 1 only. A narrow command (a test run with a
- *   path, an eslint run with paths: scripts/command-scope.ts decides) takes whichever
- *   slot is free, trying slot 2 first, and when both are busy it waits and takes the
- *   first that frees. So one whole-project command runs at a time, with at most one
- *   narrow command beside it, or two narrow commands run together.
+ * - A whole-project command takes slot 1 only. A narrow command (an eslint run with
+ *   paths, as scripts/command-scope.ts decides; every Vitest run is whole-project)
+ *   takes whichever slot is free, trying slot 2 first, and when both are busy it waits
+ *   and takes the first that frees. So one whole-project command runs at a time, with
+ *   at most one narrow command beside it, or two narrow commands run together.
  * - The command holds its slot itself, on a file descriptor it inherits, so the
  *   slot stays taken as long as the command (and anything it leaves running), even
  *   when this wrapper is killed. The wrapper catches SIGINT, SIGTERM and SIGHUP from
@@ -40,7 +40,7 @@ import path from 'node:path';
 import { setImmediate as nextTurn, setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
-import { commandScope, VITEST_ONE_SHOT } from './command-scope';
+import { commandScope } from './command-scope';
 import { catchSignals, endOf, runUnlocked } from './signal-relay';
 
 import type { Command, Relay } from './signal-relay';
@@ -62,6 +62,7 @@ const SLOT_RULE =
 const CI_OFF_VALUES: ReadonlySet<string> = new Set(['', '0', 'false']);
 // `-w` is the short form of `--watch` for Vitest and tsc.
 const WATCH_FLAGS: ReadonlySet<string> = new Set(['--watch', '-w', '--ui', '--hot']);
+const VITEST_ONE_SHOT: ReadonlySet<string> = new Set(['run', 'list']);
 // The hold shell first waits for the wrapper's go-ahead, a line on descriptor 3, and
 // ends without one (see letRun).
 const GO_AHEAD = 'read -r go <&3 || exit 1';
