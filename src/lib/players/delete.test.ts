@@ -64,16 +64,16 @@ describe('the deletion of a withdrawn player’s rows', { timeout: DATABASE_TEST
     const mappings = await db
       .select({ id: statsSourceMappings.id })
       .from(statsSourceMappings)
-      .where(eq(statsSourceMappings.ARDEN, ARDEN));
+      .where(eq(statsSourceMappings.playerId, ARDEN));
     const candidates = await db
       .select({ id: mappingCandidates.id })
       .from(mappingCandidates)
       .innerJoin(statsSourceMappings, eq(mappingCandidates.mappingId, statsSourceMappings.id))
-      .where(eq(statsSourceMappings.ARDEN, ARDEN));
+      .where(eq(statsSourceMappings.playerId, ARDEN));
     return {
-      variants: await db.$count(playerNameVariants, eq(playerNameVariants.ARDEN, ARDEN)),
-      statusChanges: await db.$count(playerStatusChanges, eq(playerStatusChanges.ARDEN, ARDEN)),
-      teamChanges: await db.$count(playerTeamChanges, eq(playerTeamChanges.ARDEN, ARDEN)),
+      variants: await db.$count(playerNameVariants, eq(playerNameVariants.playerId, ARDEN)),
+      statusChanges: await db.$count(playerStatusChanges, eq(playerStatusChanges.playerId, ARDEN)),
+      teamChanges: await db.$count(playerTeamChanges, eq(playerTeamChanges.playerId, ARDEN)),
       mappings: mappings.length,
       candidates: candidates.length,
     };
