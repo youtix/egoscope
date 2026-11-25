@@ -10,6 +10,7 @@ import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 import { ResearchResultPasteArea } from './paste-area';
 
 import type { DraftServer, DraftUpload } from '@/lib/device-drafts';
+import type { Mock } from 'vitest';
 
 // The WCAG 2.2 A and AA rules, as the end-to-end watch runs them (CL-IHM-08).
 const WCAG_22_AA = { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] };
@@ -75,7 +76,7 @@ function fakeServer() {
   return { held, save, discard, server };
 }
 
-type Setup = ReturnType<typeof fakeServer> & { check: ReturnType<typeof vi.fn> };
+type Setup = ReturnType<typeof fakeServer> & { check: Mock<(text: unknown) => void> };
 
 /** Opens the paste area on its request, with a check action that records what it receives. */
 async function open(setup: Setup): Promise<void> {
@@ -112,7 +113,7 @@ describe('the research-result paste area', () => {
     isOnline = true;
     vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => isOnline);
     onTestFinished(installFakeClock(fixedClock(SAVED_AT)));
-    setup = { ...fakeServer(), check: vi.fn() };
+    setup = { ...fakeServer(), check: vi.fn<(text: unknown) => void>() };
     return () => {
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
