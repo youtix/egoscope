@@ -134,6 +134,26 @@ describe('the closed list of journal messages', () => {
     );
   });
 
+  it('[TRV-41] [TRV-61] [IHM-09] journals a refused password change as a refused login, in words true of a change', () => {
+    const lockedUntilAt = SAMPLES.instant;
+
+    expect([
+      messageOf('password_change_refused')?.category,
+      messageOf('password_change_refused_while_locked')?.category,
+      storedText('password_change_refused', {}),
+      storedText('password_change_refused_while_locked', { lockedUntilAt }),
+    ]).toStrictEqual([
+      'login_refused',
+      'login_refused',
+      'A password change was refused: the current password was wrong. After repeated failures, logins are refused for a while. What to do: nothing if it was you; otherwise change your password in the account settings, which closes every other session.',
+      'A password change was refused while logins are locked, until Wed 18 Nov 2026, 01:30. No password is examined until then, the right one included. What to do: wait until then; if it was not you, change your password as soon as the lock ends, which closes every other session.',
+    ]);
+    expect([
+      messageOf('password_change_refused')?.level,
+      messageOf('password_change_refused_while_locked')?.level,
+    ]).toStrictEqual(['warning', 'warning']);
+  });
+
   it('[CL-TRV-10] names a subject that exists, and says what became of one erased', () => {
     expect([textOf('player_paused', LIVE), textOf('player_paused', ERASED)]).toStrictEqual([
       'You paused a followed player. His profiles stay, and his cases waiting for their game are still measured. What to do: nothing.',

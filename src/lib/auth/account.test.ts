@@ -4,6 +4,7 @@ import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { accounts, createTestDatabase, journalEntries, loginFailures, sessions } from '@/lib/db';
+import { setParam } from '@/lib/params';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { hashPassword, isSamePassword } from './password';
@@ -20,6 +21,11 @@ vi.mock(import('@/lib/db'), async (importOriginal) => ({
 // Two initial passwords of the deployment configuration, the second set to reset a forgotten one.
 const FIRST_INITIAL = 'first-initial-harbor-lantern';
 const SECOND_INITIAL = 'second-initial-meadow-violet';
+// Initial passwords one character short of the default minimum of 12, and just long enough.
+const ELEVEN = 'harbor-cove';
+const TWELVE = 'violet-ridge';
+// A minimum the owner raised above the length of TWELVE.
+const RAISED_MINIMUM = 16;
 // Monday 23 November 2026, 10:00 Paris time, and an hour.
 const START = toEpochMs(Date.UTC(2026, 10, 23, 9));
 const HOUR = 3_600_000;
@@ -51,6 +57,28 @@ describe('the single account', { timeout: 60_000 }, () => {
     const [row] = await db.select().from(accounts);
     return row;
   };
+  const keys = async () => {
+    const entries = await db.select().from(journalEntries).orderBy(asc(journalEntries.id));
+    return entries.map(({ messageKey }) => messageKey);
+  };
+  // The account, its sessions and its failures, which a refused or needless check leaves as they are.
+  const everything = async () =>
+    Promise.all([
+      db.select().from(accounts),
+      db.select().from(sessions).orderBy(asc(sessions.id)),
+      db.select().from(loginFailures).orderBy(asc(loginFailures.id)),
+    ]);
+  // The owner raises the minimum password length, never set before, to RAISED_MINIMUM.
+  const raiseMinimum = async () =>
+    expect(
+      db.transaction(async (tx) =>
+        setParam(tx, {
+          key: 'auth.passwordMinLength',
+          value: RAISED_MINIMUM,
+          expectedVersion: 0,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
   const openSessions = async (count: number) =>
     db.insert(sessions).values(
       Array.from({ length: count }, (_, index) => ({
@@ -164,13 +192,97 @@ describe('the single account', { timeout: 60_000 }, () => {
     await expect(account()).resolves.toBeUndefined();
   });
 
-  it('refuses to create the account while the deployment configuration is invalid', async () => {
+  it('[TRV-64] refuses to create the account while the server environment is invalid, naming its variables', async () => {
     vi.stubEnv('LOG_LEVEL', 'loud');
 
     await expect(ensure(FIRST_INITIAL)).resolves.toStrictEqual({
       ok: false,
-      error: { kind: 'initial-password-missing' },
+      error: { kind: 'invalid-server-env', variables: ['LOG_LEVEL'] },
     });
+    await expect(account()).resolves.toBeUndefined();
+  });
+
+  it('[TRV-60] refuses to create the account from an initial password shorter than auth.passwordMinLength', async () => {
+    await expect(ensure(ELEVEN)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'initial-password-too-short', minLength: 12 },
+    });
+    await expect(account()).resolves.toBeUndefined();
+    await expect(db.select().from(journalEntries)).resolves.toStrictEqual([]);
+
+    await expect(ensure(TWELVE)).resolves.toStrictEqual({ ok: true, value: undefined });
+    await expect(account()).resolves.toMatchObject({ id: 1, passwordStatus: 'initial' });
+  });
+
+  it('[TRV-60] counts the characters of the initial password as a person does, not its code units', async () => {
+    const eleven = 'é'.repeat(11);
+    const twelve = 'é'.repeat(12);
+    expect([eleven.length, twelve.length]).toStrictEqual([22, 24]);
+
+    await expect(ensure(eleven)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'initial-password-too-short', minLength: 12 },
+    });
+    await expect(ensure(twelve)).resolves.toStrictEqual({ ok: true, value: undefined });
+  });
+
+  it('[TRV-60] [H-TRV-10] measures the initial password against the auth.passwordMinLength the owner set', async () => {
+    await raiseMinimum();
+
+    await expect(ensure(TWELVE)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'initial-password-too-short', minLength: RAISED_MINIMUM },
+    });
+    await expect(account()).resolves.toBeUndefined();
+  });
+
+  it('[TRV-63] [TRV-60] refuses a reset to a too-short initial password and changes nothing, then resets to a long enough one', async () => {
+    await ensure(FIRST_INITIAL);
+    await db
+      .update(accounts)
+      .set({ passwordStatus: 'chosen', loginLockedUntil: new Date(START + HOUR) })
+      .where(eq(accounts.id, 1));
+    await openSessions(1);
+    await db.insert(loginFailures).values({ occurredAt: new Date(START - HOUR) });
+    const before = await everything();
+
+    await expect(ensure(ELEVEN)).resolves.toStrictEqual({
+      ok: false,
+      error: { kind: 'initial-password-too-short', minLength: 12 },
+    });
+    await expect(Promise.all([everything(), keys()])).resolves.toStrictEqual([before, []]);
+
+    await expect(ensure(SECOND_INITIAL)).resolves.toStrictEqual({ ok: true, value: undefined });
+    await expect(account()).resolves.toMatchObject({
+      passwordStatus: 'initial',
+      loginLockedUntil: null,
+      allSessionsEndReason: 'reset',
+    });
+    await expect(keys()).resolves.toStrictEqual(['password_reset']);
+  });
+
+  it('[TRV-63] [TRV-60] does not measure again an initial password that still matches, once the minimum was raised', async () => {
+    await ensure(TWELVE);
+    await raiseMinimum();
+    const before = await everything();
+
+    await expect(ensure(TWELVE)).resolves.toStrictEqual({ ok: true, value: undefined });
+    await expect(everything()).resolves.toStrictEqual(before);
+    await expect(keys()).resolves.toStrictEqual(['parameter_changed']);
+  });
+
+  it('[TRV-64] refuses a too-short initial password with the minimum alone, never the password or its length', async () => {
+    const short = 'cove-lamp';
+    expect(short).toHaveLength(9);
+
+    const refused = await ensure(short);
+
+    expect(refused).toStrictEqual({
+      ok: false,
+      error: { kind: 'initial-password-too-short', minLength: 12 },
+    });
+    const written = JSON.stringify([refused, await db.select().from(journalEntries)]);
+    expect(written).not.toMatch(/cove|lamp|9/u);
   });
 
   it('treats reading the account before it exists as a bug', async () => {

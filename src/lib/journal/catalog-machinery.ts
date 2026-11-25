@@ -135,6 +135,26 @@ export const MACHINERY_MESSAGES = [
     whatToDo: 'wait until then; if it was not you, change your password once you are logged in.',
   },
   {
+    // A wrong current password at a password change counts as a refused login (TRV-61, IHM-09).
+    key: 'password_change_refused',
+    category: 'login_refused',
+    level: 'warning',
+    happened: 'A password change was refused: the current password was wrong.',
+    consequence: 'After repeated failures, logins are refused for a while.',
+    whatToDo:
+      'nothing if it was you; otherwise change your password in the account settings, which closes every other session.',
+  },
+  {
+    key: 'password_change_refused_while_locked',
+    category: 'login_refused',
+    level: 'warning',
+    params: { lockedUntilAt: 'instant' },
+    happened: 'A password change was refused while logins are locked, until {lockedUntilAt}.',
+    consequence: 'No password is examined until then, the right one included.',
+    whatToDo:
+      'wait until then; if it was not you, change your password as soon as the lock ends, which closes every other session.',
+  },
+  {
     key: 'login_locked',
     category: 'login_lockout',
     level: 'incident',

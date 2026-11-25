@@ -37,20 +37,30 @@ export type SessionRefusal =
   | Readonly<{ kind: 'log-in'; redirect: string; ended: SessionEndReason | null }>
   | Readonly<{ kind: 'choose-password'; redirect: string }>;
 
-/** Why a password was not replaced (TRV-57, TRV-60). */
+/**
+ * Why a password was not replaced (TRV-57, TRV-60): no session; a new password too short;
+ * a second "Choose your password"; or, for a change, logins locked or a wrong current
+ * password, refused as a login is (TRV-61, IHM-07, IHM-09).
+ */
 export type PasswordRefusal =
   | Readonly<{ kind: 'no-session' }>
   | Readonly<{ kind: 'too-short'; minLength: number }>
-  | Readonly<{ kind: 'wrong-password' }>
+  | LoginRefusal
   | Readonly<{ kind: 'password-already-chosen' }>;
 
 /** Which sessions a logout ends: this device's, or every device's (TRV-62, IHM-08). */
 export type LogOutScope = 'this-device' | 'all-devices';
 
 type Account = Awaited<ReturnType<typeof lockedAccount>>;
+/** A replacement asked for at `at`, in `tx`, which holds the lock of the account's row. */
+type Asked = Readonly<{ tx: Transaction; account: Account; at: EpochMs }>;
+type Check = (asked: Asked) => PasswordRefusal | null | Promise<PasswordRefusal | null>;
 type Replacement = Readonly<{
   newPassword: string;
-  refusal: (account: Account) => PasswordRefusal | null | Promise<PasswordRefusal | null>;
+  /** Refuses the replacement before any password is examined, the new one included. */
+  lockout: Check;
+  /** Refuses it once the new password is long enough. */
+  refusal: Check;
 }>;
 
 const NO_SESSION = { kind: 'no-session' } as const satisfies PasswordRefusal;
@@ -61,10 +71,12 @@ async function attempt(tx: Transaction, login: LoginAttempt) {
   const account = await lockedAccount(tx);
   const lockedUntil = lockEnd(account.loginLockedUntil, at);
   if (lockedUntil !== null) {
-    return err(await refuseWhileLocked(tx, lockedUntil));
+    return err(await refuseWhileLocked(tx, lockedUntil, 'login'));
   }
   if (!(await isSamePassword(login.password, account.passwordHash))) {
-    return err(await recordFailure(tx, at, account.loginLockedUntil));
+    return err(
+      await recordFailure(tx, { attempt: 'login', at, lastLockEnd: account.loginLockedUntil }),
+    );
   }
   const cookie = await openSession(tx, login.device, at);
   await close(tx, { kind: 'logins_refused' });
@@ -148,22 +160,37 @@ export async function requireSession(
 }
 
 /**
+ * Why the replacement `change` is refused, or null, checked in this order: its lockout,
+ * before any password is examined; a new password too short, before the current one is
+ * examined and not counted, since it tells a guesser nothing; then its own refusal.
+ */
+async function refusalOf(change: Replacement, asked: Asked): Promise<PasswordRefusal | null> {
+  const locked = await change.lockout(asked);
+  if (locked !== null) {
+    return locked;
+  }
+  const minLength = await getParam(asked.tx, 'auth.passwordMinLength');
+  return isLongEnough(change.newPassword, minLength)
+    ? change.refusal(asked)
+    : { kind: 'too-short', minLength };
+}
+
+/**
  * Replaces the password in `tx` for the device of the cookie `value`: every session ends
  * with `password_changed` and the device continues in a session opened at that instant,
  * so that its own login does not precede the change (TRV-60, operations.md §2.4). The
  * account's row is locked before the session is read, the order that logins and `endIn` follow.
+ * A refusal is returned, never thrown, so that the transaction keeps what it journaled and
+ * counted: a thrown one would roll a failure back, and the lockout would count nothing.
  */
 async function replaceIn(tx: Transaction, value: string, change: Replacement) {
+  const askedAt = now();
   const account = await lockedAccount(tx);
   const state = await sessionState(tx, value);
   if (state.state !== 'open') {
     return err(NO_SESSION);
   }
-  const minLength = await getParam(tx, 'auth.passwordMinLength');
-  if (!isLongEnough(change.newPassword, minLength)) {
-    return err({ kind: 'too-short', minLength } as const);
-  }
-  const refusal = await change.refusal(account);
+  const refusal = await refusalOf(change, { tx, account, at: askedAt });
   if (refusal !== null) {
     return err(refusal);
   }
@@ -210,25 +237,40 @@ export async function choosePassword(
 ): Promise<Result<void, PasswordRefusal | ReadyError>> {
   return replacePassword({
     newPassword: password,
-    refusal: (account) =>
+    // No current password is asked for, so there is nothing to guess: the lockout of
+    // logins does not hold this step back, and nothing is counted.
+    lockout: () => null,
+    refusal: ({ account }) =>
       account.passwordStatus === 'initial' ? null : { kind: 'password-already-chosen' },
   });
 }
 
 /**
- * Changes the password from the account settings (TRV-60, CA-TRV-31): the current password
- * is required, the new one has at least `auth.passwordMinLength` characters, and every
- * other device's session ends while this device continues.
+ * Changes the password from the account settings (TRV-60, IHM-09, CA-TRV-31): the current
+ * password is required, the new one has at least `auth.passwordMinLength` characters, and
+ * every other device's session ends while this device continues. The current password is
+ * guarded as a login's is (TRV-61, IHM-07): while logins are locked, the change is refused
+ * and journaled without examining either password; a wrong one is journaled and counted
+ * toward the lockout of logins, with the logins' own failures. A change neither closes the
+ * "Logins refused" incident nor erases a failure: only a successful login does.
  */
 export async function changePassword(
   change: Readonly<{ currentPassword: string; newPassword: string }>,
 ): Promise<Result<void, PasswordRefusal | ReadyError>> {
   return replacePassword({
     newPassword: change.newPassword,
-    refusal: async (account) =>
+    lockout: async ({ tx, account, at }) => {
+      const lockedUntil = lockEnd(account.loginLockedUntil, at);
+      return lockedUntil === null ? null : refuseWhileLocked(tx, lockedUntil, 'password-change');
+    },
+    refusal: async ({ tx, account, at }) =>
       (await isSamePassword(change.currentPassword, account.passwordHash))
         ? null
-        : { kind: 'wrong-password' },
+        : recordFailure(tx, {
+            attempt: 'password-change',
+            at,
+            lastLockEnd: account.loginLockedUntil,
+          }),
   });
 }
 

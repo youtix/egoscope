@@ -91,18 +91,44 @@ describe('GET /api/health', () => {
     },
   );
 
-  it('answers 503 and logs the cause when the session cannot be checked', async () => {
-    checkSession.mockResolvedValue({ ok: false, error: { kind: 'database-not-configured' } });
+  it.each([
+    { kind: 'database-not-configured' },
+    { kind: 'initial-password-missing' },
+    { kind: 'initial-password-too-short', minLength: 12 },
+  ] as const)(
+    '[TRV-64] answers 503 and logs the cause alone when the session cannot be checked: %o',
+    async (error) => {
+      checkSession.mockResolvedValue({ ok: false, error });
+      const logError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { GET } = await import('./route');
+
+      const response = await GET();
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toStrictEqual({ status: 'unavailable' });
+      expect(logError).toHaveBeenCalledExactlyOnceWith(
+        `{"level":"error","message":"The session could not be checked.","context":{"cause":"${error.kind}"}}`,
+      );
+    },
+  );
+
+  it('[TRV-64] answers 503 and logs the variable names when the session check finds the environment invalid', async () => {
+    checkSession.mockResolvedValue({
+      ok: false,
+      error: { kind: 'invalid-server-env', variables: ['LOG_LEVEL'] },
+    });
     const logError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { GET } = await import('./route');
 
     const response = await GET();
+    const body = await response.text();
 
     expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toStrictEqual({ status: 'unavailable' });
+    expect(JSON.parse(body)).toStrictEqual({ status: 'unavailable' });
     expect(logError).toHaveBeenCalledExactlyOnceWith(
-      '{"level":"error","message":"The session could not be checked.","context":{"cause":"database-not-configured"}}',
+      '{"level":"error","message":"The server environment is invalid.","context":{"variables":["LOG_LEVEL"]}}',
     );
+    expect(body).not.toContain('LOG_LEVEL');
   });
 
   it('[TRV-64] answers 503 and logs the variable name, never its value, when the environment is invalid', async () => {
