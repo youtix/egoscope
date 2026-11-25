@@ -25,11 +25,13 @@ import { gameDay } from '@/lib/time';
 
 import {
   baselineGameOf,
+  coverageContext,
   coverageOf,
   finalsOf,
   gamesOf,
   membershipOf,
   playerGameOf,
+  postseasonStateOf,
   recordsOf,
   scheduleOf,
   seasonDays,
@@ -92,8 +94,6 @@ export type TeamRecords = Readonly<{
 
 // A display baseline leaves no game out: game ids are identities from 1, so 0 names none.
 const NO_GAME: GameId = 0;
-// A team that has not entered the postseason, while the season may go on, has not finished it.
-const NOT_FINISHED: PhaseState = { finished: false, lastGameConsolidated: false };
 const SEASON_READ = {
   season: seasons.season,
   phasesWithLines: seasons.phasesWithLines,
@@ -215,7 +215,7 @@ export async function expectedGame(
  * final team games of `season`, of every phase, each classified with the season's
  * playing-time threshold, which the games of unknown participation stay out of, and with
  * its performance index; and the state of the phase asked, a postseason that his team has
- * not entered being unfinished.
+ * not entered being unfinished until the Finals are played (STA-20).
  */
 export async function baselineInputs(
   db: Reader,
@@ -242,7 +242,7 @@ export async function baselineInputs(
     phaseState:
       'regularSeasonAt' in phase
         ? phaseState(schedule, phase)
-        : (phaseState(schedule, phase) ?? NOT_FINISHED),
+        : postseasonStateOf(schedule, phase.postseasonTeamId),
   };
 }
 
@@ -312,10 +312,7 @@ async function withCoverage(
   rows: readonly SeasonRead[],
   query: CoverageQuery,
 ): Promise<readonly CoveredSeason[]> {
-  const spans = await seasonSpans(db);
-  const todayOn = gameDay(query.at);
-  const today = seasonOfDate(todayOn, spans);
-  const context = { ...query, spans, todayOn, coming: today.ok ? today.season : null };
+  const context = coverageContext(query, await seasonSpans(db));
   return rows.map((row) => ({ season: row.season, coverage: coverageOf(row, context) }));
 }
 

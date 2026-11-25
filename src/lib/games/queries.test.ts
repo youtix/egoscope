@@ -41,7 +41,7 @@ import {
 
 import type { CoveredSeason, TeamRecords } from './queries';
 import type { Database, TestDatabase } from '@/lib/db';
-import type { BaselineGame, EngineParams } from '@/lib/stats-engine';
+import type { EngineParams } from '@/lib/stats-engine';
 import type { EpochMs } from '@/lib/time';
 
 // Sunday 8 November 2026, noon in New York: 2026-27 is played up to the 7th (the league's README).
@@ -63,6 +63,19 @@ const PARAMS: EngineParams = {
 };
 const COVERAGE = { at: NOW, firstCoveredSeason: '2024-25' };
 const UNFINISHED = { finished: false, lastGameConsolidated: false };
+// The league's five box-score lines (scenario.json), each index its Game Score worked out by
+// hand (H-13) over its decimal minutes (STA-12): 15.7 in 34:12, 13.8 in 28:45, 1.3 in 22:03,
+// 28.2 in 38:30 and 4.9 in 15:51.
+const [FIRST, SECOND, THIRD] = [15.7 / 34.2, 13.8 / 28.75, 1.3 / 22.05];
+const [FOURTH, FIFTH] = [28.2 / 38.5, 4.9 / 15.85];
+// The mean of his nine usable indices of 2025-26, worked out as a fraction, and their sample
+// standard deviation (STA-16).
+const MEAN_2025_26 = 1_020_464_861 / 2_191_317_975;
+const DEVIATION_2025_26 = 0.20401585330083086;
+// Indices are compared to twelve decimals.
+const INDEX_SCALE = 10 ** 12;
+/** An index in units of its twelfth decimal, null kept. */
+const rounded = (index: number | null) => (index === null ? null : Math.round(index * INDEX_SCALE));
 
 function only<T>(rows: readonly T[]): T {
   const [row] = rows;
@@ -70,18 +83,6 @@ function only<T>(rows: readonly T[]): T {
     throw new Error('the row looked for is missing');
   }
   return row;
-}
-
-/** The performance indices of the usable games, in order. */
-const usableIndices = (classified: readonly BaselineGame[]) =>
-  classified.flatMap((game) => (game.classification === 'usable' ? game.performanceIndex : []));
-
-function sumOf(values: readonly number[]): number {
-  let sum = 0;
-  for (const value of values) {
-    sum += value;
-  }
-  return sum;
 }
 
 /** The wins and the losses of every team, added up. */
@@ -227,16 +228,24 @@ describe('the games read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   it('[STA-13] [STA-14] classifies his final games of a season with their indices', async () => {
     const query = { playerId: P01, season: '2025-26', phase: { regularSeasonAt: NOW } };
     const inputs = await baselineInputs(db, query, PARAMS);
-    // The league's game of 30 October 2025 is final without player lines: participation unknown.
-    const withoutLines = await gameOn(db, '2025-10-30', '1');
-    const usable = inputs.games.filter(({ classification }) => classification === 'usable');
-    expect(inputs.games).toHaveLength(10);
-    expect(usable.map(({ gameId }) => gameId)).not.toContain(withoutLines.id);
-    expect(usable).toHaveLength(9);
-    expect(inputs.games.find(({ gameId }) => gameId === withoutLines.id)).toMatchObject({
-      classification: null,
-      performanceIndex: null,
-    });
+    const of = inputs.games.map((game) => [
+      gameDay(game.scheduledStartAt),
+      game.classification,
+      rounded(game.performanceIndex),
+    ]);
+    expect(of).toStrictEqual([
+      ['2025-10-21', 'usable', rounded(FIRST)],
+      ['2025-10-24', 'usable', rounded(FOURTH)],
+      ['2025-10-27', 'usable', rounded(SECOND)],
+      // The league's game of 30 October 2025 is final without player lines: participation unknown.
+      ['2025-10-30', null, null],
+      ['2025-11-02', 'usable', rounded(SECOND)],
+      ['2025-11-05', 'usable', rounded(FIFTH)],
+      ['2025-11-08', 'usable', rounded(THIRD)],
+      ['2025-11-11', 'usable', rounded(FIRST)],
+      ['2025-11-14', 'usable', rounded(FOURTH)],
+      ['2025-11-17', 'usable', rounded(SECOND)],
+    ]);
   });
 
   it('[STA-13] gives the state of the phase asked, a postseason his team has not entered unfinished', async () => {
@@ -251,12 +260,10 @@ describe('the games read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
 
   it('[STA-16] [STA-19] gives the display baseline of a season, no game left out', async () => {
     const query = { playerId: P01, season: '2025-26', phase: { regularSeasonAt: NOW } };
-    const { games: classified } = await baselineInputs(db, query, PARAMS);
-    const indices = usableIndices(classified);
     const baseline = await seasonBaseline(db, query, PARAMS);
-    expect(indices).toHaveLength(9);
     expect(baseline).toMatchObject({ status: 'final', gameCount: 9, isPartial: false });
-    expect(baseline.mean).toBeCloseTo(sumOf(indices) / indices.length, 12);
+    expect(rounded(baseline.mean)).toBe(rounded(MEAN_2025_26));
+    expect(rounded(baseline.standardDeviation)).toBe(rounded(DEVIATION_2025_26));
   });
 
   it('[STA-06] [SEN-15] gives each team’s record of the season and of the previous season', async () => {
@@ -314,6 +321,8 @@ describe('the games read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   });
 
   it('[STA-43] reads stored data only: the statistics source gets no call', async () => {
+    // No read takes a port, and nothing in this module imports one: this test states the
+    // contract, so that a read given a port later is caught, rather than guarding a call today.
     const source = fakeStatsSource();
     const operations = [
       'checkHealth',

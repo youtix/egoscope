@@ -10,11 +10,13 @@ import { boxScores, games, playerTeamChanges, series } from '@/lib/db';
 import {
   classifyGame,
   performanceIndex,
+  phaseState,
+  seasonOfDate,
   teamMembership,
   teamRecord,
   verifyBoxScore,
 } from '@/lib/stats-engine';
-import { toEpochMs } from '@/lib/time';
+import { gameDay, toEpochMs } from '@/lib/time';
 
 import type { GameRow } from './types';
 import type { Database, Transaction } from '@/lib/db';
@@ -25,9 +27,11 @@ import type {
   LinesGame,
   NextGameCandidate,
   PhaseSeries,
+  PhaseState,
   PlayerGame,
   PlayerId,
   PlayerLine,
+  SeasonSchedule,
   SeasonSpan,
   SeasonSpanInput,
   TeamGame,
@@ -71,7 +75,10 @@ export type SeasonRead = Readonly<{
   coverageFetchedAt: Date | null;
 }>;
 
-/** The frame of a coverage read: the spans, the day asked about and the coming season, if any. */
+/**
+ * The frame of a coverage read: the spans, the day asked about and, between seasons while
+ * its schedule is not stored, the coming season (CL-STA-30).
+ */
 export type CoverageContext = CoverageQuery &
   Readonly<{ spans: readonly SeasonSpan[]; todayOn: IsoDate; coming: string | null }>;
 
@@ -254,11 +261,48 @@ export function recordsOf(
   return new Map(records);
 }
 
+// Once the Finals are played, a team that never entered the postseason has finished it with
+// no game, so with no last game to consolidate.
+const NOT_ENTERED_FINISHED: PhaseState = { finished: true, lastGameConsolidated: false };
+const NOT_ENTERED_UNFINISHED: PhaseState = { finished: false, lastGameConsolidated: false };
+
+/**
+ * A team's postseason state (STA-20, STA-22, CL-STA-02): what phaseState says of it, a
+ * postseason that the team never entered being finished once the Finals are played, as
+ * phaseState says of a team of the Finals, and unfinished before.
+ */
+export function postseasonStateOf(schedule: SeasonSchedule, teamId: TeamId): PhaseState {
+  const state = phaseState(schedule, { postseasonTeamId: teamId });
+  if (state !== null) {
+    return state;
+  }
+  const finals = schedule.series.find(({ round }) => round === 'finals');
+  const ofFinals = finals && phaseState(schedule, { postseasonTeamId: finals.teamAId });
+  return ofFinals?.finished === true ? NOT_ENTERED_FINISHED : NOT_ENTERED_UNFINISHED;
+}
+
+/**
+ * The frame of a coverage read at `query.at` (STA-45, CL-STA-30): today's season is the
+ * coming season between seasons only while no span of it is stored, that is while its
+ * schedule is not published; in progress, or with its schedule stored, it is not.
+ */
+export function coverageContext(
+  query: CoverageQuery,
+  spans: readonly SeasonSpan[],
+): CoverageContext {
+  const todayOn = gameDay(query.at);
+  const today = seasonOfDate(todayOn, spans);
+  const coming =
+    today.ok && spans.every(({ season }) => season !== today.season) ? today.season : null;
+  return { ...query, spans, todayOn, coming };
+}
+
 /**
  * A season's coverage (STA-45, CL-STA-22, CL-STA-30): not covered before the first covered
  * season, or once it has ended, from the day after its last game, its games read and none
- * with player lines; pending while its games are not read, but for the coming season
- * between seasons, which is covered; covered otherwise.
+ * with player lines; pending while its games are not read, in progress or with its
+ * schedule stored, but for the coming season between seasons while its schedule is not
+ * published, which is covered; covered otherwise.
  */
 export function coverageOf(row: SeasonRead, context: CoverageContext): SeasonCoverage {
   if (row.season < context.firstCoveredSeason) {
