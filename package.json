@@ -31,6 +31,7 @@
     "knip": "bun scripts/with-lock.ts knip --treat-config-hints-as-errors",
     "trace": "bun scripts/trace-requirements.ts",
     "trace:strict": "bun scripts/trace-requirements.ts --strict",
+    "docs:generate": "bun scripts/requirement-status.ts && bun --no-env-file --conditions=react-server scripts/parameters-doc.ts",
     "check": "bun run format:check && bun run lint && bun run knip && bun run lint:workflows && bun run typecheck && bun run trace",
     "check:changed": "bun scripts/with-lock.ts bun scripts/check-changed.ts",
     "gate": "bun scripts/with-lock.ts bun run gate:ci",

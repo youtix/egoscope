@@ -33,6 +33,18 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-project
+      # The requirement status of TRV-79 (scripts/requirement-status.ts), on every run,
+      # whatever the checks below find: only the Lot 1 milestone and the final release
+      # commit it, from this artifact or a run of `bun run docs:generate`.
+      - name: Write the requirement status
+        run: bun scripts/requirement-status.ts
+      - name: Upload the requirement status
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: requirement-status
+          path: docs/guide/requirement-status.md
+          if-no-files-found: error
+          retention-days: 14
       # A push has no description, so it claims nothing and runs the other rules only.
       - name: Every cited ID exists, the register holds and the criteria index is up to date
         if: ${{ github.event_name != 'pull_request' }}
