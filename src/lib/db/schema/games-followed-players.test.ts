@@ -90,6 +90,8 @@ const COLUMNS = [
   'stats_source_mappings.source_player_ref text',
   'stats_source_mappings.established_at timestamp with time zone',
   'stats_source_mappings.last_searched_at timestamp with time zone',
+  'stats_source_mappings.player_file_team_id integer',
+  'stats_source_mappings.player_file_read_at timestamp with time zone',
 ];
 
 // Their indexes, primary keys and unique constraints included, in the words of the catalog.
@@ -120,6 +122,7 @@ const FOREIGN_KEYS = [
   'player_indicators FOREIGN KEY (player_id) REFERENCES followed_players(id) ON DELETE CASCADE',
   'stat_corrections FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE RESTRICT',
   'stat_corrections FOREIGN KEY (player_id) REFERENCES followed_players(id) ON DELETE CASCADE',
+  'stats_source_mappings FOREIGN KEY (player_file_team_id) REFERENCES teams(id) ON DELETE RESTRICT',
   'stats_source_mappings FOREIGN KEY (player_id) REFERENCES followed_players(id) ON DELETE CASCADE',
 ];
 
@@ -250,19 +253,7 @@ describe('the tables of the followed players statistics', { timeout: 60_000 }, (
     { teamId: 1 },
     { minutes: 0 },
     { seconds: 0 },
-    { points: 0 },
-    { fieldGoalsMade: 0 },
-    { fieldGoalsAttempted: 0 },
-    { threePointersMade: 0 },
-    { freeThrowsMade: 0 },
-    { freeThrowsAttempted: 0 },
-    { offensiveRebounds: 0 },
-    { defensiveRebounds: 0 },
-    { assists: 0 },
-    { steals: 0 },
-    { blocks: 0 },
-    { turnovers: 0 },
-    { personalFouls: 0 },
+    ...Object.keys(NO_ELEMENT).map((element) => ({ [element]: 0 })),
   ])('[CL-STA-11] refuses an unavailable placeholder that holds %o', async (change) => {
     const insert = db.insert(boxScores).values({ ...PLACEHOLDER, playerId, ...change });
 
@@ -420,6 +411,8 @@ describe('the tables of the followed players statistics', { timeout: 60_000 }, (
         sourcePlayerRef: null,
         establishedAt: null,
         lastSearchedAt: null,
+        playerFileTeamId: null,
+        playerFileReadAt: null,
       },
     ]);
     await expect(second).rejects.toMatchObject(
@@ -494,6 +487,17 @@ describe('the tables of the followed players statistics', { timeout: 60_000 }, (
 
     await expect(insert).rejects.toMatchObject(
       violationOf('stats_source_mappings_established_check'),
+    );
+  });
+
+  // A release is a read that gives no team, which games/teams.test.ts stores.
+  it('[CL-JOU-25] refuses a player-file team without the instant of the read that gave it', async () => {
+    const unread = db
+      .insert(statsSourceMappings)
+      .values({ playerId, ...SOURCE, playerFileTeamId: 2 });
+
+    await expect(unread).rejects.toMatchObject(
+      violationOf('stats_source_mappings_player_file_check'),
     );
   });
 

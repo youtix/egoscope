@@ -289,8 +289,9 @@ export async function markMappingToEstablish(
  * Reopens, in the caller's transaction `tx`, the search and confirmation of the
  * player's mapping (JOU-12): it is "mapping to establish" again, nothing being fetched
  * for him until another identity is confirmed, with the candidates found now; his lines
- * stay until `confirmMapping` confirms another identity, which deletes them
- * (STA-03, CL-JOU-11).
+ * stay until `confirmMapping` confirms another identity, which deletes them, and what
+ * the player file gave at its last read is forgotten, since it described the former
+ * identity (STA-03, CL-JOU-11, CL-JOU-25).
  */
 export async function changeMapping(
   tx: Transaction,
@@ -298,7 +299,13 @@ export async function changeMapping(
 ): Promise<Result<MappingToEstablish, MappingNotFound>> {
   const [mapping] = await tx
     .update(statsSourceMappings)
-    .set({ status: 'to_establish', sourcePlayerRef: null, establishedAt: null })
+    .set({
+      status: 'to_establish',
+      sourcePlayerRef: null,
+      establishedAt: null,
+      playerFileTeamId: null,
+      playerFileReadAt: null,
+    })
     .where(ofPlayer(playerId))
     .returning({ id: statsSourceMappings.id });
   if (mapping === undefined) {

@@ -59,7 +59,8 @@ const STAT_CORRECTION_ORIGINS = ['correction_window', 'manual_refetch'] as const
 /**
  * The owner-confirmed link between a followed player and his identity in one
  * statistics source, which gates every fetch for him; one per player and source, and
- * an identity linked to one followed player only (JOU-10, STA-03, CL-JOU-04, CL-JOU-21).
+ * an identity linked to one followed player only (JOU-10, STA-03, CL-JOU-04, CL-JOU-21);
+ * it keeps the team that the source's player file gave at its last read (CL-JOU-25).
  */
 export const statsSourceMappings = pgTable(
   'stats_source_mappings',
@@ -73,6 +74,12 @@ export const statsSourceMappings = pgTable(
     sourcePlayerRef: text('source_player_ref'),
     establishedAt: timestamptz('established_at'),
     lastSearchedAt: timestamptz('last_searched_at'),
+    // What the current-season player file gave at its last read that listed him, none
+    // for a release, so that only a read giving another team is news (CL-JOU-25).
+    playerFileTeamId: integer('player_file_team_id').references(() => teams.id, {
+      onDelete: 'restrict',
+    }),
+    playerFileReadAt: timestamptz('player_file_read_at'),
   },
   (table) => [
     check('stats_source_mappings_stats_source_check', oneOf(table.statsSource, STATS_SOURCES)),
@@ -80,6 +87,10 @@ export const statsSourceMappings = pgTable(
     check(
       'stats_source_mappings_established_check',
       sql`(${table.status} = 'established') = (${table.sourcePlayerRef} IS NOT NULL AND ${table.establishedAt} IS NOT NULL)`,
+    ),
+    check(
+      'stats_source_mappings_player_file_check',
+      sql`${table.playerFileReadAt} IS NOT NULL OR ${table.playerFileTeamId} IS NULL`,
     ),
     unique('stats_source_mappings_player_source_key').on(table.playerId, table.statsSource),
     unique('stats_source_mappings_source_ref_key').on(table.statsSource, table.sourcePlayerRef),
