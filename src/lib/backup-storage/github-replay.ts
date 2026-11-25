@@ -11,7 +11,7 @@ import release from '@data/fixtures/backup-storage/release.json';
 import repository from '@data/fixtures/backup-storage/repository.json';
 
 /** A recorded answer: its status, its headers and its body. */
-export type Recorded = Readonly<{
+type Recorded = Readonly<{
   status: number;
   headers: Readonly<Record<string, string>>;
   body?: unknown;
@@ -55,7 +55,7 @@ const ROUTES = new Map<string, Route>([
 ]);
 
 /** A recorded answer, with its body and some of its headers replaced. */
-export function replayed(
+function replayed(
   recorded: Recorded,
   body: unknown = recorded.body,
   headers: Readonly<Record<string, string>> = {},

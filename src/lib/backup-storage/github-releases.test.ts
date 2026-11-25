@@ -407,7 +407,7 @@ describe('createGithubReleasesStorage', () => {
       maxFileBytes: CONTRACT_MAX_FILE_BYTES,
       fetch: github.fetch,
     });
-    const answers = [
+    const answers: readonly BackupStorageOutcome<unknown>[] = [
       await withoutToken.checkHealth(context()),
       await adapterFor(github, undefined).list(context()),
     ];

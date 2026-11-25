@@ -33,7 +33,7 @@ export const API = 'https://api.github.com';
 export const UPLOADS = 'https://uploads.github.com';
 /** The media type of a file's bytes. */
 export const OCTET_STREAM = 'application/octet-stream';
-export const OK = 200;
+const OK = 200;
 export const CREATED = 201;
 export const NO_CONTENT = 204;
 export const FOUND = 302;
@@ -129,21 +129,26 @@ export class GithubCall {
     }
   }
 
-  /** Sends `request`, with the token to GitHub's own hosts alone; nothing when it fails or the call ends. */
-  async send(request: GithubRequest, isGithub = true): Promise<Response | undefined> {
-    this.#httpRequests += 1;
-    this.#bytesSent += request.body?.bytes.byteLength ?? 0;
+  /** The headers of `request`: the token and the API version to GitHub's own hosts alone. */
+  #headersOf(request: GithubRequest, isGithub: boolean): Readonly<Record<string, string>> {
     const credentials = isGithub
       ? { authorization: `Bearer ${this.#token.reveal()}`, 'x-github-api-version': API_VERSION }
       : {};
     const type = request.body === undefined ? {} : { 'content-type': request.body.type };
+    return { accept: request.accept ?? GITHUB_JSON, ...credentials, ...type };
+  }
+
+  /** Sends `request`, with the token to GitHub's own hosts alone; nothing when it fails or the call ends. */
+  async send(request: GithubRequest, isGithub = true): Promise<Response | undefined> {
+    this.#httpRequests += 1;
+    this.#bytesSent += request.body?.bytes.byteLength ?? 0;
     // Called on its own, as the global `fetch` expects, never as a method of this call.
     const send = this.#fetch;
     try {
       const response = await send(request.url, {
         method: request.method ?? 'GET',
-        headers: { accept: request.accept ?? GITHUB_JSON, ...credentials, ...type },
-        body: request.body?.bytes,
+        headers: this.#headersOf(request, isGithub),
+        body: request.body?.bytes ?? null,
         redirect: 'manual',
         signal: this.#signal,
       });

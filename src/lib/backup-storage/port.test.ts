@@ -80,6 +80,17 @@ describe('backupStorage', () => {
     expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${TOKEN}`);
   });
 
+  it('[TRV-47] answers "not configured", sending nothing, while the configuration is invalid', async () => {
+    const fetchSpy = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchSpy);
+    const storage = (
+      await accessorWith({ BACKUP_GITHUB_REPOSITORY: 'no repository', BACKUP_GITHUB_TOKEN: TOKEN })
+    )();
+
+    expect(await storage.list(CONTEXT)).toStrictEqual(NOT_CONFIGURED);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('serves the one fake of the process when EGOSCOPE_FAKES names the port', async () => {
     const backupStorage = await accessorWith({ EGOSCOPE_FAKES: 'backup-storage' });
     await backupStorage().ensureContainer(CONTEXT);
