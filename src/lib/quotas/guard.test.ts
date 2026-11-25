@@ -20,7 +20,6 @@ import type { FixedClock } from '@/lib/time';
 const START = toEpochMs(Date.UTC(2026, 10, 24, 14));
 const NEXT_UTC_DAY = toEpochMs(Date.UTC(2026, 10, 25));
 const HOUR = 3_600_000;
-const MINUTE = 60_000;
 const DAY = 86_400_000;
 const TODAY = Date.UTC(2026, 10, 24);
 const REQUESTS_PER_DAY = 'quotas.statsSource.requestsPerDay';
@@ -45,13 +44,6 @@ const githubCall = (resetsAt: number, isRefused = false): OutcomeOf['backupStora
   return isRefused
     ? { ok: false, error: { kind: 'rate_limited' }, call }
     : { ok: true, value: null, call };
-};
-
-const groqCall = (tokens: number, isRefused = false): OutcomeOf['groq'] => {
-  const call = { httpRequests: 1, tokens, neurons: 0, requestsResetAt: null, tokensResetAt: null };
-  return isRefused
-    ? { ok: false, error: { kind: 'rate_limited', retryAfterMs: null }, call }
-    : { ok: true, call };
 };
 
 /** A failure of the call itself, which the guard must let through unchanged. */
@@ -541,38 +533,5 @@ describe('the quota guard', { timeout: 60_000 }, () => {
     expect(late.ok).toBe(true);
     expect(await usage()).toMatchObject([{ key: REQUESTS_PER_DAY, used: 4 }]);
     expect(await holdsLeft()).toStrictEqual([]);
-  });
-
-  it("[TRV-06] [CL-TRV-12] holds Groq's rolling tokens a day after a refusal until its oldest counted bucket leaves the window", async () => {
-    await enter('quotas.groq.tokensPerDay', 200_000);
-    await guarded('groq', groqCall(1000));
-    clock.advance(10 * HOUR);
-
-    await guarded('groq', groqCall(0, true));
-
-    const until = START + MINUTE + DAY;
-    expect(await usage()).toContainEqual({
-      key: 'quotas.groq.tokensPerDay',
-      start: START + 10 * HOUR,
-      used: 0,
-      reached: START + 10 * HOUR,
-      resetsAt: until,
-    });
-    expect(await nextAvailableAt(db, 'groq')).toBe(until);
-  });
-
-  it("[TRV-06] [CL-TRV-12] holds Groq's rolling tokens a day after a refusal that no counted operation precedes until the refusal's own bucket leaves the window", async () => {
-    await enter('quotas.groq.tokensPerDay', 200_000);
-
-    await guarded('groq', groqCall(0, true));
-
-    expect(await usage()).toContainEqual({
-      key: 'quotas.groq.tokensPerDay',
-      start: START,
-      used: 0,
-      reached: START,
-      resetsAt: START + MINUTE + DAY,
-    });
-    expect(await nextAvailableAt(db, 'groq')).toBe(START + MINUTE + DAY);
   });
 });

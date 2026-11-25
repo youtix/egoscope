@@ -32,7 +32,10 @@ export type UsageRow = Readonly<{
 /** A limit at an instant: its current period, the use it counts there and its rows. */
 export type LimitState = Readonly<{
   limit: CountedLimit;
-  /** The current period; for a rolling window, its current bucket and when its oldest leaves. */
+  /**
+   * The current period; for a rolling window, its current bucket and when its oldest bucket
+   * that counts some use leaves it, or the current bucket's when none does (CL-TRV-12).
+   */
   period: Period;
   /** The use counted in the current period, every bucket of a rolling window summed. */
   used: number;
@@ -74,8 +77,12 @@ function current(window: Window, rows: readonly UsageRow[], at: EpochMs) {
     return { period: fixedPeriodAt(window.unit, at), rows: live };
   }
   if (window.kind === 'rolling') {
+    // A bucket that counts nothing, such as a taken-back hold's, holds no operation (CL-TRV-12).
+    const oldestCounted = live.find((row) => row.used > 0);
     const end =
-      live[0] === undefined ? leavesAt(bucketOf(at), window.lengthMs) : rowEnd(window, live[0]);
+      oldestCounted === undefined
+        ? leavesAt(bucketOf(at), window.lengthMs)
+        : rowEnd(window, oldestCounted);
     return { period: { start: bucketOf(at), end }, rows: live };
   }
   const latest = live.at(-1);
