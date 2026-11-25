@@ -70,7 +70,9 @@ const isAssignedTo = (row: SeasonRow, source: string): boolean => row.statsSourc
 /**
  * Stores what the season's games say of its coverage, its games now read: the phases
  * whose final games have lines and the final games listed without lines (STA-45,
- * CL-STA-22). Says whether it changed, the first read included.
+ * CL-STA-22). Says whether it changed, the first read included. The adapter's
+ * `phasesWithBoxScores` is not read: it counts the whole file, the rows left to the
+ * season before included, while the coverage stored is that of the games kept.
  */
 async function storeCoverage(
   tx: Transaction,

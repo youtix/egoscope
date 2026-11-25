@@ -257,6 +257,29 @@ describe('the series of the ingested seasons', { timeout: DATABASE_TEST_TIMEOUT_
     expect(oneOrder.series.filter(({ season }) => season === '2025-26')).toHaveLength(4);
   });
 
+  it('[CL-STA-28] stores a row of a season file from 1 July of the season first year, and never an earlier one, even when no file of the season before lists it', async () => {
+    const newer = await served('2025-26');
+    const dated = (game: string, day: string) => {
+      const gameDay = toIsoDate(day);
+      const tipOff = localOccurrenceInstant(gameDay, '19:30', EASTERN);
+      return { ...gameIn(newer, '2025-26:r01:h1'), game, gameDay, tipOff };
+    };
+    const file = {
+      ...newer,
+      games: [...newer.games, dated('before-cut', '2025-06-30'), dated('at-cut', '2025-07-01')],
+    };
+
+    const result = await ingest('2025-26', file);
+
+    const official = newer.games.filter(({ exclusion }) => exclusion === null);
+    expect(result.newGameIds).toHaveLength(official.length + 1);
+    const rows = await db
+      .select({ ref: games.sourceGameRef, season: games.season })
+      .from(games)
+      .where(inArray(games.sourceGameRef, ['before-cut', 'at-cut']));
+    expect(rows).toStrictEqual([{ ref: 'at-cut', season: '2025-26' }]);
+  });
+
   it('[STA-05] [STA-07] [CL-STA-16] [CL-STA-17] [CL-STA-18] stores the recorded release as the engine rebuilds it: a labeled round for each 2024-25 pairing, the unlabeled 2001-02 rounds from their order, and no game that never counts', async () => {
     const recent = await recorded('2024-25');
     await ingest('2024-25', recent);

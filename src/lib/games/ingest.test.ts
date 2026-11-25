@@ -25,6 +25,7 @@ import type { EpochMs } from '@/lib/time';
 const SOURCE = 'sportsdataverse_espn' as const;
 const READ_AT = toEpochMs(Date.UTC(2026, 10, 8, 12));
 const LATER = toEpochMs(Date.UTC(2026, 10, 9, 12));
+const LATEST = toEpochMs(Date.UTC(2026, 10, 10, 12));
 const CONTEXT = { deadline: toEpochMs(Date.UTC(2100, 0, 1)), signal: new AbortController().signal };
 const EASTERN = 'America/New_York';
 // The fake league's first covered season (data/fixtures/stats-source/world/).
@@ -104,8 +105,8 @@ describe('ingestSeasonGames', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ]);
   }
 
-  it('[STA-05] [STA-29] [STA-42] [CL-STA-03] [CL-STA-23] stores the season with its source and coverage and every official game of an answer, and changes nothing when the same answer comes again', async () => {
-    const answer = await served('2025-26');
+  it('[STA-05] [STA-29] [STA-42] [CL-STA-03] [CL-STA-23] stores the season with its source and coverage and every official game of an answer, its overtimes unknown when the source gives none, and changes nothing when the same answer comes again', async () => {
+    const answer = changed(await served('2025-26'), '2025-26:r01:h1', { overtimes: null });
 
     const first = await ingest('2025-26', answer);
     const before = await everything();
@@ -137,11 +138,16 @@ describe('ingestSeasonGames', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       scheduleChangedAt: new Date(READ_AT),
     });
     const abroad = gameIn(answer, '2025-26:r08:h6');
-    await expect(stored(abroad.game)).resolves.toMatchObject({
-      gameDayOn: abroad.gameDay,
-      scheduledStartAt: new Date(localOccurrenceInstant(abroad.gameDay, '14:00', EASTERN)),
-      overtimeCount: 0,
-    });
+    await expect(
+      Promise.all([stored(abroad.game), stored('2025-26:r01:h1')]),
+    ).resolves.toMatchObject([
+      {
+        gameDayOn: abroad.gameDay,
+        scheduledStartAt: new Date(localOccurrenceInstant(abroad.gameDay, '14:00', EASTERN)),
+        overtimeCount: 0,
+      },
+      { status: 'final', overtimeCount: null },
+    ]);
   });
 
   it('[STA-42] moves only the fetch instant of the games that a later read finds unchanged', async () => {
@@ -272,9 +278,20 @@ describe('ingestSeasonGames', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       scheduleChangedAt: new Date(READ_AT),
     });
 
+    const midnight = gameDayStart(tbd.gameDay);
+    const atMidnight = changed(answer, tbd.game, { isTimeKnown: true, tipOff: midnight });
+    const confirmed = await ingest('2026-27', atMidnight, LATER);
+
+    expect(confirmed.modifiedGameIds).toHaveLength(1);
+    await expect(stored(tbd.game)).resolves.toMatchObject({
+      isStartTimeTbd: false,
+      scheduledStartAt: new Date(midnight),
+      scheduleChangedAt: new Date(LATER),
+    });
+
     const tipOff = localOccurrenceInstant(tbd.gameDay, '19:30', EASTERN);
     const published = changed(answer, tbd.game, { isTimeKnown: true, tipOff });
-    const result = await ingest('2026-27', published, LATER);
+    const result = await ingest('2026-27', published, LATEST);
 
     const row = await stored(tbd.game);
     expect(result.modifiedGameIds).toStrictEqual([row?.id]);
@@ -282,7 +299,7 @@ describe('ingestSeasonGames', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       gameDayOn: tbd.gameDay,
       isStartTimeTbd: false,
       scheduledStartAt: new Date(tipOff),
-      scheduleChangedAt: new Date(LATER),
+      scheduleChangedAt: new Date(LATEST),
     });
   });
 
