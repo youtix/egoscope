@@ -5,7 +5,7 @@ import { createTestDatabase, incidents, journalEntries, schedulerLease, taskRuns
 import { DATABASE_TEST_TIMEOUT_MS } from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
-import type { ScheduledTask, TaskRunResult, TaskSchedule } from './types';
+import type { ChunkOutcome, ScheduledTask, TaskRunResult, TaskSchedule } from './types';
 import type { Database } from '@/lib/db';
 import type { EpochMs } from '@/lib/time';
 
@@ -289,7 +289,8 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
 
   it('[TRV-31] [CL-TRV-08] [CL-TRV-23] runs each timed task once at the first pass on an empty database, and journals no occurrence before it as missed', async () => {
     const { execute } = await load();
-    const update = { ...statisticsUpdate, run: answer({ kind: 'done', result: 'source_late' }) };
+    const late: ChunkOutcome = { kind: 'done', result: 'source_late' };
+    const update: ScheduledTask = { ...statisticsUpdate, run: answer(late) };
     const registry: readonly ScheduledTask[] = [purge, update];
     const clock = fixedClock(nov(25, 10));
     const restore = installFakeClock(clock);
