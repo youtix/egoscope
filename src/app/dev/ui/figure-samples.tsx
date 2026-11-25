@@ -73,7 +73,7 @@ export function FigureSamples(): ReactNode {
       <p>
         Gap of a sample case: <DrillDownLink gap={0.8} href="/dev/ui" />
       </p>
-      <MethodNotice />
+      <MethodNotice href="/dev/ui" />
     </div>
   );
 }

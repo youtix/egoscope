@@ -1,4 +1,4 @@
-import { definition, formatCount, formatGap, sentence } from '@/lib/wording';
+import { formatCount, formatGap, sentence } from '@/lib/wording';
 
 import { Direction, shownDirection } from './direction';
 import { GlossaryTerm } from './glossary-term';
@@ -45,11 +45,7 @@ export function MeanGap({
         {direction !== undefined && <Direction direction={direction} />}
       </p>
       <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-        {plain === true ? (
-          <span>{definition('plausibleRange').label}</span>
-        ) : (
-          <GlossaryTerm term="plausibleRange" />
-        )}
+        <GlossaryTerm term="plausibleRange" plain={plain} />
         <span className="tabular-nums">
           {sentence('sensitivity.rangeBounds', {
             low: formatGap(rangeLow),

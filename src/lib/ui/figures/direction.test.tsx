@@ -1,7 +1,11 @@
 import { render, screen } from '@testing-library/react';
+import axe from 'axe-core';
 import { describe, expect, it } from 'vitest';
 
 import { Direction, shownDirection } from './direction';
+
+// The WCAG 2.2 A and AA rules, as the end-to-end watch runs them (CL-IHM-08).
+const WCAG_22_AA = { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] };
 
 describe('Direction', () => {
   it('[IHM-47] [CA-IHM-10] writes the direction in full, both directions with the same element and classes', () => {
@@ -26,5 +30,20 @@ describe('Direction', () => {
       'decrease',
       undefined,
     ]);
+  });
+
+  it('[IHM-61] passes the WCAG 2.2 AA rules', async () => {
+    for (const direction of ['increase', 'decrease'] as const) {
+      const { container, unmount } = render(
+        <p>
+          <Direction direction={direction} />
+        </p>,
+      );
+
+      const results = await axe.run(container, WCAG_22_AA);
+
+      expect(results.violations).toStrictEqual([]);
+      unmount();
+    }
   });
 });

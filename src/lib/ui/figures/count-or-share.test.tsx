@@ -1,8 +1,12 @@
 import { render } from '@testing-library/react';
+import axe from 'axe-core';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import { CountOrShare } from './count-or-share';
+
+// The WCAG 2.2 A and AA rules, as the end-to-end watch runs them (CL-IHM-08).
+const WCAG_22_AA = { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] };
 
 // The default of the `sensitivity.countsBelowCases` parameter (SEN-39).
 const COUNTS_BELOW_CASES = 20;
@@ -46,5 +50,24 @@ describe('CountOrShare', () => {
         },
       ),
     );
+  });
+
+  it('[IHM-61] passes the WCAG 2.2 AA rules', async () => {
+    const states = [
+      { part: 5, whole: 7 },
+      { part: 15, whole: 21 },
+      { part: 1, whole: 1 },
+    ];
+
+    for (const { part, whole } of states) {
+      const { container, unmount } = render(
+        <CountOrShare part={part} whole={whole} countsBelowCases={COUNTS_BELOW_CASES} />,
+      );
+
+      const results = await axe.run(container, WCAG_22_AA);
+
+      expect(results.violations).toStrictEqual([]);
+      unmount();
+    }
   });
 });

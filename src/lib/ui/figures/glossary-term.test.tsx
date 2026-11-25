@@ -64,4 +64,46 @@ describe('GlossaryTerm', () => {
 
     expect(results.violations).toStrictEqual([]);
   });
+
+  it('[IHM-15] [CL-IHM-26] writes a plain term as its label, with no button and no definition in the page', () => {
+    render(
+      <p>
+        <GlossaryTerm term="normalizedGap" plain />
+      </p>,
+    );
+
+    expect(screen.getByText('Gap', { exact: true }).tagName).toBe('SPAN');
+    expect(screen.queryByRole('button', { name: 'Gap' })).not.toBeInTheDocument();
+    expect(screen.queryByText(GAP_DEFINITION, { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('[IHM-15] [CL-IHM-26] opens the definition when plain is false or absent', () => {
+    render(
+      <p>
+        <GlossaryTerm term="normalizedGap" plain={false} />
+        <GlossaryTerm term="verdict" plain={undefined} />
+      </p>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Gap' })).toHaveAttribute(
+      'popovertarget',
+      screen.getByText(GAP_DEFINITION, { exact: true }).id,
+    );
+    expect(screen.getByRole('button', { name: 'Verdict' })).toHaveAttribute(
+      'popovertarget',
+      screen.getByText(VERDICT_DEFINITION, { exact: true }).id,
+    );
+  });
+
+  it('[IHM-15] [IHM-61] passes the WCAG 2.2 AA rules, plain as well', async () => {
+    const { container } = render(
+      <p>
+        <GlossaryTerm term="normalizedGap" plain />: 7
+      </p>,
+    );
+
+    const results = await axe.run(container, WCAG_22_AA);
+
+    expect(results.violations).toStrictEqual([]);
+  });
 });
