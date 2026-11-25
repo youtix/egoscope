@@ -2479,7 +2479,7 @@ Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the
 | faite    | `done`     | Done     |
 | en échec | `failed`   | Failed   |
 
-`backups.weekday` — TRV-50, H-TRV-09 (the stored values of the parameter, `BACKUP_DAYS` of `src/lib/params/registry/backups.ts`; `every_day` makes the backup interval one day)
+`BackupDay` — TRV-50, H-TRV-09 (the stored values of the parameter `backups.weekday`, `BACKUP_DAYS` of `src/lib/params/registry/backups.ts`; `every_day` makes the backup interval one day)
 
 | French         | Code value  | UI label  |
 | -------------- | ----------- | --------- |
