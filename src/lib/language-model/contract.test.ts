@@ -63,17 +63,16 @@ const BROKEN: Readonly<Record<ContractFault | 'none', ProviderOutcome>> = {
   slow: { ok: true, value: '{"articles":[]}', call: CALL },
 };
 
-describe('the fake providers against the language-model contract', () => {
-  it.each(Object.entries(LANGUAGE_MODEL_CONTRACT))(
-    'the Workers AI fake: %s',
-    async (_title, run) => {
-      const { observed, promised } = await run(fakeHarness(({ primary }) => primary));
+describe('the Workers AI fake against the language-model contract', () => {
+  it.each(Object.entries(LANGUAGE_MODEL_CONTRACT))('%s', async (_title, run) => {
+    const { observed, promised } = await run(fakeHarness(({ primary }) => primary));
 
-      expect(observed).toStrictEqual(promised);
-    },
-  );
+    expect(observed).toStrictEqual(promised);
+  });
+});
 
-  it.each(Object.entries(LANGUAGE_MODEL_CONTRACT))('the Groq fake: %s', async (_title, run) => {
+describe('the Groq fake against the language-model contract', () => {
+  it.each(Object.entries(LANGUAGE_MODEL_CONTRACT))('%s', async (_title, run) => {
     const { observed, promised } = await run(fakeHarness(({ fallback }) => fallback));
 
     expect(observed).toStrictEqual(promised);

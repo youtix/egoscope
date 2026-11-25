@@ -18,7 +18,7 @@ const requestOf = (ids: readonly string[]): ClassificationRequest => ({
 });
 
 describe('messagesOf', () => {
-  it('[DET-12] [DET-14] [DSN-05] sends the static part first, the same for every batch, then only the articles, each with its identifier', () => {
+  it('[DET-12] [DSN-05] sends the static part first, the same for every batch, then only the articles, each with its identifier', () => {
     const first = messagesOf(requestOf(['a-1', 'a-2']));
     const second = messagesOf(requestOf(['a-3']));
 

@@ -47,7 +47,7 @@ function answerOf(outcome: ProviderOutcome) {
 }
 
 describe('createFakeProvider', () => {
-  it('[DET-12] [DET-16] [DET-22] answers each article as scripted, by its identifier, in order', async () => {
+  it('[DET-12] [DET-22] answers each article as scripted, by its identifier, in order', async () => {
     onTestFinished(installFakeClock(fixedClock(AT)));
     const provider = createFakeProvider(OPTIONS);
     provider.script('a-1', { kind: 'facts', facts: [FACT] });
