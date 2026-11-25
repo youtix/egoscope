@@ -350,6 +350,22 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Why:** each asks whether two records can be the same fact; one parameter keeps the answers consistent, as the file-04 rulings recommend.
 - **Owner review:** no
 
+## CL-IMP-35 — The warning of a declared period wider than the request's
+
+- **Affects:** IMP-10, BKT-10; 05 « Données manipulées » (période couverte)
+- **Problem:** IMP-10 warns when a declared covered period « déborde la période demandée », then retains for each type the part common to « sa période demandée » and the declared period. The types of one request can have different periods, as in a supplement, while the result declares one covered period for all of them, so "the requested period" of the warning can be read as each type's own period or as the request's.
+- **Ruling:** the warning compares the declared period with the request's overall period, from the earliest start of its requested types to their latest end, the period that the prompt gives the research AI: it is given when the declared period starts before that period or ends after it. Each type is then clamped to its own requested period silently, as IMP-10's retained coverage says, and the requested days that the declaration leaves out are gaps.
+- **Why:** 05 « Données manipulées » defines the covered period as « comprise dans la période demandée », and one covered period for every type can only lie within the request's overall period; a warning per type would warn on every supplement whose types start on different days, even when the research AI declared exactly the period it was given.
+- **Owner review:** no
+
+## CL-IMP-36 — Events whose season is not known yet in the preview
+
+- **Affects:** IMP-22, CA-IMP-11, STA-48, H-STA-17, H-01; CL-STA-28 (file 07 ruling)
+- **Problem:** the preview breaks the events to add down by type and by season, in file 07's sense (IMP-22), but a date's season is known only from the stored season spans (CL-STA-28), and an import often comes before the seasons it covers are read; between the last stored game of a season and the first game of the next, a date can belong to either.
+- **Ruling:** an event whose date no stored span files by season (CL-STA-28) is counted in the breakdown under a row "season to confirm" that names its two candidate seasons, the season that ends in the date's year and the season that starts in it, never under a guessed season; one such row per pair of candidates, shown only when it holds an event. The import saves the event as any other, and its season is told once the spans are stored (IMP-34).
+- **Why:** a guessed season would mislead the owner's judgment of exhaustiveness (H-01), while naming the two candidates keeps the count readable and true.
+- **Owner review:** no
+
 ## Passed to the glossary
 
 - Every message of IMP-20 and the « Cas limites », in the structure of CL-IMP-02: the five French examples, « ce texte n'est pas un résultat de backtest », « cette demande a été annulée le … : importer quand même ? », « N événements refusés manqueront au backtest tant qu'ils n'auront pas été corrigés et réimportés », « Aucun résultat reconnaissable : vérifiez que vous avez copié toute la réponse de l'IA. », « aucun événement nouveau », « vers le 12e événement », and the placeholders for a missing type or date.
@@ -358,6 +374,7 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - The reference wording of the correction message (CL-IMP-04) and its table of expected corrections per refusal reason.
 - Screen labels: « Coller le résultat », « Coller », « Vérifier », « Effacer », « Abandonner le brouillon », « Enregistrer », « Abandonner », « Copier le message de correction », « Backtest en cours »; the modes « premier import », « complément » (an import mode, distinct from the request kind), « remplacement »; « même fait », « faits distincts », « événements distincts »; « ne pas enregistrer — donnée sensible »; « conforme », « non conforme », « inaccessible »; « introuvable »; outcomes « ajouté », « ajouté avec avertissement », « doublon, non ajouté », « ignoré », « refusé », « non enregistré pour donnée sensible »; precedence « établie », « incertaine », « non établie », « à vérifier »; the deletion reasons of IMP-33.
 - The recovery notice and the save label of a recovered cut result (CL-IMP-18).
+- The preview's row "season to confirm", which names its two candidate seasons (CL-IMP-36).
 
 ## Ruled elsewhere
 

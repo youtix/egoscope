@@ -280,9 +280,9 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 
 ## CL-STA-27 — Where the current team comes from
 
-- **Affects:** STA-25, JOU-13, H-JOU-03; CL-JOU-02 (file 01 ruling)
+- **Affects:** STA-25, JOU-13, H-JOU-03; CL-JOU-02, CL-JOU-03, CL-JOU-25 (file 01 rulings), CL-STA-31
 - **Problem:** STA-25 and JOU-13 both describe the current team; read literally, old box scores fetched later could rewrite it.
-- **Ruling:** As written, and as CL-JOU-02 rules: file 01 owns the current team (JOU-13); file 07 supplies two observations. They are the team of his most recent game played, by scheduled start, and the current team of the source's current-season player file, which is how the chosen source reports a trade, signing or release. When they differ, the player file wins if it was refreshed after that game. A file that still gives the team of that game never takes back a change the owner entered after that game, which only his first game after the entry judges (CL-JOU-03). Box scores of older games, fetched later, never change the current team; past-season player files are never used. A followed player whom the current-season player file does not list is no observation: only a listed player's team counts, an empty one being a release.
+- **Ruling:** As written, and as CL-JOU-02 rules: file 01 owns the current team (JOU-13); file 07 supplies two observations. They are the team of his most recent game played, by scheduled start, and the current team of the source's current-season player file, which is how the chosen source reports a trade, signing or release. When they differ, the player file wins if it was refreshed after that game. A read of the player file is news only when the team it gives differs from the team its previous read gave (CL-JOU-25), and while a change the owner entered waits for his first game after the entry, which alone judges it (CL-JOU-03), a file whose team is one he already had since his last game played records no change, so it never takes the entry back. Box scores of older games, fetched later, never change the current team; past-season player files are never used for the current team. A followed player whom the current-season player file does not list is no observation: only a listed player's row counts, a free-agent status or an empty team being a release (CL-STA-31).
 - **Why:** STA-25 speaks of the last game played; the source's past files are later snapshots (evaluation, test T16).
 - **Owner review:** no
 
@@ -316,6 +316,17 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
   - Until the source publishes the next season, a player it has not listed yet, such as a rookie drafted in June, has no candidate (JOU-10, CL-STA-29), and a summer trade or signing reaches the current team when the next season's player file is first read (CL-STA-27), unless the owner enters it (JOU-13, CL-JOU-03).
 - **Why:** the chosen source is not refreshed between seasons (service sheet, risk 6); an incident for every summer day would be false, and a daily update that reads no season would never see the next schedule.
 - **Owner review:** yes — the app waits for the next season's schedule without an incident until 25 October, and for its box scores and player files until the day after the season's first games, and summer trades and new players appear only once the source publishes them or the owner enters a trade.
+
+## CL-STA-31 — How the source reports a release
+
+- **Affects:** STA-25, STA-26, JOU-13; CL-STA-27, CL-JOU-15, CL-JOU-20, CL-JOU-25 (file 01 rulings); statistics service sheet
+- **Problem:** STA-26 and CL-STA-27 read a release as a listed player with an empty team, which the source never writes. In its current-season player file, a released player's row keeps a team id and carries the status "Free Agent" (`status_name` `Free Agent`, `status_type` `free-agent`; statistics service sheet, "Verified on the release of 2026-11-22", and the recorded fixture `data/fixtures/stats-source/recorded/player-core-2026.csv`, whose rows are `active`, `free-agent` or `inactive` and never have an empty team). The file also lists only the players who have a box-score line of the season, so a player's row can be absent.
+- **Ruling:**
+  - A row of the current-season player file whose `status_type` is `free-agent` reports a release, whatever team id it keeps: the adapter gives that player no current team, and his current team becomes "without team" (CL-JOU-20) under the same conditions as any change that the file reports (CL-STA-27, CL-JOU-25). A row with an empty team id is read the same way.
+  - A row with any other status gives the team of its team id; that holds for `inactive`, whose meaning the source does not document.
+  - A followed player whom the file does not list is no observation, as CL-STA-27 rules, also when an earlier read listed him: his team stays as recorded, and the owner can set "without team" himself (CL-JOU-20).
+- **Why:** the status is how this source says "released"; reading the team id it keeps as his team would keep a released player's next game and his count of missed games alive (STA-26, CL-JOU-15).
+- **Owner review:** no
 
 ## Passed to the glossary
 

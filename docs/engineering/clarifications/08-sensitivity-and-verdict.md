@@ -292,6 +292,17 @@ The decision records (`docs/adr/`, `docs/engineering/spec-deviations.md`) and th
 - **Why:** the cautious reading, consistent with the doubtful-case criteria, which retain a criterion as soon as one sign of the confounder is flagged.
 - **Owner review:** no
 
+## CL-SEN-29 — Co-occurrence and the status of types
+
+- **Affects:** SEN-06, SEN-19, TAX-11, TAX-31, H-SEN-04; CL-SEN-06, CL-SEN-13
+- **Problem:** SEN-06 marks the cases of different types on one game as co-occurring, but the documents do not say what the case of a withdrawn type co-occurs with, nor whether a proposed or rejected type's events mark anything, while only validated types serve the calculation of profiles (TAX-11) and a withdrawn type's cases count only in its archived profiles and trend (SEN-19, TAX-31).
+- **Ruling:** as built: an event marks another case as co-occurring only when its own type is validated, whatever the status of the type of the marked case.
+  - A case of a withdrawn, proposed or rejected type still co-occurs with the validated types' cases on its game. With `sensitivity.coOccurringCasesDoubtful` on, a withdrawn type's archived profile therefore loses that case, excluded as co-occurring.
+  - Two withdrawn types on one game do not co-occur with each other, and neither marks a validated type's case.
+  - The events of proposed and rejected types still form cases (SEN-05, CL-SEN-06); they mark no other case.
+- **Why:** a type that does not serve the calculation (TAX-11) must not change a validated type's profile; a withdrawn type's archived profile is still recalculated (SEN-19), and the validated types on its game are as much a confounder there as anywhere.
+- **Owner review:** yes — the case of a withdrawn, proposed or rejected type co-occurs with the validated types' cases on its game but marks none of them, so with the co-occurrence criterion on an archived profile loses its cases that share a game with a validated type, while two withdrawn types on one game do not co-occur.
+
 ## Passed to the glossary
 
 - Case states and their reasons (SEN-07), and the new reasons "did not play the derived game", "box score unavailable", "box score incomplete", "box score suspect".
