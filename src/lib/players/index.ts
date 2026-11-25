@@ -38,6 +38,15 @@ export type {
 } from './identity';
 
 // status.ts: pause, reactivate, withdraw, declinePauseSuggestion
+export { declinePauseSuggestion, pause, reactivate, recordDerivationRun, withdraw } from './status';
+export type {
+  PlayerStatusChangeReason,
+  ReactivationRefusal,
+  StaleRefusal,
+  StatusChange,
+  StatusRefusal,
+  TransitionNotAllowed,
+} from './status';
 
 // teams.ts: recordTeamChange, enterTeamChange
 export { enterTeamChange, recordTeamChange } from './teams';
@@ -52,6 +61,8 @@ export type {
 } from './teams';
 
 // delete.ts: deleteRows
+export { deleteRows } from './delete';
+export type { DeleteRowsRefusal, NotWithdrawn } from './delete';
 
 // queries.ts: list, get, activeCount, statusGates, sharedVariants, history, variantsOfActivePlayers
 export {
@@ -61,6 +72,7 @@ export {
   list,
   normalizeName,
   sharedVariants,
+  statusGates,
   variantsOfActivePlayers,
 } from './queries';
 export type {
@@ -75,6 +87,7 @@ export type {
   PlayerStatus,
   SearchedVariant,
   SharedVariant,
+  StatusGates,
   StatusHistoryEntry,
   TeamHistoryEntry,
 } from './queries';
