@@ -1,10 +1,15 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { eventTypes, typeSheetVersions } from '@/lib/db';
+import candidateTypeSheets from '@data/seeds/event-types.json';
 
 import { firstRow } from '../rows';
 
 import type { Database } from '@/lib/db';
+
+// The identifiers of the nine candidate types that the reference data seeds, proposed,
+// before any scenario (TAX-15).
+const SEEDED_TYPE_IDS = candidateTypeSheets.map((sheet) => sheet.id);
 
 /** An event type as the database holds it. */
 export type EventTypeRow = typeof eventTypes.$inferSelect;
@@ -33,9 +38,11 @@ const VALIDATED_SHEET = {
  * Writes an event type (TAX-01, TAX-20): a validated research type, the media storm, by
  * default; `overrides` replaces any column. A validated or withdrawn type gets the first
  * version of its sheet, which its validation produced; a proposed or rejected one, never
- * validated, has no version and no version number. A type of that identifier that exists
- * already is left as it is, overrides ignored, so that scenarios that need the same type
- * combine. Gives the type as the database holds it.
+ * validated, has no version and no version number. A candidate type that the reference
+ * data seeded and that is still proposed gives way to the type asked for, written whole
+ * as a new one (TAX-15). Any other type of that identifier that exists already is left as
+ * it is, overrides ignored, so that scenarios that need the same type combine. Gives the
+ * type as the database holds it.
  */
 export async function insertEventType(
   db: Database,
@@ -48,6 +55,16 @@ export async function insertEventType(
     currentVersionNumber: wasValidated ? FIRST_VERSION : null,
     ...overrides,
   };
+  // A proposed type was never validated, so it has no sheet version to remove with it.
+  await db
+    .delete(eventTypes)
+    .where(
+      and(
+        eq(eventTypes.id, type.id),
+        inArray(eventTypes.id, SEEDED_TYPE_IDS),
+        eq(eventTypes.status, 'proposed'),
+      ),
+    );
   const inserted = await db
     .insert(eventTypes)
     .values(type)

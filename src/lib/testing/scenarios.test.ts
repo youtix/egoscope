@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, ne } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { checkEvents, checkLeadsAndLimitations, readResult } from '@/lib/ai-exchange';
@@ -13,6 +13,7 @@ import {
   eventTypes,
   followedPlayers,
   games,
+  installation,
   parameterOverrides,
 } from '@/lib/db';
 import { gameScore } from '@/lib/stats-engine';
@@ -389,6 +390,69 @@ describe('the scenarios', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       { reference: 'REQ-2026-0001', player: leaguePlayerId('p09') },
     ]);
     await expect(db.select({ id: cases.id }).from(cases)).resolves.toHaveLength(7);
+  });
+
+  it('[TAX-15] loads the reference data before any scenario: the installation row and the nine candidate types, proposed, and no player', async () => {
+    await expect(applyScenarios(db, [])).resolves.toStrictEqual({ ok: true, value: [] });
+
+    await expect(db.select().from(installation)).resolves.toStrictEqual([
+      { id: 1, firstStartedAt: new Date(AT) },
+    ]);
+    await expect(
+      db
+        .select({ id: eventTypes.id, status: eventTypes.status, origin: eventTypes.origin })
+        .from(eventTypes)
+        .orderBy(asc(eventTypes.id)),
+    ).resolves.toStrictEqual(
+      [
+        'bereavement',
+        'birthday',
+        'former-team',
+        'media-storm',
+        'negative-record',
+        'player-conflict',
+        'public-humiliation',
+        'racist-abuse',
+        'record-approach',
+      ].map((id) => ({ id, status: 'proposed', origin: 'scoping' })),
+    );
+    await expect(db.select().from(followedPlayers)).resolves.toStrictEqual([]);
+  });
+
+  it('[TAX-15] gives a scenario the validated types it asks for over the seeded proposals, the other seven staying proposed', async () => {
+    await applyScenarios(db, ['validated-type-with-calendar-sibling']);
+
+    await expect(
+      db
+        .select({
+          id: eventTypes.id,
+          status: eventTypes.status,
+          version: eventTypes.currentVersionNumber,
+        })
+        .from(eventTypes)
+        .where(ne(eventTypes.status, 'proposed'))
+        .orderBy(asc(eventTypes.id)),
+    ).resolves.toStrictEqual([
+      { id: 'birthday', status: 'validated', version: 1 },
+      { id: 'media-storm', status: 'validated', version: 1 },
+    ]);
+    await expect(db.select({ id: eventTypes.id }).from(eventTypes)).resolves.toHaveLength(9);
+  });
+
+  it('[TAX-15] leaves the types that a scenario validated, and a proposal the owner edited, as they are when it seeds again', async () => {
+    await applyScenarios(db, ['validated-type-with-calendar-sibling']);
+    await db
+      .update(eventTypes)
+      .set({ name: 'Edited name' })
+      .where(eq(eventTypes.id, 'racist-abuse'));
+    const before = await db.select().from(eventTypes).orderBy(asc(eventTypes.id));
+
+    await applyScenarios(db, ['validated-type-with-calendar-sibling']);
+
+    await expect(db.select().from(eventTypes).orderBy(asc(eventTypes.id))).resolves.toStrictEqual(
+      before,
+    );
+    await expect(db.select().from(installation)).resolves.toHaveLength(1);
   });
 
   it('applies nothing when a name is unknown, and names the unknown ones', async () => {

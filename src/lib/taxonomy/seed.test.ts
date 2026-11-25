@@ -188,6 +188,14 @@ describe('the seeding of the candidate types', { timeout: DATABASE_TEST_TIMEOUT_
     ]);
   });
 
+  it('[TAX-15] dates the creation of each candidate type at the first start', async () => {
+    await seedCandidateTypes(db, STARTED_AT);
+
+    await expect(types()).resolves.toMatchObject(
+      SLUGS.map(() => ({ createdAt: new Date(STARTED_AT) })),
+    );
+  });
+
   it('[TAX-15] [TRV-76] changes nothing when it seeds again, the first start included', async () => {
     await seedCandidateTypes(db, STARTED_AT);
     const before = { installed: await db.select().from(installation), seeded: await types() };
@@ -198,7 +206,7 @@ describe('the seeding of the candidate types', { timeout: DATABASE_TEST_TIMEOUT_
     await expect(types()).resolves.toStrictEqual(before.seeded);
   });
 
-  it('[TAX-15] [TAX-10] never overwrites a type that the owner has edited, validated or rejected', async () => {
+  it('[TAX-15] never overwrites a type that the owner has edited, validated or rejected', async () => {
     await seedCandidateTypes(db, STARTED_AT);
     await db
       .update(eventTypes)
@@ -234,7 +242,7 @@ describe('the seeding of the candidate types', { timeout: DATABASE_TEST_TIMEOUT_
 });
 
 describe('the disallowed source domains', () => {
-  it('[IMP-14] [H-IMP-13] lists lowercase domain names, without scheme or path, each once, sorted', () => {
+  it('[H-IMP-13] lists lowercase domain names, without scheme or path, each once, sorted', () => {
     expect(disallowedSourceDomains.length).toBeGreaterThan(0);
     const malformed = disallowedSourceDomains.filter(
       (domain) => !/^[a-z\d]+(?:[.-][a-z\d]+)*\.[a-z]+$/u.test(domain),
@@ -251,7 +259,7 @@ describe('the disallowed source domains', () => {
     ['a forum', 'reddit.com'],
     ['a collaborative encyclopedia', 'wikipedia.org'],
     ['a video platform', 'youtube.com'],
-  ])('[IMP-14] [H-IMP-13] holds %s', (_kind, domain) => {
+  ])('[H-IMP-13] holds %s', (_kind, domain) => {
     expect(disallowedSourceDomains).toContain(domain);
   });
 });

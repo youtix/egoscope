@@ -40,8 +40,9 @@ const CANDIDATE_TYPES: readonly NewEventTypeRow[] = z
 /**
  * Seeds the reference data of a first start (TAX-15, H-TAX-05): the installation row,
  * dated `startedAt`, and the nine candidate types from `data/seeds/event-types.json`,
- * each proposed and of origin scoping, none validated, none with a doubtful criterion
- * switched off (ADR 0015, ADR 0016, CL-TAX-02, CL-TAX-12, CL-TAX-15). Idempotent: a row
+ * each created at `startedAt`, proposed and of origin scoping, none validated, none with
+ * a doubtful criterion switched off (ADR 0015, ADR 0016, CL-TAX-02, CL-TAX-12,
+ * CL-TAX-15). Idempotent: a row
  * that exists already, whatever the owner has made of it since (edited, validated,
  * rejected, withdrawn), is left as it is, so seeding twice changes nothing. Seeds no team
  * and no player (CL-STA-29): those come from the statistics source.
@@ -53,7 +54,7 @@ export async function seedCandidateTypes(db: Database, startedAt: EpochMs): Prom
     .onConflictDoNothing({ target: installation.id });
   await db
     .insert(eventTypes)
-    .values([...CANDIDATE_TYPES])
+    .values(CANDIDATE_TYPES.map((type) => ({ ...type, createdAt: new Date(startedAt) })))
     .onConflictDoNothing({
       target: eventTypes.id,
     });
