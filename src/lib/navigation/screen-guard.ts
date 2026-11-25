@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { requireSession } from '@/lib/auth';
 
 import type { Session } from '@/lib/auth';
+import type { Route } from 'next';
 
 /**
  * The session check that every screen runs first, with its own path (module map section 7):
@@ -20,7 +21,8 @@ export async function guardScreen(path: string): Promise<Session> {
   }
   const refusal = session.error;
   if (refusal.kind === 'log-in' || refusal.kind === 'choose-password') {
-    redirect(refusal.redirect);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- auth writes the target, a login or choose-password address, as a string, and those (auth) routes do not exist until F-access, so typed routes cannot check it
+    redirect(refusal.redirect as Route);
   }
   throw new Error(`The server cannot check sessions: ${refusal.kind}.`);
 }
