@@ -8,7 +8,7 @@ import { changedElsewhere, err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
 
 import { fullListUnderLock } from './add';
-import { get } from './queries';
+import { get, statusGates } from './queries';
 
 import type { MaximumReached } from './add';
 import type { PlayerDetail, PlayerStatus } from './queries';
@@ -167,7 +167,8 @@ export async function withdraw(
  * a dated status change with its optional reason, and a journal entry. No backtest request
  * and no derivation request: the next regular derivation covers the gap from his
  * `last_calendar_derivation_at` (CL-TAX-19). Refused from active, or when the screen showed
- * an older version (CL-IHM-18).
+ * an older version (CL-IHM-18), its version checked again once the lock is held, so that of
+ * two reactivations of his at once the second sees the first as a change made elsewhere.
  */
 export async function reactivate(
   tx: Transaction,
@@ -180,20 +181,33 @@ export async function reactivate(
     return err(before.error);
   }
   const full = await fullListUnderLock(tx);
-  return full === undefined ? writeStatus(tx, before.value, { to, change }) : err(full);
+  // Checked again under the lock: another reactivation of his may have filled the list meanwhile.
+  const locked = await get(tx, playerId);
+  if (locked?.rowVersion !== change.expectedVersion) {
+    return err(staleRefusal(locked));
+  }
+  return full === undefined ? writeStatus(tx, locked, { to, change }) : err(full);
 }
 
 /**
  * Records that the owner declined the suggestion to pause `playerId`, now, in the caller's
  * transaction `tx` (JOU-22): the to-do list shows it again only after a new game played and
  * a new prolonged absence. Journals it. Refused when the screen showed an older version
- * (CL-IHM-18).
+ * (CL-IHM-18), and, as a transition not allowed to paused, for a player whose status has no
+ * pause suggestion, a paused or a withdrawn one (`statusGates`, CL-JOU-05).
  */
 export async function declinePauseSuggestion(
   tx: Transaction,
   playerId: string,
   expectedVersion: number,
-): Promise<Result<undefined, StaleRefusal>> {
+): Promise<Result<undefined, StatusRefusal>> {
+  const player = await get(tx, playerId);
+  if (player?.rowVersion !== expectedVersion) {
+    return err(staleRefusal(player));
+  }
+  if (!statusGates(player.status).pauseSuggestion) {
+    return err({ kind: 'transition_not_allowed', from: player.status, to: 'paused' });
+  }
   const saved = await updateVersioned(tx, followedPlayers, {
     where: eq(followedPlayers.id, playerId),
     expectedVersion,
@@ -211,27 +225,34 @@ export async function declinePauseSuggestion(
  * run of `playerId`, which `calendar-events` calls at the end of each run of an active or
  * paused player (CL-JOU-05, CL-TAX-19): `last_calendar_derivation_at` never moves back, so
  * that after a withdrawal and a reactivation the next run covers the gap. A scheduled write
- * the owner does not edit: his row version stays.
+ * the owner does not edit: his row version stays. A withdrawn player, whose
+ * `calendarDerivation` gate is false, is refused as a transition not allowed, from and to
+ * his status since a run moves none, and nothing is written: `calendar-events` then
+ * abandons his run.
  */
 export async function recordDerivationRun(
   tx: Transaction,
   playerId: string,
   at: EpochMs,
-): Promise<Result<undefined, PlayerNotFound>> {
+): Promise<Result<undefined, PlayerNotFound | TransitionNotAllowed>> {
+  // Locked, so that a withdrawal waits for the run that it would stop.
+  const [player] = await tx
+    .select({ status: followedPlayers.status })
+    .from(followedPlayers)
+    .where(eq(followedPlayers.id, playerId))
+    .for('update');
+  if (player === undefined) {
+    return err('player_not_found');
+  }
+  if (!statusGates(player.status).calendarDerivation) {
+    return err({ kind: 'transition_not_allowed', from: player.status, to: player.status });
+  }
   const ranAt = new Date(at);
   const column = followedPlayers.lastCalendarDerivationAt;
   const earlierOrNone = or(isNull(column), lt(column, ranAt));
-  const [player] = await tx
+  await tx
     .update(followedPlayers)
     .set({ lastCalendarDerivationAt: ranAt })
-    .where(and(eq(followedPlayers.id, playerId), earlierOrNone))
-    .returning({ id: followedPlayers.id });
-  if (player !== undefined) {
-    return ok(undefined);
-  }
-  const [known] = await tx
-    .select({ id: followedPlayers.id })
-    .from(followedPlayers)
-    .where(eq(followedPlayers.id, playerId));
-  return known === undefined ? err('player_not_found') : ok(undefined);
+    .where(and(eq(followedPlayers.id, playerId), earlierOrNone));
+  return ok(undefined);
 }

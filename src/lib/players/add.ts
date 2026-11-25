@@ -66,10 +66,16 @@ export type AddRefusal =
 /** The player added, and the other players who share one of his names (JOU-09). */
 export type Added = Readonly<{ playerId: string; sharedVariants: readonly SharedVariant[] }>;
 
-/** The problems of the typed variants: empty, or equal to his display name or an earlier variant. */
-function variantProblems(player: NewPlayer): readonly VariantProblem[] {
-  const seen = new Set([normalizeName(player.displayName)]);
-  return player.variants.flatMap((variant, index): VariantProblem[] => {
+/**
+ * The problems of the variants typed at addition or kept at an identity edit, which both
+ * call it (JOU-08, JOU-09, CL-JOU-13): empty, or equal, once normalized, to his display name
+ * or an earlier variant. The barrel does not export it.
+ */
+export function variantProblems(
+  identity: Readonly<{ displayName: string; variants: readonly Readonly<{ text: string }>[] }>,
+): readonly VariantProblem[] {
+  const seen = new Set([normalizeName(identity.displayName)]);
+  return identity.variants.flatMap((variant, index): VariantProblem[] => {
     const key = normalizeName(variant.text);
     if (key === '') {
       return [{ index, problem: 'required' }];

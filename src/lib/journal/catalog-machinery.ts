@@ -1,6 +1,7 @@
 // The messages that the application writes by itself besides task passes:
-// recalculations, service failures, incidents, refusals, parameter changes and logins
-// (TRV-41), and the attempts counted without the database (CL-TRV-21, CL-TRV-25).
+// recalculations, observed team changes, service failures, incidents, refusals,
+// parameter changes and logins (TRV-41), and the attempts counted without the database
+// (CL-TRV-21, CL-TRV-25).
 import type { KeyedMessage } from './message-types';
 
 export const MACHINERY_MESSAGES = [
@@ -13,6 +14,17 @@ export const MACHINERY_MESSAGES = [
     consequence:
       '{profileCount} {profileCount|profile|profiles} and the trends that depend on them are up to date.',
     whatToDo: 'nothing.',
+  },
+
+  // --- Team changes observed (JOU-13, TRV-41) ------------------------------------
+  {
+    key: 'player_team_change_observed',
+    category: 'task_pass',
+    subject: 'player',
+    happened: 'The stats source reports a team change for {subject}.',
+    consequence:
+      'His current team follows it, and his games against a former team are derived again from the calendar.',
+    whatToDo: 'nothing; if it is wrong, enter his team on his page.',
   },
 
   // --- Service failures (TRV-41) ---------------------------------------------------

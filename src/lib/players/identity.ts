@@ -6,6 +6,7 @@ import { followedPlayers, playerNameVariants, updateVersioned } from '@/lib/db';
 import { record } from '@/lib/journal';
 import { changedElsewhere, err, ok } from '@/lib/result';
 
+import { variantProblems } from './add';
 import { get, normalizeName, sharedVariants } from './queries';
 
 import type { NewNameVariant, VariantProblem } from './add';
@@ -54,10 +55,11 @@ export type IdentityUpdated = Readonly<{
 }>;
 
 /**
- * The day and month of birth that the source gives, and whether it may replace one that
- * the source gave before, after a change of mapping (CL-JOU-11).
+ * The day and month of birth that the source gives, or none (`null` for both), and whether
+ * it may replace one that the source gave before, after a change of mapping (CL-JOU-11).
  */
-export type SourceBirthday = Birthday & Readonly<{ replaceSourceGiven?: boolean }>;
+export type SourceBirthday = (Birthday | Readonly<{ month: null; day: null }>) &
+  Readonly<{ replaceSourceGiven?: boolean }>;
 
 /** A birthday that no calendar has: the source gave a month or a day that does not exist. */
 export type ImpossibleBirthday = 'impossible_birthday';
@@ -98,22 +100,6 @@ function isPossibleBirthday({ month, day }: Birthday): boolean {
     ? LONGEST_DAY_OF_MONTH[month - FIRST_MONTH]
     : undefined;
   return longest !== undefined && Number.isSafeInteger(day) && day >= FIRST_DAY && day <= longest;
-}
-
-/** The problems of the variants kept: empty, or equal to his display name or an earlier variant (CL-JOU-13). */
-function variantProblems(change: IdentityChange): readonly VariantProblem[] {
-  const seen = new Set([normalizeName(change.displayName)]);
-  return change.variants.flatMap((variant, index): VariantProblem[] => {
-    const key = normalizeName(variant.text);
-    if (key === '') {
-      return [{ index, problem: 'required' }];
-    }
-    if (seen.has(key)) {
-      return [{ index, problem: 'duplicate' }];
-    }
-    seen.add(key);
-    return [];
-  });
 }
 
 /** What is wrong with `change`, field by field, if anything. */
@@ -303,19 +289,62 @@ export async function updateIdentity(
   });
 }
 
+/** What a write of the source's birthday that wrote nothing answers: gone, or unchanged. */
+async function unchangedBirthday(
+  tx: Transaction,
+  playerId: string,
+): Promise<Result<Readonly<{ changed: boolean }>, PlayerNotFound>> {
+  const [player] = await tx
+    .select({ id: followedPlayers.id })
+    .from(followedPlayers)
+    .where(eq(followedPlayers.id, playerId));
+  return player === undefined ? err('player_not_found') : ok({ changed: false });
+}
+
+/** Clears a birthday that the source gave, after a change of mapping to an identity that gives none (CL-JOU-11). */
+async function clearSourceGiven(
+  tx: Transaction,
+  playerId: string,
+): Promise<Result<Readonly<{ changed: boolean }>, PlayerNotFound>> {
+  // One statement decides and writes, so that an owner's entry made meanwhile is kept.
+  const cleared = await tx
+    .update(followedPlayers)
+    .set({
+      birthdayMonth: null,
+      birthdayDay: null,
+      birthdayOrigin: null,
+      rowVersion: sql`${followedPlayers.rowVersion} + 1`,
+    })
+    .where(
+      and(eq(followedPlayers.id, playerId), eq(followedPlayers.birthdayOrigin, 'stats_source')),
+    )
+    .returning({ id: followedPlayers.id });
+  if (cleared.length === 0) {
+    return unchangedBirthday(tx, playerId);
+  }
+  await record(tx, { messageKey: 'birthday_cleared_after_mapping_change', playerId });
+  return ok({ changed: true });
+}
+
 /**
  * Fills the day and month of birth of `playerId` that the stats source gives, its year
  * already dropped by the adapter, in the caller's transaction `tx` (JOU-11, CL-JOU-16):
  * only when the field is empty, origin `stats_source`; with `replaceSourceGiven`, after a
  * change of mapping, also over a value that the source gave, never over one the owner
- * entered (CL-JOU-11). Journals the entry without its value (CL-DSN-21) and gives whether
- * the birthday changed, which requests a full derivation.
+ * entered, and when the new identity gives none, a value that the source gave is cleared
+ * with its origin (CL-JOU-11). Journals the entry or the clearing without its value
+ * (CL-DSN-21) and gives whether the birthday changed, which requests a full derivation.
  */
 export async function setBirthdayFromSource(
   tx: Transaction,
   playerId: string,
-  { month, day, replaceSourceGiven = false }: SourceBirthday,
+  source: SourceBirthday,
 ): Promise<Result<Readonly<{ changed: boolean }>, PlayerNotFound | ImpossibleBirthday>> {
+  const canReplace = source.replaceSourceGiven === true;
+  if (source.month === null) {
+    return canReplace ? clearSourceGiven(tx, playerId) : unchangedBirthday(tx, playerId);
+  }
+  const { month, day } = source;
   if (!isPossibleBirthday({ month, day })) {
     return err('impossible_birthday');
   }
@@ -333,17 +362,13 @@ export async function setBirthdayFromSource(
     .where(
       and(
         eq(followedPlayers.id, playerId),
-        replaceSourceGiven ? or(empty, sourceGiven) : empty,
+        canReplace ? or(empty, sourceGiven) : empty,
         sql`(${followedPlayers.birthdayMonth}, ${followedPlayers.birthdayDay}) is distinct from (${month}::smallint, ${day}::smallint)`,
       ),
     )
     .returning({ id: followedPlayers.id });
   if (updated.length === 0) {
-    const [player] = await tx
-      .select({ id: followedPlayers.id })
-      .from(followedPlayers)
-      .where(eq(followedPlayers.id, playerId));
-    return player === undefined ? err('player_not_found') : ok({ changed: false });
+    return unchangedBirthday(tx, playerId);
   }
   await record(tx, { messageKey: 'birthday_from_source', playerId });
   return ok({ changed: true });

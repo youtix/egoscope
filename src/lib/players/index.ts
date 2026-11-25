@@ -25,7 +25,7 @@ export type {
   VariantProblem,
 } from './add';
 
-// identity.ts: updateIdentity, setBirthdayFromSource, recordDerivationRun
+// identity.ts: updateIdentity, setBirthdayFromSource
 export { setBirthdayFromSource, updateIdentity } from './identity';
 export type {
   Birthday,
@@ -37,7 +37,7 @@ export type {
   SourceBirthday,
 } from './identity';
 
-// status.ts: pause, reactivate, withdraw, declinePauseSuggestion
+// status.ts: pause, reactivate, withdraw, declinePauseSuggestion, recordDerivationRun
 export { declinePauseSuggestion, pause, reactivate, recordDerivationRun, withdraw } from './status';
 export type {
   PlayerStatusChangeReason,

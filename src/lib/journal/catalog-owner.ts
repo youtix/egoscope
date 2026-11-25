@@ -50,6 +50,15 @@ export const OWNER_ACTION_MESSAGES = [
     whatToDo: 'nothing.',
   },
   {
+    key: 'birthday_cleared_after_mapping_change',
+    category: 'user_action',
+    subject: 'player',
+    happened:
+      'The day and month of birth of {subject}, which came from the stats source, were removed: the new identity gives none.',
+    consequence: 'No birthday game is derived for him until a date is known.',
+    whatToDo: 'enter his day and month of birth on his page if you know them.',
+  },
+  {
     key: 'player_team_change_entered',
     category: 'user_action',
     subject: 'player',
