@@ -138,8 +138,10 @@ function currentSeasonOf(
   if (!today.ok) {
     return err(notRead(today));
   }
-  const begun = spans.findLast(({ firstGameOn }) => firstGameOn <= todayOn);
-  return ok(begun?.season ?? today.season);
+  const hasBegun = spans.some(
+    ({ season, firstGameOn }) => season === today.season && firstGameOn <= todayOn,
+  );
+  return ok(hasBegun ? today.season : seasonFrom(today.season, -1));
 }
 
 /**

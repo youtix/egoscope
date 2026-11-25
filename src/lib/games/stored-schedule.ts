@@ -83,7 +83,7 @@ const CENTURY = 100;
 const SHORT_YEAR_DIGITS = 2;
 
 /** The instant of a `timestamptz` read back, in epoch milliseconds (TRV-68). */
-export const instant = (at: Date): EpochMs => toEpochMs(at.getTime());
+const instant = (at: Date): EpochMs => toEpochMs(at.getTime());
 
 /** The season `offset` seasons after `season` (STA-48): 2025-26 for 2024-25 and 1, 2023-24 for -1. */
 export function seasonFrom(season: string, offset: number): string {

@@ -21,7 +21,7 @@ import {
   insertPlayer,
   leaguePlayerId,
 } from '@/lib/testing';
-import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
+import { fixedClock, gameDay, installFakeClock, toEpochMs } from '@/lib/time';
 import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 
 import {
@@ -42,6 +42,7 @@ import {
 import type { CoveredSeason, TeamRecords } from './queries';
 import type { Database, TestDatabase } from '@/lib/db';
 import type { BaselineGame, EngineParams } from '@/lib/stats-engine';
+import type { EpochMs } from '@/lib/time';
 
 // Sunday 8 November 2026, noon in New York: 2026-27 is played up to the 7th (the league's README).
 const NOW = toEpochMs(Date.UTC(2026, 10, 8, 17, 0));
@@ -51,6 +52,7 @@ const UNREAD_SEASON_DAY = toEpochMs(Date.UTC(2028, 0, 10, 17, 0));
 // The night after the 2025-26 Finals game of 9 June 2026, still 9 June in New York.
 const FINALS_NIGHT = toEpochMs(Date.UTC(2026, 5, 10, 3, 0));
 const FINALS_TIP_OFF = toEpochMs(Date.UTC(2026, 5, 10, 0, 30));
+const CANCELED_TIP_OFF = toEpochMs(Date.UTC(2022, 9, 20, 23, 30));
 const DECEMBER = toEpochMs(Date.UTC(2026, 11, 1, 0, 0));
 const HOUR = 3_600_000;
 const P01 = leaguePlayerId('p01');
@@ -92,8 +94,23 @@ function totalOf(records: TeamRecords['season']): Readonly<{ wins: number; losse
   return total;
 }
 
+/** A game of the league's source between two teams, on the US Eastern day of `at`. */
+function gameRow(sourceGameRef: string, at: EpochMs, [home, away]: readonly [number, number]) {
+  const startAt = new Date(at);
+  return {
+    statsSource: 'sportsdataverse_espn' as const,
+    sourceGameRef,
+    scheduledStartAt: startAt,
+    gameDayOn: gameDay(at),
+    homeTeamId: home,
+    awayTeamId: away,
+    lastFetchedAt: startAt,
+    scheduleChangedAt: startAt,
+  };
+}
+
 const coverageLines = (rows: readonly CoveredSeason[]) =>
-  rows.map(({ season, coverage }) => `${season} ${coverage}`);
+  rows.map(({ season, coverage }) => `${season} ${coverage}`).join(', ');
 
 async function teamOf(db: Database, ref: string): Promise<number> {
   const rows = await db
@@ -418,6 +435,13 @@ describe('the games read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       const baseline = await seasonBaseline(db, query, PARAMS);
       expect(baseline).toMatchObject({ status: 'building', isPartial: true });
     });
+
+    it('[STA-18] [STA-19] gives the postseason display baseline, which holds no regular-season game', async () => {
+      const postseasonTeamId = await teamOf(db, '1');
+      const query = { playerId: P01, season: '2026-27', phase: { postseasonTeamId } };
+      const baseline = await seasonBaseline(db, query, PARAMS);
+      expect(baseline).toMatchObject({ status: 'building', gameCount: 0 });
+    });
   });
 });
 
@@ -446,23 +470,15 @@ describe('the season spans and coverage', { timeout: DATABASE_TEST_TIMEOUT_MS },
         isRebuilt: false,
       })
       .returning({ id: series.id });
-    const tipOff = new Date(FINALS_TIP_OFF);
     const game = await db
       .insert(games)
       .values({
-        statsSource: 'sportsdataverse_espn',
-        sourceGameRef: 'finals-2026',
+        ...gameRow('finals-2026', FINALS_TIP_OFF, [teamA, teamB]),
         season: '2025-26',
         phase: 'playoffs',
         status: 'scheduled',
-        scheduledStartAt: tipOff,
-        gameDayOn: '2026-06-09',
-        homeTeamId: teamA,
-        awayTeamId: teamB,
         seriesId: only(finals).id,
         gameNumber: 1,
-        lastFetchedAt: tipOff,
-        scheduleChangedAt: tipOff,
       })
       .returning({ id: games.id });
     finalsGame = only(game).id;
@@ -491,6 +507,15 @@ describe('the season spans and coverage', { timeout: DATABASE_TEST_TIMEOUT_MS },
   });
 
   it('[STA-48] [CL-STA-30] frames each stored season, closed once a later season is stored or its Finals are over', async () => {
+    // A season whose only stored game is canceled has no regular-season game that counts: no span.
+    const teams = [await teamOf(db, '1'), await teamOf(db, '3')] as const;
+    await db.insert(seasons).values({ season: '2022-23', statsSource: 'sportsdataverse_espn' });
+    await db.insert(games).values({
+      ...gameRow('canceled-2022', CANCELED_TIP_OFF, teams),
+      season: '2022-23',
+      phase: 'regular_season',
+      status: 'canceled',
+    });
     await expect(seasonSpans(db)).resolves.toStrictEqual([
       { season: '2024-25', firstGameOn: '2024-10-22', lastGameOn: '2024-11-18' },
       { season: '2025-26', firstGameOn: '2025-10-21', lastGameOn: null },
@@ -508,35 +533,22 @@ describe('the season spans and coverage', { timeout: DATABASE_TEST_TIMEOUT_MS },
   });
 
   it('[STA-45] [CL-STA-22] [CL-SEN-05] gives each season’s coverage, the coming season between seasons excepted from pending', async () => {
-    await db
-      .update(games)
-      .set({ status: 'final', homeScore: 101, awayScore: 99 })
-      .where(eq(games.id, finalsGame));
-    const finalsDay = { ...COVERAGE, at: FINALS_NIGHT };
-    const summer = { ...COVERAGE, at: SUMMER };
-    const onFinalsDay = await coveredSeasons(db, finalsDay);
-    const inSummer = await coveredSeasons(db, summer);
-    expect(coverageLines(onFinalsDay)).toStrictEqual([
-      '2023-24 not_covered',
-      '2024-25 not_covered',
-      '2025-26 covered',
-      '2026-27 pending',
-      '2027-28 pending',
-    ]);
-    expect(coverageLines(inSummer)).toStrictEqual([
-      '2023-24 not_covered',
-      '2024-25 not_covered',
-      '2025-26 covered',
-      '2026-27 covered',
-      '2027-28 pending',
-    ]);
+    // The test before has played the 2025-26 Finals game.
+    const onFinalsDay = await coveredSeasons(db, { ...COVERAGE, at: FINALS_NIGHT });
+    const inSummer = await coveredSeasons(db, { ...COVERAGE, at: SUMMER });
+    // No stored span tells the season of that day: no season is the coming one.
+    const unread = await coveredSeasons(db, { ...COVERAGE, at: UNREAD_SEASON_DAY });
+    const ended = '2022-23 not_covered, 2023-24 not_covered, 2024-25 not_covered, 2025-26 covered';
+    expect(coverageLines(onFinalsDay)).toBe(`${ended}, 2026-27 pending, 2027-28 pending`);
+    expect(coverageLines(inSummer)).toBe(`${ended}, 2026-27 covered, 2027-28 pending`);
+    expect(coverageLines(unread)).toBe(`${ended}, 2026-27 pending, 2027-28 pending`);
   });
 
   it('[STA-45] [CL-STA-22] gives the coverage of the seasons that list him, an ended season without lines not covered', async () => {
     await db.update(seasons).set({ phasesWithLines: [] }).where(eq(seasons.season, '2025-26'));
     const onFinalsDay = await seasonsOf(db, P01, { ...COVERAGE, at: FINALS_NIGHT });
     const inSummer = await seasonsOf(db, P01, { ...COVERAGE, at: SUMMER });
-    expect(coverageLines(onFinalsDay)).toStrictEqual(['2024-25 not_covered', '2025-26 covered']);
-    expect(coverageLines(inSummer)).toStrictEqual(['2024-25 not_covered', '2025-26 not_covered']);
+    expect(coverageLines(onFinalsDay)).toBe('2024-25 not_covered, 2025-26 covered');
+    expect(coverageLines(inSummer)).toBe('2024-25 not_covered, 2025-26 not_covered');
   });
 });
