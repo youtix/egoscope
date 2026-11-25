@@ -26,6 +26,16 @@ export type {
 } from './add';
 
 // identity.ts: updateIdentity, setBirthdayFromSource, recordDerivationRun
+export { setBirthdayFromSource, updateIdentity } from './identity';
+export type {
+  Birthday,
+  IdentityChange,
+  IdentityFieldErrors,
+  IdentityRefusal,
+  IdentityUpdated,
+  ImpossibleBirthday,
+  SourceBirthday,
+} from './identity';
 
 // status.ts: pause, reactivate, withdraw, declinePauseSuggestion
 
