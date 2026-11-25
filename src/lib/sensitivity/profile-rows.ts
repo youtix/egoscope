@@ -4,7 +4,7 @@
 // profile-store.ts reads and writes the database.
 import { toEpochMs } from '@/lib/time';
 
-import type { NewSensitivityProfileRow, VerdictHistoryEntryRow } from './types';
+import type { SensitivityProfileRow, VerdictHistoryEntryRow } from './types';
 import type { generalTrends, sensitivityProfiles } from '@/lib/db';
 import type {
   ConfidenceStepDownReason,
@@ -55,8 +55,9 @@ export type JobWrite = Readonly<{
 type CalculationView = ProfileViewValues | EvaluatedTrend['views'][number];
 type ProfileStepDownReason = Exclude<ConfidenceStepDownReason, 'dominant_player'>;
 /** The columns of one view that a profile and a trend share, as the store writes them. */
-export type CalculationRow = Required<
-  Omit<NewSensitivityProfileRow, 'id' | 'playerId' | 'eventTypeId' | 'confidenceStepDownReasons'>
+export type CalculationRow = Omit<
+  SensitivityProfileRow,
+  'id' | 'playerId' | 'eventTypeId' | 'confidenceStepDownReasons'
 >;
 /** A profile or a trend as the database holds it. */
 export type StoredRow = typeof sensitivityProfiles.$inferSelect | typeof generalTrends.$inferSelect;
