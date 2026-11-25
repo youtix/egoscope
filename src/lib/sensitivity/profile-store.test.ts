@@ -1,4 +1,4 @@
-import { asc, eq, TransactionRollbackError } from 'drizzle-orm';
+import { asc, TransactionRollbackError } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -27,7 +27,7 @@ import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 import { writePlayerProfiles, writeTrends } from './profile-store';
 
 import type { VerdictChangeCause, VersionWrite } from './profile-rows';
-import type { PlayerProfilesWrite } from './profile-store';
+import type { PlayerProfilesWrite, ProfilePair } from './profile-store';
 import type { Database } from '@/lib/db';
 import type {
   EngineParams,
@@ -61,6 +61,13 @@ const TRADE_RUMOR = 'trade-rumor';
 const COVERED = [MEDIA_STORM, TRADE_RUMOR, BIRTHDAY];
 const POSSIBLE_UP: Verdict = { level: 'possible', direction: 'increase' };
 
+/** A tracked case of `pair` created `created` hours after T1, its game starting `start` hours after T1 if known. */
+const tracked = (pair: ProfilePair, created: number, start?: number) => ({
+  ...pair,
+  createdAt: at(created),
+  gameStartAt: start === undefined ? null : at(start),
+});
+
 /** The media storm's and the trade rumor's profiles, `confidence` in every view. */
 const bothProfiles = (confidence: ProfileConfidence) =>
   [MEDIA_STORM, TRADE_RUMOR].map((type) =>
@@ -68,14 +75,12 @@ const bothProfiles = (confidence: ProfileConfidence) =>
   );
 
 /** A statistics update that corrected a statistic of the media storm's cases and moved the other baselines. */
-function statisticsCauseOf(eventTypeId: EventTypeId): VerdictChangeCause {
-  const isCorrected = eventTypeId === MEDIA_STORM;
-  return statisticsUpdateCause({
-    usedStatisticChanged: isCorrected,
-    caseLeftAwaitingGame: isCorrected,
+const statisticsCauseOf = (eventTypeId: EventTypeId): VerdictChangeCause =>
+  statisticsUpdateCause({
+    usedStatisticChanged: eventTypeId === MEDIA_STORM,
+    caseLeftAwaitingGame: eventTypeId === MEDIA_STORM,
     calendarDerivedEventAdded: false,
   });
-}
 
 // A validated type as the engine reads it, of no calendar and with no exit.
 const VALIDATED = {
@@ -163,6 +168,16 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     db.select().from(verdictHistoryEntries).orderBy(asc(verdictHistoryEntries.id));
   const versionRows = async () =>
     db.select().from(profileValueVersions).orderBy(asc(profileValueVersions.id));
+  /** Each value version: the profile or the trend it belongs to, its instant and its mean gap. */
+  async function ownedVersions() {
+    const versions = await versionRows();
+    return versions.map((row) => [
+      row.sensitivityProfileId,
+      row.generalTrendId,
+      row.effectiveAt.getTime(),
+      row.meanGap,
+    ]);
+  }
   const idOf = async (view: ProfileView) => {
     const rows = await profileRows();
     return rows.find((row) => row.view === view)?.id;
@@ -170,20 +185,12 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
 
   /** Each value version of a profile: its profile's type and view, instant and mean gap. */
   async function profileVersions() {
-    const rows = await db
-      .select({
-        eventTypeId: sensitivityProfiles.eventTypeId,
-        view: sensitivityProfiles.view,
-        effectiveAt: profileValueVersions.effectiveAt,
-        meanGap: profileValueVersions.meanGap,
-      })
-      .from(profileValueVersions)
-      .innerJoin(
-        sensitivityProfiles,
-        eq(sensitivityProfiles.id, profileValueVersions.sensitivityProfileId),
-      )
-      .orderBy(asc(profileValueVersions.id));
-    return rows.map((row) => [row.eventTypeId, row.view, row.effectiveAt.getTime(), row.meanGap]);
+    const rows = await profileRows();
+    const versions = await versionRows();
+    return versions.map(({ sensitivityProfileId, effectiveAt, meanGap }) => {
+      const row = rows.find(({ id }) => id === sensitivityProfileId);
+      return [row?.eventTypeId, row?.view, effectiveAt.getTime(), meanGap];
+    });
   }
 
   it('[SEN-20] [SEN-36] [CL-SEN-16] [CL-SEN-19] writes a profile whole in its three views, with the job instant, the snapshot of the parameters in force and the control range, and rewrites it in place', async () => {
@@ -347,20 +354,13 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     const before = await versionRows();
     // At the job's instant T3, his media storm's case waits for a game, his trade rumor's game
     // started; another player's earlier cases of both types wait, and date none of his versions.
-    const versions: VersionWrite = {
-      kind: 'replace',
-      trackedCases: [
-        { playerId: PLAYER, eventTypeId: MEDIA_STORM, createdAt: at(-10), gameStartAt: at(4) },
-        { playerId: PLAYER, eventTypeId: TRADE_RUMOR, createdAt: at(-40), gameStartAt: at(0) },
-        { playerId: OTHER_PLAYER, eventTypeId: MEDIA_STORM, createdAt: at(-20), gameStartAt: null },
-        {
-          playerId: OTHER_PLAYER,
-          eventTypeId: TRADE_RUMOR,
-          createdAt: at(-30),
-          gameStartAt: at(5),
-        },
-      ],
-    };
+    const trackedCases = [
+      tracked({ playerId: PLAYER, eventTypeId: MEDIA_STORM }, -10, 4),
+      tracked({ playerId: PLAYER, eventTypeId: TRADE_RUMOR }, -40, 0),
+      tracked({ playerId: OTHER_PLAYER, eventTypeId: MEDIA_STORM }, -20),
+      tracked({ playerId: OTHER_PLAYER, eventTypeId: TRADE_RUMOR }, -30, 5),
+    ];
+    const versions: VersionWrite = { kind: 'replace', trackedCases };
 
     await writeProfiles(profiles(0.25), T3, { versions, causeOf: () => 'recalculation' });
 
@@ -463,7 +463,6 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
 
     const trends = await db.select().from(generalTrends).orderBy(asc(generalTrends.id));
     const history = await historyRows();
-    const versions = await versionRows();
     const [defaultId, historicalId] = trends.map(({ id }) => id);
     expect([first, second, unchanged]).toStrictEqual([
       [MEDIA_STORM, TRADE_RUMOR],
@@ -487,15 +486,38 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     expect(
       history.map((entry) => [entry.generalTrendId, entry.sensitivityProfileId, entry.cause]),
     ).toStrictEqual([[defaultId, null, 'parameter_change']]);
-    expect(
-      versions.map((row) => [
-        row.generalTrendId,
-        row.sensitivityProfileId,
-        row.effectiveAt.getTime(),
-      ]),
-    ).toStrictEqual([
-      [historicalId, null, T1],
-      [historicalId, null, T2],
+    expect(await ownedVersions()).toStrictEqual([
+      [null, historicalId, T1, 0.5],
+      [null, historicalId, T2, 0.5],
+    ]);
+  });
+
+  it('[CL-SEN-18] [CL-SUI-03] replaces every version of a changed historical-only trend by one, effective at the creation of the earliest tracked case of its type whose game has not started, whoever the player, and leaves the versions of the profiles alone', async () => {
+    const trends = (meanGap: number) => [
+      { eventTypeId: MEDIA_STORM, trend: buildTrend({ all: { validCount: 3, meanGap } }) },
+    ];
+    await writeProfiles([buildProfile(MEDIA_STORM, { all: { validCount: 3 } })], T1);
+    await writeTrends(db, { trends: trends(0.5), ...job(T1) });
+    await writeTrends(db, { trends: trends(0.75), ...job(T2) });
+    const before = await ownedVersions();
+    // At T3, another player's media storm case waits for a game and dates the version; his
+    // earlier one, whose game started, and an earlier waiting trade rumor case date nothing.
+    const trackedCases = [
+      tracked({ playerId: PLAYER, eventTypeId: MEDIA_STORM }, -40, 0),
+      tracked({ playerId: OTHER_PLAYER, eventTypeId: MEDIA_STORM }, -20),
+      tracked({ playerId: OTHER_PLAYER, eventTypeId: TRADE_RUMOR }, -30, 5),
+    ];
+    const versions: VersionWrite = { kind: 'replace', trackedCases };
+
+    const changed = await writeTrends(db, { trends: trends(0.25), ...job(T3, { versions }) });
+
+    const profileId = await idOf('historical_only');
+    expect([changed, before.length]).toStrictEqual([[MEDIA_STORM], 3]);
+    // The trend's historical-only row shares his profile's identifier, which a delete by the
+    // profiles' owner column would reach.
+    expect(await ownedVersions()).toStrictEqual([
+      [profileId, null, T1, 0.5],
+      [null, profileId, at(-20), 0.25],
     ]);
   });
 
