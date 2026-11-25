@@ -1,4 +1,5 @@
-import { asc, sql } from 'drizzle-orm';
+import { asc, SQL, sql } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
@@ -11,7 +12,7 @@ import { noteCalculationChange, resetParam, setParam } from './overrides';
 
 import type { ParamValue } from './catalog';
 import type { OverridableKey } from './entry';
-import type { Database } from '@/lib/db';
+import type { Database, Transaction } from '@/lib/db';
 
 const SAVED_AT = toEpochMs(Date.UTC(2026, 10, 23, 9, 0));
 const PROCESS_FAKE = Symbol.for('egoscope.runtime-cache.process-fake');
@@ -21,6 +22,34 @@ const SWITCH = 'taxonomy.switchedOffCriterion';
 /** The rows of the result of a raw query. */
 const rowsOf = (result: unknown): readonly unknown[] =>
   z.object({ rows: z.array(z.unknown()) }).parse(result).rows;
+
+const LOCK_STATEMENT = 'select pg_advisory_xact_lock(hashtext($1)) ["egoscope.parameter-saves"]';
+
+/**
+ * `tx` as it is, with every call that starts a statement noted in `statements`, in order: a
+ * raw statement by its text and parameters, any other by the name of the method.
+ */
+function recordingStatements(tx: Transaction, statements: string[]): Transaction {
+  const dialect = new PgDialect();
+  return new Proxy(tx, {
+    get(target, property) {
+      const member: unknown = Reflect.get(target, property, target);
+      if (typeof member !== 'function') {
+        return member;
+      }
+      return (...args: readonly unknown[]) => {
+        const [first] = args;
+        if (property === 'execute' && first instanceof SQL) {
+          const { sql: text, params } = dialect.sqlToQuery(first);
+          statements.push(`${text} ${JSON.stringify(params)}`);
+        } else {
+          statements.push(String(property));
+        }
+        return Reflect.apply(member, target, args) as unknown;
+      };
+    },
+  });
+}
 
 const REFUSED_RETENTION = {
   ok: false,
@@ -188,6 +217,34 @@ describe('the overrides of the parameters', { timeout: 60_000 }, () => {
     expect(held).toStrictEqual([[{ held: 1 }], [{ held: 1 }], [{ held: 0 }]]);
   });
 
+  it('[CL-TRV-16] takes the lock before every read of a save, the bound check included', async () => {
+    const statements: string[] = [];
+    await db.transaction(async (tx) =>
+      setParam(recordingStatements(tx, statements), {
+        key: 'players.maxActive',
+        value: 25,
+        expectedVersion: 0,
+      }),
+    );
+
+    expect(statements[0]).toBe(LOCK_STATEMENT);
+    expect(statements.slice(1)).toContain('select');
+  });
+
+  it('[CL-TRV-16] takes the lock before every read of a reset, the version check and the bound check included', async () => {
+    await save('players.maxActive', 25, 0);
+    const statements: string[] = [];
+    await db.transaction(async (tx) =>
+      resetParam(recordingStatements(tx, statements), {
+        key: 'players.maxActive',
+        expectedVersion: 1,
+      }),
+    );
+
+    expect(statements[0]).toBe(LOCK_STATEMENT);
+    expect(statements.slice(1)).toContain('select');
+  });
+
   it('[CL-IHM-18] refuses a save sent with a stale version, with the value as it now stands', async () => {
     await save(RETENTION, 120, 0);
 
@@ -260,6 +317,26 @@ describe('the overrides of the parameters', { timeout: 60_000 }, () => {
       'Valid cases for a player verdict changed from 5 valid cases to 6 valid cases. Every profile is recalculated with it, and the date of the last parameter change moves. What to do: nothing.',
     ]);
     expect(change?.affectsCalculations).toBe(true);
+  });
+
+  it('[TRV-35] [TRV-42] [CL-TRV-17] journals the reset of a Calc parameter with the recalculation it brings, and moves the date of the last change', async () => {
+    await save('sensitivity.minValidCases', 6, 0);
+    const reset = await db.transaction(async (tx) =>
+      resetParam(tx, { key: 'sensitivity.minValidCases', expectedVersion: 1 }),
+    );
+    const [newest] = await journal();
+    const changes = await history();
+    const resetChange = changes.at(-1);
+
+    expect(reset).toStrictEqual({ ok: true, value: { changed: true, version: 2 } });
+    expect(newest).toBe(
+      'Valid cases for a player verdict went back to its default value, 5 valid cases; it was 6 valid cases. The default value applies from now on. Every profile is recalculated with it, and the date of the last parameter change moves. What to do: nothing.',
+    );
+    expect(resetChange).toMatchObject({ affectsCalculations: true, oldValue: 6, newValue: 5 });
+    expect(await lastCalculationChange(db)).toStrictEqual({
+      changedAt: SAVED_AT,
+      journalEntryId: resetChange?.journalEntryId,
+    });
   });
 
   it('[CL-TRV-17] [IHM-37] refuses to save or reset the per-type criterion switch, which the types set', async () => {
