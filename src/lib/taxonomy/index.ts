@@ -54,5 +54,42 @@ export type {
 // detection-proposals.ts: receiveDetectionProposal, addOccurrence, attachAsOccurrence,
 //   detachOccurrence, eraseOccurrencesOf, proposalArticleReferences (Lot 2)
 
-// queries.ts: listByStatus, getType, validatedSheets, handledByCalendarList, doNotReproposeList,
-//   resolveTypeId, versionCounters, sheetHistory, possibleDuplicates
+// queries.ts, with type-detail.ts and duplicates.ts beside it for the size limits
+export {
+  doNotReproposeList,
+  handledByCalendarList,
+  listByStatus,
+  resolveTypeId,
+  sheetContent,
+  validatedSheets,
+} from './queries';
+export type {
+  CalendarDerivation,
+  CoverageThreshold,
+  EventTypeOrigin,
+  EventTypeStatus,
+  ExplorationEntry,
+  ListedType,
+  NamedType,
+  SheetContent,
+  SheetPurpose,
+  StatusGroup,
+  SwitchableCriterion,
+  TypeRef,
+  TypeRejectionReason,
+  TypeResolution,
+  TypeWithdrawalReasonKind,
+  ValidatedSheet,
+} from './queries';
+export { eventsToReview, getType, sheetHistory, versionCounters } from './type-detail';
+export type {
+  EventToReview,
+  SheetChangeContent,
+  SheetHistoryEntry,
+  StatusTransition,
+  TypeDetail,
+  TypeLinkMark,
+  VersionCounters,
+} from './type-detail';
+export { duplicateCloseness, possibleDuplicates } from './duplicates';
+export type { Closeness, DuplicateCandidate, PossibleDuplicate } from './duplicates';
