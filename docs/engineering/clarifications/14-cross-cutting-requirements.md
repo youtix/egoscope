@@ -357,10 +357,10 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 ## CL-TRV-26 — A rate paces the calls and never warns
 
 - **Affects:** TRV-03, TRV-04, TRV-05, TRV-06, CA-TRV-02; CL-TRV-12; register row TRV-05; the Telegram and detection-model service sheets
-- **Problem:** two limits of the parameter registry are rates, which the registry calls "a rate, no reset": `quotas.telegram.messagesPerSecond` and `quotas.workersAi.requestsPerMinute`. Read literally, TRV-05 gives a warning at 80 % of them and an incident when they are reached; at the Telegram sheet's value of 1 a second every message fills its own second, so the warning and "quota reached" would stay open while the application works normally. Neither sheet says where a rate's period starts.
+- **Problem:** two limits of the parameter registry are rates, as their units say: `quotas.telegram.messagesPerSecond` ("a rate, no reset") and `quotas.workersAi.requestsPerMinute` ("a rate"). Read literally, TRV-05 gives a warning at 80 % of them and an incident when they are reached; at the Telegram sheet's value of 1 a second every message fills its own second, so the warning and "quota reached" would stay open while the application works normally. Neither sheet says where a rate's period starts.
 - **Ruling:**
-  - A rate paces the calls: the call that would exceed it is deferred until the rate allows it (TRV-04), and it never gives the warning of TRV-05 nor opens "quota reached". TRV-05 is read as applying to the quotas with a period, and CA-TRV-02, a daily limit, is unchanged.
-  - A service's refusal for a rate still applies TRV-06.
+  - A rate paces the calls: the call that would exceed it is deferred until the rate allows it (TRV-04), and by its own count it never gives the warning of TRV-05 nor opens "quota reached". TRV-05 is read as applying to the quotas with a period, and CA-TRV-02, a daily limit, is unchanged.
+  - A service's refusal for a rate still applies TRV-06: it opens "quota reached" with the cause `refused_before_limit`.
   - Workers AI's rate is counted over a rolling minute, since its sheet gives no boundary (CL-TRV-12). Telegram's second is a fixed second, its own 429 answer's `retry_after` covering the boundary.
 - **Why:** a rate bounds how fast the application calls, not how much it consumes in a period; a warning or an incident that stays open in normal work would tell the owner nothing, and the deferral alone keeps TRV-04.
 - **Owner review:** no
@@ -390,7 +390,7 @@ The decision records (`docs/adr/`, with the register `docs/engineering/spec-devi
 
 ## CL-TRV-29 — A wrong current password at a password change is a refused attempt
 
-- **Affects:** TRV-41, TRV-60, TRV-61, IHM-07, IHM-09, CA-TRV-20, CA-TRV-31; CL-TRV-15
+- **Affects:** TRV-41, TRV-60, TRV-61, IHM-07, IHM-09, CA-TRV-20, CA-TRV-31; CL-TRV-15; register rows IHM-09, TRV-60 and TRV-61
 - **Problem:** a password change asks for the current password (IHM-09), but TRV-61 limits only the failures of a login. Read literally, a change checks the current password as often as it is asked, with no limit and no journal entry, so whoever holds an open session can guess the password, change it and close the owner's other sessions (TRV-60).
 - **Ruling:**
   - A wrong current password at a password change counts as a refused attempt under the limits of TRV-61, with the same failure table (`login_failures`), the same counters and the same lockout as a refused login, the two kinds of failure adding up.
