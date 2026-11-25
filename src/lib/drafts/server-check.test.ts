@@ -1,0 +1,83 @@
+import { eq } from 'drizzle-orm';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { backtestRequests, createTestDatabase, withdrawnEventCounter } from '@/lib/db';
+import { insertEventType, insertPlayer, insertRequest } from '@/lib/testing';
+import { toEpochMs } from '@/lib/time';
+
+import { checkDeviceDrafts } from './server-check';
+import { discardDraft, saveDraft } from './server-drafts';
+
+import type { Database } from '@/lib/db';
+import type { DraftTarget } from '@/lib/device-drafts';
+
+const IMPORTED_AT = new Date(Date.UTC(2026, 10, 21));
+const SAVED_AT = toEpochMs(Date.UTC(2026, 10, 20));
+// The request of an invented player, the first that a test's own database writes.
+const REQUEST_ID = 1;
+const IMPORT: DraftTarget = { kind: 'research_result', requestId: REQUEST_ID };
+const GENERAL: DraftTarget = { kind: 'exploration_response', eventTypeId: null };
+const TARGETED: DraftTarget = { kind: 'exploration_response', eventTypeId: 'media-storm' };
+
+describe("the server's answer at a device's contact", { timeout: 60_000 }, () => {
+  let db: Database;
+
+  beforeEach(async () => {
+    const database = await createTestDatabase();
+    db = database.db;
+    await insertEventType(db);
+    const player = await insertPlayer(db);
+    await insertRequest(db, { playerId: player.id });
+    return database.close;
+  }, 60_000);
+
+  async function save(target: DraftTarget) {
+    await saveDraft(db, {
+      target,
+      text: 'Pasted text.',
+      updatedAt: SAVED_AT,
+      knownWithdrawnEventCount: 0,
+      originDevice: 'Phone',
+    });
+  }
+
+  it('[IHM-42] [CL-DSN-17] [CL-DSN-22] [CL-IHM-11] answers the counter, the retention, and the last change of the server copy of each copy sent, only those', async () => {
+    expect(await checkDeviceDrafts(db, [])).toStrictEqual({
+      withdrawnEventCount: 0,
+      retentionDays: 7,
+      copies: [],
+    });
+
+    await save(IMPORT);
+    await save(TARGETED);
+    await db.insert(withdrawnEventCounter).values({ value: 4 });
+
+    expect(await checkDeviceDrafts(db, [IMPORT, TARGETED, GENERAL])).toStrictEqual({
+      withdrawnEventCount: 4,
+      retentionDays: 7,
+      copies: [
+        { target: IMPORT, updatedAt: SAVED_AT, requestImported: false },
+        { target: TARGETED, updatedAt: SAVED_AT, requestImported: false },
+        { target: GENERAL, updatedAt: null, requestImported: false },
+      ],
+    });
+  });
+
+  it('[CL-DSN-22] tells a server copy gone with its request imported from one gone otherwise', async () => {
+    await save(IMPORT);
+    await discardDraft(db, IMPORT);
+
+    expect(await checkDeviceDrafts(db, [IMPORT])).toMatchObject({
+      copies: [{ target: IMPORT, updatedAt: null, requestImported: false }],
+    });
+
+    await db
+      .update(backtestRequests)
+      .set({ status: 'imported', importedAt: IMPORTED_AT })
+      .where(eq(backtestRequests.id, REQUEST_ID));
+
+    expect(await checkDeviceDrafts(db, [IMPORT])).toMatchObject({
+      copies: [{ target: IMPORT, updatedAt: null, requestImported: true }],
+    });
+  });
+});
