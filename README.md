@@ -112,7 +112,9 @@ scripts/                 Tooling: the shared lock, the structure and fast checks
 ## Quality gate
 
 Every pull request runs the CI workflow, whose ordinary checks (lint, actionlint, typecheck, test,
-build and pr-title) all feed one final job, `ci-ok`, which passes only when each of them succeeded.
+coverage, migrations, build and pr-title) all feed one final job, `ci-ok`, which passes only when
+each of them succeeded: the unit tests run on three runners, and `coverage` judges the thresholds on
+their merged reports.
 A concern with its own triggers, permissions or runtime gets its own workflow instead: end-to-end
 tests (planned), mutation testing, requirement traceability and security scanning, with
 the final jobs `e2e`, `mutation`, `trace` and `security`. Such a final job always starts and always

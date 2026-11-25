@@ -6,12 +6,21 @@ import { configDefaults, defineConfig } from 'vitest/config';
 import { GENERATED_FOLDERS } from './scripts/generated-files.ts';
 import { IGNORED_FOLDERS } from './scripts/ignored-folders.ts';
 import { ROUTE_SHELLS } from './scripts/route-shells.ts';
+import { isShardOfSeveral } from './scripts/vitest-shard.ts';
 
 import type { ViteUserConfig } from 'vitest/config';
 
 // Several agents share one small machine: locally, tests use at most half the
 // cores. CI runners are dedicated, so CI keeps Vitest's default.
 const isCi = process.env['CI'] === 'true';
+
+// CI runs the unit suite in shards (`--shard=<index>/<count>`), and a shard runs only
+// part of the tests of a file, so it cannot meet the thresholds set for the whole
+// suite: such a run alone leaves them out, and CI's `coverage` job judges them once,
+// on the merged reports of the shards. Every other run judges them, `bun run
+// test:coverage` and that merge included. The switch is here because Vitest's
+// command line cannot override the thresholds of the globs below.
+const isShard = isShardOfSeveral(process.argv);
 
 // The other agents' worktrees. The include globs below never enter a dot folder
 // anyway; this says so explicitly.
@@ -104,16 +113,18 @@ const config: ViteUserConfig = defineConfig({
         ...GENERATED_FOLDERS.map((folder) => `${folder}**`),
       ],
       reporter: ['text', 'html', 'json-summary'],
-      thresholds: {
-        // Never lower these: add the missing tests instead.
-        perFile: true,
-        lines: 90,
-        branches: 90,
-        functions: 90,
-        statements: 90,
-        'src/lib/stats-engine/**': { 100: true, perFile: true },
-        'src/lib/ai-exchange/**': { 100: true, perFile: true },
-      },
+      ...(!isShard && {
+        thresholds: {
+          // Never lower these: add the missing tests instead.
+          perFile: true,
+          lines: 90,
+          branches: 90,
+          functions: 90,
+          statements: 90,
+          'src/lib/stats-engine/**': { 100: true, perFile: true },
+          'src/lib/ai-exchange/**': { 100: true, perFile: true },
+        },
+      }),
     },
   },
 });

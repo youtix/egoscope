@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 import { finalJobOf, workflowViolations } from './workflow-rules';
 
@@ -267,5 +269,18 @@ describe('workflowViolations', () => {
     expect(problems(workflowViolations(file, careless))).toContain(
       'continue-on-error on job "remote-test"',
     );
+  });
+
+  it('accepts the real ci.yml, whose ci-ok needs the three shards of test and the coverage job', () => {
+    const text = readFileSync(path.join(import.meta.dirname, '..', CI), 'utf8');
+
+    expect(workflowViolations(CI, text)).toStrictEqual([]);
+    expect(parse(text)).toMatchObject({
+      jobs: {
+        test: { strategy: { 'fail-fast': false, matrix: { shard: [1, 2, 3] } } },
+        coverage: { needs: 'test' },
+        'ci-ok': { needs: expect.arrayContaining(['test', 'coverage']) as unknown },
+      },
+    });
   });
 });
