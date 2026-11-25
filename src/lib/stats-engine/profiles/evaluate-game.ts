@@ -7,6 +7,7 @@
 import { baselinePhaseOf, seasonBaseline } from '../baseline/season-baseline';
 import { doubtfulCaseCriteria } from '../cases/doubtful-criteria';
 import { caseReviewFlags } from '../cases/review-flags';
+import { gameScore } from '../performance/game-score';
 import { performanceIndex } from '../performance/performance-index';
 import { classifyGame, playingTimeThreshold } from '../performance/playing-time';
 import { phaseState } from '../schedule/phase-state';
@@ -59,15 +60,19 @@ export type EvaluationTeamGame = TeamGame<EvaluationGame> &
 export type BaselineUsed = SeasonBaseline & Readonly<{ season: string; phase: BaselinePhase }>;
 
 /**
- * What a case records of its measured game (SEN-03, SEN-08, STA-12, STA-14, STA-16):
- * the run of team games he missed right before it in its season, the playing-time
- * threshold of that season, his minutes, and, once his box score is complete, his
- * performance index and the baseline used; all null when it has no measured game.
+ * What a case records of its measured game (SEN-03, SEN-08, STA-11, STA-12, STA-14,
+ * STA-16, CL-STA-06, CL-STA-09): the run of team games he missed right before it in its
+ * season, the playing-time threshold of that season, his minutes and, whenever he has a
+ * checked line in it, whether that line carries the "rounded minutes" mention; once his
+ * box score is complete, his Game Score, never rounded, the performance index it divides
+ * into and the baseline used. All are null when the case has no measured game.
  */
 export type MeasuredValues = Readonly<{
   teamGamesMissedBefore: number | null;
   playingTimeThresholdMinutes: number | null;
   measuredMinutes: number | null;
+  hasRoundedMinutes: boolean | null;
+  measuredGameScore: number | null;
   performanceIndex: number | null;
   baseline: BaselineUsed | null;
 }>;
@@ -125,6 +130,8 @@ export const NO_GAME: GameFacts = {
     teamGamesMissedBefore: null,
     playingTimeThresholdMinutes: null,
     measuredMinutes: null,
+    hasRoundedMinutes: null,
+    measuredGameScore: null,
     performanceIndex: null,
     baseline: null,
   },
@@ -335,10 +342,34 @@ function judgmentOf(
 }
 
 /**
- * What a case records of its measured game (SEN-03, SEN-08, SEN-16, STA-12, STA-14,
- * STA-16): the run of games he missed right before it, the threshold of its season and
- * his minutes; with his complete box score, his index, the baseline and the automatic
- * criteria; and the review flags, which read his team games and the case's decisions.
+ * The values a case records of its measured game `teamGame`, whose complete box score of
+ * his is `checked` (STA-11, STA-12, CL-STA-06): the measure of his line, whatever its
+ * status, and what only a complete one gives.
+ */
+function measuredValuesOf(
+  teamGame: EvaluationTeamGame,
+  checked: CheckedBoxScore | null,
+  context: GameContext,
+): MeasuredValues {
+  const { boxScore, game } = teamGame;
+  return {
+    teamGamesMissedBefore: missedBefore(teamGame, context),
+    playingTimeThresholdMinutes: thresholdOf(game.season, context),
+    measuredMinutes: boxScore?.decimalMinutes ?? null,
+    hasRoundedMinutes: boxScore?.hasRoundedMinutes ?? null,
+    measuredGameScore: checked === null ? null : gameScore(checked),
+    performanceIndex: checked === null ? null : performanceIndex(checked),
+    baseline: checked === null ? null : baselineOf(teamGame, context),
+  };
+}
+
+/**
+ * What a case records of its measured game (SEN-03, SEN-08, SEN-16, STA-11, STA-12,
+ * STA-14, STA-16, CL-STA-06): the run of games he missed right before it, the threshold
+ * of its season, his minutes and the "rounded minutes" mention of his line, whatever its
+ * status; with his complete box score, his Game Score, his index, the baseline and the
+ * automatic criteria; and the review flags, which read his team games and the case's
+ * decisions.
  */
 export function gameFactsOf(
   teamGame: EvaluationTeamGame,
@@ -348,13 +379,7 @@ export function gameFactsOf(
   const { boxScore, game } = teamGame;
   const checked = boxScore?.status === 'complete' ? boxScore : null;
   return {
-    values: {
-      teamGamesMissedBefore: missedBefore(teamGame, context),
-      playingTimeThresholdMinutes: thresholdOf(game.season, context),
-      measuredMinutes: boxScore?.decimalMinutes ?? null,
-      performanceIndex: checked === null ? null : performanceIndex(checked),
-      baseline: checked === null ? null : baselineOf(teamGame, context),
-    },
+    values: measuredValuesOf(teamGame, checked, context),
     judgment:
       checked === null ? NOT_JUDGED : judgmentOf({ teamGame, boxScore: checked }, facts, context),
     reviewFlags: caseReviewFlags({

@@ -239,7 +239,9 @@ export type {
 export { evaluatePlayer } from './profiles/evaluate-player';
 export type { PlayerEvaluation } from './profiles/evaluate-player';
 export type { PlayerProfile } from './profiles/evaluate-player';
-export type { ProfileViewValues } from './profiles/evaluate-player';
+
+// profiles/profile-view.ts
+export type { ProfileViewValues } from './profiles/profile-view';
 
 // profiles/evaluate-trend.ts
 export { evaluateTrend } from './profiles/evaluate-trend';

@@ -30,7 +30,7 @@ const DEFAULTS: EngineParams = {
 };
 
 // Raw values are compared to 1e-9 (CL-STA-09).
-const SCALE = 10 ** 9;
+const PRECISION = 9;
 const MS_PER_MINUTE = 60_000;
 // A game starts at 19:30 US Eastern, taken as UTC-5: 00:30 UTC the next day. Its day ends at
 // 08:00 UTC the next day in the Pacific time zone, and it is consolidated a week later.
@@ -235,9 +235,9 @@ function statesOf(evaluations: readonly CaseEvaluation[]) {
   ]);
 }
 
-/** A raw value rounded to the precision of the comparison (CL-STA-09), null for none. */
-function rounded(value: number | null | undefined): number | null {
-  return value === null || value === undefined ? null : Math.round(value * SCALE) / SCALE;
+/** Any number within 1e-9 of `value` (CL-STA-09). */
+function near(value: number): unknown {
+  return expect.closeTo(value, PRECISION);
 }
 
 /** A manual decision of `kind` made on game `measuredGameId`. */
@@ -293,20 +293,7 @@ describe('evaluateCases', () => {
     const mean = (4 * USUAL + 6 * STRONG) / 10;
     const deviation = Math.sqrt((4 * (USUAL - mean) ** 2 + 6 * (STRONG - mean) ** 2) / 9);
     const { evaluated, profileCase, withoutDecision } = caseOf(base(), 5);
-    const { playingTimeThresholdMinutes, performanceIndex, baseline, normalizedGap, ...rest } =
-      evaluated;
-    const raw = [
-      playingTimeThresholdMinutes,
-      performanceIndex,
-      baseline?.mean,
-      baseline?.standardDeviation,
-      normalizedGap,
-    ];
-    const expected = [THRESHOLD, USUAL, mean, deviation, (USUAL - mean) / deviation];
-    expect(raw.map((value) => rounded(value))).toStrictEqual(
-      expected.map((value) => rounded(value)),
-    );
-    expect(rest).toStrictEqual({
+    expect(evaluated).toStrictEqual({
       eventTypeId: TYPE,
       eventIds: [5],
       origin: 'historical',
@@ -316,7 +303,21 @@ describe('evaluateCases', () => {
       statusReason: null,
       measuredGameId: 7,
       teamGamesMissedBefore: 2,
+      playingTimeThresholdMinutes: near(THRESHOLD),
       measuredMinutes: 35,
+      hasRoundedMinutes: false,
+      measuredGameScore: near(14.8),
+      performanceIndex: near(USUAL),
+      baseline: {
+        season: SEASON,
+        phase: 'regular_season',
+        status: 'final',
+        gameCount: 10,
+        isPartial: false,
+        mean: near(mean),
+        standardDeviation: near(deviation),
+      },
+      normalizedGap: near((USUAL - mean) / deviation),
       gapStatus: 'final',
       triggeredCriteria: [],
       opponentStrengthNotEvaluable: false,
@@ -327,22 +328,13 @@ describe('evaluateCases', () => {
       isCoOccurring: false,
       coOccurringTypeIds: [],
     });
-    expect({ ...baseline, mean: null, standardDeviation: null }).toStrictEqual({
-      season: SEASON,
-      phase: 'regular_season',
-      status: 'final',
-      gameCount: 10,
-      isPartial: false,
-      mean: null,
-      standardDeviation: null,
-    });
     expect(profileCase).toStrictEqual({
       caseId: 2,
       events: [{ researchConfidence: 'high' }],
       isCoOccurring: false,
       origin: 'historical',
       measuredGameScheduledStartAt: startOf(7),
-      normalizedGap,
+      normalizedGap: evaluated.normalizedGap,
       gapStatus: 'final',
       status: 'measured',
     });
@@ -378,6 +370,8 @@ describe('evaluateCases', () => {
       teamGamesMissedBefore: null,
       playingTimeThresholdMinutes: null,
       measuredMinutes: null,
+      hasRoundedMinutes: null,
+      measuredGameScore: null,
       performanceIndex: null,
       baseline: null,
       normalizedGap: null,

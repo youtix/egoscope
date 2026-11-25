@@ -1,3 +1,4 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import engineParams from '@data/fixtures/stats-engine/engine-params.json';
@@ -36,12 +37,49 @@ const [PREVIOUS, SEASON] = ['2023-24', '2024-25'];
 const USUAL = 14.8 / 35;
 const STRONG = 25.9 / 35;
 
+/** Any number within 1e-9 of `value` (CL-STA-09). */
+function near(value: number): unknown {
+  return expect.closeTo(value, PRECISION);
+}
+
+// A complete line (STA-09): the strong line's shooting, any other totals, and any time on
+// court from one second to 48 minutes, in minutes and seconds or in whole minutes (CL-STA-06).
+const anyCompleteLine = fc
+  .record({
+    seconds: fc.integer({ min: 1, max: 48 * 60 }),
+    isInWholeMinutes: fc.boolean(),
+    offensiveRebounds: fc.nat(8),
+    defensiveRebounds: fc.nat(15),
+    assists: fc.nat(15),
+    steals: fc.nat(6),
+    blocks: fc.nat(6),
+    turnovers: fc.nat(8),
+    personalFouls: fc.nat(6),
+  })
+  .map(({ seconds, isInWholeMinutes, ...counts }): BoxScoreLine => {
+    const totals = { ...example.lines.strong, ...counts };
+    return isInWholeMinutes
+      ? {
+          ...totals,
+          minutesPrecision: 'whole_minutes',
+          minutes: Math.ceil(seconds / 60),
+          seconds: null,
+        }
+      : {
+          ...totals,
+          minutesPrecision: 'seconds',
+          minutes: Math.floor(seconds / 60),
+          seconds: seconds % 60,
+        };
+  });
+
 type Row = Readonly<{
   id: GameId;
   season: string;
   phase: GamePhase;
   teamId: TeamId;
   line: 'usual' | 'strong' | 'short' | 'incomplete' | null;
+  isInWholeMinutes?: boolean;
   participation: Participation | null;
   status: GameStatus;
   isHomeWin: boolean;
@@ -111,17 +149,24 @@ function changed(
   return rows.map((row) => ({ ...row, ...byId.get(row.id) }));
 }
 
-/** His line in a game, from the example's, without points when incomplete. */
-function lineOf(line: NonNullable<Row['line']>): BoxScoreLine {
-  const { points, ...totals } = example.lines[line === 'incomplete' ? 'usual' : line];
-  return { ...totals, points: line === 'incomplete' ? null : points, minutesPrecision: 'seconds' };
+/**
+ * His line in a game, from the example's, without points when incomplete, in minutes and
+ * seconds or, as the chosen source gives it, in whole minutes (CL-STA-06).
+ */
+function lineOf(line: NonNullable<Row['line']>, isInWholeMinutes = false): BoxScoreLine {
+  const { points, seconds, ...totals } = example.lines[line === 'incomplete' ? 'usual' : line];
+  const linePoints = line === 'incomplete' ? null : points;
+  return isInWholeMinutes
+    ? { ...totals, points: linePoints, seconds: null, minutesPrecision: 'whole_minutes' }
+    : { ...totals, points: linePoints, seconds, minutesPrecision: 'seconds' };
 }
 
 /** A team game of his, at home against the opponent. */
 function teamGameFor(row: Row): EvaluationTeamGame {
   const startAt = (dayCount(row.on) + 1) * MS_PER_DAY + START_MS;
   const isFinal = row.status === 'final';
-  const boxScore = row.line === null ? null : verifyBoxScore(lineOf(row.line), 0);
+  const boxScore =
+    row.line === null ? null : verifyBoxScore(lineOf(row.line, row.isInWholeMinutes), 0);
   return {
     game: {
       id: row.id,
@@ -341,10 +386,16 @@ describe('gameFactsOf', () => {
     expect(factsOf(MEASURED, contextOf(postponed)).values.teamGamesMissedBefore).toBe(2);
   });
 
-  it('[SEN-07] [STA-12] records his minutes alone on an incomplete box score, and nothing of his performance in a game not played yet', () => {
+  it('[SEN-07] [STA-12] [CL-STA-06] records his minutes and their mark alone on an incomplete box score, and nothing of his performance in a game not played yet', () => {
     const incomplete = factsOf(MEASURED, contextOf(changed([[MEASURED, { line: 'incomplete' }]])));
     expect(incomplete).toMatchObject({
-      values: { measuredMinutes: 35, performanceIndex: null, baseline: null },
+      values: {
+        measuredMinutes: 35,
+        hasRoundedMinutes: false,
+        measuredGameScore: null,
+        performanceIndex: null,
+        baseline: null,
+      },
       judgment: NOT_JUDGED,
     });
     const notYet = factsOf(115, contextOf(changed([[115, NOT_YET]]), { isOver: false }));
@@ -352,12 +403,53 @@ describe('gameFactsOf', () => {
       values: {
         teamGamesMissedBefore: 0,
         measuredMinutes: null,
+        hasRoundedMinutes: null,
+        measuredGameScore: null,
         performanceIndex: null,
         baseline: null,
       },
       judgment: NOT_JUDGED,
       reviewFlags: [],
     });
+  });
+
+  it('[STA-11] [STA-12] [CL-STA-06] [CL-STA-09] records the Game Score of his complete line, never rounded, and whether his line is in whole minutes, whatever its status', () => {
+    const changes: readonly Partial<Row>[] = [
+      {},
+      { isInWholeMinutes: true },
+      { line: 'usual' },
+      { line: 'short' },
+      { line: 'incomplete' },
+      { line: 'incomplete', isInWholeMinutes: true },
+    ];
+    const recorded = changes.map((change) => {
+      const { values } = factsOf(MEASURED, contextOf(changed([[MEASURED, change]])));
+      return [values.measuredGameScore, values.hasRoundedMinutes, values.measuredMinutes];
+    });
+    expect(recorded).toStrictEqual([
+      [near(25.9), false, 35],
+      [near(25.9), true, 35],
+      [near(14.8), false, 35],
+      [near(2.9), false, 14],
+      [null, false, 35],
+      [null, true, 35],
+    ]);
+  });
+
+  it('[STA-11] [STA-12] [CL-STA-06] [CL-STA-09] gives every complete line an index that is its Game Score divided by his minutes, to the bit, and the mark of its minutes', () => {
+    const context = contextOf();
+    const measured = teamGameOf(MEASURED, context);
+    fc.assert(
+      fc.property(anyCompleteLine, (line) => {
+        const boxScore = verifyBoxScore(line, 0);
+        const { values } = gameFactsOf({ ...measured, boxScore }, FACTS, context);
+        expect(boxScore.status).toBe('complete');
+        expect(values.performanceIndex).toBe(
+          (values.measuredGameScore ?? NaN) / (values.measuredMinutes ?? NaN),
+        );
+        expect(values.hasRoundedMinutes).toBe(line.minutesPrecision === 'whole_minutes');
+      }),
+    );
   });
 
   it('[SEN-12] [SEN-13] [SEN-14] [SEN-06] [CL-SEN-13] [CL-SEN-28] retains each criterion with its values, from the indications of each event, the co-occurring types and the playoffs, except the one the type sheet switches off', () => {

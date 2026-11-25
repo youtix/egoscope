@@ -8,7 +8,7 @@ import { generalTrend } from './general-trend';
 import type { EngineParams } from '../types';
 import type { ManuallyDecidedCase } from './checks';
 import type { GeneralTrendValues, TrendCase } from './general-trend';
-import type { TallyExitReason } from './tally';
+import type { ProfileCase, TallyExitReason } from './tally';
 
 /** The status of an event type (TAX-10), as it is stored. */
 export type TypeStatus = 'proposed' | 'validated' | 'rejected' | 'withdrawn';
@@ -44,12 +44,19 @@ export type TrendEvaluationInput = Readonly<{
 }>;
 
 /**
- * The general trend of a type (SEN-19, SEN-21, SEN-28): archived when the type is
- * withdrawn, and its values in each view, in the glossary's order of the views.
+ * The general trend of a type (SEN-19, SEN-21, SEN-28, SEN-31): archived when the type is
+ * withdrawn, and in each view, in the glossary's order of the views, its values, its valid
+ * cases of each origin and the threshold of valid cases that its verdict applied.
  */
 export type EvaluatedTrend = Readonly<{
   isArchived: boolean;
-  views: readonly (GeneralTrendValues & Readonly<{ view: ProfileView }>)[];
+  views: readonly (GeneralTrendValues &
+    Readonly<{
+      view: ProfileView;
+      historicalValidCount: number;
+      trackedValidCount: number;
+      validCaseThreshold: number;
+    }>)[];
 }>;
 
 // The views in the glossary's order, with the origins of the cases each counts.
@@ -81,6 +88,18 @@ export function hasTallyEvent(
 }
 
 /**
+ * How many valid cases of `origin` there are among the cases of a view of a profile or a
+ * general trend (SEN-21): with those of the other origin, they make its valid cases.
+ */
+export function validCountOf(
+  cases: readonly (ProfileCase & Readonly<{ origin: CaseOrigin }>)[],
+  origin: CaseOrigin,
+): number {
+  return cases.filter((caseItem) => caseItem.status === 'measured' && caseItem.origin === origin)
+    .length;
+}
+
+/**
  * Splits the cases of a profile or a general trend into its views, in the glossary's
  * order (SEN-21, CL-SEN-19): all cases, the historical cases only and the tracked cases
  * only, each case in the views of its origin. The events that left the tally count in
@@ -98,13 +117,15 @@ export function casesByView<C extends Readonly<{ origin: CaseOrigin }>>(
 }
 
 /**
- * Evaluates the general trend of a type (SEN-19, SEN-21, SEN-28 to SEN-30, CL-SEN-08,
+ * Evaluates the general trend of a type (SEN-19, SEN-21, SEN-28 to SEN-31, CL-SEN-08,
  * CL-SEN-19, H-JOU-07): in each of its three views, the values of generalTrend over the
  * cases of every player of the view's origins, each case weighing the same, a withdrawn
- * player's valid cases counting as any others. A case awaiting its game or not
- * measurable, such as one with no counted case, stays in the tally and enters no verdict,
- * check, robustness test or confidence. A withdrawn type's trend is archived and still
- * computed; a proposed or rejected type has none, nor a type whose tally holds no event.
+ * player's valid cases counting as any others, with its valid cases of each origin and
+ * the threshold of valid cases in force at this calculation. A case awaiting its game or
+ * not measurable, such as one with no counted case, stays in the tally and enters no
+ * verdict, check, robustness test or confidence. A withdrawn type's trend is archived and
+ * still computed; a proposed or rejected type has none, nor a type whose tally holds no
+ * event.
  */
 export function evaluateTrend(
   input: TrendEvaluationInput,
@@ -122,6 +143,9 @@ export function evaluateTrend(
         { cases: part.cases, exitReasons: part.exitReasons, manuallyDecidedCases },
         params,
       ),
+      historicalValidCount: validCountOf(part.cases, 'historical'),
+      trackedValidCount: validCountOf(part.cases, 'tracked'),
+      validCaseThreshold: params.sensitivity.minValidCases,
     })),
   };
 }

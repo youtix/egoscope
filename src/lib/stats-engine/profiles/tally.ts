@@ -4,40 +4,15 @@
 // part reads. The cases on an earlier sheet version are not counted here: the
 // sensitivity module derives them on read (CL-TAX-07).
 
+import { AWAITING_GAME_REASONS, NOT_MEASURABLE_REASONS, valuesOf } from '../cases/case-state';
+
 import type { CaseId, EpochMs } from '../types';
 
 /** A list that holds at least one item. */
 type NonEmpty<T> = readonly [T, ...T[]];
 
-/**
- * The stored values of a set, as written and in their order, typed as the list of their
- * literals so that the set's type derives from it. An `as const` would type it as well,
- * but Stryker plants no mutant inside an `as` expression.
- */
-function valuesOf<const Values extends readonly string[]>(values: Values): Values {
-  return values;
-}
-
-// The reasons and criteria of the glossary, in its order, which is the order of the
-// counts the tally gives.
-const AWAITING_GAME_REASONS = valuesOf([
-  'game_not_played_yet',
-  'statistics_pending',
-  'mapping_not_established',
-  'baseline_building',
-  'precedence_to_verify',
-  'dating_to_verify',
-]);
-const NOT_MEASURABLE_REASONS = valuesOf([
-  'no_game_within_window',
-  'box_score_incomplete',
-  'box_score_suspect',
-  'box_score_unavailable',
-  'insufficient_baseline',
-  'season_not_covered',
-  'precedence_not_established',
-  'derived_game_missed',
-]);
+// The criteria and exit reasons of the glossary, in its order, which is the order of the
+// counts the tally gives, as the reasons of a case are (case-state.ts).
 const DOUBTFUL_CASE_CRITERIA = valuesOf([
   'playing_time_too_low',
   'injury_return',
