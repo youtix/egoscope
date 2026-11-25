@@ -63,6 +63,19 @@ async function linesOf(
   return dataOf(await fake.getSeasonBoxScores(open(), { season, players, knownVersion: null }));
 }
 
+/** The box scores of `players` in `season`, with the sides of each game that hold lines; anything else fails the test. */
+async function boxScoresOf(season: Season, players: readonly string[]) {
+  const outcome = await createFakeStatsSource().getSeasonBoxScores(open(), {
+    season,
+    players,
+    knownVersion: null,
+  });
+  if (outcome.ok && outcome.value.kind === 'read') {
+    return outcome.value;
+  }
+  throw new Error(`Expected a read, got ${JSON.stringify(outcome)}.`);
+}
+
 async function gameOf(season: Season, game: string): Promise<SourceGame | undefined> {
   const games = await gamesOf(season);
   return games.find((candidate) => candidate.game === game);
@@ -359,6 +372,18 @@ describe('the invented league of the fake', () => {
     });
     expect(Object.values(line.counts)).toStrictEqual(Array.from({ length: 13 }, () => null));
     expect(Object.keys(line)).not.toContain('reason');
+  });
+
+  it('[STA-08] [CL-STA-04] flags the sides of every game that hold lines, whatever players are asked', async () => {
+    const { data, sidesWithLines } = await boxScoresOf(LAST, ['p02']);
+    const everyLine = await linesOf(LAST, ALL_PLAYERS);
+
+    expect(data.filter(({ game }) => game === '2025-26:r01:h3')).toStrictEqual([]);
+    expect(sidesWithLines).toContainEqual({ game: '2025-26:r01:h3', home: true, away: true });
+    expect(sidesWithLines.filter(({ home, away }) => home && away)).toHaveLength(38);
+    expect(new Set(sidesWithLines.map(({ game }) => game))).toStrictEqual(
+      new Set(everyLine.map(({ game }) => game)),
+    );
   });
 
   it('[STA-25] [CL-STA-27] keeps a player listed with his team, one listed without, and one not listed apart', async () => {

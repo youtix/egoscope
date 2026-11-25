@@ -23,6 +23,7 @@ import type {
   PlayersRequest,
   Publication,
   Season,
+  SeasonBoxScoresRead,
   SeasonRequest,
   SourcePlayerId,
   SourceVersion,
@@ -148,6 +149,23 @@ function pickData<T, U>(
   return value.kind === 'read' ? succeed({ ...value, data: pick(value.data) }) : succeed(value);
 }
 
+/** The lines of `players` in a box-score file read, with the sides of each of its games that hold lines; a failure and `not_modified` pass unchanged (CL-STA-04). */
+function linesOf(
+  read: Step<ConditionalRead<BoxScoreFile>>,
+  players: ReadonlySet<SourcePlayerId>,
+): Step<SeasonBoxScoresRead> {
+  if (!read.ok) {
+    return read;
+  }
+  const { value } = read;
+  if (value.kind === 'not_modified') {
+    return succeed(value);
+  }
+  const { lines, sidesWithLines } = value.data;
+  const data = lines.filter((line) => players.has(line.player));
+  return succeed({ kind: 'read', version: value.version, data, sidesWithLines });
+}
+
 /** The requested players' records in request order, or `not_found` naming those no file lists. */
 function recordsOf(
   players: readonly SourcePlayerId[],
@@ -179,9 +197,8 @@ class SportsDataverse implements StatsSource {
 
   readonly getSeasonBoxScores: StatsSource['getSeasonBoxScores'] = async (ctx, request) =>
     run(ctx, async (call) => {
-      const players = new Set(request.players);
       const read = await this.#boxScores(ctx, call, request);
-      return pickData(read, ({ lines }) => lines.filter((line) => players.has(line.player)));
+      return linesOf(read, new Set(request.players));
     });
 
   readonly getSeasonPlayers: StatsSource['getSeasonPlayers'] = async (ctx, request) =>
@@ -235,9 +252,12 @@ class SportsDataverse implements StatsSource {
   }
 
   /**
-   * The records of the season's player file, read for the current season (CL-STA-27);
-   * a player it does not list is looked up in earlier files, newest first, and gets
-   * no current team (evaluation, section 12, `getPlayerRecords`).
+   * The records of the season's player file, read for the current season (CL-STA-27):
+   * a listed player's row gives his team, or none for a release, which its free-agent
+   * status or its empty team id reports (CL-STA-31). A player it does not list is looked
+   * up in earlier files, newest first, for his name and birthday, and is `not_listed`
+   * whatever an earlier row says, a free-agent status included: no observation, never
+   * a release (evaluation, section 12, `getPlayerRecords`).
    */
   async #records(
     call: SourceCall,

@@ -13,6 +13,7 @@ import {
 import { withinSeason } from './sportsdataverse-schedule';
 
 import type { RowSink } from './sportsdataverse-csv';
+import type { CurrentTeam } from './types';
 
 type Fields = Readonly<Record<string, string>>;
 
@@ -151,6 +152,7 @@ describe('[STA-02] the box-score lines of the SportsDataverse release', () => {
           ejected: null,
         },
       ],
+      sidesWithLines: [{ game: '401', home: true, away: false }],
       directory: [
         {
           player: '9000001',
@@ -160,6 +162,21 @@ describe('[STA-02] the box-score lines of the SportsDataverse release', () => {
         },
       ],
     });
+  });
+
+  it('[STA-08] [CL-STA-04] gives each game of its lines the sides that hold one, a did-not-play line included, and no skipped line', () => {
+    const away = { athleteId: '9000002', teamId: '2', opponentTeamId: '1', homeAway: 'away' };
+    const file = boxScoresOf([
+      LINE,
+      { ...LINE, ...away },
+      { ...LINE, ...away, gameId: '402', didNotPlay: 'TRUE', minutes: '' },
+      { ...LINE, gameId: '403', teamId: '130579' },
+      { ...LINE, gameId: '404', gameDate: '2024-04-10' },
+    ]);
+    expect(file?.sidesWithLines).toStrictEqual([
+      { game: '401', home: true, away: true },
+      { game: '402', home: false, away: true },
+    ]);
   });
 
   it('[STA-10] [DSN-15] reads a did-not-play line without its reason, and fills no count it lacks', () => {
@@ -243,8 +260,10 @@ describe('[STA-02] the player files and the crosswalk of the SportsDataverse rel
     displayName: 'Quorin Applewhistle',
     dateOfBirth: '1997-05-27T07:00Z',
     currentTeamId: '13',
+    statusType: 'active',
     headshotHref: '',
   };
+  const WITHOUT_TEAM: CurrentTeam = { kind: 'without_team' };
 
   it('[STA-26] [CL-STA-27] [CL-JOU-16] reads the requested players once, with a birthday without its year, an empty team being a release', () => {
     const records = read(playerFileSink(players), [
@@ -275,6 +294,74 @@ describe('[STA-02] the player files and the crosswalk of the SportsDataverse rel
         ],
       ]),
     );
+  });
+
+  it.each<Readonly<{ name: string; statusType: string; currentTeamId: string; team: CurrentTeam }>>(
+    [
+      {
+        name: 'a free-agent row that keeps a team id',
+        statusType: 'free-agent',
+        currentTeamId: '14',
+        team: WITHOUT_TEAM,
+      },
+      {
+        name: 'an inactive row',
+        statusType: 'inactive',
+        currentTeamId: '5',
+        team: { kind: 'team', team: '5' },
+      },
+      {
+        name: 'an active row with an empty team id',
+        statusType: 'active',
+        currentTeamId: '',
+        team: WITHOUT_TEAM,
+      },
+      {
+        name: 'a free-agent row with an empty team id',
+        statusType: 'free-agent',
+        currentTeamId: '',
+        team: WITHOUT_TEAM,
+      },
+      {
+        name: 'an active row',
+        statusType: 'active',
+        currentTeamId: '13',
+        team: { kind: 'team', team: '13' },
+      },
+      {
+        name: 'a row of another status',
+        statusType: 'retired',
+        currentTeamId: '7',
+        team: { kind: 'team', team: '7' },
+      },
+    ],
+  )(
+    '[STA-26] [CL-STA-27] [CL-STA-31] reads the release by its status: $name',
+    ({ statusType, currentTeamId, team }) => {
+      expect(
+        read(playerFileSink(players), [{ ...PLAYER, statusType, currentTeamId }]),
+      ).toStrictEqual(
+        new Map([
+          [
+            '9000001',
+            {
+              player: '9000001',
+              displayName: 'Quorin Applewhistle',
+              birthday: { month: 5, day: 27 },
+              currentTeam: team,
+            },
+          ],
+        ]),
+      );
+    },
+  );
+
+  it('[CL-STA-14] [CL-STA-31] refuses a player file without the status column', () => {
+    const withoutStatus = Object.fromEntries(
+      Object.entries(PLAYER).filter(([key]) => key !== 'statusType'),
+    );
+    expect(read(playerFileSink(players), [withoutStatus])).toBeUndefined();
+    expect(read(playerFileSink(players), [PLAYER])?.size).toBe(1);
   });
 
   it('[CL-STA-14] refuses a player file whose requested player has an unreadable birth date', () => {

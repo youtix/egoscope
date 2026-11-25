@@ -168,6 +168,28 @@ export type SourceBoxScore = Readonly<{
   ejected: boolean | null;
 }>;
 
+/**
+ * Which sides of a game the source's box-score file holds at least one line for, a
+ * did-not-play line included, whatever players were asked. A side that holds lines
+ * without a player's tells "not played" from "unknown" (CL-STA-04).
+ */
+export type SidesWithLines = Readonly<{ game: SourceGameId; home: boolean; away: boolean }>;
+
+/**
+ * A conditional read of a season's box scores: the requested players' lines, and each
+ * game of which the source's file holds a line, with the sides that hold lines; a game
+ * that it does not name, such as one not played yet, holds no line on either side
+ * (STA-08, STA-42, CL-STA-04).
+ */
+export type SeasonBoxScoresRead =
+  | Readonly<{
+      kind: 'read';
+      version: SourceVersion;
+      data: readonly SourceBoxScore[];
+      sidesWithLines: readonly SidesWithLines[];
+    }>
+  | Readonly<{ kind: 'not_modified' }>;
+
 /** A team of a player's box scores in one season, with the days of his first and last line for it (JOU-13). */
 export type DirectoryTeam = Readonly<{
   team: SourceTeamId;
@@ -189,8 +211,9 @@ export type Birthday = Readonly<{ month: number; day: number }>;
 
 /**
  * What the current season's player file says of a player's team (CL-STA-27): his
- * team; listed without a team, which is a release (STA-26); or not listed, which is
- * no observation at all.
+ * team; listed without a team, which is a release (STA-26) and which a row says by a
+ * free-agent status or an empty team (CL-STA-31); or not listed, which is no
+ * observation at all, never a release.
  */
 export type CurrentTeam =
   | Readonly<{ kind: 'team'; team: SourceTeamId }>

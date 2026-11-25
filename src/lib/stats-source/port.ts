@@ -17,9 +17,9 @@ import type {
   PlayersRequest,
   Publication,
   Season,
+  SeasonBoxScoresRead,
   SeasonGames,
   SeasonRequest,
-  SourceBoxScore,
   SourceVersion,
 } from './types';
 
@@ -48,8 +48,11 @@ export type StatsSource = Readonly<{
   >;
   /** Every game of the season, past and upcoming, with its teams, coverage and held-back rows (STA-05, CL-STA-17). */
   getSeasonGames: Operation<SeasonRequest, ConditionalRead<SeasonGames>>;
-  /** The requested players' box scores of the season, did-not-play lines included (STA-08). */
-  getSeasonBoxScores: Operation<PlayersRequest, ConditionalRead<readonly SourceBoxScore[]>>;
+  /**
+   * The requested players' box scores of the season, did-not-play lines included, and
+   * which sides of each game hold lines, whatever players were asked (STA-08, CL-STA-04).
+   */
+  getSeasonBoxScores: Operation<PlayersRequest, SeasonBoxScoresRead>;
   /** The season's player directory, in which candidate search runs (STA-03, JOU-10, JOU-13). */
   getSeasonPlayers: Operation<SeasonRequest, ConditionalRead<readonly DirectoryEntry[]>>;
   /**

@@ -11,16 +11,25 @@ import { BOX_SCORE_COUNTS } from './types';
 import type { ContractFault, StatsSourceHarness } from './contract-support';
 import type { StatsSource, StatsSourceOutcome } from './port';
 import type { ReplayFault } from './sportsdataverse-replay';
-import type { ConditionalRead, PlayerMapping, SeasonGames, SourceGame } from './types';
+import type {
+  ConditionalRead,
+  PlayerMapping,
+  PlayerRecord,
+  SeasonGames,
+  SourceGame,
+} from './types';
 import type { EpochMs } from '@/lib/time';
 
 const SEASON = '2024-25';
 const CURRENT = '2026-27';
 // Two players of a 2024-25 box score whom the 2026-27 player file lists, one whom it
-// does not and the 2025-26 file does, and an id that no file holds.
+// does not and the 2025-26 file does, one whom it lists as a free agent who keeps the
+// team id 15, and an id that no file holds.
 const PLAYERS = ['9000121', '9000122'];
 const FORMER = '9000123';
+const RELEASED = '9000273';
 const UNKNOWN = '9999999';
+const WITHOUT_TEAM: PlayerRecord['currentTeam'] = { kind: 'without_team' };
 const SCHEDULE = 'espn_nba_schedules/nba_schedule_2025.csv';
 const BOX_SCORES = 'espn_nba_player_boxscores/player_box_2025.csv';
 
@@ -65,12 +74,31 @@ async function recordedHarness(): Promise<StatsSourceHarness> {
     missingSeason: '2022-23',
     players: PLAYERS,
     formerPlayer: FORMER,
+    releasedPlayer: RELEASED,
+    // He played for team 15 in the NBA Cup final alone; team 15 is at home in this game.
+    playerWithoutLine: { player: '9000355', game: '401705483', isHome: true },
     unknownPlayer: UNKNOWN,
     inject: (fault) => {
       replay.inject(SCHEDULE, replayFaultOf(fault));
     },
   };
 }
+
+/** The records that the adapter reads of `players` for `season`. */
+async function recordsOf(
+  source: StatsSource,
+  season: string,
+  players: readonly string[],
+): Promise<readonly PlayerRecord[]> {
+  return dataOf(source.getPlayerRecords(open(), { season, players, knownVersion: null }));
+}
+
+/** A player's record, as the fixture row of his invented name and birthday gives it. */
+const record = (
+  [player, displayName]: readonly [string, string],
+  birthday: PlayerRecord['birthday'],
+  currentTeam: PlayerRecord['currentTeam'],
+): PlayerRecord => ({ player, displayName, birthday, currentTeam });
 
 /** The games of `season`, by id. */
 async function gamesOf(source: StatsSource, season: string): Promise<SeasonGames> {
@@ -114,7 +142,7 @@ async function mappingsOf(
   return mapPlayers(open(), request);
 }
 
-describe('[TRV-15] [STA-02] the SportsDataverse adapter against the stats-source contract, on the recorded release', () => {
+describe('[TRV-15] [STA-02] [STA-26] [CL-STA-04] [CL-STA-31] the SportsDataverse adapter against the stats-source contract, on the recorded release', () => {
   it.each(STATS_SOURCE_CONTRACT)('$title', async ({ check }) => {
     await expect(check(await recordedHarness())).resolves.toStrictEqual([]);
   });
@@ -323,28 +351,23 @@ describe('[TRV-15] [STA-02] the SportsDataverse adapter on the recorded release'
     ]);
   });
 
-  it('[STA-02] [STA-26] [CL-STA-27] [CL-JOU-16] reads the records of the current player file, and of an earlier one for a player it does not list', async () => {
+  it('[STA-02] [STA-26] [CL-STA-27] [CL-STA-31] [CL-JOU-16] reads the records of the current player file, a free agent released whatever team id he keeps, and of an earlier one for a player it does not list', async () => {
     const { source } = await recordedSource();
-    const records = await dataOf(
-      source.getPlayerRecords(open(), {
-        season: CURRENT,
-        players: ['9000121', FORMER],
-        knownVersion: null,
-      }),
-    );
-    expect(records).toStrictEqual([
-      {
-        player: '9000121',
-        displayName: 'Aras Bragen',
-        birthday: { month: 5, day: 27 },
-        currentTeam: { kind: 'team', team: '13' },
-      },
-      {
-        player: FORMER,
-        displayName: 'Coras Drogek',
-        birthday: { month: 9, day: 25 },
-        currentTeam: { kind: 'not_listed' },
-      },
+    await expect(recordsOf(source, CURRENT, ['9000121', RELEASED, FORMER])).resolves.toStrictEqual([
+      record(['9000121', 'Aras Bragen'], { month: 5, day: 27 }, { kind: 'team', team: '13' }),
+      record([RELEASED, 'Ivas Morgel'], { month: 9, day: 2 }, WITHOUT_TEAM),
+      record([FORMER, 'Coras Drogek'], { month: 9, day: 25 }, { kind: 'not_listed' }),
+    ]);
+  });
+
+  it('[STA-02] [STA-26] [CL-STA-27] [CL-STA-31] reads the three statuses of the 2025-26 player file: a free agent released, an inactive player on his team', async () => {
+    const { source } = await recordedSource();
+    await expect(
+      recordsOf(source, '2025-26', ['9000279', '9000141', '9000121']),
+    ).resolves.toStrictEqual([
+      record(['9000279', 'Corus Dropol'], { month: 6, day: 24 }, WITHOUT_TEAM),
+      record(['9000141', 'Ivus Morpok'], { month: 12, day: 25 }, { kind: 'team', team: '23' }),
+      record(['9000121', 'Aras Bragen'], { month: 5, day: 27 }, { kind: 'team', team: '13' }),
     ]);
   });
 

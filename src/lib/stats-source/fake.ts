@@ -77,6 +77,7 @@ const UNAVAILABLE: Refusal = { error: { kind: 'unavailable' }, call: REFUSED_CAL
 const NOT_PUBLISHED: Refusal = { error: { kind: 'not_published' }, call: REFUSED_CALL };
 const SCHEMA_CHANGED: Refusal = { error: { kind: 'schema_changed' }, call: UNREADABLE_CALL };
 const NOT_LISTED = { kind: 'not_listed' } as const;
+const UNPUBLISHED = { boxScores: null, sidesWithLines: [] } as const;
 const PUBLICATION = 'publication';
 // How long past the time left a slow call waits: a timer of exactly that time can end
 // a millisecond before the deadline by the clock, as the contract's CLOCK_TOLERANCE_MS
@@ -161,20 +162,19 @@ class Fake implements FakeStatsSource {
           });
     });
 
-  readonly getSeasonBoxScores: StatsSource['getSeasonBoxScores'] = async (
-    ctx,
-    { season, players, knownVersion },
-  ) =>
-    this.#callOut(ctx, keyOf('season_box_scores', season), () => {
-      const lines = this.#season(season)?.boxScores ?? null;
-      return lines === null
-        ? failure(NOT_PUBLISHED)
-        : this.#conditional(
-            keyOf('season_box_scores', season),
-            knownVersion,
-            lines.filter((line) => players.includes(line.player)),
-          );
+  readonly getSeasonBoxScores: StatsSource['getSeasonBoxScores'] = async (ctx, request) => {
+    const key = keyOf('season_box_scores', request.season);
+    return this.#callOut(ctx, key, () => {
+      const { boxScores, sidesWithLines } = this.#season(request.season) ?? UNPUBLISHED;
+      if (boxScores === null) {
+        return failure(NOT_PUBLISHED);
+      }
+      const asked = boxScores.filter((line) => request.players.includes(line.player));
+      const { value, call } = this.#conditional(key, request.knownVersion, asked);
+      const read = value.kind === 'read' ? { ...value, sidesWithLines } : value;
+      return { ok: true, value: read, call };
     });
+  };
 
   readonly getSeasonPlayers: StatsSource['getSeasonPlayers'] = async (
     ctx,
@@ -198,11 +198,7 @@ class Fake implements FakeStatsSource {
       }
       const read = this.#conditional(keyOf('player_records', season), knownVersion, file);
       return read.value.kind === 'read'
-        ? this.#records(season, players, {
-            version: read.value.version,
-            data: read.value.data,
-            call: read.call,
-          })
+        ? this.#records(season, players, { ...read.value, call: read.call })
         : read;
     });
 

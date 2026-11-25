@@ -8,9 +8,12 @@ import type {
   CallContext,
   ConditionalRead,
   Season,
+  SeasonBoxScoresRead,
   SeasonGames,
+  SidesWithLines,
   SourceBoxScore,
   SourceGame,
+  SourceGameId,
   SourcePlayerId,
   SourceVersion,
 } from './types';
@@ -34,6 +37,14 @@ export type StatsSourceHarness = Readonly<{
   players: readonly SourcePlayerId[];
   /** A player of an earlier season whom the current season's player file does not list. */
   formerPlayer: SourcePlayerId;
+  /** A player whom the current season's player file lists with no current team: released (STA-26, CL-STA-31). */
+  releasedPlayer: SourcePlayerId;
+  /**
+   * A player with box scores in `season`, a final game of it in which he has no line,
+   * and the side of that game, home or not, of a team of his whose lines of other
+   * players the source holds (CL-STA-04).
+   */
+  playerWithoutLine: Readonly<{ player: SourcePlayerId; game: SourceGameId; isHome: boolean }>;
   /** A player whom no file of the source lists. */
   unknownPlayer: SourcePlayerId;
   inject: (fault: ContractFault) => void;
@@ -129,6 +140,20 @@ export async function linesOf(
     readOf(await source.getSeasonBoxScores(open(), { season, players, knownVersion: null })) ?? []
   );
 }
+
+/** A read of `players`' box scores in `season`, with the sides that hold lines; nothing when they cannot be read. */
+export async function boxScoresReadOf(
+  { source }: StatsSourceHarness,
+  season: Season,
+  players: readonly SourcePlayerId[],
+): Promise<Extract<SeasonBoxScoresRead, { kind: 'read' }> | undefined> {
+  const outcome = await source.getSeasonBoxScores(open(), { season, players, knownVersion: null });
+  return outcome.ok && outcome.value.kind === 'read' ? outcome.value : undefined;
+}
+
+/** The sides of `game` that hold lines by `sides`: neither for a game that they do not name. */
+export const sidesOf = (sides: readonly SidesWithLines[], game: SourceGameId): SidesWithLines =>
+  sides.find((held) => held.game === game) ?? { game, home: false, away: false };
 
 /** Each conditional read of `season`, by name; the player records are read for `current`. */
 export function seasonReads(
