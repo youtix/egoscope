@@ -1,0 +1,3 @@
+ALTER TABLE "fetch_queue_items" ADD COLUMN "failing_since" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "fetch_queue_items" ADD COLUMN "schema_changed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "fetch_queue_items" ADD CONSTRAINT "fetch_queue_items_failing_since_check" CHECK (("fetch_queue_items"."wait_reason" IS NOT DISTINCT FROM 'outage') = ("fetch_queue_items"."failing_since" IS NOT NULL));

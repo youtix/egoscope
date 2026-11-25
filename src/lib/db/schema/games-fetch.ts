@@ -43,8 +43,9 @@ const SOURCE_RESOURCES = [
 
 /**
  * A pending source request, a resumable unit of work with its priority, attempts,
- * waiting reason and lease; one per scope, deleted once done (STA-36, STA-39, STA-40,
- * TRV-30).
+ * waiting reason, the start of its outages, the last change of its file's layout and its
+ * lease; one per scope, deleted once done (STA-36, STA-37, STA-39, STA-40, TRV-30,
+ * CL-STA-15).
  */
 export const fetchQueueItems = pgTable(
   'fetch_queue_items',
@@ -62,12 +63,22 @@ export const fetchQueueItems = pgTable(
     leaseExpiresAt: timestamptz('lease_expires_at'),
     cursor: text('cursor'),
     requestedAt: timestamptz('requested_at').notNull().defaultNow(),
+    // The instant of the first failed attempt of the outages in a row that the unit waits
+    // after (STA-37).
+    failingSince: timestamptz('failing_since'),
+    // The instant the unit's file last answered with a changed layout, or was missing when
+    // due, until it reads again; an outage or a quota wait in between keeps it (CL-STA-15).
+    schemaChangedAt: timestamptz('schema_changed_at'),
   },
   (table) => [
     check('fetch_queue_items_stats_source_check', oneOf(table.statsSource, STATS_SOURCES)),
     check('fetch_queue_items_kind_check', oneOf(table.kind, FETCH_UNIT_KINDS)),
     check('fetch_queue_items_priority_check', sql`${table.priority} BETWEEN 1 AND 5`),
     check('fetch_queue_items_wait_reason_check', oneOf(table.waitReason, FETCH_WAIT_REASONS)),
+    check(
+      'fetch_queue_items_failing_since_check',
+      sql`(${table.waitReason} IS NOT DISTINCT FROM 'outage') = (${table.failingSince} IS NOT NULL)`,
+    ),
     check(
       'fetch_queue_items_season_unit_check',
       sql`(${oneOf(table.kind, SEASON_UNIT_KINDS)}) = (${table.season} IS NOT NULL)`,
