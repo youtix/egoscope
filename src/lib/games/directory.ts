@@ -24,7 +24,7 @@ import type { DirectoryEntry, Season, SourcePlayerId, SourceTeamId } from '@/lib
 type Executor = Database | Transaction;
 
 /** The one statistics source in use, which serves every season (CL-STA-23). */
-export const STATS_SOURCE = 'sportsdataverse_espn' satisfies StatsSourceMappingRow['statsSource'];
+export const STATS_SOURCE: StatsSourceMappingRow['statsSource'] = 'sportsdataverse_espn';
 
 // The marks that a canonical decomposition splits off a letter: accents and other diacritics.
 const COMBINING_MARKS = /\p{M}/gu;
