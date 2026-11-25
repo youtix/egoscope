@@ -1,11 +1,16 @@
+import { asc, ne } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDatabase, typeSheetVersions } from '@/lib/db';
+import { createTestDatabase, eventTypes, typeSheetVersions } from '@/lib/db';
+import { seedCandidateTypes } from '@/lib/taxonomy';
+import { toEpochMs } from '@/lib/time';
 
 import { DATABASE_TEST_TIMEOUT_MS } from '../timeouts';
 import { insertCalendarType, insertEventType } from './taxonomy';
 
 import type { Database } from '@/lib/db';
+
+const STARTED_AT = toEpochMs(Date.UTC(2026, 10, 20, 8, 15));
 
 describe('the taxonomy factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
@@ -40,6 +45,75 @@ describe('the taxonomy factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
 
     expect(again.name).toBe('Media storm');
     await expect(db.select().from(typeSheetVersions)).resolves.toHaveLength(1);
+  });
+
+  it('[TAX-15] writes the validated media storm asked for in place of the seeded proposal, touching no other type', async () => {
+    await seedCandidateTypes(db, STARTED_AT);
+    const others = await db
+      .select()
+      .from(eventTypes)
+      .where(ne(eventTypes.id, 'media-storm'))
+      .orderBy(asc(eventTypes.id));
+
+    await expect(insertEventType(db)).resolves.toMatchObject({
+      id: 'media-storm',
+      name: 'Media storm',
+      status: 'validated',
+      definition: 'Wide coverage of one player by the press in a short time.',
+      inclusionCriteria: 'Three outlets or more write about the player within two days.',
+      coverageThresholdOutlets: null,
+      coverageThresholdDays: null,
+      cautionNotes: null,
+      currentVersionNumber: 1,
+    });
+    await expect(db.select().from(typeSheetVersions)).resolves.toMatchObject([
+      { eventTypeId: 'media-storm', versionNumber: 1, kind: 'validation' },
+    ]);
+    await expect(
+      db
+        .select()
+        .from(eventTypes)
+        .where(ne(eventTypes.id, 'media-storm'))
+        .orderBy(asc(eventTypes.id)),
+    ).resolves.toStrictEqual(others);
+  });
+
+  it('[TAX-15] writes a proposed type asked for in place of the seeded proposal, with the fields asked for', async () => {
+    await seedCandidateTypes(db, STARTED_AT);
+
+    await expect(
+      insertEventType(db, { id: 'bereavement', status: 'proposed', name: 'Loss of a relative' }),
+    ).resolves.toMatchObject({
+      id: 'bereavement',
+      name: 'Loss of a relative',
+      status: 'proposed',
+      definition: 'Wide coverage of one player by the press in a short time.',
+      currentVersionNumber: null,
+    });
+    await expect(db.select().from(typeSheetVersions)).resolves.toStrictEqual([]);
+  });
+
+  it('[TAX-15] writes the validated birthday asked for in place of the seeded proposal', async () => {
+    await seedCandidateTypes(db, STARTED_AT);
+
+    await expect(insertCalendarType(db)).resolves.toMatchObject({
+      id: 'birthday',
+      name: "Player's birthday",
+      status: 'validated',
+      calendarDerivation: 'birthday',
+      currentVersionNumber: 1,
+    });
+  });
+
+  it('keeps a proposed type that the reference data does not seed, as before', async () => {
+    await insertEventType(db, { id: 'trade-request', status: 'proposed', name: 'Trade request' });
+
+    await expect(insertEventType(db, { id: 'trade-request' })).resolves.toMatchObject({
+      name: 'Trade request',
+      status: 'proposed',
+      currentVersionNumber: null,
+    });
+    await expect(db.select().from(typeSheetVersions)).resolves.toStrictEqual([]);
   });
 
   it('writes the columns that it is given in place of its own', async () => {

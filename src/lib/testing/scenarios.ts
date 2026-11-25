@@ -9,6 +9,7 @@ import {
   imports,
 } from '@/lib/db';
 import { err, ok } from '@/lib/result';
+import { seedCandidateTypes } from '@/lib/taxonomy';
 import { gameDay, now, toEpochMs } from '@/lib/time';
 
 import { insertImport, insertRequest } from './factories/backtests';
@@ -222,7 +223,11 @@ export const scenarios: ReadonlyMap<string, Scenario> = new Map(
 // The steps that load the reference data before any scenario, the installation row and
 // the nine proposals of data/seeds/: F-seed's slot, one line per step. Each step runs at
 // every seed and leaves the reference data that it finds as it is.
-const REFERENCE_DATA: readonly Scenario[] = [];
+const REFERENCE_DATA: readonly Scenario[] = [
+  async (db) => {
+    await seedCandidateTypes(db, now());
+  },
+];
 
 /** Why `applyScenarios` wrote nothing: names that no world registers. */
 export type SeedError = Readonly<{ kind: 'unknown_scenarios'; names: readonly string[] }>;

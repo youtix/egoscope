@@ -1,3 +1,5 @@
+import disallowedSourceDomains from '@data/seeds/disallowed-source-domains.json';
+
 import { entriesOf } from '../entry';
 import { decimal, domainList, integer, toggle } from '../kinds';
 import { DAYS, DAYS_PER_WEEK, MEGABYTES, MINUTES_PER_HOUR, SECONDS, SOURCES } from '../units';
@@ -14,10 +16,6 @@ const SPOT_CHECK_SOURCES = 3;
 const MOST_SPOT_CHECK_SOURCES = 20;
 const LINK_CHECK_TIMEOUT_SECONDS = 10;
 const MOST_DISALLOWED_DOMAINS = 500;
-// Section 6 makes the seed list `data/seeds/disallowed-source-domains.json` the default
-// (H-IMP-13 leaves the list to the technical design). Task F-seed (#71) writes that list
-// and makes it this default; until then no domain is disallowed.
-const DISALLOWED_DOMAINS: readonly string[] = [];
 
 const entry = entriesOf(1);
 
@@ -88,7 +86,8 @@ export const IMPORTS = {
       'Sources on these domains are not kept: social networks, forums, collaborative encyclopedias and video platforms.',
     unit: 'domains',
     kind: domainList(MOST_DISALLOWED_DOMAINS),
-    defaultValue: DISALLOWED_DOMAINS,
+    // Section 6: the list of `data/seeds/disallowed-source-domains.json` (H-IMP-13).
+    defaultValue: disallowedSourceDomains,
     requirement: 'IMP-14',
     source: 'H-IMP-13',
   }),

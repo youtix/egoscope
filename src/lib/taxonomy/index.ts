@@ -18,7 +18,8 @@ export type {
   TypeSheetVersionRow,
 } from './types';
 
-// seed.ts: seedCandidateTypes
+// seed.ts
+export { seedCandidateTypes } from './seed';
 
 // proposals.ts: createProposal, editProposal
 

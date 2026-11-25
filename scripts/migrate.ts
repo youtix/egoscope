@@ -5,10 +5,13 @@
  * touches the database by hand. Only a production deployment migrates: a
  * preview carries no database variables and never touches the database. A
  * failure exits non-zero, which fails the build, so the previous deployment
- * keeps serving. Run with `bun run db:migrate`.
+ * keeps serving. Then it seeds the reference data (TAX-15), idempotently, through the
+ * same connection. Run with `bun run db:migrate`.
  */
 import { migrateDatabase } from '@/lib/db';
 import { readServerEnv } from '@/lib/env';
+
+import { seedReferenceData } from './seed-reference-data';
 
 import type { MigrationError } from '@/lib/db';
 
@@ -22,6 +25,17 @@ function explain(error: MigrationError): string {
       return `the migrations could not be applied, and the structure is unchanged: ${error.reason}`;
     }
   }
+}
+
+/** The seeding of the reference data (TAX-15), after the migrations. */
+async function seed(): Promise<number> {
+  const seeded = await seedReferenceData();
+  if (!seeded.ok) {
+    console.error(`✖ db:migrate: the reference data could not be seeded: ${seeded.reason}.`);
+    return 1;
+  }
+  console.info('✔ db:migrate: the reference data is in place.');
+  return 0;
 }
 
 async function main(): Promise<number> {
@@ -44,9 +58,8 @@ async function main(): Promise<number> {
     console.error(`✖ db:migrate: ${explain(migrated.error)}`);
     return 1;
   }
-  // Slot: the seeding of the reference data, added by the seed task.
   console.info('✔ db:migrate: the database structure is up to date.');
-  return 0;
+  return seed();
 }
 
 process.exitCode = await main();
