@@ -133,10 +133,10 @@ named being deleted unless stated; no outside call runs inside a transaction but
    them, as a player-data deletion and an erasure by requalification or split start again at their
    own committed step (CL-TEL-09); a restore's re-application, which runs no committed step and
    asks Telegram nothing (CL-TRV-06), erases them without that comparison; alerts — in the sheet holding E, everything about it, or
-   the whole sheet and its alert-history entry if E was its only event, and every sheet or section
-   a correction or a merge of E left without an event, an initial section going with the event its
-   sheet was produced for, or the kept event of the merge that absorbed it (alert-sheets.md section
-   1.2), a sheet then left with no event included when it was produced for E, or its initial
+   the whole sheet and its alert-history entry if E was its only event, and every section whose
+   `vacated_by_event_id` names E (alert-sheets.md sections 1.2 and 2.1): one that a correction
+   moving E or a merge absorbing another event into E left without an event, or an initial section
+   from which a correction or a merge took the event its sheet was produced for, a sheet then left with no event included when it was produced for E, or its initial
    section went with E, or it has no section left, each remaining sheet taking the status and
    the expected-game block of its remaining events with no entry, and a sheet produced for E, or
    left with no initial section, initialized again from its earliest remaining event, its entries up to that event's joining deleted but those about another event a

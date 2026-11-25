@@ -109,7 +109,7 @@ Verified on the release of 2026-11-22, while recording the adapter's fixtures: t
 
 Seen on the next release, of 2026-11-23: the 2026-27 player file no longer listed two of those 498 players, whose last box-score lines were of 2026-11-20, so a release may remove a player's row rather than empty his team.
 
-Not verified: when the next season's schedule and the playoff schedule appear in the files; how soon the current-season player file shows a trade, and whether it ever empties the team of a released player or only removes his row; behavior under sustained high request rates (not attempted, out of courtesy); Parquet parsing in TypeScript.
+Not verified: when the next season's schedule and the playoff schedule appear in the files; how soon the current-season player file shows a trade or a release; whether a released player's row can disappear from it; what the status `inactive` means. A released player's row keeps a team id and carries the status `free-agent`, which the application reads as a release whatever team id it keeps (CL-STA-31), the adapter not reading `status_type` yet; behavior under sustained high request rates (not attempted, out of courtesy); Parquet parsing in TypeScript.
 
 ## Risks
 

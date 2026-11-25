@@ -13,9 +13,15 @@ const SECTION_8_2 = GLOSSARY_TEXT.slice(
   GLOSSARY_TEXT.indexOf('### 8.2'),
   GLOSSARY_TEXT.indexOf('### 8.3'),
 );
-// The four entries of section 8.2 that it bans in one sense only, which the helper
+// The five entries of section 8.2 that it bans in one sense only, which the helper
 // leaves to reviewers, since fixed sentences use them in their ordinary senses.
-const IN_ONE_SENSE: ReadonlySet<string> = new Set(['line', 'expected to', 'should', 'will']);
+const IN_ONE_SENSE: ReadonlySet<string> = new Set([
+  'line',
+  'lines',
+  'expected to',
+  'should',
+  'will',
+]);
 
 /**
  * An entry of section 8.2 without the sense it is banned in, which it gives in
@@ -26,7 +32,7 @@ const withoutSense = (entry: string): string => (entry.split('(', 1)[0] ?? '').t
 /**
  * The banned words of a group of glossary section 8.2: "tip" of "tip (betting advice)",
  * "favorite" and "underdog" of "favorite and underdog (in the odds sense)", and none of
- * the four entries banned in one sense only.
+ * the five entries banned in one sense only.
  */
 function bannedWordsOf(group: string): readonly string[] {
   const row = SECTION_8_2.split('\n').find((line) => line.startsWith(`| ${group} `));
