@@ -1,0 +1,12 @@
+{
+  "status": 302,
+  "headers": {
+    "content-type": "text/html;charset=utf-8",
+    "location": "https://release-assets.githubusercontent.com/github-production-release-asset/900000001/800000001?sp=r&sv=2018-11-09&sr=b&se=2026-11-16T04%3A05%3A00Z&sig=invented-signature&rsct=application%2Foctet-stream",
+    "x-github-api-version-selected": "2026-03-10",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4989",
+    "x-ratelimit-reset": "1794805200",
+    "x-ratelimit-resource": "core"
+  }
+}

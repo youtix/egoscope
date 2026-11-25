@@ -1,0 +1,33 @@
+{
+  "status": 201,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "location": "https://api.github.com/repos/quiet-owner/archive-vault/releases/700000001",
+    "x-github-api-version-selected": "2026-03-10",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4995",
+    "x-ratelimit-reset": "1794805200",
+    "x-ratelimit-used": "5",
+    "x-ratelimit-resource": "core"
+  },
+  "body": {
+    "url": "https://api.github.com/repos/quiet-owner/archive-vault/releases/700000001",
+    "assets_url": "https://api.github.com/repos/quiet-owner/archive-vault/releases/700000001/assets",
+    "upload_url": "https://uploads.github.com/repos/quiet-owner/archive-vault/releases/700000001/assets{?name,label}",
+    "html_url": "https://github.com/quiet-owner/archive-vault/releases/tag/untagged-0a1b2c3d4e5f60718293",
+    "id": 700000001,
+    "node_id": "RE_invented000001",
+    "tag_name": "backups",
+    "target_commitish": "main",
+    "name": "backups",
+    "draft": true,
+    "immutable": false,
+    "prerelease": false,
+    "created_at": "2026-11-16T04:00:01Z",
+    "published_at": null,
+    "assets": [],
+    "tarball_url": null,
+    "zipball_url": null,
+    "body": null
+  }
+}
