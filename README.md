@@ -42,26 +42,27 @@ bun run dev                  # http://localhost:3000
 
 ## Scripts
 
-| Script                   | What it does                                                                   |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| `bun run dev`            | Development server.                                                            |
-| `bun run build`          | Production build, type check included.                                         |
-| `bun run start`          | Serves the production build.                                                   |
-| `bun run test [path]`    | Unit tests, optionally only those under `path`.                                |
-| `bun run test:coverage`  | All unit tests, with the coverage thresholds enforced.                         |
-| `bun run test:mutation`  | Mutation tests of the pure core; a score below 100% fails.                     |
-| `bun run lint`           | ESLint, markdownlint and the structure check.                                  |
-| `bun run lint:fix`       | ESLint and markdownlint, fixing what they can.                                 |
-| `bun run format`         | Formats every file with Prettier (`format:check` only checks).                 |
-| `bun run typecheck`      | TypeScript, whole repository; the pure core with ES types only.                |
-| `bun run knip`           | Unused files, exports and dependencies.                                        |
-| `bun run trace`          | Requirement traceability: title IDs exist, the waiver register is sound.       |
-| `bun run trace:strict`   | The same, and every requirement and criterion is tested or waived.             |
-| `bun run check`          | Every static check: formatting, linters, knip, workflows, types, traceability. |
-| `bun run check:changed`  | The fast local check of what differs from `origin/main`.                       |
-| `bun run gate`           | Everything CI runs, in CI's order, under a single lock.                        |
-| `bun run gate:ci`        | The same steps, each taking the lock on its own.                               |
-| `bun run lint:workflows` | actionlint on the workflows, when actionlint is installed.                     |
+| Script                       | What it does                                                                            |
+| ---------------------------- | --------------------------------------------------------------------------------------- |
+| `bun run dev`                | Development server.                                                                     |
+| `bun run build`              | Production build, type check included.                                                  |
+| `bun run start`              | Serves the production build.                                                            |
+| `bun run test [path]`        | Unit tests, optionally only those under `path`.                                         |
+| `bun run test:coverage`      | All unit tests, with the coverage thresholds enforced.                                  |
+| `bun run test:mutation`      | Mutation tests of the pure core; a score below 100% fails.                              |
+| `bun run test:remote <path>` | The unit tests under `path` of the pushed branch, on a GitHub runner, without the lock. |
+| `bun run lint`               | ESLint, markdownlint and the structure check.                                           |
+| `bun run lint:fix`           | ESLint and markdownlint, fixing what they can.                                          |
+| `bun run format`             | Formats every file with Prettier (`format:check` only checks).                          |
+| `bun run typecheck`          | TypeScript, whole repository; the pure core with ES types only.                         |
+| `bun run knip`               | Unused files, exports and dependencies.                                                 |
+| `bun run trace`              | Requirement traceability: title IDs exist, the waiver register is sound.                |
+| `bun run trace:strict`       | The same, and every requirement and criterion is tested or waived.                      |
+| `bun run check`              | Every static check: formatting, linters, knip, workflows, types, traceability.          |
+| `bun run check:changed`      | The fast local check of what differs from `origin/main`.                                |
+| `bun run gate`               | Everything CI runs, in CI's order, under a single lock.                                 |
+| `bun run gate:ci`            | The same steps, each taking the lock on its own.                                        |
+| `bun run lint:workflows`     | actionlint on the workflows, when actionlint is installed.                              |
 
 `check:changed` runs Prettier, ESLint, markdownlint and the structure check on the files that
 differ from `origin/main` (committed, staged, unstaged or untracked; deletions and renames count),

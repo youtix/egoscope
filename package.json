@@ -26,6 +26,7 @@
     "test": "bun scripts/with-lock.ts vitest run",
     "test:coverage": "bun scripts/with-lock.ts vitest run --coverage",
     "test:mutation": "bun scripts/with-lock.ts bun scripts/mutation-run.ts",
+    "test:remote": "bun scripts/remote-test.ts",
     "e2e": "bun scripts/with-lock.ts playwright test",
     "e2e:ui": "playwright test --ui",
     "knip": "bun scripts/with-lock.ts knip --treat-config-hints-as-errors",

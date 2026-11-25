@@ -22,8 +22,11 @@ import { parse } from 'yaml';
 
 import type { StructureViolation } from './structure-rules';
 
-/** The workflows that are not checks, so have no final job to require (none yet). */
-const NON_CHECK_WORKFLOWS: readonly string[] = [];
+/**
+ * The workflows that are not checks, so have no final job to require: remote-test.yml runs
+ * only when someone dispatches it (`bun run test:remote`), and no pull request waits for it.
+ */
+const NON_CHECK_WORKFLOWS: readonly string[] = ['.github/workflows/remote-test.yml'];
 
 type Mapping = Readonly<Record<string, unknown>>;
 
