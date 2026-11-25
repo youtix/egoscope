@@ -7,10 +7,16 @@ import type { BoxScoreRow, NewBoxScoreRow, NewStatCorrectionRow } from './types'
 import type { BoxScoreLine } from '@/lib/stats-engine';
 import type { SourceBoxScore } from '@/lib/stats-source';
 
-/** The columns of a line that ingestion writes from the source, its keys and fetch instant aside (STA-08). */
-export type LineValues = Required<
-  Omit<NewBoxScoreRow, 'id' | 'playerId' | 'gameId' | 'statsSource' | 'fetchedAt'>
+// The columns of a line that ingestion writes from the source, its keys and fetch instant aside.
+type WrittenColumns = Omit<
+  NewBoxScoreRow,
+  'id' | 'playerId' | 'gameId' | 'statsSource' | 'fetchedAt'
 >;
+
+/** The values of a line that ingestion writes from the source, each one given (STA-08). */
+export type LineValues = {
+  [Column in keyof WrittenColumns]-?: Exclude<WrittenColumns[Column], undefined>;
+};
 
 /** An element of a line whose value changed, absent values null, as `stat_corrections` traces it (STA-33). */
 export type Difference = Pick<NewStatCorrectionRow, 'element' | 'oldValue' | 'newValue'>;
