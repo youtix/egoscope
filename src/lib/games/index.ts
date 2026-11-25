@@ -72,6 +72,11 @@ export type { Candidate, FollowedAs, UnknownTeams } from './directory';
 // ingest.ts: refreshIndicators
 
 // completeness.ts: completeThrough
+export { completeness, completeThrough, consolidate, markUnavailable } from './completeness';
+export type { DayCompleteness, DerivationContext, DerivedChange } from './completeness';
+//   indicators.ts, split from completeness.ts for its size: refreshIndicators
+export { refreshIndicators } from './indicators';
+export type { RefreshedIndicators } from './indicators';
 
 // fetch-queue.ts: processFetchQueue, enqueue, requestRefetch, nextDueAt, fetchProgress
 
