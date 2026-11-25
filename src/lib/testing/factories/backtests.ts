@@ -89,22 +89,35 @@ export async function insertRequest(
   return request;
 }
 
-/** What `insertImport` takes: the request imported, and the types and periods that its result covers. */
-export type ImportFactoryOptions = Readonly<{
-  request: RequestRow;
-  covered?: readonly TypePeriod[];
-}>;
+/**
+ * What `insertImport` takes: the request imported, the types and periods that its result
+ * covers, and the import's mode, truncation-recovered flag and instant, named as their
+ * columns.
+ */
+export type ImportFactoryOptions = Readonly<
+  {
+    request: RequestRow;
+    covered?: readonly TypePeriod[];
+  } & Partial<Pick<typeof imports.$inferInsert, 'mode' | 'truncationRecovered' | 'importedAt'>>
+>;
 
 /**
  * Imports a result for the request (TRV-76): marks the request imported, writes its
- * import under the next sequence number, a first import, and the coverage of each type
- * that the result covers, the media storm by default, so that its player is profiled.
+ * import under the next sequence number, a first import that recovered no truncation,
+ * made now, unless `mode`, `truncationRecovered` or `importedAt` say otherwise, and the
+ * coverage of each type that the result covers, the media storm by default, so that its
+ * player is profiled. The request and the coverage take the instant of the import.
  */
 export async function insertImport(
   db: Database,
-  { request, covered = DEFAULT_TYPES }: ImportFactoryOptions,
+  {
+    request,
+    covered = DEFAULT_TYPES,
+    mode = 'first_import',
+    truncationRecovered = false,
+    importedAt = new Date(now()),
+  }: ImportFactoryOptions,
 ): Promise<ImportRow> {
-  const importedAt = new Date(now());
   await db
     .update(backtestRequests)
     .set({ status: 'imported', importedAt })
@@ -118,7 +131,8 @@ export async function insertImport(
         backtestRequestId: request.id,
         playerId: request.playerId,
         importedAt,
-        mode: 'first_import',
+        mode,
+        truncationRecovered,
       })
       .returning(),
     'the import written',

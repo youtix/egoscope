@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 
 import { eventTypes, typeSheetVersions } from '@/lib/db';
 import candidateTypeSheets from '@data/seeds/event-types.json';
@@ -20,6 +20,14 @@ export const MEDIA_STORM = 'media-storm';
 // The version of a sheet that a type's validation produces (TAX-20).
 const FIRST_VERSION = 1;
 
+// Every column of a type but its identifier at the value that an insert gives it when
+// left out, its default: what a type written over a seeded proposal starts from.
+const INSERT_DEFAULTS = Object.fromEntries(
+  Object.keys(getTableColumns(eventTypes))
+    .filter((column) => column !== 'id')
+    .map((column) => [column, sql`DEFAULT`]),
+);
+
 // A validated research type, its sheet complete (TAX-01, TAX-12).
 const VALIDATED_SHEET = {
   id: MEDIA_STORM,
@@ -40,9 +48,11 @@ const VALIDATED_SHEET = {
  * version of its sheet, which its validation produced; a proposed or rejected one, never
  * validated, has no version and no version number. A candidate type that the reference
  * data seeded and that is still proposed gives way to the type asked for, written whole
- * as a new one (TAX-15). Any other type of that identifier that exists already is left as
- * it is, overrides ignored, so that scenarios that need the same type combine. Gives the
- * type as the database holds it.
+ * over its row as a new one, every column the type leaves out at its default, so that the
+ * rows that refer to it stay (TAX-15). Such a proposal is replaced even when the owner
+ * edited it, whenever a scenario asks for its identifier. Any other type of that
+ * identifier that exists already is left as it is, overrides ignored, so that scenarios
+ * that need the same type combine. Gives the type as the database holds it.
  */
 export async function insertEventType(
   db: Database,
@@ -55,22 +65,28 @@ export async function insertEventType(
     currentVersionNumber: wasValidated ? FIRST_VERSION : null,
     ...overrides,
   };
-  // A proposed type was never validated, so it has no sheet version to remove with it.
-  await db
-    .delete(eventTypes)
+  // A proposed type was never validated, so it has no sheet version to replace.
+  const { id, ...columns } = type;
+  const replaced = await db
+    .update(eventTypes)
+    .set({ ...INSERT_DEFAULTS, ...columns })
     .where(
       and(
-        eq(eventTypes.id, type.id),
+        eq(eventTypes.id, id),
         inArray(eventTypes.id, SEEDED_TYPE_IDS),
         eq(eventTypes.status, 'proposed'),
       ),
-    );
-  const inserted = await db
-    .insert(eventTypes)
-    .values(type)
-    .onConflictDoNothing({ target: eventTypes.id })
+    )
     .returning({ version: eventTypes.currentVersionNumber });
-  const version = inserted[0]?.version ?? null;
+  const written =
+    replaced.length > 0
+      ? replaced
+      : await db
+          .insert(eventTypes)
+          .values(type)
+          .onConflictDoNothing({ target: eventTypes.id })
+          .returning({ version: eventTypes.currentVersionNumber });
+  const version = written[0]?.version ?? null;
   if (version !== null) {
     await db.insert(typeSheetVersions).values({
       eventTypeId: type.id,

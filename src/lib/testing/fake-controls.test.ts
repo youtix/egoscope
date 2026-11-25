@@ -5,6 +5,7 @@ import { fakeLinkCheck } from '@/lib/link-check';
 import { processFakeRuntimeCache } from '@/lib/runtime-cache';
 import { fakeStatsSource } from '@/lib/stats-source';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
+import { PLAN_KEY } from '@/lib/wake-plan';
 
 import { fakeControls, scriptFake } from './fake-controls';
 
@@ -35,7 +36,6 @@ const CONTROLS = [
   'backup-storage.interrupt-next-upload',
   'backup-storage.keep-next-deletion',
 ];
-const WAKE_PLAN = 'wake:plan';
 const OTHER_KEY = 'wake:ticks';
 const TTL_SECONDS = 600;
 const ARTICLE = 'https://news.test/a-storm';
@@ -47,7 +47,7 @@ async function cacheWithAPlan() {
   vi.stubEnv('EGOSCOPE_FAKES', 'runtime-cache');
   const { readPlan } = await import('@/lib/wake-plan');
   const cache = processFakeRuntimeCache();
-  await cache.set(WAKE_PLAN, { garbled: true }, TTL_SECONDS);
+  await cache.set(PLAN_KEY, { garbled: true }, TTL_SECONDS);
   await cache.set(OTHER_KEY, 'kept', TTL_SECONDS);
   return { cache, readPlan: async () => readPlan(AT) };
 }
@@ -80,6 +80,15 @@ describe('the controls of the fakes', () => {
 
       await expect(readPlan()).resolves.toStrictEqual({ ok: false, error: { kind: 'missing' } });
       await expect(cache.get(OTHER_KEY)).resolves.toStrictEqual({ ok: true, value: 'kept' });
+    });
+
+    it('evicts the value stored under the key of the wake plan that the wake-plan module names', async () => {
+      const cache = processFakeRuntimeCache();
+      await cache.set(PLAN_KEY, 'a plan', TTL_SECONDS);
+
+      fakeControls.runtimeCache.evictWakePlan();
+
+      await expect(cache.get(PLAN_KEY)).resolves.toStrictEqual({ ok: true, value: null });
     });
 
     it('loses the wake plan with everything else that the cache held', async () => {

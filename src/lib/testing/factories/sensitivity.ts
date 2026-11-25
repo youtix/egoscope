@@ -1,6 +1,6 @@
 import { and, asc, eq, gt } from 'drizzle-orm';
 
-import { boxScores, cases, games, parameterOverrides } from '@/lib/db';
+import { boxScores, cases, games } from '@/lib/db';
 import {
   baselinePhaseOf,
   classifyGame,
@@ -15,9 +15,9 @@ import {
   verifyBoxScore,
 } from '@/lib/stats-engine';
 import { endOfDayPacific, gameDay, now, toEpochMs } from '@/lib/time';
-import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 
 import { firstRow, present } from '../rows';
+import { engineParamsOf } from './params';
 import { MEDIA_STORM } from './taxonomy';
 
 import type { Database } from '@/lib/db';
@@ -26,7 +26,6 @@ import type {
   BoxScoreLine,
   CheckedBoxScore,
   DoubtfulCaseCriteria,
-  EngineParams,
   PhaseGame,
   PlayerGame,
   SeasonBaseline,
@@ -45,15 +44,6 @@ export type CaseFactoryOptions = Readonly<{
   overrides?: Partial<typeof cases.$inferInsert>;
 }>;
 
-// The engine's parameters at their default values, those of the parameter registry.
-const DEFAULT_PARAMS: EngineParams = {
-  ...engineParams,
-  games: {
-    ...engineParams.games,
-    postseasonBaseline:
-      engineParams.games.postseasonBaseline === 'regular_season' ? 'regular_season' : 'postseason',
-  },
-};
 const DAY_MS = 86_400_000;
 // A season is named by the year it starts in and the last two digits of the next one.
 const YEAR_DIGITS = 4;
@@ -69,21 +59,6 @@ const instantOf = (at: Date): EpochMs => toEpochMs(at.getTime());
 function previousSeason(season: string): string {
   const year = Number(season.slice(0, YEAR_DIGITS)) - 1;
   return `${String(year)}-${String((year + 1) % SHORT_YEAR).padStart(SHORT_YEAR_DIGITS, '0')}`;
-}
-
-/**
- * The engine's parameters at their default values, `games.minBaselineGames` as the
- * database overrides it (STA-19): no other override is read.
- */
-async function paramsOf(db: Database): Promise<EngineParams> {
-  const rows = await db
-    .select({ value: parameterOverrides.value })
-    .from(parameterOverrides)
-    .where(eq(parameterOverrides.parameterKey, 'games.minBaselineGames'));
-  const value = rows[0]?.value;
-  return typeof value === 'number'
-    ? { ...DEFAULT_PARAMS, games: { ...DEFAULT_PARAMS.games, minBaselineGames: value } }
-    : DEFAULT_PARAMS;
 }
 
 /** The stored schedule of `season`, every team's games, as the engine reads it (STA-06, STA-33). */
@@ -178,7 +153,7 @@ type Measured = Readonly<{ playerId: string; gameId: number; eventOn: IsoDate | 
  * before the game's US date unless it is given.
  */
 async function seasonOf(db: Database, { playerId, gameId, eventOn }: Measured) {
-  const params = await paramsOf(db);
+  const params = await engineParamsOf(db);
   const regular = await db
     .select()
     .from(games)
@@ -320,9 +295,9 @@ async function measure(db: Database, measured: Measured) {
  * historical media storm known by its day `eventOn`, public at the end of that day in
  * Pacific time, measured at the regular-season game `measuredGameId` from the player's
  * lines and the schedule that the database holds, as the engine measures it, with the
- * engine's parameters at their default values and `games.minBaselineGames` as the
- * database overrides it, which `insertLeagueSeason` sets to the league's nine games
- * unless a test set it first; no other override is read. It writes his minutes, the Game
+ * engine's parameters in force in the database (TRV-36), among them
+ * `games.minBaselineGames`, which `insertLeagueSeason` sets to the league's nine games
+ * unless a test set it first. It writes his minutes, the Game
  * Score, the performance index, the season baseline, the measured game excluded, and the
  * normalized gap, no doubtful-case criterion met. Throws when that game is not the first
  * he played after the event, or the case it gives is not valid. `overrides` replaces any

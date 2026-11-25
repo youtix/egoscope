@@ -7,7 +7,6 @@ import {
   eventSources,
   importEventOutcomes,
   importPossibleDuplicates,
-  imports,
 } from '@/lib/db';
 import {
   DATABASE_TEST_TIMEOUT_MS,
@@ -24,7 +23,7 @@ import { eraseEventData } from './erase';
 import { eventTrace, history } from './queries';
 
 import type { Database } from '@/lib/db';
-import type { EventRow, ImportRow } from '@/lib/testing';
+import type { EventRow, ImportFactoryOptions, ImportRow } from '@/lib/testing';
 
 const START = toEpochMs(Date.UTC(2026, 10, 20, 8, 15));
 const DAY = 86_400_000;
@@ -62,16 +61,15 @@ describe('the import step of a withdrawal', { timeout: DATABASE_TEST_TIMEOUT_MS 
   }, DATABASE_TEST_TIMEOUT_MS);
 
   /** An import saved into a new request of the player, at `at`. */
-  async function saveImport(at: number, columns: Partial<typeof imports.$inferInsert> = {}) {
-    const saved = await insertImport(db, {
+  async function saveImport(
+    at: number,
+    columns: Pick<ImportFactoryOptions, 'mode' | 'truncationRecovered'> = {},
+  ) {
+    return insertImport(db, {
       request: await insertRequest(db, { playerId: PLAYER }),
+      importedAt: new Date(at),
+      ...columns,
     });
-    const [updated] = await db
-      .update(imports)
-      .set({ importedAt: new Date(at), ...columns })
-      .where(eq(imports.id, saved.id))
-      .returning();
-    return updated ?? saved;
   }
 
   /** A source of `playerEventId` at `position`, added by `addedByImportId`. */

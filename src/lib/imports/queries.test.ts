@@ -98,12 +98,17 @@ describe('the import traces read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, ()
     }: Partial<Pick<NewImportRow, 'mode' | 'truncationRecovered' | 'deletedByReplacementCount'>> &
       Readonly<{ at?: number }> = {},
   ): Promise<ImportRow> {
-    const saved = await insertImport(db, { request: into });
-    const [updated] = await db
-      .update(imports)
-      .set({ importedAt: new Date(at), ...columns })
-      .where(eq(imports.id, saved.id))
-      .returning();
+    const { deletedByReplacementCount, ...asked } = columns;
+    const saved = await insertImport(db, { request: into, importedAt: new Date(at), ...asked });
+    // The factory takes no count of the events that a replacement deleted: it is set after.
+    const [updated] =
+      deletedByReplacementCount === undefined
+        ? []
+        : await db
+            .update(imports)
+            .set({ deletedByReplacementCount })
+            .where(eq(imports.id, saved.id))
+            .returning();
     if (outcomes.length > 0) {
       await db
         .insert(importEventOutcomes)

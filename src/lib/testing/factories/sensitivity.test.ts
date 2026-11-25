@@ -1,11 +1,12 @@
 import { and, asc, eq, gt } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { boxScores, createTestDatabase, games, parameterOverrides } from '@/lib/db';
+import { boxScores, createTestDatabase, games } from '@/lib/db';
 import { fixedClock, installFakeClock, toEpochMs, toIsoDate } from '@/lib/time';
 
 import { DATABASE_TEST_TIMEOUT_MS } from '../timeouts';
 import { insertBoxScores, insertLeagueSeason } from './games';
+import { setOwnerParam } from './params';
 import { insertPlayer } from './players';
 import { insertValidCase } from './sensitivity';
 import { insertEventType } from './taxonomy';
@@ -29,6 +30,8 @@ const BASELINE = [LINE_38, LINE_28, LINE_15, LINE_22, LINE_34, LINE_38, LINE_28,
 const PRECISION = 12;
 // games.minBaselineGames at its default value, that of the parameter registry (STA-19).
 const DEFAULT_MINIMUM_BASELINE = 10;
+// A playing-time floor above his 15-minute games and below all his others (STA-14).
+const RAISED_FLOOR = 20;
 
 // The scale that rounds a figure to PRECISION decimals.
 const SCALE = 10 ** PRECISION;
@@ -54,10 +57,7 @@ function moments(values: readonly number[]): Readonly<{ mean: number; deviation:
 
 /** Sets the minimum baseline size, `games.minBaselineGames`, as the owner would. */
 async function setMinimumBaseline(db: Database, count: number): Promise<void> {
-  await db
-    .insert(parameterOverrides)
-    .values({ parameterKey: 'games.minBaselineGames', value: count })
-    .onConflictDoUpdate({ target: parameterOverrides.parameterKey, set: { value: count } });
+  await setOwnerParam(db, 'games.minBaselineGames', count);
 }
 
 /** The games of the player's lines of `season`, by tip-off, with his minutes. */
@@ -164,6 +164,21 @@ describe('insertValidCase', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     const written = await insertValidCase(db, { playerId, measuredGameId: gameAt(0) });
 
     expect(written).toMatchObject({ baselineGameCount: kept.length, baselineStatus: 'final' });
+    expect(written.baselineMean).toBeCloseTo(moments(kept).mean, PRECISION);
+  });
+
+  it('[STA-14] [TRV-36] measures with the playing-time floor that the owner set, 20 minutes, which leaves his games of 15 out of the baseline', async () => {
+    await setOwnerParam(db, 'games.minutesFloor', RAISED_FLOOR);
+    const kept = [LINE_38, LINE_28, LINE_22, LINE_34, LINE_38, LINE_28, LINE_22];
+    await setMinimumBaseline(db, kept.length);
+
+    const written = await insertValidCase(db, { playerId, measuredGameId: gameAt(0) });
+
+    expect(written).toMatchObject({
+      playingTimeThresholdMinutes: RAISED_FLOOR,
+      baselineGameCount: kept.length,
+      baselineStatus: 'final',
+    });
     expect(written.baselineMean).toBeCloseTo(moments(kept).mean, PRECISION);
   });
 

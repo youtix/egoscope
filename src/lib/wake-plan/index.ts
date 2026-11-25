@@ -2,7 +2,7 @@ export { bumpCounter, drainCounters } from './counters';
 export type { AttemptKind, CounterBump, Counters, CountersDrain, ProbeService } from './counters';
 export { readInboundFilter, writeInboundFilter } from './inbound-filter';
 export type { InboundFilter, InboundFilterReading } from './inbound-filter';
-export { readPlan, writePlan } from './plan';
+export { PLAN_KEY, readPlan, writePlan } from './plan';
 export type {
   PlanContent,
   PlanReading,
