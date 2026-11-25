@@ -27,8 +27,29 @@ export type {
 } from './types';
 
 // create.ts: createHistorical, createDetected, createCalendarDerived
+export { createCalendarDerived, createHistorical } from './create';
+export type {
+  CalendarCreation,
+  CalendarDescription,
+  CreatedHistorical,
+  HistoricalImport,
+  HistoricalRefusal,
+  NewCalendarDerivedEvent,
+  NewHistoricalEvent,
+  NewImportWarning,
+  TextRefusal,
+} from './create';
 
 // sources.ts: addSources, recordLinkCheck, recordSpotCheck
+export { addSources, recordLinkCheck, recordSpotCheck } from './sources';
+export type {
+  DateOrInstant,
+  LinkStatus,
+  NewSource,
+  SourceAddition,
+  SourceGone,
+  SpotCheckVerdict,
+} from './sources';
 
 // corrections.ts
 export { applyCorrection } from './corrections';
@@ -64,3 +85,15 @@ export { eraseEvent, scrubPlayerFromCorrections } from './erase';
 export type { ErasedEvent, ErasureVariant } from './erase';
 
 // queries.ts: getEvent, eventsOfPlayer, uncheckedSources
+export { eventsOfPlayer, getEvent, uncheckedSources } from './queries';
+export type {
+  CalendarDerivedEvent,
+  ContextIndication,
+  ContextIndicationOrigin,
+  ContextIndications,
+  HistoricalEvent,
+  ImportWarning,
+  PlayerEvent,
+  PlayerEventSource,
+  UncheckedSource,
+} from './queries';
