@@ -216,12 +216,21 @@ function manifestTable(entry: TableEntry) {
   return Object.fromEntries(pairs);
 }
 
-/** The manifest, the archive's last entry, read in `tx` once every table is written. */
+/**
+ * The manifest, the archive's last entry, read in `tx` once the files of the `expected`
+ * tables are written, and `entries` says what each one holds. A caller that skipped a
+ * table's file is a bug, which throws instead of giving a manifest without that table.
+ */
 async function manifest(
   tx: Transaction,
   exportedAt: EpochMs,
-  entries: readonly TableEntry[],
+  { entries, expected }: Readonly<{ entries: readonly TableEntry[]; expected: number }>,
 ): Promise<ZipEntry> {
+  if (entries.length !== expected) {
+    throw new Error(
+      `The manifest expects ${String(expected)} tables, but ${String(entries.length)} were read: read every table's file before the manifest.`,
+    );
+  }
   const pairs: readonly (readonly [string, unknown])[] = [
     ['format', FORMAT],
     ['format_version', FORMAT_VERSION],
@@ -272,9 +281,10 @@ export async function* archiveEntries(
   exportedAt: EpochMs,
 ): AsyncGenerator<ZipEntry, void, undefined> {
   const entries: TableEntry[] = [];
+  const tables = archivedTables();
   yield { name: README_FILE, chunks: [encoder.encode(README)] };
-  for (const table of archivedTables()) {
+  for (const table of tables) {
     yield tableEntry(tx, table, entries);
   }
-  yield await manifest(tx, exportedAt, entries);
+  yield await manifest(tx, exportedAt, { entries, expected: tables.length });
 }

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import {
   boxScores,
+  cases,
   createTestDatabase,
   eventSources,
   exportDownloads,
@@ -61,6 +62,9 @@ const TWO_DIGITS = 2;
 
 type Entry = readonly [name: string, text: string];
 type Cell = string | number | boolean | Date | null | undefined;
+type Event = Awaited<ReturnType<typeof insertHistoricalEvent>>;
+/** The texts of an event's line, as `events.csv` writes them. */
+type Written = Readonly<{ name: string; description: string; sources: string }>;
 
 /** The instant of `day` November 2026 at `hour`:`minute` UTC. */
 function utc(day: number, hour: number, minute: number) {
@@ -120,6 +124,31 @@ function unzip(archive: Uint8Array): readonly Entry[] {
     at = nameAt + nameLength;
   }
   return entries;
+}
+
+/** The line of `event` in `events.csv`, with its texts as `written`. */
+function eventLine(event: Event, written: Written): string {
+  const cells: readonly Cell[] = [
+    event.id,
+    event.playerId,
+    written.name,
+    event.eventTypeId,
+    event.sheetVersionNumber,
+    event.origin,
+    event.detectedStatus,
+    event.referenceDateOn,
+    event.referenceAt,
+    event.referenceDatePrecision,
+    written.description,
+    event.injuryReturn,
+    event.gameStakes,
+    event.researchConfidence,
+    event.detectionConfidence,
+    event.precedence,
+    written.sources,
+    event.caseId,
+  ];
+  return cells.map((value) => cell(value)).join(',');
 }
 
 /** The download of a spreadsheet export, and its lines, its header first. */
@@ -248,7 +277,7 @@ describe('the exports', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     return cells.map((value) => cell(value));
   }
 
-  it('[TRV-52] [TRV-53] downloads the full export as one ZIP archive named by its instant, which any archive tool opens', async () => {
+  it('[TRV-52] downloads the full export as one ZIP archive named by its instant, which any archive tool opens', async () => {
     await profiledPlayer(db);
 
     const download = started(await exportAll());
@@ -420,27 +449,75 @@ describe('the exports', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     // The header, the seven events of the profiled player, then the new one, whose quoted
     // line break stays inside its row.
     expect(lines).toHaveLength(1 + 7 + 1);
-    const cells: readonly Cell[] = [
-      event.id,
-      player.id,
-      player.displayName,
-      event.eventTypeId,
-      event.sheetVersionNumber,
-      'historical',
-      null,
-      event.referenceDateOn,
-      null,
-      event.referenceDatePrecision,
-      '"He said ""no"", then\nleft"',
-      event.injuryReturn,
-      event.gameStakes,
-      event.researchConfidence,
-      null,
-      event.precedence,
-      'https://news1.example/story https://news2.example/story',
-      null,
-    ];
-    expect(lines.at(-1)).toBe(cells.map((value) => cell(value)).join(','));
+    expect(lines.at(-1)).toBe(
+      eventLine(event, {
+        name: player.displayName,
+        description: '"He said ""no"", then\nleft"',
+        sources: 'https://news1.example/story https://news2.example/story',
+      }),
+    );
+  });
+
+  it('[TRV-52] writes a text cell that starts like a formula with a leading apostrophe, so that a spreadsheet shows it as text, and leaves numbers and inner characters as they are', async () => {
+    const { player, imported, cases: measured } = await profiledPlayer(db);
+    const playerId = player.id;
+    await db
+      .update(followedPlayers)
+      .set({ displayName: '=Vantor+1' })
+      .where(eq(followedPlayers.id, playerId));
+    const gapped = measured.find((item) => item.normalizedGap !== null)?.id ?? 0;
+    await db.update(cases).set({ normalizedGap: -1.25 }).where(eq(cases.id, gapped));
+    const descriptions = [
+      ['=1+1', "'=1+1"],
+      ['+1', "'+1"],
+      ['-2+3', "'-2+3"],
+      ['@SUM(A1)', "'@SUM(A1)"],
+      ['\tcmd', "'\tcmd"],
+      ['\rcmd', `"'\rcmd"`],
+      ['=1,2', `"'=1,2"`],
+      ['1+1=2', '1+1=2'],
+      ['a-b', 'a-b'],
+      ['x@y', 'x@y'],
+      ['He said "no"', '"He said ""no"""'],
+    ] as const;
+    const written: Event[] = [];
+    for (const [description] of descriptions) {
+      const overrides = { description };
+      written.push(
+        await insertHistoricalEvent(db, { playerId, originImportId: imported.id, overrides }),
+      );
+    }
+    const linked = written[0]?.id ?? 0;
+    const url = '=HYPERLINK("http://x.example","go")';
+    const source = { playerEventId: linked, position: 1, url, cleanedUrl: url };
+    await db.insert(eventSources).values({ ...source, publicationDateOn: '2024-11-20' });
+
+    const events = await csvLines('events');
+    const caseLines = await csvLines('cases');
+
+    expect(events.slice(-descriptions.length)).toStrictEqual(
+      written.map((event, index) =>
+        eventLine(event, {
+          name: "'=Vantor+1",
+          description: descriptions[index]?.[1] ?? '',
+          sources: event.id === linked ? '"\'=HYPERLINK(""http://x.example"",""go"")"' : '',
+        }),
+      ),
+    );
+    const row = caseLines.map((line) => line.split(',')).find(([id]) => id === String(gapped));
+    expect([row?.[2], row?.[19]]).toStrictEqual(["'=Vantor+1", '-1.25']);
+  });
+
+  it('[TRV-52] writes no apostrophe before any cell of a seeded export, whose texts start as no formula does', async () => {
+    const { player } = await profiledPlayer(db);
+    await insertProfile(player.id, 'all_cases');
+
+    const kinds = ['players', 'events', 'cases', 'profiles'] as const;
+    const files = await Promise.all(kinds.map(async (kind) => csvLines(kind)));
+
+    const cells = files.flat().flatMap((line) => line.split(','));
+    expect(cells.filter((value) => /^"?'/u.test(value))).toStrictEqual([]);
+    expect(cells).toContain('-0.1');
   });
 
   it('[TRV-52] exports the profiles, one row per profile', async () => {
