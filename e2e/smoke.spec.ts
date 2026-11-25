@@ -9,13 +9,12 @@ test.describe('the hermetic server', () => {
     expect(response.status()).toBe(401);
   });
 
-  test('renders the page reached from the root address, which passes the accessibility check', async ({
+  test('sends the root address to the login page without a session, through pages that pass the accessibility check', async ({
     page,
   }) => {
-    const response = await page.goto('/');
+    await page.goto('/');
 
-    expect(response?.ok()).toBe(true);
-    await expect(page).toHaveTitle(/Egoscope/u);
+    await expect(page).toHaveURL('/log-in?next=%2F');
   });
 
   test('runs in the hermetic mode', async ({ request }) => {
