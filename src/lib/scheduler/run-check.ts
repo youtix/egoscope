@@ -12,10 +12,12 @@ import { toEpochMs } from '@/lib/time';
 import { wakeAt } from '@/lib/wake-plan';
 
 import { TIME_ZONE_KEY } from './due';
+import { releaseLease, takeLease } from './lease';
 import { HOUR_MS } from './limits';
 import { localTimesOf, occurrencesBetween } from './occurrences';
 import { epochOf, startRun } from './runs';
 
+import type { LeaseHeld } from './lease';
 import type { Registry, ScheduledTask, TaskRunResult } from './types';
 import type { Database } from '@/lib/db';
 import type { ParamReader } from '@/lib/params';
@@ -30,8 +32,12 @@ type Span = Readonly<{
   result: TaskRunResult | null;
 }>;
 
-/** When the check runs, and the pass whose id a catch-up run takes. */
-type CheckMoment = Readonly<{ at: EpochMs; passId?: string }>;
+/** When the check runs, and the pass, holding the lease, whose id a catch-up run takes. */
+type CheckMoment = Readonly<{ at: EpochMs; passId: string }>;
+
+/** What the run check at opening did: the tasks it caught up, or nothing while a pass runs. */
+export type MissedRunsCheck =
+  Readonly<{ ok: true; caughtUp: readonly TaskKey[] }> | Readonly<{ ok: false; error: LeaseHeld }>;
 
 type Check = Readonly<{
   db: Database;
@@ -47,15 +53,18 @@ type Check = Readonly<{
 
 /**
  * Where each task's check starts: just before the occurrence of its last finished
- * scheduled run, which an on-demand run never moves (TRV-33), or else of its first run; a
- * task that never ran has none, since it is due at once.
+ * scheduled run, which an on-demand run never moves (TRV-33), or else of its first run,
+ * and never before its first run started, so that the occurrences that came before the
+ * task first ran, which its first run, due at once, stands for, are never missed
+ * (CL-TRV-08); a task that never ran has none, since it is due at once.
  */
 async function floorsOf(db: Database): Promise<ReadonlyMap<TaskKey, EpochMs>> {
   const finishedScheduled = sql`${taskRuns.result} is not null and ${taskRuns.trigger} = 'scheduled'`;
+  const lastOccurrence = sql`coalesce(max(${taskRuns.dueAt}) filter (where ${finishedScheduled}), min(${taskRuns.dueAt}))`;
   const rows = await db
     .select({
       taskKey: taskRuns.taskKey,
-      from: sql<Date>`coalesce(max(${taskRuns.dueAt}) filter (where ${finishedScheduled}), min(${taskRuns.dueAt}))`.mapWith(
+      from: sql<Date>`greatest(${lastOccurrence}, min(${taskRuns.startedAt}))`.mapWith(
         taskRuns.dueAt,
       ),
     })
@@ -143,7 +152,7 @@ async function checkOf(
   return {
     db,
     at: moment.at,
-    passId: moment.passId ?? randomUUID(),
+    passId: moment.passId,
     params,
     timeZone: params.get(TIME_ZONE_KEY),
     marginMs: params.get('scheduler.missedRunMarginHours') * HOUR_MS,
@@ -255,14 +264,15 @@ async function catchUp(
 
 /**
  * The run check at `moment` (TRV-31, CL-TRV-08), at the start and the end of each pass and
- * at each opening of the app: each occurrence missed since the task's last finished
- * scheduled run is journaled once, opens the task's "task not run" incident, closed by its
- * next success, and makes the task due at once through one catch-up run, recorded as
- * scheduled, which runs in the pass `moment.passId` if its budget allows and otherwise at
- * the next one. A statistics update that waits for the source is running, and a late
- * source is never missed (CL-TRV-23). Returns the tasks whose catch-up run it started.
+ * at each opening of the app, run by the pass `moment.passId` that holds the lease, so that
+ * two checks never journal the same occurrence: each occurrence missed since the task's
+ * last finished scheduled run is journaled once, opens the task's "task not run" incident,
+ * closed by its next success, and makes the task due at once through one catch-up run,
+ * recorded as scheduled, which runs in that pass if its budget allows and otherwise at the
+ * next one. A statistics update that waits for the source is running, and a late source is
+ * never missed (CL-TRV-23). Returns the tasks whose catch-up run it started.
  */
-export async function checkMissedRuns(
+export async function runCheck(
   db: Database,
   registry: Registry,
   moment: CheckMoment,
@@ -278,4 +288,29 @@ export async function checkMissedRuns(
     caughtUp.push(...(started === null ? [] : [started]));
   }
   return caughtUp;
+}
+
+/**
+ * The run check at an opening of the app (TRV-31, CL-TRV-08): as a pass of its own, under
+ * the `scheduler_lease` row that every pass takes, so that it never runs beside a pass or
+ * another opening's check and journals each missed occurrence once (TRV-28). While a pass
+ * holds the lease it checks nothing, since that pass checks at its end; otherwise it runs
+ * the check at `at` and returns the tasks whose catch-up run it started, recorded as
+ * scheduled and made due at once in the wake plan.
+ */
+export async function checkMissedRuns(
+  db: Database,
+  registry: Registry,
+  at: EpochMs,
+): Promise<MissedRunsCheck> {
+  const passId = randomUUID();
+  const lease = await takeLease(db, passId, at);
+  if (!lease.ok) {
+    return lease;
+  }
+  try {
+    return { ok: true, caughtUp: await runCheck(db, registry, { at, passId }) };
+  } finally {
+    await releaseLease(db, passId);
+  }
 }

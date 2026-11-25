@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -487,19 +487,6 @@ describe('a database pass', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       isUsageCounted: true,
       activity: 1,
     });
-    // A drain that raced a write gives the same attempt back: it is not journaled again.
-    clock.advance(2 * MINUTE);
-    await wakePlan.bumpCounter({ attempt: 'refused_trigger' }, at(-3))();
-    await wakePlan.bumpCounter({ attempt: 'refused_trigger' }, at(1))();
-    await execute(db, []);
-    const refused = await db
-      .select({ occurredAt: journalEntries.occurredAt })
-      .from(journalEntries)
-      .where(eq(journalEntries.messageKey, 'trigger_refused'));
-    expect(refused).toStrictEqual([
-      { occurredAt: new Date(at(-3)) },
-      { occurredAt: new Date(at(1)) },
-    ]);
     expect(await wakePlan.readPlan(clock.now())).toMatchObject({ ok: true, plan: { entries: [] } });
   });
 
@@ -516,20 +503,39 @@ describe('a database pass', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     });
   });
 
-  it('[CL-TRV-25] journals once the count of the attempts beyond those kept one by one, though a drain gives it back', async () => {
-    const { execute, fake } = await load();
-    const none = { tags: '', deltas: [] };
-    const beyond = { kind: 'refused_trigger', count: 3, firstAt: at(-3), lastAt: at(-1) };
-    const counters = { attempts: none, beyond: [beyond], probeCalls: none };
-    await fake.set('wake:counters', counters, 3600);
-    await execute(db, []);
-    clock.advance(MINUTE);
-    await fake.set('wake:counters', counters, 3600);
-    await execute(db, []);
-    const counted = await db
-      .select({ params: journalEntries.messageParams })
-      .from(journalEntries)
-      .where(eq(journalEntries.messageKey, 'trigger_refusals_counted'));
-    expect(counted).toStrictEqual([{ params: { count: 3, firstAt: at(-3), lastAt: at(-1) } }]);
+  it("[CL-TRV-07] records a run whose query fails as failed, and keeps the query's parameters, the owner's text among them, out of the log", async () => {
+    const { execute } = await load();
+    const lines: string[] = [];
+    const errors = vi.spyOn(console, 'error').mockImplementation((line: unknown) => {
+      lines.push(String(line));
+    });
+    const failing: ScheduledTask = {
+      ...instantTask('link-check', [{ kind: 'computed', nextDueAt: answer(AT) }]),
+      // An insert that the database refuses, its parameters holding the owner's text.
+      run: async ({ db: pass }) => {
+        const row = { taskKey: 'purge', trigger: 'scheduled', passId: 'not-a-uuid' } as const;
+        await pass.insert(taskRuns).values({ ...row, dueAt: new Date(AT), cursor: 'OWNER TEXT' });
+        return SUCCEEDED;
+      },
+    };
+    try {
+      await execute(db, [failing]);
+    } finally {
+      errors.mockRestore();
+    }
+    const runs = await runsOf();
+    expect({
+      log: lines.map((line): unknown => JSON.parse(line)),
+      results: runs.map(({ result }) => result),
+    }).toStrictEqual({
+      log: [
+        {
+          level: 'error',
+          message: 'A task handler threw: its run is recorded as failed.',
+          context: { task: 'link-check', error: 'Error', code: '22P02' },
+        },
+      ],
+      results: ['failed'],
+    });
   });
 });

@@ -15,7 +15,7 @@ import { flushCounters } from './flush';
 import { releaseLease, takeLease } from './lease';
 import { PASS_BUDGET_MS, STALE_AFTER_MS } from './limits';
 import { computeWakePlan } from './plan';
-import { checkMissedRuns } from './run-check';
+import { runCheck } from './run-check';
 import { finishRun, interrupt, isRunning, isWaiting, loadStates, markProgress } from './runs';
 import { nextRun } from './turn';
 
@@ -24,6 +24,7 @@ import type { RunRow, TaskState } from './runs';
 import type { Pass } from './turn';
 import type { ChunkOutcome, Registry, ScheduledTask, TaskContext } from './types';
 import type { Database } from '@/lib/db';
+import type { LogFields } from '@/lib/log';
 import type { EpochMs } from '@/lib/time';
 import type { TaskKey } from '@/lib/wake-plan';
 
@@ -51,14 +52,28 @@ async function closeStaleRuns(db: Database, registry: Registry, at: EpochMs): Pr
   }
 }
 
-/** One chunk of `task`; a handler that throws, a bug, fails its run. */
+/**
+ * What the log says of what a handler threw: the error's name and, for a failed query, the
+ * driver's SQL state, never its message, which for a query holds every bound parameter and
+ * so the owner's text (module map §2.1 `log`).
+ */
+function thrownFacts(thrown: unknown): LogFields {
+  if (!(thrown instanceof Error)) {
+    return { error: typeof thrown };
+  }
+  const { cause } = thrown;
+  const code: unknown = cause instanceof Object && 'code' in cause ? cause.code : null;
+  return typeof code === 'string' ? { error: thrown.name, code } : { error: thrown.name };
+}
+
+/** One chunk of `task`; a handler that throws, a bug or a lost connection, fails its run. */
 async function chunk(task: ScheduledTask, context: TaskContext): Promise<ChunkOutcome> {
   try {
     return await task.run(context);
   } catch (error) {
     logger.error('A task handler threw: its run is recorded as failed.', {
       task: task.key,
-      error: error instanceof Error ? error.message : String(error),
+      ...thrownFacts(error),
     });
     return { kind: 'done', result: 'failed' };
   }
@@ -127,9 +142,9 @@ async function runTasks(pass: Pass, tasks: Registry): Promise<void> {
 async function runPass(pass: Pass, registry: Registry): Promise<void> {
   const { db, id } = pass;
   await closeStaleRuns(db, registry, now());
-  await checkMissedRuns(db, registry, { at: now(), passId: id });
+  await runCheck(db, registry, { at: now(), passId: id });
   await runTasks(pass, registry);
-  const caughtUp = await checkMissedRuns(db, registry, { at: now(), passId: id });
+  const caughtUp = await runCheck(db, registry, { at: now(), passId: id });
   if (caughtUp.length > 0) {
     await runTasks(
       pass,

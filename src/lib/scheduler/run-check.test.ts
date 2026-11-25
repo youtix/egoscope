@@ -1,7 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createTestDatabase, incidents, journalEntries, taskRuns } from '@/lib/db';
+import { createTestDatabase, incidents, journalEntries, schedulerLease, taskRuns } from '@/lib/db';
 import { DATABASE_TEST_TIMEOUT_MS } from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
@@ -16,6 +16,7 @@ const HOUR = 60 * MINUTE;
 const nov = (day: number, hour: number, minute = 0) =>
   toEpochMs(Date.UTC(2026, 10, day, hour, minute));
 const PASS = '00000000-0000-4000-8000-000000000002';
+const UUID = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u;
 
 /** The scheduler as a deployment loads it, over the process's fake cache. */
 async function load() {
@@ -111,16 +112,20 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     { taskKey: 'purge', dueAt: nov(24, 8), trigger: 'on_demand', result: 'succeeded' },
   ];
 
-  it('[TRV-31] [CL-TRV-08] journals each missed occurrence once, opens "task not run" and starts one scheduled catch-up run in the given pass', async () => {
+  it('[TRV-31] [CL-TRV-08] journals each missed occurrence once, opens "task not run" and starts one scheduled catch-up run in a pass of its own', async () => {
     const { checkMissedRuns } = await load();
     await insertRuns(purgeRuns);
     const at = nov(25, 10);
     const caughtUp = [
-      await checkMissedRuns(db, [], { at }),
-      await checkMissedRuns(db, [purge], { at, passId: PASS }),
-      await checkMissedRuns(db, [purge], { at: toEpochMs(at + MINUTE) }),
+      await checkMissedRuns(db, [], at),
+      await checkMissedRuns(db, [purge], at),
+      await checkMissedRuns(db, [purge], toEpochMs(at + MINUTE)),
     ];
-    expect(caughtUp).toStrictEqual([[], ['purge'], []]);
+    expect(caughtUp).toStrictEqual([
+      { ok: true, caughtUp: [] },
+      { ok: true, caughtUp: ['purge'] },
+      { ok: true, caughtUp: [] },
+    ]);
     expect(await missesOf()).toStrictEqual([
       { task: 'purge', dueAt: nov(24, 3) },
       { task: 'purge', dueAt: nov(25, 3) },
@@ -134,14 +139,47 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       dueAt: new Date(nov(25, 3)),
       startedAt: new Date(at),
       result: null,
-      passId: PASS,
     });
+    // The check ran as a pass of its own, whose lease it released.
+    const passId = runs.at(-1)?.passId ?? '';
+    expect({
+      isOwnPass: UUID.test(passId) && passId !== PASS,
+      lease: await db.select().from(schedulerLease),
+    }).toStrictEqual({ isOwnPass: true, lease: [{ id: 1, passId: null, expiresAt: null }] });
+  });
+
+  it('[TRV-28] [TRV-31] [CL-TRV-08] journals each missed occurrence once when two checks run at once, and checks nothing while a pass holds the lease', async () => {
+    const { checkMissedRuns } = await load();
+    await insertRuns([{ taskKey: 'purge', dueAt: nov(23, 3), result: 'succeeded' }]);
+    const at = nov(25, 10);
+    const outcomes = await Promise.all([
+      checkMissedRuns(db, [purge], at),
+      checkMissedRuns(db, [purge], at),
+    ]);
+    expect(outcomes.filter((outcome) => !outcome.ok)).toStrictEqual([
+      { ok: false, error: { kind: 'lease_held' } },
+    ]);
+    expect(await missesOf()).toStrictEqual([
+      { task: 'purge', dueAt: nov(24, 3) },
+      { task: 'purge', dueAt: nov(25, 3) },
+    ]);
+    await db
+      .update(schedulerLease)
+      .set({ passId: PASS, expiresAt: new Date(at + HOUR) })
+      .where(eq(schedulerLease.id, 1));
+    await db.delete(journalEntries).where(eq(journalEntries.messageKey, 'task_run_missed'));
+    expect(await checkMissedRuns(db, [purge], toEpochMs(at + MINUTE))).toStrictEqual({
+      ok: false,
+      error: { kind: 'lease_held' },
+    });
+    expect(await missesOf()).toStrictEqual([]);
+    expect(await db.select().from(taskRuns)).toHaveLength(2);
   });
 
   it('[TRV-31] [CL-TRV-08] closes "task not run" at the success of the catch-up run, which the next pass runs, and journals no occurrence twice', async () => {
     const { checkMissedRuns, execute } = await load();
     await insertRuns(purgeRuns);
-    await checkMissedRuns(db, [purge], { at: nov(25, 10) });
+    await checkMissedRuns(db, [purge], nov(25, 10));
     const restore = installFakeClock(fixedClock(nov(25, 10, 1)));
     try {
       await execute(db, [purge]);
@@ -187,7 +225,10 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       },
       { taskKey: 'link-check', dueAt: nov(24, 6), result: 'failed' },
     ]);
-    expect(await checkMissedRuns(db, registry, { at })).toStrictEqual(['detection']);
+    expect(await checkMissedRuns(db, registry, at)).toStrictEqual({
+      ok: true,
+      caughtUp: ['detection'],
+    });
     expect(await missesOf()).toStrictEqual([
       { task: 'detection', dueAt: nov(24, 21, 30) },
       { task: 'recalculation', dueAt: nov(25, 9) },
@@ -209,9 +250,15 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       passId: PASS,
     });
     const registry = [statisticsUpdate];
-    expect(await checkMissedRuns(db, registry, { at: nov(24, 20, 59) })).toStrictEqual([]);
+    expect(await checkMissedRuns(db, registry, nov(24, 20, 59))).toStrictEqual({
+      ok: true,
+      caughtUp: [],
+    });
     expect(await missesOf()).toStrictEqual([]);
-    expect(await checkMissedRuns(db, registry, { at: nov(24, 21) })).toStrictEqual([]);
+    expect(await checkMissedRuns(db, registry, nov(24, 21))).toStrictEqual({
+      ok: true,
+      caughtUp: [],
+    });
     expect(await missesOf()).toStrictEqual([{ task: 'statistics-update', dueAt: nov(24, 14) }]);
     expect(await db.select().from(taskRuns)).toHaveLength(2);
   });
@@ -228,11 +275,47 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       },
     ]);
     const registry = [statisticsUpdate];
-    expect(await checkMissedRuns(db, registry, { at: nov(25, 15, 59) })).toStrictEqual([]);
+    expect(await checkMissedRuns(db, registry, nov(25, 15, 59))).toStrictEqual({
+      ok: true,
+      caughtUp: [],
+    });
     expect(await missesOf()).toStrictEqual([]);
-    expect(await checkMissedRuns(db, registry, { at: nov(25, 16) })).toStrictEqual([
-      'statistics-update',
-    ]);
+    expect(await checkMissedRuns(db, registry, nov(25, 16))).toStrictEqual({
+      ok: true,
+      caughtUp: ['statistics-update'],
+    });
     expect(await missesOf()).toStrictEqual([{ task: 'statistics-update', dueAt: nov(25, 14) }]);
+  });
+
+  it('[TRV-31] [CL-TRV-08] [CL-TRV-23] runs each timed task once at the first pass on an empty database, and journals no occurrence before it as missed', async () => {
+    const { execute } = await load();
+    const update = { ...statisticsUpdate, run: answer({ kind: 'done', result: 'source_late' }) };
+    const registry: readonly ScheduledTask[] = [purge, update];
+    const clock = fixedClock(nov(25, 10));
+    const restore = installFakeClock(clock);
+    try {
+      await execute(db, registry);
+      clock.advance(5 * MINUTE);
+      await execute(db, registry);
+      const runs = await db.select().from(taskRuns).orderBy(asc(taskRuns.id));
+      expect(runs.map(({ taskKey, dueAt, result }) => ({ taskKey, dueAt, result }))).toStrictEqual([
+        { taskKey: 'purge', dueAt: new Date(nov(25, 3)), result: 'succeeded' },
+        { taskKey: 'statistics-update', dueAt: new Date(nov(24, 14)), result: 'source_late' },
+      ]);
+      expect({ misses: await missesOf(), incidents: await incidentsOf() }).toStrictEqual({
+        misses: [],
+        incidents: [],
+      });
+      // The occurrences after the first runs are checked: the update of the 25th, not
+      // started by 16:00 UTC, and the purge of the 26th, not run by 05:00 UTC.
+      clock.advance(nov(26, 6) - clock.now());
+      await execute(db, registry);
+    } finally {
+      restore();
+    }
+    expect(await missesOf()).toStrictEqual([
+      { task: 'purge', dueAt: nov(26, 3) },
+      { task: 'statistics-update', dueAt: nov(25, 14) },
+    ]);
   });
 });
