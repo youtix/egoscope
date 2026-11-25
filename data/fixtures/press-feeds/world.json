@@ -1,0 +1,144 @@
+{
+  "feeds": {
+    "https://courtside.example.test/feed.xml": {
+      "language": "en",
+      "items": [
+        {
+          "identifier": "  courtside-1042 ",
+          "link": "https://courtside.example.test/2026/11/20/vrask-ankle",
+          "title": "Teodor Vrask leaves practice with a sprained ankle",
+          "published": "Fri, 20 Nov 2026 18:30:00 -0500",
+          "excerpt": "<p>The forward <b>limped off</b> during the morning session.</p>"
+        },
+        {
+          "identifier": "courtside-1041",
+          "link": "https://courtside.example.test/2026/11/20/lindqvar-return",
+          "title": "Mika Lindqvar is cleared to return",
+          "published": "2026-11-20"
+        },
+        {
+          "identifier": "courtside-1040",
+          "link": "https://courtside.example.test/2026/11/20/brannoch-trade",
+          "title": "Ozzie Brannoch asks for a trade",
+          "published": "2026-11-20T09:15:00"
+        },
+        {
+          "identifier": "courtside-1039",
+          "link": "https://courtside.example.test/2026/11/19/injury-report",
+          "title": "The injury report, updated",
+          "updated": "2026-11-19T22:00:00Z"
+        },
+        {
+          "identifier": "courtside-1038",
+          "title": "A headline without a link",
+          "published": "2026-11-19T20:00:00Z"
+        },
+        {
+          "identifier": "courtside-1037",
+          "link": "https://courtside.example.test/2026/11/19/untitled",
+          "published": "2026-11-19T19:00:00Z"
+        },
+        {
+          "identifier": "courtside-1036",
+          "link": "https://courtside.example.test/2026/11/19/cronica",
+          "title": "Crónica del partido de anoche",
+          "published": "2026-11-19T12:00:00Z",
+          "language": "es"
+        },
+        {
+          "identifier": "courtside-0904",
+          "link": "https://courtside.example.test/2026/10/01/preseason",
+          "title": "Preseason notebook",
+          "published": "2026-10-01T12:00:00Z"
+        }
+      ]
+    },
+    "https://lepanier.example.test/rss": {
+      "language": "fr",
+      "items": [
+        {
+          "identifier": "lepanier-77",
+          "link": "https://courtside.example.test/2026/11/20/vrask-ankle",
+          "title": "Teodor Vrask se blesse à la cheville",
+          "published": "Sat, 21 Nov 2026 01:10:00 +0100"
+        },
+        {
+          "identifier": "lepanier-76",
+          "link": "https://lepanier.example.test/2026/11/20/corvato-prolonge",
+          "title": "Ilan Corvato prolonge son contrat",
+          "published": "2026-11-20T11:00:00+01:00"
+        }
+      ]
+    },
+    "https://hoopswire.example.test/atom": {
+      "language": "en",
+      "items": [
+        {
+          "identifier": "tag:hoopswire.example.test,2026:501",
+          "link": "https://courtside.example.test/2026/11/20/lindqvar-return",
+          "title": "Mika Lindqvar is cleared to return",
+          "published": "2026-11-20T15:00:00Z",
+          "originOutlet": "Courtside Daily"
+        },
+        {
+          "identifier": "tag:hoopswire.example.test,2026:500",
+          "link": "https://dunkdigest.example.test/n/88",
+          "title": "Ilan Corvato signs an extension",
+          "published": "2026-11-20T14:00:00Z",
+          "originOutlet": "Dunk Digest"
+        },
+        {
+          "identifier": "tag:hoopswire.example.test,2026:499",
+          "link": "https://hoopswire.example.test/brief/499",
+          "title": "The morning brief",
+          "published": "2026-11-20T07:00:00Z"
+        }
+      ]
+    },
+    "https://baseline.example.test/rss": {
+      "language": "en",
+      "items": [
+        {
+          "identifier": "baseline-12",
+          "link": "https://baseline.example.test/12",
+          "title": "Rotation notes",
+          "published": "2026-11-20T16:00:00Z"
+        }
+      ]
+    },
+    "https://quietcorner.example.test/rss": {
+      "language": "en",
+      "items": [
+        {
+          "identifier": "quiet-1",
+          "link": "https://quietcorner.example.test/1",
+          "title": "A season preview",
+          "published": "2026-11-02T10:00:00Z"
+        }
+      ]
+    },
+    "https://shortfeed.example.test/rss": {
+      "language": "en",
+      "keeps": 2,
+      "items": [
+        {
+          "identifier": "short-2",
+          "link": "https://shortfeed.example.test/2",
+          "title": "A late scratch",
+          "published": "2026-11-20T23:00:00Z"
+        },
+        {
+          "identifier": "short-1",
+          "link": "https://shortfeed.example.test/1",
+          "title": "Shootaround notes",
+          "published": "2026-11-20T17:00:00Z"
+        }
+      ]
+    }
+  },
+  "moves": {
+    "https://baseline.example.test/old/rss": "https://baseline.example.test/rss"
+  },
+  "pages": ["https://courtside.example.test/"],
+  "locked": ["https://premium.example.test/rss"]
+}
