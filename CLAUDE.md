@@ -340,8 +340,9 @@ touches it and its prefix, its letters before the first hyphen, is that of an ID
 ## The local loop
 
 - Heavy scripts (`typecheck`, `lint`, `lint:fix`, `test`, `test:coverage`, `test:mutation`,
-  `build`, `knip`, `check:changed`, `gate`) queue behind each other across worktrees on one lock,
-  `egoscope-heavy.lock` in the shared git directory, so run the narrowest command that answers your
+  `build`, `knip`, `check:changed`, `gate`) queue across worktrees on a lock with two slots in the
+  shared git directory: a whole-project script runs alone on the first, and a narrow one (a test run
+  with a path, an eslint run with paths) on either, so run the narrowest command that answers your
   question. The lock refuses watch, UI and dev-server modes; for watch mode, run `bun x vitest`.
 - While developing, run `bun run check:changed` (format, lint and tests for what differs from
   `origin/main`, plus the whole-project type check) and targeted tests: `bun run test <path>`.
