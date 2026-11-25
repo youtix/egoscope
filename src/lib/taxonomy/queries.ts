@@ -81,18 +81,22 @@ const COMPLETE_SHEET = z.object({
 });
 const VERSION_NUMBER = COMPLETE_SHEET.shape.currentVersionNumber;
 
-/** The instant of a `timestamptz` read back, in epoch milliseconds. */
+/**
+ * The instant of a `timestamptz` read back, in epoch milliseconds, as the dated
+ * transitions, versions and history entries give it (TAX-10, TAX-21, TAX-26).
+ */
 export const instant = (date: Date): EpochMs => toEpochMs(date.getTime());
 
 /**
- * Every type in the order of the taxonomy, by creation then by identifier; the table holds
- * a few dozen rows, so every list reads it whole once and filters it.
+ * Every type in the order of the taxonomy, by creation then by identifier, whatever its
+ * state (TAX-10, TAX-11); the table holds a few dozen rows, so every list reads it whole
+ * once and filters it.
  */
 export async function allTypes(db: Reader): Promise<readonly EventTypeRow[]> {
   return db.select().from(eventTypes).orderBy(asc(eventTypes.createdAt), asc(eventTypes.id));
 }
 
-/** A type's reference, `{ id, name }`. */
+/** A type's reference, `{ id, name }`, as lists and links name it (TAX-10, TAX-28, TAX-30). */
 export const typeRef = (type: EventTypeRow): TypeRef => ({ id: type.id, name: type.name });
 const namedType = (type: EventTypeRow): NamedType => ({
   ...typeRef(type),
@@ -259,10 +263,13 @@ export async function doNotReproposeList(
 /**
  * What a type identifier of a research result names, `typeId` being the taxonomy's
  * spelling (TAX-11, TAX-28, TAX-30, TAX-31, CL-IMP-29): `validated`, with its current
- * `versionNumber`; `merged` into `survivor`, the end of the chain of merges; `split` into
- * the types of `into`; `not_validated`, a proposed, rejected or withdrawn type outside
- * merge and split; `calendar_derived`, whatever its state; or `unknown`, an import error,
- * since no function creates a type on the fly.
+ * `versionNumber`; `merged` into `survivor`, the validated type at the end of the chain of
+ * merges; `split` when a split lies on the way, `into` listing, each once and never empty,
+ * the validated types that can still receive the event, each reached through its later
+ * merges and splits, for the owner to choose; `not_validated`, a proposed, rejected or
+ * withdrawn type outside merge and split, or one whose links reach no validated type;
+ * `calendar_derived`, whatever its state; or `unknown`, an import error, since no function
+ * creates a type on the fly.
  */
 export type TypeResolution =
   | Readonly<{ kind: 'validated'; typeId: string; versionNumber: number }>
@@ -272,10 +279,44 @@ export type TypeResolution =
   | Readonly<{ kind: 'calendar_derived'; typeId: string }>
   | Readonly<{ kind: 'unknown' }>;
 
-/** The type that absorbed `type` last: its survivor, or that one's if it was merged in turn. */
-function survivorOf(type: EventTypeRow, types: readonly EventTypeRow[]): EventTypeRow {
-  const next = types.find((candidate) => candidate.id === type.mergedIntoTypeId);
-  return next === undefined ? type : survivorOf(next, types);
+/** The validated types an event of a type can still go to, and whether a split led there. */
+type Receivers = Readonly<{ split: boolean; types: readonly EventTypeRow[] }>;
+
+/** The type at the end of the chain of merges that `type` starts: itself when not merged. */
+function lastSurvivor(type: EventTypeRow, types: readonly EventTypeRow[]): EventTypeRow {
+  const byId = new Map<string | null, EventTypeRow>(
+    types.map((candidate) => [candidate.id, candidate]),
+  );
+  let survivor = type;
+  for (
+    let next = byId.get(type.mergedIntoTypeId);
+    next !== undefined;
+    next = byId.get(next.mergedIntoTypeId)
+  ) {
+    survivor = next;
+  }
+  return survivor;
+}
+
+/**
+ * The validated types that can still receive an event of `type`, through every link that
+ * later merges and splits added: the type itself when validated; its survivor's when it was
+ * merged; the union of its split types' when it was split, each type once; none when it is
+ * proposed, rejected or withdrawn outside merge and split (TAX-28, TAX-30, TAX-31). The
+ * calendar-derived types take part in no merge or split (CL-TAX-20).
+ */
+function receiversOf(type: EventTypeRow, types: readonly EventTypeRow[]): Receivers {
+  const survivor = lastSurvivor(type, types);
+  if (survivor.status === 'validated') {
+    return { split: false, types: [survivor] };
+  }
+  if (survivor.withdrawalReasonKind === 'split_into') {
+    const reached = types
+      .filter((candidate) => candidate.splitFromTypeId === survivor.id)
+      .flatMap((candidate) => receiversOf(candidate, types).types);
+    return { split: true, types: [...new Set(reached)] };
+  }
+  return { split: false, types: [] };
 }
 
 function resolution(type: EventTypeRow, types: readonly EventTypeRow[]): TypeResolution {
@@ -287,14 +328,22 @@ function resolution(type: EventTypeRow, types: readonly EventTypeRow[]): TypeRes
     const versionNumber = VERSION_NUMBER.parse(type.currentVersionNumber);
     return { kind: 'validated', typeId, versionNumber };
   }
-  if (type.mergedIntoTypeId !== null) {
-    return { kind: 'merged', typeId, survivor: typeRef(survivorOf(type, types)) };
+  const receivers = receiversOf(type, types);
+  const into = receivers.types.map((receiver) => typeRef(receiver));
+  const [survivor] = into;
+  if (survivor === undefined) {
+    return { kind: 'not_validated', typeId };
   }
-  if (type.withdrawalReasonKind === 'split_into') {
-    const into = types.filter((candidate) => candidate.splitFromTypeId === typeId);
-    return { kind: 'split', typeId, into: into.map((candidate) => typeRef(candidate)) };
-  }
-  return { kind: 'not_validated', typeId };
+  return receivers.split ? { kind: 'split', typeId, into } : { kind: 'merged', typeId, survivor };
+}
+
+function resolveAmong(raw: string, types: readonly EventTypeRow[]): TypeResolution {
+  const typeId = canonicalValue(
+    raw,
+    types.map((type) => type.id),
+  );
+  const type = types.find((candidate) => candidate.id === typeId);
+  return type === undefined ? { kind: 'unknown' } : resolution(type, types);
 }
 
 /**
@@ -303,13 +352,20 @@ function resolution(type: EventTypeRow, types: readonly EventTypeRow[]): TypeRes
  * spaces and punctuation kept, so that `media_storm` names no `media-storm`.
  */
 export async function resolveTypeId(db: Reader, raw: string): Promise<TypeResolution> {
+  return resolveAmong(raw, await allTypes(db));
+}
+
+/**
+ * Resolves the type identifiers of a whole research result with one read of the types,
+ * each answer as `resolveTypeId` gives it, in the order of `raws` (TAX-11, TAX-28, TAX-30,
+ * TAX-31, CL-IMP-22, CL-IMP-29).
+ */
+export async function resolveTypeIds(
+  db: Reader,
+  raws: readonly string[],
+): Promise<readonly TypeResolution[]> {
   const types = await allTypes(db);
-  const typeId = canonicalValue(
-    raw,
-    types.map((type) => type.id),
-  );
-  const type = types.find((candidate) => candidate.id === typeId);
-  return type === undefined ? { kind: 'unknown' } : resolution(type, types);
+  return raws.map((raw) => resolveAmong(raw, types));
 }
 
 /** A type as the list of types shows it: `{ id, name, origin, calendarDerivation, createdAt }`. */

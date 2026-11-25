@@ -60,6 +60,7 @@ export {
   handledByCalendarList,
   listByStatus,
   resolveTypeId,
+  resolveTypeIds,
   sheetContent,
   validatedSheets,
 } from './queries';

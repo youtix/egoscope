@@ -16,6 +16,7 @@ import {
   handledByCalendarList,
   listByStatus,
   resolveTypeId,
+  resolveTypeIds,
   sheetContent,
   validatedSheets,
 } from './queries';
@@ -93,6 +94,22 @@ async function writeTaxonomy(db: Database): Promise<void> {
       createdAt: dayOf(index + 3),
     });
   }
+}
+
+/** Two types that a test creates by a split, by their references. */
+const stormA = { id: 'storm-a', name: 'Storm A' };
+const stormB = { id: 'storm-b', name: 'Storm B' };
+
+/** Withdraws `typeId` with the withdrawal fields of `reason` (TAX-27, TAX-29, TAX-31). */
+async function withdraw(
+  db: Database,
+  typeId: string,
+  reason: Partial<typeof eventTypes.$inferInsert>,
+): Promise<void> {
+  await db
+    .update(eventTypes)
+    .set({ ...reason, status: 'withdrawn' })
+    .where(eq(eventTypes.id, typeId));
 }
 
 /** A type not validated, as the do-not-repropose lists give it. */
@@ -285,6 +302,108 @@ describe('the taxonomy read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
           { id: 'coach-hired', name: 'Coach hired' },
         ],
       });
+    });
+
+    it('[TAX-31] resolves a type merged into a survivor withdrawn since as not validated to date', async () => {
+      await withdraw(db, MEDIA_STORM, {
+        withdrawalReasonKind: 'entered',
+        withdrawalReason: 'Rare.',
+      });
+
+      expect(await resolveTypeId(db, MEDIA_STORM)).toStrictEqual({
+        kind: 'not_validated',
+        typeId: MEDIA_STORM,
+      });
+      expect(await resolveTypeId(db, 'public-feud')).toStrictEqual({
+        kind: 'not_validated',
+        typeId: 'public-feud',
+      });
+    });
+
+    it('[TAX-28] [TAX-30] resolves a type merged into a survivor split since to the types born of that split', async () => {
+      await withdraw(db, MEDIA_STORM, { withdrawalReasonKind: 'split_into' });
+      await insertEventType(db, { ...stormA, splitFromTypeId: MEDIA_STORM, createdAt: dayOf(20) });
+      await insertEventType(db, { ...stormB, splitFromTypeId: MEDIA_STORM, createdAt: dayOf(21) });
+
+      expect(await resolveTypeId(db, 'public-feud')).toStrictEqual({
+        kind: 'split',
+        typeId: 'public-feud',
+        into: [stormA, stormB],
+      });
+    });
+
+    it('[TAX-30] [TAX-31] offers only the types born of a split that can still receive the event', async () => {
+      await withdraw(db, 'coach-fired', {
+        withdrawalReasonKind: 'entered',
+        withdrawalReason: 'Rare.',
+      });
+
+      expect(await resolveTypeId(db, 'coaching-change')).toStrictEqual({
+        kind: 'split',
+        typeId: 'coaching-change',
+        into: [{ id: 'coach-hired', name: 'Coach hired' }],
+      });
+
+      await withdraw(db, 'coach-hired', {
+        withdrawalReasonKind: 'entered',
+        withdrawalReason: 'Rare.',
+      });
+
+      expect(await resolveTypeId(db, 'coaching-change')).toStrictEqual({
+        kind: 'not_validated',
+        typeId: 'coaching-change',
+      });
+    });
+
+    it('[TAX-28] [TAX-30] follows the later merges and splits of the types born of a split, each reached type once', async () => {
+      const mediaStorm = { id: MEDIA_STORM, name: 'Media storm' };
+      await withdraw(db, 'coach-fired', {
+        withdrawalReasonKind: 'merged_into',
+        mergedIntoTypeId: MEDIA_STORM,
+      });
+      await withdraw(db, 'coach-hired', { withdrawalReasonKind: 'split_into' });
+      await insertEventType(db, {
+        ...stormA,
+        splitFromTypeId: 'coach-hired',
+        createdAt: dayOf(20),
+      });
+      await insertEventType(db, {
+        ...stormB,
+        splitFromTypeId: 'coach-hired',
+        createdAt: dayOf(21),
+      });
+
+      expect(await resolveTypeId(db, 'coaching-change')).toStrictEqual({
+        kind: 'split',
+        typeId: 'coaching-change',
+        into: [mediaStorm, stormA, stormB],
+      });
+
+      await withdraw(db, stormA.id, {
+        withdrawalReasonKind: 'merged_into',
+        mergedIntoTypeId: MEDIA_STORM,
+      });
+
+      expect(await resolveTypeId(db, 'coaching-change')).toStrictEqual({
+        kind: 'split',
+        typeId: 'coaching-change',
+        into: [mediaStorm, stormB],
+      });
+    });
+
+    it('[TAX-28] [TAX-30] [CL-IMP-22] resolves several identifiers at once, each answer in the order of the identifiers', async () => {
+      expect(
+        await resolveTypeIds(db, [' Media-Storm', 'public-feud', 'courtside-proposal']),
+      ).toStrictEqual([
+        { kind: 'validated', typeId: MEDIA_STORM, versionNumber: 2 },
+        {
+          kind: 'merged',
+          typeId: 'public-feud',
+          survivor: { id: MEDIA_STORM, name: 'Media storm' },
+        },
+        { kind: 'unknown' },
+      ]);
+      expect(await resolveTypeIds(db, [])).toStrictEqual([]);
     });
 
     it.each(['locker-room-feud', 'tattoo-reveal', 'trade-request'])(
