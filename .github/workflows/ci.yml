@@ -86,7 +86,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
     permissions:
       contents: read
     strategy:
@@ -102,7 +102,9 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}/3
         run: bun x --no-install vitest run --shard="$SHARD" --coverage --reporter=default --reporter=blob
-      # A re-run of one shard uploads its report again, under the same name.
+      # A re-run of one shard uploads its report again, under the same name. The
+      # reports are kept one day: a re-run of the coverage job alone a day later finds
+      # them gone and fails, so a late re-run re-runs the whole workflow.
       - name: Upload the blob report of the shard
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
