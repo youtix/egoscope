@@ -278,7 +278,11 @@ describe('the scenarios', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       { id: leaguePlayerId('p09') },
     ]);
     await expect(
-      db.select({ id: eventTypes.id }).from(eventTypes).orderBy(asc(eventTypes.id)),
+      db
+        .select({ id: eventTypes.id })
+        .from(eventTypes)
+        .where(ne(eventTypes.status, 'proposed'))
+        .orderBy(asc(eventTypes.id)),
     ).resolves.toStrictEqual([{ id: 'birthday' }, { id: MEDIA_STORM }]);
     await expect(
       db
