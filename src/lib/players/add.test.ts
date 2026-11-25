@@ -17,7 +17,7 @@ import { setParam } from '@/lib/params';
 import { DATABASE_TEST_TIMEOUT_MS, insertPlayer } from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
-import { add, lockActivePlayers } from './add';
+import { add, fullListUnderLock } from './add';
 import { activeCount, get } from './queries';
 
 import type { NewPlayer } from './add';
@@ -120,9 +120,9 @@ describe('the addition of a followed player', { timeout: DATABASE_TEST_TIMEOUT_M
     ).rows;
   }
 
-  it('[JOU-05] holds the lock of the active count until the caller commits, the same one that lockActivePlayers takes, a refused addition too', async () => {
+  it('[JOU-05] holds the lock of the active count until the caller commits, the same one that fullListUnderLock takes, a refused addition too', async () => {
     const shared = await db.transaction(async (tx) => {
-      await lockActivePlayers(tx);
+      await fullListUnderLock(tx);
       return advisoryLocks(tx);
     });
     const afterAdded = await db.transaction(async (tx) => {

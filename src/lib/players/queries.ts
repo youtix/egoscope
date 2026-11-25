@@ -66,6 +66,56 @@ export async function activeCount(db: Reader): Promise<number> {
   return row?.active ?? 0;
 }
 
+// The one table of what each status allows, which every other module reads (CL-JOU-05),
+// built up from a withdrawn player's statistics and profiles: manual requests and the
+// derivation added for a paused player (JOU-17, JOU-19), then detection, its requests,
+// alerts and the pause suggestion for an active one only (JOU-18, JOU-22).
+const WITHDRAWN_GATES = {
+  /** His schedule, box scores, baselines, next game and indicators. */
+  statistics: true,
+  /** The calculation of his profiles, which stay consultable. */
+  profiles: true,
+  /** A backtest request that the owner makes by hand. */
+  manualBacktestRequests: false,
+  /** The derivation of his birthday games and first games against a former team. */
+  calendarDerivation: false,
+  /** The suggestion to pause him after a prolonged absence. */
+  pauseSuggestion: false,
+  /** Lot 2: daily detection of articles about him. */
+  detection: false,
+  /** Lot 2: a backtest request born of a detection. */
+  detectionBacktestRequests: false,
+  /** Lot 2: alert sheets about him. */
+  alertSheets: false,
+};
+
+/** What a player's status lets run for him (CL-JOU-05). */
+export type StatusGates = Readonly<Record<keyof typeof WITHDRAWN_GATES, boolean>>;
+
+const PAUSED_GATES: StatusGates = {
+  ...WITHDRAWN_GATES,
+  manualBacktestRequests: true,
+  calendarDerivation: true,
+};
+
+const ACTIVE_GATES: StatusGates = {
+  ...PAUSED_GATES,
+  pauseSuggestion: true,
+  detection: true,
+  detectionBacktestRequests: true,
+  alertSheets: true,
+};
+
+/**
+ * What runs for a player of `status`, the single table that the other modules read instead
+ * of encoding it again (JOU-16, JOU-17, JOU-18, JOU-19, JOU-22, CL-JOU-05): an active player
+ * gets every function; a paused one keeps his statistics, his profiles, manual backtest
+ * requests and the calendar derivation; a withdrawn one his statistics and profiles only.
+ */
+export function statusGates(status: PlayerStatus): StatusGates {
+  return { active: ACTIVE_GATES, paused: PAUSED_GATES, withdrawn: WITHDRAWN_GATES }[status];
+}
+
 /** Another followed player who already has one of the names typed (JOU-09, CL-JOU-04). */
 export type SharedVariant = Readonly<{
   /** The name typed, as typed. */

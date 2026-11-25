@@ -51,15 +51,17 @@ const WAYS_OUT_OF_FULL_LIST = [
   'raise_maximum',
 ] as const;
 
+/** The refusal of a full list, which an addition and a reactivation share (JOU-05, JOU-20). */
+export type MaximumReached = Readonly<{
+  kind: 'maximum_reached';
+  /** The maximum in force, `players.maxActive`. */
+  maxActive: number;
+  waysOut: typeof WAYS_OUT_OF_FULL_LIST;
+}>;
+
 /** Why an addition is refused. */
 export type AddRefusal =
-  | Readonly<{
-      kind: 'maximum_reached';
-      /** The maximum in force, `players.maxActive`. */
-      maxActive: number;
-      waysOut: typeof WAYS_OUT_OF_FULL_LIST;
-    }>
-  | Readonly<{ kind: 'invalid_fields'; fields: AddFieldErrors }>;
+  MaximumReached | Readonly<{ kind: 'invalid_fields'; fields: AddFieldErrors }>;
 
 /** The player added, and the other players who share one of his names (JOU-09). */
 export type Added = Readonly<{ playerId: string; sharedVariants: readonly SharedVariant[] }>;
@@ -115,18 +117,15 @@ async function validTeam(
 }
 
 /**
- * Takes, in the caller's transaction `tx`, the lock that every change raising the active
- * count holds from its count to its write until `tx` ends, so that two at once cannot
- * both take the last place under `players.maxActive` (JOU-04, JOU-05): an addition here,
- * a reactivation in the status operations.
+ * The refusal of a full list, or none while fewer than `players.maxActive` players are
+ * active, paused and withdrawn ones not counted (JOU-04, JOU-05, JOU-20): an addition here
+ * and a reactivation in the status operations call it before they write. It first takes, in
+ * the caller's transaction `tx`, the lock that every change raising the active count holds
+ * until `tx` ends, and counts only then: a count read before the lock could predate another
+ * addition or reactivation that commits meanwhile, and both would take the last place.
  */
-export async function lockActivePlayers(tx: Transaction): Promise<void> {
+export async function fullListUnderLock(tx: Transaction): Promise<MaximumReached | undefined> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${ACTIVE_PLAYERS_LOCK}))`);
-}
-
-/** The refusal of a full list, or none while fewer players than the maximum are active (JOU-04, JOU-05). */
-async function fullList(tx: Transaction): Promise<AddRefusal | undefined> {
-  await lockActivePlayers(tx);
   const maxActive = await getParam(tx, 'players.maxActive');
   return (await activeCount(tx)) < maxActive
     ? undefined
@@ -186,7 +185,7 @@ async function insertPlayer(tx: Transaction, player: NewPlayer, teamId: number):
  * his names, which the screen flags (CL-JOU-04).
  */
 export async function add(tx: Transaction, player: NewPlayer): Promise<Result<Added, AddRefusal>> {
-  const full = await fullList(tx);
+  const full = await fullListUnderLock(tx);
   if (full !== undefined) {
     return err(full);
   }

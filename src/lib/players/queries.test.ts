@@ -19,6 +19,7 @@ import {
   list,
   normalizeName,
   sharedVariants,
+  statusGates,
   variantsOfActivePlayers,
 } from './queries';
 
@@ -377,5 +378,46 @@ describe('the players read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         ],
       },
     ]);
+  });
+});
+
+describe('what each status allows', () => {
+  it('[JOU-16] [CL-JOU-05] gives an active player every function', () => {
+    expect(statusGates('active')).toStrictEqual({
+      statistics: true,
+      profiles: true,
+      manualBacktestRequests: true,
+      calendarDerivation: true,
+      pauseSuggestion: true,
+      detection: true,
+      detectionBacktestRequests: true,
+      alertSheets: true,
+    });
+  });
+
+  it('[JOU-17] [JOU-18] [CL-JOU-05] keeps statistics, profiles, manual requests and the derivation of a paused player, and nothing of detection', () => {
+    expect(statusGates('paused')).toStrictEqual({
+      statistics: true,
+      profiles: true,
+      manualBacktestRequests: true,
+      calendarDerivation: true,
+      pauseSuggestion: false,
+      detection: false,
+      detectionBacktestRequests: false,
+      alertSheets: false,
+    });
+  });
+
+  it('[JOU-19] [CL-JOU-05] keeps the statistics and profiles of a withdrawn player only: no request of any kind, no derivation, no pause suggestion', () => {
+    expect(statusGates('withdrawn')).toStrictEqual({
+      statistics: true,
+      profiles: true,
+      manualBacktestRequests: false,
+      calendarDerivation: false,
+      pauseSuggestion: false,
+      detection: false,
+      detectionBacktestRequests: false,
+      alertSheets: false,
+    });
   });
 });
