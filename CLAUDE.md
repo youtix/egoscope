@@ -26,8 +26,9 @@ These rules hold for every change. README.md has the overview, the stack and the
 
 The specs decide behavior; a ruling outranks a reading of a spec. The glossary owns terms, labels
 and the stored values it lists; the data model, tables, columns and the other stored values (showing
-one adds its glossary label); the module map, module names, the names its modules export, routes,
-parameter keys and task keys.
+one adds its glossary label); the module map owns module names, the names its modules expose to
+other modules, routes, parameter keys and task keys, and a built module's barrel is the full list of
+its exports.
 
 ## Layout and module rules
 
@@ -48,7 +49,9 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
 3. A route never imports from another route. Inside `src/app`, relative imports are `./name` only;
    code that two routes need moves to `src/lib/<module>`.
 4. Other code imports a module only as `@/lib/<module>`. Its `index.ts` only re-exports, by name
-   (`export { x } from './x'`). No deep imports, no import cycles.
+   (`export { x } from './x'`). No deep imports, no import cycles. A feature with a server half
+   and a device half is two modules, `<feature>` and `device-<feature>`; the device module runs in
+   a browser, imports no server module and holds the contract that both halves share.
 5. At most two folder levels below `src/lib` (`src/lib/<module>/<sub>/file.ts`); no `_private`
    folders under `src/app`.
 6. File and folder names are kebab-case (Next.js special files and route segments such as
@@ -315,7 +318,8 @@ touches it and its prefix, its letters before the first hyphen, is that of an ID
   files of your own migrations, then run `bun run db:generate`.
 - A test gets a database of its own from `createTestDatabase()`: in memory, every migration
   applied. Close it when the test ends, `onTestFinished(database.close)`, since an open one holds
-  about 200 MB.
+  about 200 MB. A database test uses the named timeout `DATABASE_TEST_TIMEOUT_MS` of
+  `@/lib/testing`, for its suite and for the hook that builds its database.
 - `next dev` migrates the PGlite of `.pglite/` at its first query, then keeps it through every
   reload until it stops: restart `next dev` after `bun run db:generate` to apply a new migration.
 - No test reaches the database that the shell running it points to, which may export the
