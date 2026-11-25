@@ -7,7 +7,9 @@ import {
   games,
   playerDirectoryEntries,
   playerIndicators,
+  playerTeamChanges,
   statsSourceVersions,
+  teamSourceRefs,
 } from '@/lib/db';
 import {
   DATABASE_TEST_TIMEOUT_MS,
@@ -119,6 +121,33 @@ describe('the stored indicators of the player page', { timeout: DATABASE_TEST_TI
       gamesPlayedThisSeason: 1,
       lastGamePlayedOn: '2025-10-21',
       consecutiveTeamGamesMissed: 9,
+    });
+  });
+
+  it('[STA-46] [CL-STA-05] counts the games missed since his team history gave a player who has played none a team', async () => {
+    const p07 = leaguePlayerId('p07');
+    await insertPlayer(db, { source: 'p07' });
+    const [team] = await db
+      .select({ id: teamSourceRefs.teamId })
+      .from(teamSourceRefs)
+      .where(eq(teamSourceRefs.sourceTeamRef, '5'));
+    await db.insert(playerTeamChanges).values({
+      playerId: p07,
+      changedAt: new Date(Date.UTC(2025, 10, 1)),
+      newTeamId: team?.id,
+      origin: 'observed',
+    });
+    await refresh(START, OLDEST_SEASON);
+    const [row] = await db
+      .select()
+      .from(playerIndicators)
+      .where(eq(playerIndicators.playerId, p07));
+    expect(row).toMatchObject({
+      indicatorSeason: '2025-26',
+      gamesPlayedThisSeason: 0,
+      averageMinutesThisSeason: null,
+      lastGamePlayedOn: null,
+      consecutiveTeamGamesMissed: 6,
     });
   });
 
