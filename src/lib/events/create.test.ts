@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -220,21 +220,28 @@ describe('the creation of events', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
 
   it('[DSN-07] stores the context as indicators only, never the narrative the result may hold', async () => {
     const narrative = 'He played with a brace on his left knee after three weeks out.';
-    const [playerEventId = 0] = await saveIds([
+    const [playerEventId = 0, otherId = 0] = await saveIds([
       historical({
         context: {
           // @ts-expect-error -- an indication has no field for the result's precision.
           injuryReturn: { value: 'yes', origin: 'research', detail: narrative },
           gameStakes: { value: 'normal', origin: 'classification' },
         },
+      }),
+      historical({
+        precedence: 'uncertain',
         // @ts-expect-error -- an event has no field for a context narrative.
         detail: narrative,
       }),
     ]);
-    const [row] = await db.select().from(events).where(eq(events.id, playerEventId));
+    const rows = await db
+      .select()
+      .from(events)
+      .where(inArray(events.id, [playerEventId, otherId]));
     const playerEvent = await getEvent(db, playerEventId);
 
-    expect(JSON.stringify(row)).not.toContain(narrative);
+    expect(rows).toHaveLength(2);
+    expect(JSON.stringify(rows)).not.toContain(narrative);
     expect(playerEvent?.context).toStrictEqual({
       injuryReturn: { value: 'yes', origin: 'research' },
       gameStakes: { value: 'normal', origin: 'classification' },
