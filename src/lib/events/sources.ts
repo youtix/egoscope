@@ -129,7 +129,7 @@ export async function putInSourceOrder(
       ),
     })
     .from(eventSources)
-    .where(inArray(eventSources.playerEventId, [...playerEventIds]))
+    .where(inArray(eventSources.playerEventId, playerEventIds))
     .as('ranked');
   await tx
     .update(eventSources)

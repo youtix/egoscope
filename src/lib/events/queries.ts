@@ -200,12 +200,12 @@ async function attachmentsOf(db: Reader, ids: readonly number[]): Promise<Attach
   const sources = await db
     .select()
     .from(eventSources)
-    .where(inArray(eventSources.playerEventId, [...ids]))
+    .where(inArray(eventSources.playerEventId, ids))
     .orderBy(asc(eventSources.position));
   const warnings = await db
     .select()
     .from(eventImportWarnings)
-    .where(inArray(eventImportWarnings.playerEventId, [...ids]))
+    .where(inArray(eventImportWarnings.playerEventId, ids))
     .orderBy(asc(eventImportWarnings.id));
   return {
     sources: Map.groupBy(sources, (source) => source.playerEventId),
