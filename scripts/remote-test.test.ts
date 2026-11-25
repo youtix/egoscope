@@ -10,7 +10,11 @@ import type { LocalIo, Output } from './remote-test-run';
 
 const HEAD = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const OTHER = 'f0e1d2c3b4a5968778695a4b3c2d1e0f12345678';
+// As in an agent's worktree, the local branch is pushed under another name, its task's branch.
+const LOCAL = 'worktree-wf_probe-1';
 const BRANCH = 'chore/probe';
+const UPSTREAM = `for-each-ref --format=%(upstream:remotename) %(upstream:remoteref) refs/heads/${LOCAL}`;
+const COMMITS = 'rev-parse HEAD @{upstream}';
 const RUNS = 'https://github.com/example/repository/actions/runs';
 const RUN_URL = `${RUNS}/4242`;
 const JOB_ID = 9001;
@@ -24,6 +28,7 @@ const GLOB_RULE =
 const NO_FILTER = 'Give at least one test filter, such as src/lib/time.';
 const UNCOMMITTED =
   'The worktree holds changes that are not committed, which the run would not test: commit and push them, then run the command again.';
+const NOT_PUSHED = `The branch ${LOCAL} tracks no branch of a remote: push it under the name of your task's branch with git push -u origin HEAD:<type/short-slug>, then run the command again.`;
 const filterRefused = (token: string): string =>
   `The filter ${JSON.stringify(token)} is not allowed: ${FILTER_RULE}.`;
 const globRefused = (token: string): string =>
@@ -31,6 +36,7 @@ const globRefused = (token: string): string =>
 
 const answer = (stdout = ''): Output => ({ status: 0, stdout, stderr: '' });
 const error = (stderr: string, status = 1): Output => ({ status, stdout: '', stderr });
+const GATEWAY = error('HTTP 502: Bad Gateway\n');
 const json = (value: unknown): Output => answer(JSON.stringify(value));
 const listed = (...runs: readonly (readonly [number, string])[]): Output =>
   json(runs.map(([id, status]) => ({ databaseId: id, status, url: `${RUNS}/${String(id)}` })));
@@ -38,10 +44,10 @@ const listed = (...runs: readonly (readonly [number, string])[]): Output =>
 /** The answers of git on a pushed branch with nothing left to commit, some of them replaced. */
 function fakeGit(replaced: Readonly<Record<string, Output>> = {}): LocalIo['git'] {
   const answers: Readonly<Record<string, Output>> = {
-    'symbolic-ref --quiet --short HEAD': answer(`${BRANCH}\n`),
+    'symbolic-ref --quiet --short HEAD': answer(`${LOCAL}\n`),
     'status --porcelain': answer(),
-    'rev-parse @{upstream}': answer(`${HEAD}\n`),
-    'rev-parse HEAD': answer(`${HEAD}\n`),
+    [UPSTREAM]: answer(`origin refs/heads/${BRANCH}\n`),
+    [COMMITS]: answer(`${HEAD}\n${HEAD}\n`),
     ...replaced,
   };
   return (args) => answers[args.join(' ')] ?? error(`unexpected: git ${args.join(' ')}`);
@@ -78,18 +84,21 @@ type Script = Readonly<{
   lists?: readonly Output[];
   statuses?: readonly string[];
   finished?: Output;
+  log?: Output;
 }>;
 
 const DISPATCHED = answer(
   `✓ Created workflow_dispatch event for remote-test.yml at ${BRANCH}\n${RUN_URL}\n`,
 );
+const NO_URL = answer('✓ Created workflow_dispatch event for remote-test.yml\n');
+const LISTING = `run list --workflow remote-test.yml --branch ${BRANCH} --commit ${HEAD} --event workflow_dispatch --json databaseId,status,url`;
 
 /** A fake gh that answers as `script` says, each sequence repeating its last answer once spent. */
 function fakeGh(script: Script): LocalIo['gh'] {
   const asked = { list: 0, status: 0 };
   const next = (answers: readonly Output[], kind: keyof typeof asked): Output => {
     asked[kind] += 1;
-    return answers[Math.min(asked[kind], answers.length) - 1] ?? error('no answer');
+    return answers[Math.min(asked[kind], answers.length) - 1] ?? GATEWAY;
   };
   const statuses = (script.statuses ?? ['completed']).map((status) => json({ status }));
   return (args) => {
@@ -102,7 +111,9 @@ function fakeGh(script: Script): LocalIo['gh'] {
     if (args.at(-1) === 'status') {
       return next(statuses, 'status');
     }
-    return args.at(-1) === '--log' ? answer(LOG) : (script.finished ?? finishedRun());
+    return args.at(-1) === '--log'
+      ? (script.log ?? answer(LOG))
+      : (script.finished ?? finishedRun());
   };
 }
 
@@ -271,7 +282,7 @@ describe('runOnRunner', () => {
 });
 
 describe('runLocally', () => {
-  it('dispatches the pushed branch, finds the run in the URL gh prints and exits with 0 when the tests pass', async () => {
+  it('dispatches the branch that HEAD was pushed to, finds the run in the URL gh prints and exits with 0 when the tests pass', async () => {
     const remote = harness({ statuses: ['queued', 'in_progress', 'in_progress', 'completed'] });
 
     expect(await runLocally([...FILTER, '--coverage.include=src/lib/orbit/**'], remote.io)).toBe(0);
@@ -288,17 +299,26 @@ describe('runLocally', () => {
     expect(remote.err).toStrictEqual([]);
   });
 
-  it('finds the run by listing the runs of the commit when gh prints no URL', async () => {
+  it('finds the run by listing the runs of the commit on the pushed branch when gh prints no URL', async () => {
     const remote = harness({
-      dispatch: answer('✓ Created workflow_dispatch event for remote-test.yml\n'),
+      dispatch: NO_URL,
       lists: [listed([4241, 'completed']), listed([4242, 'queued'], [4241, 'completed'])],
     });
-    const listing = `run list --workflow remote-test.yml --branch ${BRANCH} --commit ${HEAD} --event workflow_dispatch --json databaseId,status,url`;
 
     expect(await runLocally(FILTER, remote.io)).toBe(0);
-    expect(remote.timesOf(listing)).toStrictEqual([10_000, 20_000]);
+    expect(remote.timesOf(LISTING)).toStrictEqual([10_000, 20_000]);
     expect(remote.timesOf(STATUS_QUESTION)).toStrictEqual([30_000]);
     expect(remote.out.at(-1)).toBe(`The tests passed: ${RUN_URL}`);
+  });
+
+  it('exits with 2 when no run of the dispatch appears in twenty minutes', async () => {
+    const remote = harness({ dispatch: NO_URL, lists: [listed()] });
+
+    expect(await runLocally(FILTER, remote.io)).toBe(2);
+    expect(remote.timesOf(LISTING)).toHaveLength(120);
+    expect(remote.err).toStrictEqual([
+      'No run of remote-test.yml appeared for a1b2c3d in twenty minutes.',
+    ]);
   });
 
   it('exits with 1 and prints the output of the tests when they fail', async () => {
@@ -357,12 +377,23 @@ describe('runLocally', () => {
     );
   });
 
-  it('passes on an error of gh while it waits, and exits with 2', async () => {
-    const remote = harness({ statuses: [] });
+  it.each([
+    ['while it waits', { statuses: [] }, 'Could not follow the run'],
+    ['reading the run', { finished: GATEWAY }, 'Could not read the run'],
+  ])('passes on an error of gh %s, and exits with 2', async (_case, script, verdict) => {
+    const remote = harness(script);
 
     expect(await runLocally(FILTER, remote.io)).toBe(2);
-    expect(remote.err).toStrictEqual(['no answer']);
-    expect(remote.out.at(-1)).toBe(`Could not follow the run, so it gave no result: ${RUN_URL}`);
+    expect(remote.err).toStrictEqual(['HTTP 502: Bad Gateway']);
+    expect(remote.out.at(-1)).toBe(`${verdict}, so it gave no result: ${RUN_URL}`);
+  });
+
+  it('passes on an error of gh reading the log, and still exits with the verdict of the tests', async () => {
+    const remote = harness({ log: GATEWAY });
+
+    expect(await runLocally(FILTER, remote.io)).toBe(0);
+    expect(remote.err).toStrictEqual(['HTTP 502: Bad Gateway']);
+    expect(remote.out.at(-1)).toBe(`The tests passed: ${RUN_URL}`);
   });
 
   it.each([
@@ -405,18 +436,28 @@ describe('runLocally', () => {
       sentence: UNCOMMITTED,
     },
     {
+      name: 'a branch that tracks main',
+      argv: FILTER,
+      git: { [UPSTREAM]: answer('origin refs/heads/main\n') },
+      sentence: `The branch ${LOCAL} tracks origin/main, which CI tests on every push: run the command from the branch of your task.`,
+    },
+    {
       name: 'a branch without an upstream',
       argv: FILTER,
-      git: {
-        'rev-parse @{upstream}': error(`fatal: no upstream configured for branch '${BRANCH}'`, 128),
-      },
-      sentence: `The branch ${BRANCH} has no upstream: push it with git push -u origin ${BRANCH}, then run the command again.`,
+      git: { [UPSTREAM]: answer(' \n') },
+      sentence: NOT_PUSHED,
+    },
+    {
+      name: 'a branch that tracks a local branch',
+      argv: FILTER,
+      git: { [UPSTREAM]: answer(`. refs/heads/${BRANCH}\n`) },
+      sentence: NOT_PUSHED,
     },
     {
       name: 'an upstream that is not at HEAD',
       argv: FILTER,
-      git: { 'rev-parse @{upstream}': answer(`${OTHER}\n`) },
-      sentence: `The upstream of ${BRANCH} is not at HEAD: commit and push first (git push -u origin ${BRANCH}), so that the run tests HEAD.`,
+      git: { [COMMITS]: answer(`${HEAD}\n${OTHER}\n`) },
+      sentence: `The upstream of ${LOCAL}, origin/${BRANCH}, is not at HEAD: commit and push first (git push origin HEAD:${BRANCH}), so that the run tests HEAD.`,
     },
     {
       name: 'an error of git itself',
@@ -431,6 +472,17 @@ describe('runLocally', () => {
 
       expect(await runLocally(argv, remote.io)).toBe(2);
       expect(remote.err).toStrictEqual([sentence]);
+      expect(remote.asked).toStrictEqual([]);
+    },
+  );
+
+  it.each(['status --porcelain', UPSTREAM, COMMITS])(
+    'passes on an error of git %s as it is, before asking GitHub anything',
+    async (question) => {
+      const remote = harness({}, fakeGit({ [question]: error('fatal: bad object HEAD\n', 128) }));
+
+      expect(await runLocally(FILTER, remote.io)).toBe(2);
+      expect(remote.err).toStrictEqual(['fatal: bad object HEAD']);
       expect(remote.asked).toStrictEqual([]);
     },
   );

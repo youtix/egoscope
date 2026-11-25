@@ -40,6 +40,7 @@ export type LocalIo = Readonly<{
 
 type Refusal = Readonly<{ ok: false; error: string }>;
 export type Result<T> = Readonly<{ ok: true; value: T }> | Refusal;
+/** HEAD, and the remote branch it was pushed to, on which runs are dispatched and listed. */
 export type Commit = Readonly<{ branch: string; head: string }>;
 export type Run = Readonly<{ id: string; url: string }>;
 /** One remote test: who asks, the commit it tests, and the clock time at which it gives up. */

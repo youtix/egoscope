@@ -6,10 +6,11 @@
  *   bun run test:remote <filter>... [--coverage.include=<glob>]...
  *
  * - The local side checks that HEAD is pushed, dispatches .github/workflows/remote-test.yml on
- *   the current branch and follows its run (scripts/remote-test-run.ts): it prints the output of
- *   the tests and exits with 0 when they passed, 1 when they failed and 2 when the run gave no
- *   result. `gh` reads the repository from the git remote, so no owner or repository is written
- *   here.
+ *   the branch that HEAD was pushed to, which the upstream names (an agent's worktree branch is
+ *   pushed under its task's branch name), and follows its run (scripts/remote-test-run.ts): it
+ *   prints the output of the tests and exits with 0 when they passed, 1 when they failed and 2
+ *   when the run gave no result. `gh` reads the repository from the git remote, so no owner or
+ *   repository is written here.
  * - The runner side, `bun scripts/remote-test.ts --runner`, is the workflow's step: it reads the
  *   inputs from REMOTE_TEST_FILTERS and REMOTE_TEST_COVERAGE, checks them as the local side does,
  *   since whoever may dispatch the workflow can also do it by hand from GitHub's page, and starts
@@ -41,6 +42,15 @@ const GLOB_RULE = `start it with src/, use at most ${CHARACTERS} *, and do not w
 const WAIT_LIMIT_MS = 1_200_000; // Twenty minutes.
 // `git symbolic-ref --quiet` exits with 1, silently, when HEAD is detached.
 const DETACHED_STATUS = 1;
+const MAIN = 'main';
+// The remote and the remote branch that a local branch tracks, as for-each-ref prints them.
+const UPSTREAM_FORMAT = '--format=%(upstream:remotename) %(upstream:remoteref)';
+const UPSTREAM_FIELDS = 2;
+// `git rev-parse HEAD @{upstream}` prints one line for each.
+const COMMIT_LINES = 2;
+const BRANCH_REF = /^refs\/heads\//u;
+// The remote that git names for a branch that tracks another branch of the same repository.
+const LOCAL_REMOTE = '.';
 // Large enough for the log of any run of the test step.
 const OUTPUT_LIMIT_BYTES = 268_435_456;
 const RUN_URL = /https:\/\/\S+\/actions\/runs\/(\d+)/u;
@@ -56,6 +66,14 @@ const REBASE =
   'The branch does not hold the remote-test workflow yet: rebase it onto origin/main, push it, then run the command again.';
 
 type RemoteRequest = Readonly<{ filters: readonly string[]; globs: readonly string[] }>;
+type Upstream = Readonly<{ remote: string; branch: string }>;
+
+const notPushed = (name: string): string =>
+  `The branch ${name} tracks no branch of a remote: push it under the name of your task's branch with git push -u origin HEAD:<type/short-slug>, then run the command again.`;
+const tracksMain = (name: string, remote: string): string =>
+  `The branch ${name} tracks ${remote}/main, which CI tests on every push: run the command from the branch of your task.`;
+const behind = (name: string, { remote, branch }: Upstream): string =>
+  `The upstream of ${name}, ${remote}/${branch}, is not at HEAD: commit and push first (git push ${remote} HEAD:${branch}), so that the run tests HEAD.`;
 
 const isAllowed = (token: string, characters: RegExp): boolean =>
   token.length <= MAX_TOKEN_LENGTH &&
@@ -110,31 +128,67 @@ export function runOnRunner(
   return startVitest(['run', ...filters, ...(globs.length > 0 ? ['--coverage', ...coverage] : [])]);
 }
 
-/** The branch and the commit to test, or why the run would not test what the caller has. */
-function readCommit(git: Command): Result<Commit> {
+/** What git prints, trimmed, or its error as it is. */
+function ask(git: Command, args: readonly string[]): Result<string> {
+  const output = git(args);
+  return output.status === 0
+    ? { ok: true, value: output.stdout.trim() }
+    : refusal(output.stderr.trimEnd());
+}
+
+/** The local branch, when it is not main and the worktree holds nothing left to commit. */
+function readBranch(git: Command): Result<string> {
   const branch = git(['symbolic-ref', '--quiet', '--short', 'HEAD']);
   if (branch.status !== 0) {
     return refusal(branch.status === DETACHED_STATUS ? DETACHED : branch.stderr.trimEnd());
   }
   const name = branch.stdout.trim();
-  if (name === 'main') {
+  if (name === MAIN) {
     return refusal(ON_MAIN);
   }
-  if (git(['status', '--porcelain']).stdout.trim() !== '') {
-    return refusal(UNCOMMITTED);
+  const changes = ask(git, ['status', '--porcelain']);
+  if (!changes.ok) {
+    return changes;
   }
-  const upstream = git(['rev-parse', '@{upstream}']);
-  if (upstream.status !== 0) {
-    return refusal(
-      `The branch ${name} has no upstream: push it with git push -u origin ${name}, then run the command again.`,
-    );
+  return changes.value === '' ? { ok: true, value: name } : refusal(UNCOMMITTED);
+}
+
+/** The remote and the remote branch of a line of `UPSTREAM_FORMAT`, both empty without one. */
+function upstreamOf(line: string): Upstream {
+  const [remote = '', ref = ''] = line.split(' ', UPSTREAM_FIELDS);
+  return { remote, branch: ref.replace(BRANCH_REF, '') };
+}
+
+/**
+ * The branch that the local branch `name` was pushed to, under its own name or another one, and
+ * HEAD, when the remote branch is at HEAD; or why the run would not test HEAD.
+ */
+function readPushed(git: Command, name: string): Result<Commit> {
+  const tracked = ask(git, ['for-each-ref', UPSTREAM_FORMAT, `refs/heads/${name}`]);
+  if (!tracked.ok) {
+    return tracked;
   }
-  const head = git(['rev-parse', 'HEAD']).stdout.trim();
-  return upstream.stdout.trim() === head
-    ? { ok: true, value: { branch: name, head } }
-    : refusal(
-        `The upstream of ${name} is not at HEAD: commit and push first (git push -u origin ${name}), so that the run tests HEAD.`,
-      );
+  const upstream = upstreamOf(tracked.value);
+  if (upstream.remote === '' || upstream.remote === LOCAL_REMOTE) {
+    return refusal(notPushed(name));
+  }
+  if (upstream.branch === MAIN) {
+    return refusal(tracksMain(name, upstream.remote));
+  }
+  const commits = ask(git, ['rev-parse', 'HEAD', '@{upstream}']);
+  if (!commits.ok) {
+    return commits;
+  }
+  const [head = '', pushed] = commits.value.split('\n', COMMIT_LINES);
+  return pushed === head
+    ? { ok: true, value: { branch: upstream.branch, head } }
+    : refusal(behind(name, upstream));
+}
+
+/** The pushed branch and the commit to test, or why the run would not test what the caller has. */
+function readCommit(git: Command): Result<Commit> {
+  const name = readBranch(git);
+  return name.ok ? readPushed(git, name.value) : name;
 }
 
 /** Dispatches the workflow: the run that gh names, undefined when it names none, or the error. */
