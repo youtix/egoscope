@@ -91,10 +91,12 @@ describe('the stored indicators of the player page', { timeout: DATABASE_TEST_TI
       refreshed: [P03],
       seasonNotRead: [],
     });
-    expect(await stored()).toMatchObject({
+    const row = await stored();
+    // His nine lines of 2025-26 add up to 225.4 minutes.
+    expect(row?.averageMinutesThisSeason).toBeCloseTo(225.4 / 9, 9);
+    expect(row).toMatchObject({
       indicatorSeason: '2025-26',
       gamesPlayedThisSeason: 9,
-      averageMinutesThisSeason: -1,
       lastGamePlayedOn: '2025-11-17',
       consecutiveTeamGamesMissed: 0,
       computedAt: new Date(START),
