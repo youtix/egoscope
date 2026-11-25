@@ -152,7 +152,7 @@ export const MACHINERY_MESSAGES = [
     happened: 'A password change was refused while logins are locked, until {lockedUntilAt}.',
     consequence: 'No password is examined until then, the right one included.',
     whatToDo:
-      'wait until then; if it was not you, change your password as soon as the lock ends, which closes every other session.',
+      'wait until then; if it was not you, change your password as soon as logins are allowed again, which closes every other session.',
   },
   {
     key: 'login_locked',

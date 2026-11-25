@@ -146,7 +146,7 @@ describe('the closed list of journal messages', () => {
       'login_refused',
       'login_refused',
       'A password change was refused: the current password was wrong. After repeated failures, logins are refused for a while. What to do: nothing if it was you; otherwise change your password in the account settings, which closes every other session.',
-      'A password change was refused while logins are locked, until Wed 18 Nov 2026, 01:30. No password is examined until then, the right one included. What to do: wait until then; if it was not you, change your password as soon as the lock ends, which closes every other session.',
+      'A password change was refused while logins are locked, until Wed 18 Nov 2026, 01:30. No password is examined until then, the right one included. What to do: wait until then; if it was not you, change your password as soon as logins are allowed again, which closes every other session.',
     ]);
     expect([
       messageOf('password_change_refused')?.level,
