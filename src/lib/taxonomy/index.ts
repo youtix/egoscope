@@ -21,7 +21,19 @@ export type {
 // seed.ts
 export { seedCandidateTypes } from './seed';
 
-// proposals.ts: createProposal, editProposal
+// proposals.ts
+export { createProposal, editProposal } from './proposals';
+export type {
+  CoverageThreshold,
+  DocumentationDifficulty,
+  InvalidProposalFields,
+  ProposalEdit,
+  ProposalEditRefusal,
+  ProposalFieldErrors,
+  ProposalOrigin,
+  ProposalSheet,
+  SwitchedOffCriterion,
+} from './proposals';
 
 // validate.ts: validate, checklistFor
 
