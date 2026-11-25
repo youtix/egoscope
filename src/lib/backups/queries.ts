@@ -24,6 +24,7 @@ import type { Database, DatabaseError, Transaction } from '@/lib/db';
 import type { Result } from '@/lib/result';
 import type { EpochMs } from '@/lib/time';
 import type { AnyColumn, SQL } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 
 /** `ExportKind`: the full export and the spreadsheet exports (TRV-52). */
 export type ExportKind = typeof exportDownloads.$inferSelect.kind;
@@ -32,7 +33,7 @@ export type ExportKind = typeof exportDownloads.$inferSelect.kind;
 export type PartialExportKind = Exclude<ExportKind, 'full'>;
 
 /** The columns of a CSV file in order, each a header and the column or expression it reads. */
-export type CsvColumns = readonly (readonly [header: string, value: AnyColumn | SQL])[];
+export type CsvColumns = readonly (readonly [header: string, value: PgColumn | SQL])[];
 
 type Reader = Database | Transaction;
 

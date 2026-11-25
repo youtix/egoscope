@@ -4,10 +4,13 @@ import { crc32 } from 'node:zlib';
 
 import type { EpochMs } from '@/lib/time';
 
+/** Bytes over a plain `ArrayBuffer`, which `CompressionStream` takes. */
+type Bytes = Uint8Array<ArrayBuffer>;
+
 /** One file of a ZIP archive: its name inside the archive, and its content in parts. */
 export type ZipEntry = Readonly<{
   name: string;
-  chunks: AsyncIterable<Uint8Array> | Iterable<Uint8Array>;
+  chunks: AsyncIterable<Bytes> | Iterable<Bytes>;
 }>;
 
 // The record signatures and fields of the ZIP format (PKWARE APPNOTE, sections 4.3 and 4.4).
@@ -113,9 +116,9 @@ async function* partsOf(stream: ReadableStream<Uint8Array>): AsyncGenerator<Uint
 }
 
 /** The parts of `chunks` as a web stream, pulled one at a time; cancelling it ends them. */
-function toStream(chunks: AsyncIterable<Uint8Array>): ReadableStream<Uint8Array> {
+function toStream(chunks: AsyncIterable<Bytes>): ReadableStream<Bytes> {
   const iterator = chunks[Symbol.asyncIterator]();
-  return new ReadableStream<Uint8Array>(
+  return new ReadableStream<Bytes>(
     {
       async pull(controller) {
         const next = await iterator.next();
@@ -144,7 +147,7 @@ async function* entryData(entry: ZipEntry): AsyncGenerator<Uint8Array, Sizes> {
   let crc = 0;
   let size = 0;
   let compressedSize = 0;
-  async function* counted(): AsyncGenerator<Uint8Array> {
+  async function* counted(): AsyncGenerator<Bytes> {
     for await (const chunk of entry.chunks) {
       crc = crc32(chunk, crc);
       size += chunk.length;

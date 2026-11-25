@@ -123,7 +123,8 @@ function loadOrder(tables: readonly ArchiveTable[]): readonly ArchiveTable[] {
  * archive, in loading order (TRV-51, TRV-52, CL-TRV-05, CL-DSN-08, operations.md §5.1).
  */
 function archivedTables(): readonly ArchiveTable[] {
-  const tables = Object.values(database).filter(
+  const exported: readonly unknown[] = Object.values(database);
+  const tables = exported.filter(
     (value): value is PgTable => is(value, PgTable) && !database.isOutsideArchive(value),
   );
   return loadOrder(tables.map((table) => describe(table)));
@@ -242,7 +243,7 @@ async function manifest(
 
 /** The entry of `table`, which adds to `entries` what the manifest says of it once read. */
 function tableEntry(tx: Transaction, table: ArchiveTable, entries: TableEntry[]): ZipEntry {
-  async function* chunks(): AsyncGenerator<Uint8Array> {
+  async function* chunks(): AsyncGenerator<Uint8Array<ArrayBuffer>> {
     const hash = createHash('sha256');
     let rows = 0;
     for await (const page of pagesOf(tx, table)) {

@@ -210,7 +210,10 @@ describe('the exports', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       throw new Error('The measured game has no box score of the player.');
     }
     const opponentId = row.team === row.home ? row.away : row.home;
-    const [team] = await db.select().from(teams).where(eq(teams.id, opponentId));
+    const [team] = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, opponentId ?? 0));
     return [row.day, team?.abbreviation ?? ''];
   }
 

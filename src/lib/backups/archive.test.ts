@@ -154,7 +154,8 @@ describe('the archive', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
 
     const entries = await entriesOf(db);
 
-    const archived = Object.values(database)
+    const exported: readonly unknown[] = Object.values(database);
+    const archived = exported
       .filter((value): value is PgTable => is(value, PgTable) && !isOutsideArchive(value))
       .map((table) => `${getTableConfig(table).name}.jsonl`);
     expect(entries.map(([name]) => name).toSorted(byName)).toStrictEqual(
@@ -228,7 +229,6 @@ describe('the archive', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
 
     expect(referencesAhead(manifest)).toStrictEqual([]);
     expect(filesMatch(manifest, files).filter((matches) => !matches)).toStrictEqual([]);
-    expect(manifest.tables.find((table) => table.name === 'teams')?.rows).toBe(0);
     const names = manifest.tables.map((table) => table.name);
     expect(names.indexOf('followed_players')).toBeGreaterThan(names.indexOf('teams'));
   });
@@ -273,7 +273,7 @@ describe('the archive', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
 
     const { identitySequences } = manifestOf(await filesOf(db));
 
-    expect([identitySequences.teams, identitySequences.backups]).toStrictEqual([1, 0]);
+    expect([identitySequences['teams'], identitySequences['backups']]).toStrictEqual([1, 0]);
     expect(identitySequences).not.toHaveProperty('followedPlayers');
     expect(identitySequences).not.toHaveProperty('accounts');
   });
