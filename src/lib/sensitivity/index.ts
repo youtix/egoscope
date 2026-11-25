@@ -40,6 +40,13 @@ export type {
 // full-recalculation.ts: requestFullRecalculation
 
 // manual-decisions.ts: excludeCase, reinstateCase, acknowledgeReviewFlag
+export { acknowledgeReviewFlag, excludeCase, reinstateCase } from './manual-decisions';
+export type {
+  CaseDecision,
+  DecisionRefusal,
+  ExclusionReason,
+  ReinstatementReason,
+} from './manual-decisions';
 
 // queries.ts: getProfile, listProfiles, getTrend, listCases, getCase, caseOfEvent, verdictHistory,
 //   reviewFlags, isRecalculating, profileValueVersionsUntil, changedSince
