@@ -22,7 +22,8 @@ import type {
   StoredCase,
 } from './evaluate-cases';
 import type { EvaluationTeamGame } from './evaluate-game';
-import type { PlayerEvaluation, ProfileViewValues } from './evaluate-player';
+import type { PlayerEvaluation } from './evaluate-player';
+import type { ProfileViewValues } from './profile-view';
 
 // The registry's defaults. JSON gives the baseline phase as a string, which the comparison
 // narrows to a BaselinePhase (types.test.ts).
@@ -202,20 +203,15 @@ function teamGameOf(row: GameRow): EvaluationTeamGame {
 /** An event of the example, known at its instant US Eastern or, without one, at the end of its day. */
 function eventOf(spec: EventSpec, changes: Partial<EvaluationEvent> = {}): EvaluationEvent {
   const [hours = 0, minutes = 0] = (spec.atEastern ?? '').split(':').map(Number);
-  const attachmentEvent: AttachmentEvent =
-    spec.atEastern === null
-      ? {
-          kind: 'reference_instant',
-          sources: null,
-          referenceInstantAt: endOfDayPacificOf(spec.on),
-          referenceInstantOrigin: 'date_only',
-        }
-      : {
-          kind: 'reference_instant',
-          sources: null,
-          referenceInstantAt: easternAt(spec.on, hours * 60 + minutes),
-          referenceInstantOrigin: 'known_instant',
-        };
+  const isDateOnly = spec.atEastern === null;
+  const attachmentEvent: AttachmentEvent = {
+    kind: 'reference_instant',
+    sources: null,
+    referenceInstantAt: isDateOnly
+      ? endOfDayPacificOf(spec.on)
+      : easternAt(spec.on, hours * 60 + minutes),
+    referenceInstantOrigin: isDateOnly ? 'date_only' : 'known_instant',
+  };
   return {
     eventId: spec.eventId,
     eventTypeId: TYPE,
@@ -542,6 +538,12 @@ describe('evaluatePlayer', () => {
 });
 
 describe('evaluatePlayer on the marks and criteria of a case', () => {
+  it('[SEN-08] [STA-11] [STA-12] [CL-STA-06] gives the first case of the worked example the Game Score of its strong game, never rounded, and the mark of his line in seconds', () => {
+    const first = caseOf(base(), 1);
+    expect(first.measuredGameScore).toBeCloseTo(25.9, PRECISION);
+    expect(first.hasRoundedMinutes).toBe(false);
+  });
+
   it('[SEN-25] steps the profile confidence down when the gaps of its valid cases disagree', () => {
     const rows = changed([
       ['2018-10-31', { line: 'huge' }],

@@ -1,3 +1,4 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import engineParams from '@data/fixtures/stats-engine/engine-params.json';
@@ -88,6 +89,58 @@ const INPUT: TrendEvaluationInput = {
   manuallyDecidedCases: [{ caseId: 9, statusWithoutDecision: 'measured' }],
 };
 
+type Draw = Readonly<{ owner: Owner; status: Case['status']; normalizedGap: number }>;
+
+/** The case `caseId` of `draw`'s owner and status, of gap `normalizedGap` when it has one. */
+function drawnCase(caseId: number, { owner, status, normalizedGap }: Draw): Case {
+  switch (status) {
+    case 'awaiting_game': {
+      return { ...baseOf(caseId, owner), status, statusReason: 'game_not_played_yet' };
+    }
+    case 'measured': {
+      return validCase(caseId, owner, normalizedGap);
+    }
+    case 'excluded': {
+      return {
+        ...baseOf(caseId, owner),
+        ...gapOf(caseId, normalizedGap),
+        status,
+        triggeredCriteria: ['opponent_strength'],
+      };
+    }
+    case 'not_measurable': {
+      return { ...baseOf(caseId, owner), status, statusReason: 'box_score_suspect' };
+    }
+  }
+}
+
+/** The cases of `draws`, their ids given by their places. */
+function drawnCases(draws: readonly Draw[]): readonly Case[] {
+  return draws.map((draw, caseId) => drawnCase(caseId, draw));
+}
+
+// Any of the three players with either origin.
+const anyOwner = fc.tuple(
+  fc.constantFrom(FIRST, SECOND, WITHDRAWN),
+  fc.constantFrom<CaseOrigin>('historical', 'tracked'),
+);
+// Any cases of the three players, of either origin and any status and gap.
+const anyCases = fc
+  .array(
+    fc.record({
+      owner: anyOwner,
+      status: fc.constantFrom<Case['status']>(
+        'awaiting_game',
+        'measured',
+        'excluded',
+        'not_measurable',
+      ),
+      normalizedGap: fc.double({ min: -3, max: 3, noNaN: true }),
+    }),
+    { size: 'medium' },
+  )
+  .map(drawnCases);
+
 /** Each view of a trend as its valid cases, distinct players and verdict level. */
 function summaryOf(input: TrendEvaluationInput) {
   return evaluateTrend(input, DEFAULTS)?.views.map((view) => [
@@ -98,8 +151,18 @@ function summaryOf(input: TrendEvaluationInput) {
   ]);
 }
 
+/** Each view of the trend of INPUT at `params` as its valid cases, verdict and threshold. */
+function verdictsOf(params: EngineParams) {
+  return evaluateTrend(INPUT, params)?.views.map(({ view, tally, verdict, validCaseThreshold }) => [
+    view,
+    tally.validCount,
+    verdict.level,
+    validCaseThreshold,
+  ]);
+}
+
 describe('evaluateTrend', () => {
-  it('[SEN-28] [SEN-21] [CL-SEN-19] gives the trend of a type in its three views, each from the cases of every player of its origins, the exits counted in all cases alone', () => {
+  it('[SEN-28] [SEN-21] [CL-SEN-19] gives the trend of a type in its three views, each from the cases of every player of its origins with its valid cases of each origin, the exits counted in all cases alone', () => {
     const trend = evaluateTrend(INPUT, DEFAULTS);
     const { manuallyDecidedCases } = INPUT;
     const historical = INPUT.cases.filter(({ origin }) => origin === 'historical');
@@ -110,14 +173,23 @@ describe('evaluateTrend', () => {
         {
           view: 'all_cases',
           ...generalTrend({ ...INPUT, cases: INPUT.cases }, DEFAULTS),
+          historicalValidCount: 4,
+          trackedValidCount: 3,
+          validCaseThreshold: 5,
         },
         {
           view: 'historical_only',
           ...generalTrend({ cases: historical, exitReasons: [], manuallyDecidedCases }, DEFAULTS),
+          historicalValidCount: 4,
+          trackedValidCount: 0,
+          validCaseThreshold: 5,
         },
         {
           view: 'tracked_only',
           ...generalTrend({ cases: tracked, exitReasons: [], manuallyDecidedCases }, DEFAULTS),
+          historicalValidCount: 0,
+          trackedValidCount: 3,
+          validCaseThreshold: 5,
         },
       ],
     });
@@ -132,6 +204,35 @@ describe('evaluateTrend', () => {
       ['all_cases', 7, 3, 'probable'],
       ['historical_only', 4, 3, 'inconclusive'],
       ['tracked_only', 3, 3, 'inconclusive'],
+    ]);
+  });
+
+  it('[SEN-21] [CL-SEN-19] counts in every view as many valid cases as its historical and tracked valid cases together, none of the other origin in a view of one origin', () => {
+    fc.assert(
+      fc.property(anyCases, (cases) => {
+        const views = evaluateTrend({ ...INPUT, cases }, DEFAULTS)?.views ?? [];
+        expect(
+          views.map(
+            ({ tally, historicalValidCount, trackedValidCount }) =>
+              tally.validCount - historicalValidCount - trackedValidCount,
+          ),
+        ).toStrictEqual([0, 0, 0]);
+        expect([views[1]?.trackedValidCount, views[2]?.historicalValidCount]).toStrictEqual([0, 0]);
+      }),
+    );
+  });
+
+  it('[SEN-20] [SEN-31] [SEN-28] gives each view the threshold of valid cases that its verdict applied, the parameter in force at this calculation', () => {
+    const atFour = { ...DEFAULTS, sensitivity: { ...DEFAULTS.sensitivity, minValidCases: 4 } };
+    expect(verdictsOf(DEFAULTS)).toStrictEqual([
+      ['all_cases', 7, 'probable', 5],
+      ['historical_only', 4, 'inconclusive', 5],
+      ['tracked_only', 3, 'inconclusive', 5],
+    ]);
+    expect(verdictsOf(atFour)).toStrictEqual([
+      ['all_cases', 7, 'probable', 4],
+      ['historical_only', 4, 'possible', 4],
+      ['tracked_only', 3, 'inconclusive', 4],
     ]);
   });
 

@@ -1,8 +1,13 @@
 import fc from 'fast-check';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
+import {
+  AWAITING_GAME_REASONS as STATE_AWAITING_REASONS,
+  NOT_MEASURABLE_REASONS as STATE_NOT_MEASURABLE_REASONS,
+} from '../cases/case-state';
 import { tallyProfile } from './tally';
 
+import type { CaseStatusReason } from '../cases/case-state';
 import type { ProfileCase, TallyExitReason } from './tally';
 
 type Outcome<S extends ProfileCase['status']> = Extract<ProfileCase, { status: S }>;
@@ -339,5 +344,33 @@ describe('tallyProfile', () => {
 
     // @ts-expect-error: a withdrawal is no exit reason, which an untyped caller may still pass
     expect(tallyProfile([], ['withdrawn']).exitCounts).toStrictEqual({});
+  });
+
+  it('[SEN-07] [SEN-32] [CL-SEN-05] counts the reasons of a case as the state of a case defines them, each in the glossary order', () => {
+    type Awaiting = (typeof AWAITING_GAME_REASONS)[number];
+    type NotMeasurable = (typeof NOT_MEASURABLE_REASONS)[number];
+    expectTypeOf<
+      (typeof STATE_AWAITING_REASONS)[number] | (typeof STATE_NOT_MEASURABLE_REASONS)[number]
+    >().toEqualTypeOf<CaseStatusReason>();
+    expectTypeOf<CaseStatusReason>().toEqualTypeOf<Awaiting | NotMeasurable>();
+    expectTypeOf<Outcome<'awaiting_game'>['statusReason']>().toEqualTypeOf<Awaiting>();
+    expectTypeOf<Outcome<'not_measurable'>['statusReason']>().toEqualTypeOf<NotMeasurable>();
+    expect([STATE_AWAITING_REASONS, STATE_NOT_MEASURABLE_REASONS]).toStrictEqual([
+      AWAITING_GAME_REASONS,
+      NOT_MEASURABLE_REASONS,
+    ]);
+
+    const cases = [
+      ...AWAITING_GAME_REASONS.map((reason, index) => awaiting(index, reason)),
+      ...NOT_MEASURABLE_REASONS.map((reason, index) => notMeasurable(10 + index, reason)),
+    ].toReversed();
+    const { awaitingGame, notMeasurable: notMeasurableCounts } = tallyProfile(
+      cases,
+      [],
+    ).tallyReasons;
+    expect([Object.keys(awaitingGame), Object.keys(notMeasurableCounts)]).toStrictEqual([
+      AWAITING_GAME_REASONS,
+      NOT_MEASURABLE_REASONS,
+    ]);
   });
 });

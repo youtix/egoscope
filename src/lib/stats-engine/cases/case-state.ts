@@ -18,25 +18,45 @@ import type { GapStatus } from './normalized-gap';
 /** The state of a case (SEN-07), as it is stored. */
 export type CaseStatus = 'awaiting_game' | 'measured' | 'excluded' | 'not_measurable';
 
-/** Why a case awaits its game (SEN-07, SEN-47), as it is stored. */
-type AwaitingGameReason =
-  | 'game_not_played_yet'
-  | 'statistics_pending'
-  | 'mapping_not_established'
-  | 'baseline_building'
-  | 'precedence_to_verify'
-  | 'dating_to_verify';
+/**
+ * The stored values of a set (SEN-07), as written and in their order, typed as the list of
+ * their literals so that the set's type derives from it. An `as const` would type it as
+ * well, but Stryker plants no mutant inside an `as` expression.
+ */
+export function valuesOf<const Values extends readonly string[]>(values: Values): Values {
+  return values;
+}
 
-/** Why a case is not measurable (SEN-07, CL-SEN-03), as it is stored. */
-type NotMeasurableReason =
-  | 'no_game_within_window'
-  | 'box_score_incomplete'
-  | 'box_score_suspect'
-  | 'box_score_unavailable'
-  | 'insufficient_baseline'
-  | 'season_not_covered'
-  | 'precedence_not_established'
-  | 'derived_game_missed';
+/**
+ * Why a case awaits its game (SEN-07, SEN-47), as it is stored, in the glossary's order,
+ * which is the order of the tally's counts (SEN-32).
+ */
+export const AWAITING_GAME_REASONS = valuesOf([
+  'game_not_played_yet',
+  'statistics_pending',
+  'mapping_not_established',
+  'baseline_building',
+  'precedence_to_verify',
+  'dating_to_verify',
+]);
+
+/**
+ * Why a case is not measurable (SEN-07, CL-SEN-03), as it is stored, in the glossary's
+ * order, which is the order of the tally's counts (SEN-32).
+ */
+export const NOT_MEASURABLE_REASONS = valuesOf([
+  'no_game_within_window',
+  'box_score_incomplete',
+  'box_score_suspect',
+  'box_score_unavailable',
+  'insufficient_baseline',
+  'season_not_covered',
+  'precedence_not_established',
+  'derived_game_missed',
+]);
+
+type AwaitingGameReason = (typeof AWAITING_GAME_REASONS)[number];
+type NotMeasurableReason = (typeof NOT_MEASURABLE_REASONS)[number];
 
 /**
  * The reason of a case awaiting its game or not measurable (SEN-07), as it is stored; an

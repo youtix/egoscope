@@ -3,41 +3,22 @@
 // own and given its state, the events grouped into cases, each case measured against its
 // season baseline, judged by the doubtful-case criteria and the owner's manual decisions
 // and given its review flags (evaluate-cases.ts, evaluate-game.ts), then the profile of
-// each type in its three views. Which stored case a group of events keeps, with its
-// origin and its decisions, is the sensitivity module's (events-and-cases.md, 2.5): the
-// caller answers it for each case.
+// each type in its three views (profile-view.ts). Which stored case a group of events
+// keeps, with its origin and its decisions, is the sensitivity module's
+// (events-and-cases.md, 2.5): the caller answers it for each case.
 
-import { profileChecks } from './checks';
-import { profileConfidence } from './confidence';
 import { evaluateCases } from './evaluate-cases';
 import { casesByView, hasProfiles, hasTallyEvent } from './evaluate-trend';
-import { runRobustnessTest } from './robustness';
-import { tallyProfile } from './tally';
-import { profileVerdict } from './verdict';
+import { profileViewValues } from './profile-view';
 
 import type { EngineParams, EventTypeId } from '../types';
-import type { ProfileChecks } from './checks';
-import type { ConfidenceValues } from './confidence';
 import type {
   CaseEvaluation,
   EvaluatedCase,
   EvaluationType,
-  OriginCase,
   PlayerEvaluationInput,
 } from './evaluate-cases';
-import type { CaseOrigin, ProfileView } from './evaluate-trend';
-import type { ProfileTally, TallyExitReason } from './tally';
-import type { ProfileVerdict } from './verdict';
-
-/**
- * One view of a profile (SEN-20 to SEN-27, CL-SEN-19): its tally, verdict values,
- * fragility, profile confidence and checks, and its valid cases of each origin (SEN-21).
- */
-export type ProfileViewValues = ProfileVerdict &
-  ConfidenceValues &
-  ProfileChecks &
-  Readonly<{ view: ProfileView; tally: ProfileTally; isFragile: boolean }> &
-  Readonly<{ historicalValidCount: number; trackedValidCount: number }>;
+import type { ProfileViewValues } from './profile-view';
 
 /** A profile of the player (SEN-19, SEN-21): its type, whether it is archived, its views. */
 export type PlayerProfile = Readonly<{
@@ -52,52 +33,13 @@ export type PlayerEvaluation = Readonly<{
   profiles: readonly PlayerProfile[];
 }>;
 
-/** How many valid cases of `origin` there are among `cases` (SEN-21). */
-function validCountOf(cases: readonly OriginCase[], origin: CaseOrigin): number {
-  return cases.filter((caseItem) => caseItem.status === 'measured' && caseItem.origin === origin)
-    .length;
-}
-
-/**
- * The values of one view of a profile (SEN-20 to SEN-27, CL-SEN-19): its tally, verdict
- * values, robustness test, profile confidence and checks, each computed on the view's own
- * cases, and its valid cases of each origin.
- */
-function profileValuesOf(
-  part: Readonly<{ cases: readonly OriginCase[]; exitReasons: readonly TallyExitReason[] }>,
-  evaluations: readonly CaseEvaluation[],
-  params: EngineParams,
-): Omit<ProfileViewValues, 'view'> {
-  const { cases, exitReasons } = part;
-  const tally = tallyProfile(cases, exitReasons);
-  const verdictValues = profileVerdict(cases, params);
-  const { isFragile } = runRobustnessTest(cases, verdictValues.verdict, params);
-  const confidenceInputs = {
-    validCount: tally.validCount,
-    excludedCount: tally.excludedCount,
-    gapDispersion: verdictValues.quantities?.gapDispersion ?? null,
-    isFragile,
-  };
-  const manuallyDecidedCases = evaluations
-    .map(({ withoutDecision }) => withoutDecision)
-    .filter((withoutDecision) => withoutDecision !== null);
-  return {
-    tally,
-    ...verdictValues,
-    isFragile,
-    ...profileConfidence(confidenceInputs, params),
-    ...profileChecks({ cases, manuallyDecidedCases }, params),
-    historicalValidCount: validCountOf(cases, 'historical'),
-    trackedValidCount: validCountOf(cases, 'tracked'),
-  };
-}
-
 /**
  * The profile of `type`, null when it has none (SEN-19, CL-SEN-26): a validated or a
  * withdrawn type has one while its tally holds an event, the events that left it
  * included, and, while the birthday type is validated, a player without a recorded
  * birthday has one with an empty tally. It is archived when the player or the type is
- * withdrawn, and computed in full in each view all the same.
+ * withdrawn, and computed in full in each view all the same, each view reading the cases
+ * of the type that a manual decision rules (SEN-27).
  */
 function profileOf(
   type: EvaluationType,
@@ -113,13 +55,15 @@ function profileOf(
     return null;
   }
   const cases = ofType.map(({ profileCase }) => profileCase);
+  const manuallyDecidedCases = ofType
+    .map(({ withoutDecision }) => withoutDecision)
+    .filter((withoutDecision) => withoutDecision !== null);
   return {
     eventTypeId: type.eventTypeId,
     isArchived: player.isWithdrawn || type.status === 'withdrawn',
-    views: casesByView(cases, type.exitReasons).map((part) => ({
-      view: part.view,
-      ...profileValuesOf(part, ofType, input.params),
-    })),
+    views: casesByView(cases, type.exitReasons).map((part) =>
+      profileViewValues({ ...part, manuallyDecidedCases }, input.params),
+    ),
   };
 }
 
