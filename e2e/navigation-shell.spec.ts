@@ -65,9 +65,16 @@ async function layoutOf(page: Page, navigation: Locator) {
   return { ...box, doesScrollSideways };
 }
 
+// The headers that mark the router's prefetch of a linked screen, and of one of its segments.
+// Every other request of the router, a navigation, a refresh or a Server Action, carries
+// `next-router-state-tree` alone, and counts.
+const PREFETCH_HEADERS = ['next-router-prefetch', 'next-router-segment-prefetch'] as const;
+
 /** Whether `request` is the router's prefetch of a linked screen, which no timer starts. */
-const isPrefetch = (request: Request): boolean =>
-  Object.keys(request.headers()).some((name) => name.startsWith('next-router-'));
+const isPrefetch = (request: Request): boolean => {
+  const names = new Set(Object.keys(request.headers()));
+  return PREFETCH_HEADERS.some((name) => names.has(name));
+};
 
 test.describe('the navigation shell', () => {
   for (const path of LOT_1_SCREENS) {
