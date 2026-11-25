@@ -196,4 +196,13 @@ describe('the sources of an event', { timeout: DATABASE_TEST_TIMEOUT_MS }, () =>
     expect(await recordLinkCheck(db, NO_SOURCE, 'not_found')).toStrictEqual(GONE);
     expect(await recordSpotCheck(db, NO_SOURCE, 'consistent')).toStrictEqual(GONE);
   });
+
+  it('[DSN-08] adds nothing for an empty list, the event keeping no source', async () => {
+    const playerEventId = await anEvent();
+    const added = await add(playerEventId, []);
+    const playerEvent = await getEvent(db, playerEventId);
+
+    expect(added).toStrictEqual([]);
+    expect(playerEvent).toMatchObject({ origin: 'historical', sources: [] });
+  });
 });
