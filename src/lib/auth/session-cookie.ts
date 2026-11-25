@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 /**
  * The name of the cookie that carries a device's session (TRV-62): `__Host-` makes the
  * browser keep it only from this host, over HTTPS, for every path. The request proxy
- * only checks that it is present (module map §1.4).
+ * only checks that it is present, and renews it (module map §1.4).
  */
 export const SESSION_COOKIE = '__Host-egoscope-session';
 
@@ -16,6 +16,14 @@ const COOKIE_LIFETIME_SECONDS = 34_560_000;
 
 const ATTRIBUTES = { httpOnly: true, secure: true, sameSite: 'lax', path: '/' } as const;
 
+/**
+ * The attributes and the lifetime of the session cookie (TRV-62): HttpOnly, Secure,
+ * SameSite=Lax, for every path, kept 400 days. The request proxy sets the cookie again
+ * with them at each use, so that the browser keeps it 400 days after the device's last
+ * use rather than after its last login.
+ */
+export const SESSION_COOKIE_OPTIONS = { ...ATTRIBUTES, maxAge: COOKIE_LIFETIME_SECONDS } as const;
+
 /** The session cookie the device sent, if any (TRV-58, TRV-62). */
 export async function readSessionCookie(): Promise<string | undefined> {
   const jar = await cookies();
@@ -25,7 +33,7 @@ export async function readSessionCookie(): Promise<string | undefined> {
 /** Gives the device the session cookie `value`: HttpOnly, Secure, SameSite=Lax (TRV-62). */
 export async function writeSessionCookie(value: string): Promise<void> {
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, value, { ...ATTRIBUTES, maxAge: COOKIE_LIFETIME_SECONDS });
+  jar.set(SESSION_COOKIE, value, SESSION_COOKIE_OPTIONS);
 }
 
 /** Removes the device's session cookie at logout, with the attributes its `__Host-` name requires (TRV-62, IHM-08). */

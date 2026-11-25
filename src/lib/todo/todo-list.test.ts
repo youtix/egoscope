@@ -37,7 +37,7 @@ const CONSEQUENCES: readonly (readonly [IncidentKind, string])[] = [
   ],
   ['task_not_run', 'The task did not run, so its work is late.'],
   ['backup_failed', 'Your data has no recent backup.'],
-  ['logins_refused', 'Signing in is locked after repeated failures.'],
+  ['logins_refused', 'You cannot sign in until logins are allowed again.'],
   ['telegram_link_broken', 'Telegram messages are not delivered.'],
   ['export_reminder', 'Your data has no recent full export.'],
 ];

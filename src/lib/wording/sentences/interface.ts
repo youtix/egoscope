@@ -49,7 +49,7 @@ export const interfaceSentences = {
     'The statistics file that changed is not read, so its figures are not updated.',
   incidentConsequenceTaskNotRun: 'The task did not run, so its work is late.',
   incidentConsequenceBackupFailed: 'Your data has no recent backup.',
-  incidentConsequenceLoginsRefused: 'Signing in is locked after repeated failures.',
+  incidentConsequenceLoginsRefused: 'You cannot sign in until logins are allowed again.',
   incidentConsequenceTelegramLinkBroken: 'Telegram messages are not delivered.',
   incidentConsequenceExportReminder: 'Your data has no recent full export.',
 
@@ -118,6 +118,43 @@ export const interfaceSentences = {
     'The app could not show this screen. Try again, and if it fails again, try later.',
   tryAgain: 'Try again',
   loadingScreen: 'Loading the screen',
+
+  // The login screen (IHM-06, IHM-07, TRV-61): what screen readers say while it checks
+  // the device's session, its title, which its button repeats, its one field, the lockout
+  // with its end time (glossary section 3.13), why nothing can be sent meanwhile, and the
+  // refusals; how the device's session ended, named after the code values of the
+  // glossary's SessionEndReason set (IHM-08, CL-TRV-05); and the description of the
+  // device that a session keeps (IHM-06)
+  checkingSession: "Checking this device's session",
+  logIn: 'Log in',
+  password: 'Password',
+  showPassword: 'Show the password',
+  loginLockedUntil: 'Login locked until {time}',
+  loginsRefusedMeanwhile:
+    'Logins are refused after repeated wrong passwords, until the time shown above.',
+  notLoggedIn: 'You are not logged in',
+  typePassword: 'Type your password.',
+  wrongPassword: 'This password is wrong: type it again.',
+  passwordNotChecked: 'The app cannot check your password right now: try again in a few minutes.',
+  endedExpired: 'Session expired',
+  endedLoggedOut: 'Logged out',
+  endedPasswordChanged: 'Password changed',
+  endedReset: 'Password reset',
+  endedRestored: 'Data restored',
+  deviceDescription: '{browser} on {system}',
+  unknownDevice: 'Unknown device',
+
+  // The "Choose your password" screen, the only one open while the initial password is in
+  // use (TRV-57, TRV-60, IHM-06, CL-TRV-15): its title, what it does, its field, its
+  // button and its refusals
+  choosePassword: 'Choose your password',
+  choosePasswordPurpose:
+    'Replace the initial password with one of at least {k} {k|character|characters}. Every other device is then logged out.',
+  newPassword: 'New password',
+  savePassword: 'Save the password',
+  passwordNotSaved: 'Your password was not saved',
+  passwordTooShort: 'This password is too short: use at least {k} {k|character|characters}.',
+  passwordNotStored: 'The app cannot save your password right now: try again in a few minutes.',
 
   // An area adds its groups below, one commented group per screen or task.
 } as const;

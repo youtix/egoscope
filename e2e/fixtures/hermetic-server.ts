@@ -1,7 +1,8 @@
 /**
- * The hermetic servers of the end-to-end tests, one per lot: the production
- * build, started on a port that the system picks, with every outside service a
- * fake and no real credential. playwright.config.ts declares them.
+ * The hermetic servers of the end-to-end tests, one per lot, and the one of the
+ * journeys that change the account: the production build, started on a port that
+ * the system picks, with every outside service a fake and no real credential.
+ * playwright.config.ts declares them.
  */
 import type { PlaywrightTestConfig } from '@playwright/test';
 
@@ -12,9 +13,22 @@ type WebServer = Exclude<NonNullable<PlaywrightTestConfig['webServer']>, readonl
 
 // Five minutes: a cold production build on a busy machine, then the start.
 const BUILD_AND_START_MS = 300_000;
+// One minute: the start of a build that is already there.
+const START_MS = 60_000;
+// Where Next.js says it listens, the port in the group named after its variable.
+const listening = (variable: string): RegExp =>
+  new RegExp(String.raw`- Local:\s+http://127\.0\.0\.1:(?<${variable.toLowerCase()}>\d+)`, 'u');
+
+/**
+ * The initial password of the account of every hermetic server, a dummy that no
+ * deployment holds: the session control and the account journeys log in with it.
+ */
+export const TEST_ACCOUNT_INITIAL = 'hermetic-initial-of-the-test-account';
 
 /** The variable that holds the port of the server of `lot`, once it listens. */
 const portVariable = (lot: Lot): string => `EGOSCOPE_E2E_LOT${String(lot)}_PORT`;
+// The variable that holds the port of the server of the account journeys.
+const ACCOUNT_PORT = 'EGOSCOPE_E2E_ACCOUNT_PORT';
 
 /**
  * The environment of the hermetic server of `lot`, whatever the shell exports
@@ -28,6 +42,8 @@ export function hermeticEnvironment(lot: Lot): Readonly<Record<string, string>> 
     EGOSCOPE_FAKES: 'all',
     // Set explicitly, so that a change of the default lot changes nothing here.
     EGOSCOPE_LOT: String(lot),
+    // The account starts from it, as a deployment's does from its own (TRV-57).
+    INITIAL_PASSWORD: TEST_ACCOUNT_INITIAL,
     // No real credential, no Vercel deployment, the default log level.
     DATABASE_URL: '',
     DATABASE_URL_UNPOOLED: '',
@@ -51,14 +67,36 @@ export function serverUrl(lot: Lot): string {
  * that `serverUrl` reads in the workers it starts afterwards.
  */
 export function hermeticServer(lot: Lot): WebServer {
-  const port = portVariable(lot).toLowerCase();
   return {
     name: `lot ${String(lot)}`,
     command: 'next build && next start --hostname 127.0.0.1 --port 0',
     env: { ...hermeticEnvironment(lot) },
-    wait: { stdout: new RegExp(String.raw`- Local:\s+http://127\.0\.0\.1:(?<${port}>\d+)`, 'u') },
+    wait: { stdout: listening(portVariable(lot)) },
     // What the build and the server print, so that a failure explains itself.
     stdout: 'pipe',
     timeout: BUILD_AND_START_MS,
+  };
+}
+
+/** The address of the server of the account journeys, known once it listens. */
+export function accountServerUrl(): string {
+  return `http://127.0.0.1:${process.env[ACCOUNT_PORT] ?? '0'}`;
+}
+
+/**
+ * The web server of the journeys that change the account (a lockout, the choice of
+ * the password, the sessions that end): a second `next start` of the Lot 1 build,
+ * which Playwright starts once the Lot 1 server listens, with an account of its own
+ * in a database of its own, so that these journeys never end the sessions of the
+ * other specs nor lock them out.
+ */
+export function accountServer(): WebServer {
+  return {
+    name: 'account journeys',
+    command: 'next start --hostname 127.0.0.1 --port 0',
+    env: { ...hermeticEnvironment(1) },
+    wait: { stdout: listening(ACCOUNT_PORT) },
+    stdout: 'pipe',
+    timeout: START_MS,
   };
 }

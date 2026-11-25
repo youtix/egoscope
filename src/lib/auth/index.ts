@@ -11,7 +11,7 @@ export {
   requireSession,
 } from './requests';
 export type { LoginAttempt, LogOutScope, PasswordRefusal, SessionRefusal } from './requests';
-export { SESSION_COOKIE } from './session-cookie';
+export { SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from './session-cookie';
 export { endAllSessions, purgeExpired } from './sessions';
 export type {
   AllSessionsEndReason,
