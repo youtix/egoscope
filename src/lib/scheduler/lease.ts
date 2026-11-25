@@ -2,7 +2,7 @@
 // or at opening, so that two passes never run side by side (TRV-28, CL-TRV-07). It is a
 // row and not a lock: the pooled connection keeps no session, and a lock held in one
 // transaction would not span the several transactions of a pass.
-import { eq, isNull, lte, or } from 'drizzle-orm';
+import { eq, isNull, lte, sql } from 'drizzle-orm';
 
 import { schedulerLease } from '@/lib/db';
 
@@ -26,10 +26,9 @@ const HELD: LeaseTaking = { ok: false, error: { kind: 'lease_held' } };
  * than its timeout being taken over (TRV-28, CL-TRV-07).
  */
 export async function takeLease(db: Database, passId: string, at: EpochMs): Promise<LeaseTaking> {
-  const freeOrExpired = or(
-    isNull(schedulerLease.expiresAt),
-    lte(schedulerLease.expiresAt, new Date(at)),
-  );
+  const free = isNull(schedulerLease.expiresAt);
+  const expired = lte(schedulerLease.expiresAt, new Date(at));
+  const freeOrExpired = sql`(${free} or ${expired})`;
   const taken = await db
     .insert(schedulerLease)
     .values({ id: LEASE_ID, passId, expiresAt: new Date(at + STALE_AFTER_MS) })

@@ -8,8 +8,16 @@ import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 import type { ScheduledTask } from './types';
 import type { Database } from '@/lib/db';
 
-const scheduled = vi.hoisted(() => ({ after: vi.fn<(task: () => Promise<void>) => void>() }));
+/** What `after` takes: a promise, or a callback that Next.js calls once the response is sent. */
+type AfterTask = Promise<unknown> | (() => unknown);
+
+const scheduled = vi.hoisted(() => ({ after: vi.fn<(task: AfterTask) => void>() }));
 vi.mock(import('next/server'), () => scheduled);
+
+/** Runs `task` as Next.js does once the response is sent. */
+async function runAfterResponse(task: AfterTask | undefined): Promise<void> {
+  await (typeof task === 'function' ? task() : task);
+}
 
 const PROCESS_FAKE = Symbol.for('egoscope.runtime-cache.process-fake');
 const MINUTE = 60_000;
@@ -90,8 +98,7 @@ describe('an on-demand run', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   it('[TRV-33] runs in the pass started after the response, marked on demand, without moving the next scheduled run', async () => {
     const { requestRun, taskOverview } = await load();
     await requestRun(db, [purge], 'purge');
-    const startPass = scheduled.after.mock.calls[0]?.[0];
-    await startPass?.();
+    await runAfterResponse(scheduled.after.mock.calls[0]?.[0]);
     const journal = await db.select().from(journalEntries);
     expect(
       journal.map(({ messageKey, messageParams }) => ({ messageKey, messageParams })),
