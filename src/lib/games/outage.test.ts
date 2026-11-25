@@ -11,7 +11,6 @@ import { fixedClock, installFakeClock, toEpochMs, toIsoDate } from '@/lib/time';
 
 import {
   classifyAnswer,
-  failingSince,
   isMissingFileAFault,
   recordRecovery,
   retryAt,
@@ -115,45 +114,24 @@ describe('the retry schedule', () => {
     expect(retryTiming(await getParams(db))).toStrictEqual(TIMING);
   }, 60_000);
 
-  it.each([
-    { failures: 1, delay: HOUR },
-    { failures: 2, delay: 4 * HOUR },
-    { failures: 7, delay: 4 * HOUR },
-  ])(
-    '[STA-36] makes the next attempt after failure $failures due $delay ms later',
-    ({ failures, delay }) => {
-      expect(retryAt(failures, START, TIMING)).toBe(START + delay);
-    },
-  );
-
-  it('[STA-37] finds when the failure began from a unit that waits, whatever its attempts', () => {
+  it('[STA-36] waits the first delay after one failure and the interval after each later one, for any delays', () => {
     const quarters = fc.integer({ min: 1, max: 100 });
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 40 }),
-        fc.tuple(quarters, quarters),
-        (failures, [first, interval]) => {
+        quarters,
+        quarters,
+        (failures, first, interval) => {
           const timing = {
+            ...TIMING,
             firstDelayMs: first * QUARTER_HOUR,
             intervalMs: interval * QUARTER_HOUR,
-            incidentAfterMs: 12 * HOUR,
           };
-          let at = START;
-          for (let failure = 1; failure < failures; failure += 1) {
-            at = retryAt(failure, at, timing);
-          }
-          const nextAttemptAt = retryAt(failures, at, timing);
-          expect(failingSince([{ attempts: failures, nextAttemptAt }], timing)).toBe(START);
+          const delay = failures === 1 ? timing.firstDelayMs : timing.intervalMs;
+          expect(retryAt(failures, START, timing)).toBe(START + delay);
         },
       ),
     );
-  });
-
-  it('[STA-37] takes the earliest start among the units, and none without a unit', () => {
-    const later = { attempts: 1, nextAttemptAt: toEpochMs(START + 10 * HOUR) };
-    const earlier = { attempts: 3, nextAttemptAt: toEpochMs(START + 9 * HOUR) };
-    expect(failingSince([later, earlier], TIMING)).toBe(START);
-    expect(failingSince([], TIMING)).toBeNull();
   });
 });
 
@@ -289,7 +267,11 @@ describe('the answers of the fake source, settled in the queue', { timeout: 60_0
       clock.advance(delays.at(-1) ?? 0);
     }
     expect(delays).toStrictEqual([HOUR, 4 * HOUR, 4 * HOUR]);
-    expect(await unitOf(id)).toMatchObject({ attempts: 3, waitReason: 'outage' });
+    expect(await unitOf(id)).toMatchObject({
+      attempts: 3,
+      waitReason: 'outage',
+      failingSince: new Date(START),
+    });
     expect(await answerOf()).toStrictEqual({ kind: 'normal' });
     await recover(await unitOf(id));
     expect(await db.select().from(fetchQueueItems)).toStrictEqual([]);
@@ -318,6 +300,46 @@ describe('the answers of the fake source, settled in the queue', { timeout: 60_0
     expect(await openKinds()).toStrictEqual([]);
   });
 
+  it('[STA-37] dates the failure from its first attempt, however late the retries run or a call is interrupted, and opens the incident when it has lasted exactly 12 hours', async () => {
+    const { id } = await addUnit();
+    // Each retry runs 2 hours after it was due, and one call is stopped by its own signal.
+    for (const elapsedHours of [0, 3, 9]) {
+      clock.advance(START + elapsedHours * HOUR - clock.now());
+      await settle(await unitOf(id), { kind: 'outage' });
+    }
+    await settle(await unitOf(id), { kind: 'interrupted' });
+    expect(await openKinds()).toStrictEqual([]);
+    clock.advance(START + 12 * HOUR - clock.now());
+    await settle(await unitOf(id), { kind: 'outage' });
+    const [incident] = await listOpen(db);
+    expect([incident?.kind, incident?.openedAt]).toStrictEqual(['stats_source_unavailable', START]);
+    expect(await unitOf(id)).toMatchObject({ attempts: 4, failingSince: new Date(START) });
+  });
+
+  it('[STA-36] [STA-37] starts the failures in a row again after a quota answer, with the first delay', async () => {
+    const { id } = await addUnit();
+    for (const elapsedHours of [0, 1, 5]) {
+      clock.advance(START + elapsedHours * HOUR - clock.now());
+      await settle(await unitOf(id), { kind: 'outage' });
+    }
+    await settle(await unitOf(id), { kind: 'quota', resumeAt: toEpochMs(START + 7 * HOUR) });
+    expect(await unitOf(id)).toMatchObject({
+      attempts: 3,
+      waitReason: 'quota',
+      failingSince: null,
+    });
+    clock.advance(START + 7 * HOUR - clock.now());
+    expect(await settle(await unitOf(id), { kind: 'outage' })).toStrictEqual({
+      kind: 'waiting',
+      nextAttemptAt: START + 8 * HOUR,
+    });
+    expect(await unitOf(id)).toMatchObject({
+      attempts: 1,
+      waitReason: 'outage',
+      failingSince: new Date(START + 7 * HOUR),
+    });
+  });
+
   it('[STA-36] [STA-37] makes every unit that waited after an outage due at once when the source answers', async () => {
     source.inject({ kind: 'outage', times: 2 });
     const first = await addUnit(SEASON);
@@ -326,7 +348,11 @@ describe('the answers of the fake source, settled in the queue', { timeout: 60_0
     await settle(second, await answerOf(PAST_SEASON));
     clock.advance(HOUR);
     await recover(await unitOf(first.id));
-    expect(await unitOf(second.id)).toMatchObject({ attempts: 0, waitReason: null });
+    expect(await unitOf(second.id)).toMatchObject({
+      attempts: 0,
+      waitReason: null,
+      failingSince: null,
+    });
     expect(await dueIn(second.id)).toBe(0);
   });
 
@@ -389,7 +415,11 @@ describe('the answers of the fake source, settled in the queue', { timeout: 60_0
       kind: 'waiting',
       nextAttemptAt: START + 4 * HOUR,
     });
-    expect(await unitOf(id)).toMatchObject({ attempts: 1, waitReason: null });
+    expect(await unitOf(id)).toMatchObject({
+      attempts: 1,
+      waitReason: null,
+      schemaChangedAt: new Date(START),
+    });
     expect(await openKinds()).toStrictEqual(['stats_source_schema_changed']);
   });
 
@@ -414,6 +444,57 @@ describe('the answers of the fake source, settled in the queue', { timeout: 60_0
     await recover(await unitOf(second.id));
     expect(await openKinds()).toStrictEqual([]);
   });
+
+  it.each<{ what: string; between: AnswerClass }>([
+    { what: 'an outage', between: { kind: 'outage' } },
+    { what: 'a quota answer', between: { kind: 'quota', resumeAt: toEpochMs(START + 10 * HOUR) } },
+  ])(
+    '[CL-STA-15] closes "Stats source format changed" when the file reads again after $what',
+    async ({ between }) => {
+      const { id } = await addUnit();
+      await settle(await unitOf(id), { kind: 'schema_changed' });
+      clock.advance(4 * HOUR);
+      await settle(await unitOf(id), between);
+      clock.advance(2 * HOUR);
+      await recover(await unitOf(id));
+      expect(await openKinds()).toStrictEqual([]);
+    },
+  );
+
+  it('[CL-STA-15] keeps "Stats source format changed" open when another file reads and wakes the changed one after an outage', async () => {
+    const changed = await addUnit(SEASON);
+    const other = await addUnit(PAST_SEASON);
+    await settle(changed, { kind: 'schema_changed' });
+    clock.advance(4 * HOUR);
+    await settle(await unitOf(changed.id), { kind: 'outage' });
+    await recover(await unitOf(other.id));
+    expect(await unitOf(changed.id)).toMatchObject({ attempts: 0, waitReason: null });
+    expect(await openKinds()).toStrictEqual(['stats_source_schema_changed']);
+    await recover(await unitOf(changed.id));
+    expect(await openKinds()).toStrictEqual([]);
+  });
+
+  it.each<{ what: string; answer: AnswerClass }>([
+    { what: 'a changed layout', answer: { kind: 'schema_changed' } },
+    { what: 'a current-season file that went missing', answer: { kind: 'not_published' } },
+  ])(
+    '[STA-37] [CL-STA-15] closes "Stats source unavailable" when the source answers with $what, and makes the units that waited after an outage due',
+    async ({ answer }) => {
+      source.inject({ kind: 'outage', times: 5 });
+      const failing = await addUnit(SEASON);
+      const changed = await addUnit(PAST_SEASON);
+      for (const elapsedHours of [0, 1, 5, 9, 13]) {
+        clock.advance(START + elapsedHours * HOUR - clock.now());
+        await settle(await unitOf(failing.id), await answerOf());
+      }
+      expect(await openKinds()).toStrictEqual(['stats_source_unavailable']);
+      clock.advance(4 * HOUR);
+      await settle(changed, answer);
+      expect(await openKinds()).toStrictEqual(['stats_source_schema_changed']);
+      expect(await unitOf(failing.id)).toMatchObject({ attempts: 0, waitReason: null });
+      expect(await dueIn(failing.id)).toBe(0);
+    },
+  );
 
   it('[CL-STA-15] opens the format incident for a current-season file that went missing', async () => {
     source.inject({ kind: 'not_published', resource: 'season_games', season: SEASON });

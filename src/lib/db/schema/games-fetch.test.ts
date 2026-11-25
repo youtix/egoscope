@@ -29,6 +29,8 @@ const COLUMNS = [
   'fetch_queue_items.lease_expires_at timestamp with time zone',
   'fetch_queue_items.cursor text',
   'fetch_queue_items.requested_at timestamp with time zone NOT NULL DEFAULT now()',
+  'fetch_queue_items.failing_since timestamp with time zone',
+  'fetch_queue_items.schema_changed_at timestamp with time zone',
   'stats_source_versions.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
   'stats_source_versions.stats_source text NOT NULL',
   'stats_source_versions.resource text NOT NULL',
@@ -123,6 +125,8 @@ describe('the fetch tables', { timeout: 60_000 }, () => {
         leaseExpiresAt: null,
         cursor: null,
         requestedAt: ANY_INSTANT,
+        failingSince: null,
+        schemaChangedAt: null,
       },
     ]);
   });
@@ -146,12 +150,27 @@ describe('the fetch tables', { timeout: 60_000 }, () => {
   });
 
   it('[CL-STA-15] keeps a unit waiting after an outage or a quota answer, until its next attempt', async () => {
-    // An hour after the outage, and the reset that the quota answer gives.
+    // An hour after the outage, and the reset that the quota answer gives; the file of the
+    // second unit answered with a changed layout before.
     const retryAt = new Date(toEpochMs(Date.UTC(2025, 0, 15, 10)));
     const resetAt = new Date(toEpochMs(Date.UTC(2025, 0, 16)));
     const waits = [
-      { kind: 'season_games', attempts: 1, nextAttemptAt: retryAt, waitReason: 'outage' },
-      { kind: 'season_box_scores', attempts: 0, nextAttemptAt: resetAt, waitReason: 'quota' },
+      {
+        kind: 'season_games',
+        attempts: 1,
+        nextAttemptAt: retryAt,
+        waitReason: 'outage',
+        failingSince: FETCHED_AT,
+        schemaChangedAt: null,
+      },
+      {
+        kind: 'season_box_scores',
+        attempts: 0,
+        nextAttemptAt: resetAt,
+        waitReason: 'quota',
+        failingSince: null,
+        schemaChangedAt: FETCHED_AT,
+      },
     ] as const;
     await db.insert(fetchQueueItems).values(waits.map((wait) => ({ ...UNIT, ...wait })));
 
@@ -161,11 +180,28 @@ describe('the fetch tables', { timeout: 60_000 }, () => {
         attempts: fetchQueueItems.attempts,
         nextAttemptAt: fetchQueueItems.nextAttemptAt,
         waitReason: fetchQueueItems.waitReason,
+        failingSince: fetchQueueItems.failingSince,
+        schemaChangedAt: fetchQueueItems.schemaChangedAt,
       })
       .from(fetchQueueItems)
       .orderBy(fetchQueueItems.id);
 
     expect(stored).toStrictEqual(waits);
+  });
+
+  it.each([
+    { unit: 'an outage without the start of its failure', change: { waitReason: 'outage' } },
+    { unit: 'a failure start with no outage', change: { failingSince: FETCHED_AT } },
+    {
+      unit: 'a failure start while it waits for quota',
+      change: { waitReason: 'quota', failingSince: FETCHED_AT },
+    },
+  ] as const)('[STA-37] refuses a unit of work with $unit', async ({ change }) => {
+    const insert = db.insert(fetchQueueItems).values({ ...UNIT, ...change });
+
+    await expect(insert).rejects.toMatchObject(
+      violationOf('fetch_queue_items_failing_since_check'),
+    );
   });
 
   it('keeps one pending unit per scope, so that a new need raises its priority instead of adding a unit', async () => {

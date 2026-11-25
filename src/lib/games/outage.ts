@@ -4,10 +4,11 @@
 // used by fetch-queue.ts, which passes the unit it leased and calls `settleUnit` for every
 // answer but a normal one, and `recordRecovery` in the unit's transaction for a normal one.
 //
-// The state of the source lives in the units of the queue, since no table holds it: a unit
-// waiting after an outage has `wait_reason = 'outage'` and counts its failed attempts; a
-// unit whose file has a changed format waits with no reason and at least one attempt.
-import { and, count, eq, gt, isNull, ne } from 'drizzle-orm';
+// The state of the source lives in the units of the queue: a unit waiting after an outage has
+// `wait_reason = 'outage'`, counts its failed attempts and records in `failing_since` when the
+// first of them failed; a unit whose file answered with a changed format records when in
+// `schema_changed_at`, which an outage or a quota wait keeps, until the file reads again.
+import { and, asc, eq, isNotNull, lte } from 'drizzle-orm';
 
 import { fetchQueueItems } from '@/lib/db';
 import { close, open } from '@/lib/incidents';
@@ -22,7 +23,7 @@ import {
   toIsoDate,
 } from '@/lib/time';
 
-import type { FetchQueueItemRow } from './types';
+import type { FetchQueueItemRow, NewFetchQueueItemRow } from './types';
 import type { Database, Transaction } from '@/lib/db';
 import type { ParamReader } from '@/lib/params';
 import type { Deferred } from '@/lib/quotas';
@@ -44,7 +45,7 @@ const NOT_ANSWERING = { kind: 'stats_source_unavailable', cause: 'not_answering'
 const FORMAT_CHANGED = { kind: 'stats_source_schema_changed' } as const;
 
 /** The part of a queue unit that its answer's handling reads. */
-export type Unit = Pick<FetchQueueItemRow, 'id' | 'attempts' | 'waitReason'>;
+export type Unit = Pick<FetchQueueItemRow, 'id' | 'attempts' | 'waitReason' | 'failingSince'>;
 
 /**
  * What an answer of the source is (CL-STA-15): `normal` for anything but the others, a
@@ -121,23 +122,6 @@ export function retryAt(failures: number, at: EpochMs, timing: RetryTiming): Epo
   return toEpochMs(at + (failures <= 1 ? timing.firstDelayMs : timing.intervalMs));
 }
 
-/**
- * The instant the continuous failure of the source began, read from the units waiting after
- * an outage: each one's last failure is its next attempt less the delay that followed it,
- * and the failures before it took the delays of the schedule. The earliest start, or null
- * when no unit waits (STA-37).
- */
-export function failingSince(
-  units: readonly Readonly<{ attempts: number; nextAttemptAt: EpochMs }>[],
-  timing: RetryTiming,
-): EpochMs | null {
-  const starts = units.map(
-    ({ attempts, nextAttemptAt }) =>
-      nextAttemptAt - timing.firstDelayMs - Math.max(0, attempts - 1) * timing.intervalMs,
-  );
-  return starts.length === 0 ? null : toEpochMs(Math.min(...starts));
-}
-
 /** A resource whose absence from the source can mean a changed format: a file of a season. */
 type FileResource = 'season_games' | 'season_box_scores' | 'season_players' | 'player_records';
 
@@ -194,11 +178,14 @@ export function isMissingFileAFault(file: FileFacts, at: EpochMs): boolean {
 export type Settled =
   Readonly<{ kind: 'waiting'; nextAttemptAt: EpochMs }> | Readonly<{ kind: 'done' }>;
 
-type Wait = Readonly<{
-  attempts: number;
-  waitReason: Unit['waitReason'];
-  nextAttemptAt: EpochMs;
-}>;
+/** What a wait changes in the unit: its next attempt, and the state it waits in. */
+type Wait = Readonly<
+  Partial<
+    Pick<NewFetchQueueItemRow, 'attempts' | 'waitReason' | 'failingSince' | 'schemaChangedAt'>
+  > & {
+    nextAttemptAt: EpochMs;
+  }
+>;
 
 /** Puts the unit back to wait, its lease released. */
 async function wait(tx: Transaction, unit: Unit, until: Wait): Promise<Settled> {
@@ -214,29 +201,37 @@ async function wait(tx: Transaction, unit: Unit, until: Wait): Promise<Settled> 
 const failuresAfter = (unit: Unit, reason: Unit['waitReason']): number =>
   unit.waitReason === reason ? unit.attempts + 1 : 1;
 
-/** Opens the incident of STA-37 when the source has failed for its delay, since the failure began. */
+/**
+ * Opens the incident of STA-37 when a unit has waited after outages in a row for its delay,
+ * since the earliest first failure among them.
+ */
 async function openIfFailingLongEnough(
   tx: Transaction,
   at: EpochMs,
   timing: RetryTiming,
 ): Promise<void> {
-  const waiting = await tx
-    .select({ attempts: fetchQueueItems.attempts, nextAttemptAt: fetchQueueItems.nextAttemptAt })
+  const startedBefore = new Date(at - timing.incidentAfterMs);
+  const [earliest] = await tx
+    .select({ since: fetchQueueItems.failingSince })
     .from(fetchQueueItems)
-    .where(eq(fetchQueueItems.waitReason, 'outage'));
-  const since = failingSince(
-    waiting.map(({ attempts, nextAttemptAt }) => ({
-      attempts,
-      nextAttemptAt: toEpochMs(nextAttemptAt.getTime()),
-    })),
-    timing,
-  );
-  if (since !== null && at - since >= timing.incidentAfterMs) {
-    await open(tx, { ...NOT_ANSWERING, since });
+    .where(
+      and(
+        eq(fetchQueueItems.waitReason, 'outage'),
+        lte(fetchQueueItems.failingSince, startedBefore),
+      ),
+    )
+    .orderBy(asc(fetchQueueItems.failingSince))
+    .limit(1);
+  if (earliest?.since) {
+    await open(tx, { ...NOT_ANSWERING, since: toEpochMs(earliest.since.getTime()) });
   }
 }
 
-/** An outage: the next attempt is due after the delay of the schedule, and the incident opens after its delay (STA-36, STA-37). */
+/**
+ * An outage: the next attempt is due after the delay of the schedule, the start of the
+ * outages in a row is kept or, after another answer, set now, and the incident opens after
+ * its delay (STA-36, STA-37).
+ */
 async function settleOutage(db: Database, unit: Unit, timing: RetryTiming): Promise<Settled> {
   const at = now();
   const attempts = failuresAfter(unit, 'outage');
@@ -244,6 +239,7 @@ async function settleOutage(db: Database, unit: Unit, timing: RetryTiming): Prom
     const settled = await wait(tx, unit, {
       attempts,
       waitReason: 'outage',
+      failingSince: attempts > 1 ? unit.failingSince : new Date(at),
       nextAttemptAt: retryAt(attempts, at, timing),
     });
     await openIfFailingLongEnough(tx, at, timing);
@@ -251,7 +247,24 @@ async function settleOutage(db: Database, unit: Unit, timing: RetryTiming): Prom
   });
 }
 
-/** A changed or missing file: nothing of it is ingested, the incident opens, and the file is read again at the retry interval (CL-STA-15). */
+/**
+ * Records that the source answered (CL-STA-15): it is no longer failing, so "Stats source
+ * unavailable" closes by itself and the units that waited after an outage are due at once
+ * (STA-36, STA-37).
+ */
+async function recordAnswer(tx: Transaction): Promise<void> {
+  await close(tx, NOT_ANSWERING);
+  await tx
+    .update(fetchQueueItems)
+    .set({ attempts: 0, waitReason: null, failingSince: null, nextAttemptAt: new Date(now()) })
+    .where(eq(fetchQueueItems.waitReason, 'outage'));
+}
+
+/**
+ * A changed or missing file, which is an answer of the source: nothing of it is ingested, the
+ * unit records the change, the incident opens, and the file is read again at the retry
+ * interval (CL-STA-15).
+ */
 async function settleChangedFormat(
   db: Database,
   unit: Unit,
@@ -262,8 +275,11 @@ async function settleChangedFormat(
     const settled = await wait(tx, unit, {
       attempts: failuresAfter(unit, null),
       waitReason: null,
+      failingSince: null,
+      schemaChangedAt: new Date(at),
       nextAttemptAt: toEpochMs(at + timing.intervalMs),
     });
+    await recordAnswer(tx);
     await open(tx, FORMAT_CHANGED);
     return settled;
   });
@@ -285,39 +301,34 @@ async function settleQuota(
   const nextAttemptAt =
     resume !== null && resume > at ? resume : toEpochMs(at + waiting.intervalMs);
   return db.transaction(async (tx) =>
-    wait(tx, unit, { attempts: unit.attempts, waitReason: 'quota', nextAttemptAt }),
+    wait(tx, unit, {
+      attempts: unit.attempts,
+      waitReason: 'quota',
+      failingSince: null,
+      nextAttemptAt,
+    }),
   );
-}
-
-/** The units waiting after a changed format, but `unit`. */
-async function otherChangedFormats(tx: Transaction, unit: Unit): Promise<number> {
-  const [others] = await tx
-    .select({ units: count() })
-    .from(fetchQueueItems)
-    .where(
-      and(
-        ne(fetchQueueItems.id, unit.id),
-        isNull(fetchQueueItems.waitReason),
-        gt(fetchQueueItems.attempts, 0),
-      ),
-    );
-  return others?.units ?? 0;
 }
 
 /**
  * Records that the source answered normally to `unit`, in the transaction that ingests its
  * answer (CL-STA-15): the source is no longer failing, so "Stats source unavailable" closes
- * by itself, and the units that waited after an outage are due at once (STA-36, STA-37);
- * "Stats source format changed" closes when the last file that had changed reads again.
+ * by itself, and the units that waited after an outage are due at once (STA-36, STA-37); the
+ * unit's file reads again, so "Stats source format changed" closes once no unit's file still
+ * has a changed format.
  */
 export async function recordRecovery(tx: Transaction, unit: Unit): Promise<void> {
-  await close(tx, NOT_ANSWERING);
+  await recordAnswer(tx);
   await tx
     .update(fetchQueueItems)
-    .set({ attempts: 0, waitReason: null, nextAttemptAt: new Date(now()) })
-    .where(eq(fetchQueueItems.waitReason, 'outage'));
-  const wasChanged = unit.waitReason === null && unit.attempts > 0;
-  if (wasChanged && (await otherChangedFormats(tx, unit)) === 0) {
+    .set({ schemaChangedAt: null })
+    .where(eq(fetchQueueItems.id, unit.id));
+  const [stillChanged] = await tx
+    .select({ id: fetchQueueItems.id })
+    .from(fetchQueueItems)
+    .where(isNotNull(fetchQueueItems.schemaChangedAt))
+    .limit(1);
+  if (stillChanged === undefined) {
     await close(tx, FORMAT_CHANGED);
   }
 }
@@ -333,13 +344,7 @@ async function finish(db: Database, unit: Unit): Promise<Settled> {
 
 /** A call stopped by its own signal: the unit is due as it was, its lease released. */
 async function release(db: Database, unit: Unit): Promise<Settled> {
-  return db.transaction(async (tx) =>
-    wait(tx, unit, {
-      attempts: unit.attempts,
-      waitReason: unit.waitReason,
-      nextAttemptAt: now(),
-    }),
-  );
+  return db.transaction(async (tx) => wait(tx, unit, { nextAttemptAt: now() }));
 }
 
 /** An answer that is not a normal one, with the unit that got it and what tells a missing file from an unpublished one. */
