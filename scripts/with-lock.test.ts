@@ -391,6 +391,14 @@ describe('with-lock', { timeout: 30_000 }, () => {
     expect(wholeOutcome.stderr).not.toContain('src/lib/stuck');
   });
 
+  it('runs a narrow command on slot 1, and not without the lock, when slot 2 cannot be locked', async () => {
+    const folder = lockFolder();
+    mkdirSync(path.join(folder, LOCK_2));
+    const command = narrow('flock -n "$1" true || exit 9', path.join(folder, LOCK));
+    // Run without the lock, the command would take slot 1 itself and end with 0.
+    await expect(withLock(command, folder)).resolves.toMatchObject({ code: 9 });
+  });
+
   it('never locks in CI', async () => {
     const folder = lockFolder();
     const holding = withLock(['sh', '-c', 'sleep 2'], folder);

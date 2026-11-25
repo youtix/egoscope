@@ -27,7 +27,8 @@
  *   a slot, whichever it is: `bun run gate` takes slot 1 once for all its steps.
  * - A waiter says whom it waits for, the holder of every slot it may take, and for
  *   how long, and gives up as soon as one of them has held its slot for more than
- *   30 minutes.
+ *   30 minutes. A slot whose lock file cannot be used is passed over, and only when
+ *   no slot that the command may take can be used does it run without the lock.
  * - Watch, UI and dev-server modes are refused: they would hold a slot until stopped.
  *
  * Tests override the lock folder and the limit with EGOSCOPE_LOCK_DIR and
@@ -302,41 +303,37 @@ function checkWait(
 }
 
 /**
- * Settles a run after an attempt on one slot: the command's exit code if it ran, or
- * if it never will under the lock (the wrapper was told to stop, or the slot's lock
- * file is unusable). Undefined means that another run holds the slot.
+ * Tries each slot of `locks` once, in order, and settles the run: the command's exit
+ * code if it ran on one, or if it never will under the lock (the wrapper was told to
+ * stop, or no slot's lock file is usable). Otherwise it returns the slots that another
+ * run holds, for which the run waits: an unusable slot is passed over while another
+ * one may be taken.
  */
-async function settle(
+async function tryEach(
   command: Command,
-  { state, code }: Attempt,
-  lock: Lock,
-): Promise<number | undefined> {
-  if (state === 'held') {
-    return code;
-  }
-  const stopStatus = lock.relay.stopStatus();
-  if (stopStatus !== undefined) {
-    return stopStatus;
-  }
-  if (state === 'unlockable') {
-    console.error(`[lock] Cannot lock ${lock.lockPath}: running without the shared lock.`);
-    return runUnlocked(command, lock.relay);
-  }
-  return undefined;
-}
-
-/**
- * Tries each slot of `locks` once, in order, until one settles the run (see settle);
- * undefined means that every slot is busy.
- */
-async function tryEach(command: Command, locks: readonly Lock[]): Promise<number | undefined> {
+  locks: readonly Lock[],
+  relay: Relay,
+): Promise<number | readonly Lock[]> {
+  const busy: Lock[] = [];
   for (const lock of locks) {
-    const settled = await settle(command, await attempt(command, lock), lock);
-    if (settled !== undefined) {
-      return settled;
+    const { state, code } = await attempt(command, lock);
+    if (state === 'held') {
+      return code;
+    }
+    const stopStatus = relay.stopStatus();
+    if (stopStatus !== undefined) {
+      return stopStatus;
+    }
+    if (state === 'busy') {
+      busy.push(lock);
     }
   }
-  return undefined;
+  if (busy.length > 0) {
+    return busy;
+  }
+  const paths = locks.map(({ lockPath }) => lockPath).join(' or ');
+  console.error(`[lock] Cannot lock ${paths}: running without the shared lock.`);
+  return runUnlocked(command, relay);
 }
 
 async function waitAndRun(argv: Command, folder: string, relay: Relay): Promise<number> {
@@ -344,14 +341,14 @@ async function waitAndRun(argv: Command, folder: string, relay: Relay): Promise<
   const limitSeconds = Number(process.env['EGOSCOPE_LOCK_LIMIT_SECONDS'] ?? DEFAULT_LIMIT_SECONDS);
   const timing = { waitStart, limitMs: limitSeconds * MS_PER_SECOND };
   // The slots that the command may take, in the order it tries them.
-  const slots = commandScope(argv) === 'narrow' ? [SLOT_2, SLOT_1] : [SLOT_1];
+  const slots = commandScope(argv, process.cwd()) === 'narrow' ? [SLOT_2, SLOT_1] : [SLOT_1];
   const locks = slots.map((slot) => ({ lockPath: path.join(folder, slot), waitStart, relay }));
   for (let poll = 0; ; poll += 1) {
-    const settled = await tryEach(argv, locks);
-    if (settled !== undefined) {
-      return settled;
+    const tried = await tryEach(argv, locks, relay);
+    if (typeof tried === 'number') {
+      return tried;
     }
-    const verdict = checkWait(locks, { ...timing, now: monotonicNow() });
+    const verdict = checkWait(tried, { ...timing, now: monotonicNow() });
     if (verdict.giveUp || poll % POLLS_PER_REPORT === 0) {
       console.error(verdict.message);
     }
