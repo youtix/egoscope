@@ -65,6 +65,19 @@ export type ServiceDeclaration = Readonly<{
   closesOnResume: boolean;
 }>;
 
+/**
+ * The host's maximum duration of one invocation, 300 s on Hobby: a constant of the code,
+ * which the hosting sheet records, not a value to enter (CL-TRV-07).
+ */
+const FUNCTION_LIMIT_MS = 300_000;
+
+/**
+ * The age past which a call's hold is left by a stopped function: twice the function
+ * limit, the stale delay that CL-TRV-07 gives a run, since a live call's hold is never
+ * older than one invocation (hosting sheet, TRV-04).
+ */
+export const HOLD_STALE_AFTER_MS = 2 * FUNCTION_LIMIT_MS;
+
 /** The bytes of a megabyte, the unit of the size limits and of the stats source's daily volume. */
 export const BYTES_PER_MEGABYTE = 1_000_000;
 const MINUTE_MS = 60_000;

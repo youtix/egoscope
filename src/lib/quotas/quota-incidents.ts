@@ -5,8 +5,8 @@
 import { close, listOpen, open, updateQuotaCauses } from '@/lib/incidents';
 import { valueAt } from '@/lib/params';
 
-import { reachedSince, readStates, rowEnd, writeRow } from './ledger';
-import { isShareReached, scaleOf, SERVICES, servicesOf } from './limits';
+import { reachedSince, rowEnd, writeRow } from './ledger';
+import { isShareReached, scaleOf, SERVICES } from './limits';
 import { followingEnd } from './periods';
 
 import type { LimitState } from './ledger';
@@ -142,17 +142,16 @@ export async function syncReached(
  * Gives the warning of `role` in the caller's transaction `tx` when a limit of its
  * services reaches `quotas.warningShare` of its value, noted once per limit and period
  * instance, and ends it when no limit is there any longer: the period renewed; a rate,
- * which the guard paces, never warns (TRV-05, CL-TRV-12).
+ * which the guard paces, never warns (TRV-05, CL-TRV-12). `context.states` are the
+ * states of the role's limits at `context.at`, read by the caller once its use is written.
  */
 export async function syncWarning(
   tx: Transaction,
   role: ServiceRole,
-  context: SyncContext,
+  context: SyncContext & Readonly<{ states: readonly LimitState[] }>,
 ): Promise<void> {
-  const limits = servicesOf(role).flatMap((service) => SERVICES[service].limits);
   const share = context.values.get('quotas.warningShare');
-  const states = await readStates(tx, limits, context.at);
-  const over = states.filter((state) => {
+  const over = context.states.filter((state) => {
     const allowance = quotaAllowanceOf(state, context.values);
     return allowance !== null && isShareReached(state.used, allowance, share);
   });

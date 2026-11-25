@@ -85,6 +85,18 @@ describe('the quota use report', { timeout: 60_000 }, () => {
       { service: 'statsSource', estimate: { requests: 1 }, priority: false },
       answering(outcome),
     );
+  const workersAi = async (outcome: OutcomeOf['workersAi']) =>
+    withQuota(
+      db,
+      { service: 'workersAi', estimate: { requests: 1 }, priority: false },
+      answering(outcome),
+    );
+  const telegram = async (outcome: OutcomeOf['telegram']) =>
+    withQuota(
+      db,
+      { service: 'telegram', estimate: { messages: 1 }, priority: false },
+      answering(outcome),
+    );
   const report = async (lot: Lot) => usageReport(db, { timeZone: PARIS, lot });
   const lines = async (lot: Lot, ...keys: readonly string[]) => {
     const all = await report(lot);
@@ -217,11 +229,63 @@ describe('the quota use report', { timeout: 60_000 }, () => {
         'normal',
         'Groq: 1,000 of 200,000 tokens over the last 24 hours',
       ),
-      usage(
-        'quotas.telegram.messagesPerSecond',
-        'normal',
-        'Telegram: 1 of 30 messages this second',
-      ),
+      {
+        kind: 'rate',
+        key: 'quotas.telegram.messagesPerSecond',
+        text: 'Telegram: 1 of 30 messages this second',
+      },
+    ]);
+  });
+
+  it('[TRV-04] [TRV-05] [TRV-46] writes the use of a rate without a status, whatever its count or a refusal, beside a quota of its service that keeps one', async () => {
+    const perMinute = 'quotas.workersAi.requestsPerMinute';
+    const perDay = 'quotas.workersAi.neuronsPerDay';
+    await enter(perMinute, 10);
+    await enter(perDay, 10_000);
+    const rate = (used: number) => ({
+      kind: 'rate',
+      key: perMinute,
+      text: `Workers AI: ${String(used)} of 10 requests over the last minute`,
+    });
+    const neurons = (status: QuotaStatus) =>
+      usage(perDay, status, 'Workers AI: 4,000 of 10,000 neurons today, resets at 01:00');
+
+    await workersAi(model({ httpRequests: 8, neurons: 4000 }));
+    const atShare = await lines(2, perMinute, perDay);
+    await workersAi(model({ httpRequests: 2 }));
+    const atLimit = await lines(2, perMinute, perDay);
+    clock.advance(2 * MINUTE);
+    const refused = { kind: 'quota_refused', retryAfterMs: null };
+    await workersAi({ ok: false, error: refused, call: model({ httpRequests: 1 }).call });
+
+    expect([atShare, atLimit]).toStrictEqual([
+      [rate(8), neurons('normal')],
+      [rate(10), neurons('normal')],
+    ]);
+    expect(await lines(2, perMinute, perDay)).toStrictEqual([rate(1), neurons('reached')]);
+  });
+
+  it("[TRV-04] [TRV-05] [TRV-46] writes Telegram's messages a second without a status at its share, at its limit and after a refusal", async () => {
+    const key = 'quotas.telegram.messagesPerSecond';
+    await enter(key, 5);
+    const rate = (used: number) => ({
+      kind: 'rate',
+      key,
+      text: `Telegram: ${String(used)} of 5 messages this second`,
+    });
+
+    await telegram({ ok: true, call: { httpRequests: 1, messages: 4 } });
+    const atShare = await lines(2, key);
+    await telegram({ ok: true, call: { httpRequests: 1, messages: 1 } });
+    const atLimit = await lines(2, key);
+    clock.advance(SECOND);
+    const refused = { kind: 'rate_limited', retryAfterMs: null };
+    await telegram({ ok: false, error: refused, call: { httpRequests: 1, messages: 0 } });
+
+    expect([atShare, atLimit, await lines(2, key)]).toStrictEqual([
+      [rate(4)],
+      [rate(5)],
+      [rate(0)],
     ]);
   });
 

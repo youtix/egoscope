@@ -223,6 +223,7 @@ the glossary's values; rows with per-origin columns are discriminated unions (`P
 | technical details                             | `journal_technical_details`                          | [operations.md](operations.md)                             | both |
 | `Incident`                                    | `incidents`                                          | [operations.md](operations.md)                             | both |
 | `QuotaUsage`                                  | `quota_usage`                                        | [operations.md](operations.md)                             | both |
+| a call's quota hold                           | `quota_holds`                                        | [operations.md](operations.md)                             | both |
 | `TaskRun`                                     | `task_runs`                                          | [operations.md](operations.md)                             | both |
 | `Backup`, `BackupRegister`                    | `backups`                                            | [operations.md](operations.md)                             | 1    |
 | `Export`, the exports downloaded              | `export_downloads`                                   | [operations.md](operations.md)                             | 1    |

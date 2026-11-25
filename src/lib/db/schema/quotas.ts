@@ -23,6 +23,19 @@ export const quotaUsage = pgTable(
 );
 
 /**
+ * Each estimate that a guarded call holds on a `quota_usage` row while it runs, named by
+ * the row's limit and period start, so that the next guarded call of its service role
+ * releases a hold that a stopped function left behind (TRV-04, CL-TRV-07).
+ */
+export const quotaHolds = pgTable('quota_holds', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  limitKey: text('limit_key').notNull(),
+  periodStartAt: timestamptz('period_start_at').notNull(),
+  amount: bigint('amount', { mode: 'number' }).notNull(),
+  heldAt: timestamptz('held_at').notNull(),
+});
+
+/**
  * The minutes in which the database was active, at most one row a minute per
  * server instance, from which the month's compute-hours are estimated (TRV-03,
  * TRV-04).

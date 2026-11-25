@@ -1,17 +1,18 @@
 import { asc } from 'drizzle-orm';
-import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, it, onTestFinished, vi } from 'vitest';
 
-import { createTestDatabase, journalEntries, quotaUsage } from '@/lib/db';
+import { createTestDatabase, journalEntries, quotaHolds, quotaUsage } from '@/lib/db';
 import { listOpen } from '@/lib/incidents';
 import { setParam } from '@/lib/params';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { nextAvailableAt, withQuota } from './guard';
+import { HOLD_STALE_AFTER_MS } from './limits';
 
 import type { Estimate } from './check';
 import type { QuotaService } from './limits';
 import type { OutcomeOf } from './readers';
-import type { Database } from '@/lib/db';
+import type { Database, Transaction } from '@/lib/db';
 import type { OverridableKey, ParamValue } from '@/lib/params';
 import type { FixedClock } from '@/lib/time';
 
@@ -19,6 +20,10 @@ import type { FixedClock } from '@/lib/time';
 const START = toEpochMs(Date.UTC(2026, 10, 24, 14));
 const NEXT_UTC_DAY = toEpochMs(Date.UTC(2026, 10, 25));
 const HOUR = 3_600_000;
+const MINUTE = 60_000;
+const DAY = 86_400_000;
+const TODAY = Date.UTC(2026, 10, 24);
+const REQUESTS_PER_DAY = 'quotas.statsSource.requestsPerDay';
 
 const statsCall = (fileRequests: number, bytesReceived = 0): OutcomeOf['statsSource'] => ({
   ok: true,
@@ -41,6 +46,53 @@ const githubCall = (resetsAt: number, isRefused = false): OutcomeOf['backupStora
     ? { ok: false, error: { kind: 'rate_limited' }, call }
     : { ok: true, value: null, call };
 };
+
+const groqCall = (tokens: number, isRefused = false): OutcomeOf['groq'] => {
+  const call = { httpRequests: 1, tokens, neurons: 0, requestsResetAt: null, tokensResetAt: null };
+  return isRefused
+    ? { ok: false, error: { kind: 'rate_limited', retryAfterMs: null }, call }
+    : { ok: true, call };
+};
+
+/** A failure of the call itself, which the guard must let through unchanged. */
+class CallFailure extends Error {}
+
+/** A call that answers `outcome` once it has started. */
+const answering =
+  <O>(outcome: O) =>
+  async (): Promise<O> => {
+    await Promise.resolve();
+    return outcome;
+  };
+
+/** A call that fails with `failure` once it has started. */
+const throwing = (failure: Error) => async (): Promise<never> => {
+  await Promise.resolve();
+  throw failure;
+};
+
+/**
+ * `db`, whose transactions numbered in `failing`, counted from 1, do all their work and
+ * then fail, so that the database rolls them back.
+ */
+function failingAt(db: Database, failing: ReadonlySet<number>): Database {
+  let count = 0;
+  const transaction: Database['transaction'] = async (work, config) => {
+    count += 1;
+    const isFailing = failing.has(count);
+    return db.transaction(async (tx) => {
+      const result = await work(tx);
+      if (isFailing) {
+        throw new Error('The database refused the commit.');
+      }
+      return result;
+    }, config);
+  };
+  return new Proxy(db, {
+    get: (target, property, receiver): unknown =>
+      property === 'transaction' ? transaction : Reflect.get(target, property, receiver),
+  });
+}
 
 describe('the quota guard', { timeout: 60_000 }, () => {
   let db: Database;
@@ -87,6 +139,20 @@ describe('the quota guard', { timeout: 60_000 }, () => {
   const journalKeys = async () => {
     const entries = await db.select().from(journalEntries).orderBy(asc(journalEntries.id));
     return entries.map(({ messageKey }) => messageKey);
+  };
+  const holdsLeft = async () => {
+    const rows = await db.select().from(quotaHolds).orderBy(asc(quotaHolds.id));
+    return rows.map(({ limitKey, amount, heldAt }) => ({ limitKey, amount, at: heldAt.getTime() }));
+  };
+  const leftBehind = async (key: string, amount: number, heldAt: number) => {
+    const periodStartAt = new Date(TODAY);
+    await db.insert(quotaUsage).values({ limitKey: key, periodStartAt, used: amount });
+    await db.insert(quotaHolds).values({
+      limitKey: key,
+      periodStartAt,
+      amount,
+      heldAt: new Date(heldAt),
+    });
   };
   const usage = async () => {
     const rows = await db.select().from(quotaUsage).orderBy(asc(quotaUsage.id));
@@ -351,5 +417,162 @@ describe('the quota guard', { timeout: 60_000 }, () => {
     expect(await incidents()).toStrictEqual([
       { kind: 'quota_reached', serviceRole: 'backup_storage', quotaCauses: ['limit_reached'] },
     ]);
+  });
+
+  it('[TRV-04] takes a database and refuses a transaction, inside which its call would run', async () => {
+    type Target = Parameters<typeof withQuota>[0];
+
+    expectTypeOf<Database>().toExtend<Target>();
+    expectTypeOf<Transaction>().not.toExtend<Target>();
+    const result = await withQuota(
+      db,
+      { service: 'statsSource', estimate: { requests: 1 }, priority: false },
+      answering(statsCall(1)),
+    );
+    expect(result).toStrictEqual({ ok: true, value: statsCall(1) });
+  });
+
+  it('[TRV-04] takes back the estimate of a call that throws, records no use and lets its error through', async () => {
+    await enter(REQUESTS_PER_DAY, 1000);
+    const failure = new CallFailure('The source closed the connection.');
+    const before = await journalKeys();
+
+    const pending = withQuota(
+      db,
+      { service: 'statsSource', estimate: { requests: 10 }, priority: false },
+      throwing(failure),
+    );
+
+    await expect(pending).rejects.toBe(failure);
+    expect(await usage()).toStrictEqual([
+      { key: REQUESTS_PER_DAY, start: TODAY, used: 0, reached: null, resetsAt: NEXT_UTC_DAY },
+    ]);
+    expect(await holdsLeft()).toStrictEqual([]);
+    expect([await incidents(), await journalKeys()]).toStrictEqual([[], before]);
+  });
+
+  it('[TRV-04] takes back the estimate of a call whose use the database refuses to record', async () => {
+    await enter(REQUESTS_PER_DAY, 1000);
+
+    const pending = withQuota(
+      failingAt(db, new Set([2])),
+      { service: 'statsSource', estimate: { requests: 10 }, priority: false },
+      answering(statsCall(4)),
+    );
+
+    await expect(pending).rejects.toThrow('The database refused the commit.');
+    expect(await usage()).toMatchObject([{ key: REQUESTS_PER_DAY, used: 0, reached: null }]);
+    expect(await holdsLeft()).toStrictEqual([]);
+  });
+
+  it('[TRV-04] [CL-TRV-07] logs a release that fails after a call that threw, lets the call error through, and the next call sweeps the hold once stale', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    onTestFinished(() => logged.mockRestore());
+    const failure = new CallFailure('The source closed the connection.');
+
+    const pending = withQuota(
+      failingAt(db, new Set([2])),
+      { service: 'statsSource', estimate: { requests: 10 }, priority: false },
+      throwing(failure),
+    );
+
+    await expect(pending).rejects.toBe(failure);
+    expect(await holdsLeft()).toStrictEqual([
+      { limitKey: REQUESTS_PER_DAY, amount: 10, at: START },
+    ]);
+    const [line] = logged.mock.calls.map(([written]) => JSON.parse(String(written)) as unknown);
+    expect(line).toMatchObject({
+      level: 'error',
+      context: {
+        service: 'statsSource',
+        role: 'stats_source',
+        error: { message: 'The database refused the commit.' },
+      },
+    });
+    clock.advance(HOLD_STALE_AFTER_MS + 1);
+    await guarded('statsSource', statsCall(1));
+    expect([await usage(), await holdsLeft()]).toMatchObject([[{ used: 1 }], []]);
+  });
+
+  it('[TRV-04] [CL-TRV-07] releases a hold older than the stale delay at the next call of its role, which then sees the true count', async () => {
+    await enter(REQUESTS_PER_DAY, 10);
+    await enter('games.quotaReserveShare', 0);
+    await leftBehind(REQUESTS_PER_DAY, 10, START - HOLD_STALE_AFTER_MS - 1);
+
+    const call = await guarded('statsSource', statsCall(1));
+
+    expect(call.called).toBe(true);
+    expect(await usage()).toMatchObject([{ key: REQUESTS_PER_DAY, used: 1 }]);
+    expect(await holdsLeft()).toStrictEqual([]);
+  });
+
+  it('[TRV-04] [CL-TRV-07] keeps a hold exactly as old as the stale delay, and the hold of another role at any age', async () => {
+    await enter(REQUESTS_PER_DAY, 10);
+    await enter('games.quotaReserveShare', 0);
+    await leftBehind(REQUESTS_PER_DAY, 10, START - HOLD_STALE_AFTER_MS);
+    await leftBehind('quotas.telegram.messagesPerSecond', 3, START - DAY);
+
+    const call = await guarded('statsSource', statsCall(1));
+
+    expect(call).toStrictEqual({
+      called: false,
+      result: { ok: false, error: { kind: 'deferred', availableAt: NEXT_UTC_DAY } },
+    });
+    expect(await usage()).toMatchObject([{ used: 10 }, { used: 3 }]);
+    expect(await holdsLeft()).toStrictEqual([
+      { limitKey: REQUESTS_PER_DAY, amount: 10, at: START - HOLD_STALE_AFTER_MS },
+      { limitKey: 'quotas.telegram.messagesPerSecond', amount: 3, at: START - DAY },
+    ]);
+  });
+
+  it('[TRV-04] takes back once the hold that the sweep already released, when its late call records', async () => {
+    await enter(REQUESTS_PER_DAY, 1000);
+
+    const late = await withQuota(
+      db,
+      { service: 'statsSource', estimate: { requests: 10 }, priority: false },
+      async () => {
+        clock.advance(HOLD_STALE_AFTER_MS + 1);
+        await guarded('statsSource', statsCall(1));
+        return statsCall(3);
+      },
+    );
+
+    expect(late.ok).toBe(true);
+    expect(await usage()).toMatchObject([{ key: REQUESTS_PER_DAY, used: 4 }]);
+    expect(await holdsLeft()).toStrictEqual([]);
+  });
+
+  it("[TRV-06] [CL-TRV-12] holds Groq's rolling tokens a day after a refusal until its oldest counted bucket leaves the window", async () => {
+    await enter('quotas.groq.tokensPerDay', 200_000);
+    await guarded('groq', groqCall(1000));
+    clock.advance(10 * HOUR);
+
+    await guarded('groq', groqCall(0, true));
+
+    const until = START + MINUTE + DAY;
+    expect(await usage()).toContainEqual({
+      key: 'quotas.groq.tokensPerDay',
+      start: START + 10 * HOUR,
+      used: 0,
+      reached: START + 10 * HOUR,
+      resetsAt: until,
+    });
+    expect(await nextAvailableAt(db, 'groq')).toBe(until);
+  });
+
+  it("[TRV-06] [CL-TRV-12] holds Groq's rolling tokens a day after a refusal that no counted operation precedes until the refusal's own bucket leaves the window", async () => {
+    await enter('quotas.groq.tokensPerDay', 200_000);
+
+    await guarded('groq', groqCall(0, true));
+
+    expect(await usage()).toContainEqual({
+      key: 'quotas.groq.tokensPerDay',
+      start: START,
+      used: 0,
+      reached: START,
+      resetsAt: START + MINUTE + DAY,
+    });
+    expect(await nextAvailableAt(db, 'groq')).toBe(START + MINUTE + DAY);
   });
 });

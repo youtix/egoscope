@@ -3,6 +3,7 @@
 import { getParams } from '@/lib/params';
 import { now } from '@/lib/time';
 
+import { lockService } from './ledger';
 import { addUsage, settle } from './record';
 
 import type { Transaction } from '@/lib/db';
@@ -19,9 +20,10 @@ const STATS_SOURCE_PROBE = { amounts: { requests: 1 }, resets: {}, refusal: null
 
 /**
  * Adds the probe calls that the scheduler drained to the stats source's count, each in
- * the period of its own instant, in the caller's transaction `tx`, then settles its
- * incidents and warning (TRV-03, TRV-05). Telegram's probe, `getUpdates`, sends no
- * message, the only thing its limit counts (Telegram sheet), so it adds nothing.
+ * the period of its own instant, in the caller's transaction `tx` under the lock of the
+ * guarded calls of its role, then settles its incidents and warning (TRV-03, TRV-05).
+ * Telegram's probe, `getUpdates`, sends no message, the only thing its limit counts
+ * (Telegram sheet), so it adds nothing and takes no lock.
  */
 export async function recordProbeCalls(
   tx: Transaction,
@@ -31,6 +33,7 @@ export async function recordProbeCalls(
   if (calls.length === 0) {
     return;
   }
+  await lockService(tx, 'statsSource');
   for (const call of calls) {
     await addUsage(tx, 'statsSource', { usage: STATS_SOURCE_PROBE, at: call.at });
   }
