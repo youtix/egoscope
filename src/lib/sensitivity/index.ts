@@ -29,6 +29,13 @@ export type {
 } from './types';
 
 // recalculate.ts: requestRecalculation, processRecalculationJobs, nextDueAt
+export { isRecalculating, requestRecalculation } from './recalculate';
+export type {
+  FullScope,
+  PlayersScope,
+  RecalculationCause,
+  RecalculationScope,
+} from './recalculate';
 
 // full-recalculation.ts: requestFullRecalculation
 
