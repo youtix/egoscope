@@ -237,7 +237,7 @@ describe('the quota use report', { timeout: 60_000 }, () => {
     ]);
   });
 
-  it('[TRV-04] [TRV-05] [TRV-46] writes the use of a rate without a status, whatever its count or a refusal, beside a quota of its service that keeps one', async () => {
+  it('[TRV-04] [TRV-05] [TRV-46] [CL-TRV-26] writes the use of a rate without a status, whatever its count or a refusal, beside a quota of its service that keeps one', async () => {
     const perMinute = 'quotas.workersAi.requestsPerMinute';
     const perDay = 'quotas.workersAi.neuronsPerDay';
     await enter(perMinute, 10);
@@ -265,7 +265,7 @@ describe('the quota use report', { timeout: 60_000 }, () => {
     expect(await lines(2, perMinute, perDay)).toStrictEqual([rate(1), neurons('reached')]);
   });
 
-  it("[TRV-04] [TRV-05] [TRV-46] writes Telegram's messages a second without a status at its share, at its limit and after a refusal", async () => {
+  it("[TRV-04] [TRV-05] [TRV-46] [CL-TRV-26] writes Telegram's messages a second without a status at its share, at its limit and after a refusal", async () => {
     const key = 'quotas.telegram.messagesPerSecond';
     await enter(key, 5);
     const rate = (used: number) => ({
