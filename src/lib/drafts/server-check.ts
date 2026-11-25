@@ -3,14 +3,13 @@ import 'server-only';
 import { and, eq, inArray, or } from 'drizzle-orm';
 
 import { backtestRequests, drafts } from '@/lib/db';
+import { draftKey } from '@/lib/device-drafts';
 import { getParam } from '@/lib/params';
 import { toEpochMs } from '@/lib/time';
 
-import { draftKey } from './draft-target';
 import { withdrawnEventCount } from './server-drafts';
 
-import type { DraftCheck } from './contract';
-import type { DraftTarget } from './draft-target';
+import type { DraftCheck, DraftTarget } from '@/lib/device-drafts';
 import type { Executor } from '@/lib/params';
 import type { EpochMs } from '@/lib/time';
 

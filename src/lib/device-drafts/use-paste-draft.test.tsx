@@ -3,20 +3,19 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { createTestDatabase, withdrawnEventCounter } from '@/lib/db';
-import { insertEventType, insertPlayer, insertRequest } from '@/lib/testing';
+import { draftServerOf, insertEventType, insertPlayer, insertRequest } from '@/lib/testing';
 import { fixedClock, installFakeClock, now, toEpochMs } from '@/lib/time';
 import { sentence } from '@/lib/wording';
 
-import { hasUnsentDeviceDrafts } from './device-copies';
-import { listCopies, putContact, putCopy, readCopy } from './device-store';
+import { hasUnsentDeviceDrafts } from './copies';
 import { draftKey } from './draft-target';
-import { checkDeviceDrafts } from './server-check';
-import { discardDraft, getDraft, saveDraft } from './server-drafts';
+import { listCopies, putContact, putCopy, readCopy } from './store';
 import { usePasteDraft } from './use-paste-draft';
 
 import type { DraftServer } from './contract';
 import type { DraftTarget } from './draft-target';
 import type { Database } from '@/lib/db';
+import type { FixedClock } from '@/lib/time';
 import type { MockInstance } from 'vitest';
 
 // The request of an invented player, the first that a test's own database writes.
@@ -33,6 +32,9 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
   let isReachable: boolean;
   let calls: string[];
   let server: DraftServer;
+  // The server as the phone's and the laptop's own Server Actions reach it, never failing.
+  let phone: DraftServer;
+  let laptop: DraftServer;
   let onLine: MockInstance<() => boolean>;
 
   beforeEach(async () => {
@@ -55,11 +57,13 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
         }
         return run(...args);
       };
+    phone = draftServerOf(db, 'Phone');
+    laptop = draftServerOf(db, 'Laptop');
     server = {
-      check: action('check', async (sent) => checkDeviceDrafts(db, sent)),
-      load: action('load', async (target) => getDraft(db, target)),
-      save: action('save', async (upload) => saveDraft(db, { ...upload, originDevice: 'Phone' })),
-      discard: action('discard', async (target) => discardDraft(db, target)),
+      check: action('check', phone.check),
+      load: action('load', phone.load),
+      save: action('save', phone.save),
+      discard: action('discard', phone.discard),
     };
     return async () => {
       vi.unstubAllGlobals();
@@ -113,7 +117,7 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
       expect(view.result.current.sent).toBe(true);
     });
     expect(await readCopy(draftKey(IMPORT))).toMatchObject({ text: PASTED, sent: true });
-    expect(await getDraft(db, IMPORT)).toMatchObject({ text: PASTED });
+    expect(await phone.load(IMPORT)).toMatchObject({ text: PASTED });
   });
 
   it('[IHM-42] finds the pasted text intact after the app is closed and reopened', async () => {
@@ -152,7 +156,7 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
     });
     expect(view.result.current.text).toBe(PASTED);
     expect(calls).toStrictEqual(['check', 'save']);
-    expect(await getDraft(db, IMPORT)).toMatchObject({ text: PASTED });
+    expect(await phone.load(IMPORT)).toMatchObject({ text: PASTED });
   });
 
   it('[IHM-42] keeps the draft through an expired session and sends it after the owner logs in again', async () => {
@@ -175,7 +179,7 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
     const { result } = await open();
 
     expect(result.current).toMatchObject({ text: PASTED, sent: true });
-    expect(await getDraft(db, IMPORT)).toMatchObject({ text: PASTED });
+    expect(await phone.load(IMPORT)).toMatchObject({ text: PASTED });
   });
 
   it('[CL-IHM-11] deletes an expired device copy when the screen opens offline', async () => {
@@ -231,12 +235,11 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
   });
 
   it('[IHM-42] resumes on this device the draft another device saved', async () => {
-    await saveDraft(db, {
+    await laptop.save({
       target: IMPORT,
       text: PASTED,
       updatedAt: SAVED_ELSEWHERE_AT,
       knownWithdrawnEventCount: 0,
-      originDevice: 'Laptop',
     });
 
     const { result } = await open();
@@ -251,12 +254,11 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
   /** Saves `text` as the copy that the laptop typed now, and returns that instant. */
   async function saveFromLaptop(text: string) {
     const typedAt = now();
-    await saveDraft(db, {
+    await laptop.save({
       target: IMPORT,
       text,
       updatedAt: typedAt,
       knownWithdrawnEventCount: 0,
-      originDevice: 'Laptop',
     });
     return typedAt;
   }
@@ -289,7 +291,70 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
     await waitFor(() => {
       expect(view.result.current.sent).toBe(true);
     });
-    expect(await getDraft(db, IMPORT)).toMatchObject({
+    expect(await phone.load(IMPORT)).toMatchObject({
+      text: 'V2 typed on the laptop. Then on the phone.',
+    });
+  });
+
+  /** `actions` as a server whose clock is `serverClock` answers them, the device keeping its own. */
+  function onServerClock(serverClock: FixedClock, actions: DraftServer): DraftServer {
+    const timed =
+      <A extends unknown[], R>(run: (...args: A) => Promise<R>) =>
+      async (...args: A): Promise<R> => {
+        const restoreClock = installFakeClock(serverClock);
+        try {
+          return await run(...args);
+        } finally {
+          restoreClock();
+        }
+      };
+    return {
+      check: timed(actions.check),
+      load: timed(actions.load),
+      save: timed(actions.save),
+      discard: timed(actions.discard),
+    };
+  }
+
+  it('[IHM-42] [H-IHM-08] [CL-DSN-17] on a phone whose clock runs ahead of the server, shows the later change another device saved, and builds on it', async () => {
+    const phoneClock = fixedClock(now());
+    onTestFinished(installFakeClock(phoneClock));
+    // The server's clock, and the laptop's, run a minute behind the phone's.
+    const serverClock = fixedClock(toEpochMs(phoneClock.now() - MINUTE_MS));
+    server = onServerClock(serverClock, server);
+    const first = await open();
+    act(() => {
+      first.result.current.change('V1 typed on the phone.');
+    });
+    await waitFor(() => {
+      expect(first.result.current.sent).toBe(true);
+    });
+    expect(first.result.current.updatedAt).toBe(toEpochMs(serverClock.now()));
+    first.unmount();
+    phoneClock.advance(MINUTE_MS / 2);
+    serverClock.advance(MINUTE_MS / 2);
+    const laptopAt = toEpochMs(serverClock.now());
+    await laptop.save({
+      target: IMPORT,
+      text: 'V2 typed on the laptop.',
+      updatedAt: laptopAt,
+      knownWithdrawnEventCount: 0,
+    });
+
+    const view = await open();
+
+    expect(view.result.current).toMatchObject({
+      text: 'V2 typed on the laptop.',
+      updatedAt: laptopAt,
+      sent: true,
+    });
+    act(() => {
+      view.result.current.change('V2 typed on the laptop. Then on the phone.');
+    });
+    await waitFor(() => {
+      expect(view.result.current.sent).toBe(true);
+    });
+    expect(await phone.load(IMPORT)).toMatchObject({
       text: 'V2 typed on the laptop. Then on the phone.',
     });
   });
@@ -318,7 +383,7 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
       text: 'Typed later on the laptop.',
       sent: true,
     });
-    expect(await getDraft(db, IMPORT)).toMatchObject({ text: 'Typed later on the laptop.' });
+    expect(await phone.load(IMPORT)).toMatchObject({ text: 'Typed later on the laptop.' });
   });
 
   it('[IHM-42] [CL-DSN-17] shows the later change the server kept over a change typed before it', async () => {
@@ -337,7 +402,7 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
       expect(view.result.current.text).toBe('Typed on the laptop.');
     });
     expect(view.result.current).toMatchObject({ updatedAt: laptopAt, sent: true });
-    expect(await getDraft(db, IMPORT)).toMatchObject({ text: 'Typed on the laptop.' });
+    expect(await phone.load(IMPORT)).toMatchObject({ text: 'Typed on the laptop.' });
   });
 
   it('[IHM-42] [DSN-32] deletes both copies when the draft is discarded', async () => {
@@ -346,7 +411,7 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
 
     expect(await act(async () => view.result.current.discard())).toBe('discarded');
     expect(view.result.current.text).toBe('');
-    expect(await getDraft(db, IMPORT)).toBeNull();
+    expect(await phone.load(IMPORT)).toBeNull();
     expect(await readCopy(draftKey(IMPORT))).toBeUndefined();
   });
 
@@ -354,7 +419,7 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
     const view = await open();
     await typeAndSend(view);
 
-    await discardDraft(db, IMPORT);
+    await phone.discard(IMPORT);
     await act(async () => view.result.current.saved());
 
     expect(view.result.current.status).toBeNull();
@@ -373,7 +438,7 @@ describe('the draft of a paste screen', { timeout: 60_000 }, () => {
       expect(view.result.current.unsentDiscarded).toBe(true);
     });
     expect(view.result.current.text).toBe('');
-    expect(await getDraft(db, IMPORT)).toBeNull();
+    expect(await phone.load(IMPORT)).toBeNull();
     expect(sentence('sensitiveData.offlineDraftsDiscarded')).toBe(
       'Drafts typed offline were discarded because events were withdrawn or declined for sensitivity meanwhile.',
     );

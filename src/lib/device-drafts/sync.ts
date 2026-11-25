@@ -3,22 +3,24 @@
 // allows; nothing else typed offline is ever sent later (IHM-58).
 import { now } from '@/lib/time';
 
-import { copyFate } from './device-rules';
-import { deleteCopy, listCopies, putContact, putCopy, readContact, readCopy } from './device-store';
 import { draftKey } from './draft-target';
+import { copyFate } from './rules';
+import { deleteCopy, listCopies, putContact, putCopy, readContact, readCopy } from './store';
 
-import type { DraftServer } from './contract';
-import type { CopyFate } from './device-rules';
-import type { DeviceCopy } from './device-store';
+import type { DraftServer, SavedCopy } from './contract';
 import type { DraftTarget } from './draft-target';
+import type { CopyFate } from './rules';
+import type { DeviceCopy } from './store';
+import type { EpochMs } from '@/lib/time';
 
 /**
- * What a send did: the copy reached the server; the server kept a later change, and
+ * What a send did: the copy reached the server, which stored it as changed at `updatedAt`;
+ * the server kept a later change, and
  * `copy` is what the device then holds (CL-DSN-17); the copy was refused with a message,
  * stays on the device alone, or went (CL-DSN-22).
  */
 export type SendOutcome =
-  | Readonly<{ kind: 'sent' }>
+  | Readonly<{ kind: 'sent'; updatedAt: EpochMs }>
   | Readonly<{ kind: 'superseded'; copy: DeviceCopy | undefined }>
   | Readonly<{ kind: 'refused'; message: string }>
   | Readonly<{ kind: 'kept_unsent' }>
@@ -37,15 +39,28 @@ async function recordCount(withdrawnEventCount: number): Promise<void> {
   await putContact({ withdrawnEventCount, retentionDays: contact?.retentionDays ?? null });
 }
 
+/** The copy the device holds for `copy`'s target when no change was typed since `copy` was read. */
+async function stillHeld(copy: DeviceCopy): Promise<DeviceCopy | undefined> {
+  const current = await readCopy(copy.key);
+  return current?.updatedAt === copy.updatedAt && current.text === copy.text ? current : undefined;
+}
+
 /**
  * Records the counter that the server answered to the send of `copy`, and marks the copy
- * sent when the device still holds that text (IHM-42, CL-DSN-22).
+ * sent when the device still holds that text, changed at the instant the server stored, so
+ * that a device clock running ahead of the server's never puts it after a later change of
+ * another device (IHM-42, CL-DSN-17, CL-DSN-22).
  */
-async function markSent(copy: DeviceCopy, withdrawnEventCount: number): Promise<void> {
-  await recordCount(withdrawnEventCount);
-  const current = await readCopy(copy.key);
-  if (current?.updatedAt === copy.updatedAt && current.text === copy.text) {
-    await putCopy({ ...current, sent: true, withdrawnEventCount });
+async function markSent(copy: DeviceCopy, saved: SavedCopy): Promise<void> {
+  await recordCount(saved.withdrawnEventCount);
+  const current = await stillHeld(copy);
+  if (current !== undefined) {
+    await putCopy({
+      ...current,
+      updatedAt: saved.updatedAt,
+      sent: true,
+      withdrawnEventCount: saved.withdrawnEventCount,
+    });
   }
 }
 
@@ -84,12 +99,12 @@ export async function takeServerCopy(
  */
 async function afterAccepted(
   copy: DeviceCopy,
-  accepted: Readonly<{ withdrawnEventCount: number; wasWritten: boolean }>,
+  accepted: SavedCopy,
   server: DraftServer,
 ): Promise<SendOutcome> {
   if (accepted.wasWritten) {
-    await markSent(copy, accepted.withdrawnEventCount);
-    return { kind: 'sent' };
+    await markSent(copy, accepted);
+    return { kind: 'sent', updatedAt: accepted.updatedAt };
   }
   await recordCount(accepted.withdrawnEventCount);
   return { kind: 'superseded', copy: await takeServerCopy(copy.target, server) };
@@ -126,6 +141,27 @@ export async function sendCopy(copy: DeviceCopy, server: DraftServer): Promise<S
   return { kind: 'gone' };
 }
 
+/**
+ * Marks `copy` "Request already imported" or drops it, as its fate says, unless the owner
+ * changed it during the contact's round trip: the fate judged the copy read before it, and
+ * the later change stays (IHM-42, CL-DSN-22, CL-IHM-11).
+ */
+async function settleGone(
+  copy: DeviceCopy,
+  fate: 'mark_imported' | 'drop',
+): Promise<SendOutcome | null> {
+  const current = await stillHeld(copy);
+  if (current === undefined) {
+    return null;
+  }
+  if (fate === 'mark_imported') {
+    await putCopy({ ...current, status: 'request_already_imported' });
+    return null;
+  }
+  await deleteCopy(copy.key);
+  return { kind: 'gone' };
+}
+
 /** Does to `copy` what its fate says, and returns what a send or a discard did (CL-DSN-22). */
 async function applyFate(
   copy: DeviceCopy,
@@ -139,15 +175,14 @@ async function applyFate(
     await takeServerCopy(copy.target, server);
     return null;
   }
-  if (fate === 'mark_imported') {
-    await putCopy({ ...copy, status: 'request_already_imported' });
-    return null;
-  }
   if (fate === 'send') {
     return sendCopy(copy, server);
   }
-  await deleteCopy(copy.key);
-  return fate === 'discard_unsent' ? { kind: 'discarded_unsent' } : { kind: 'gone' };
+  if (fate === 'discard_unsent') {
+    await deleteCopy(copy.key);
+    return { kind: 'discarded_unsent' };
+  }
+  return settleGone(copy, fate);
 }
 
 /**

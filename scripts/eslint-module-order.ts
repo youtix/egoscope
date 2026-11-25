@@ -39,6 +39,7 @@ const MACHINERY = [
   'quotas',
   'scheduler',
   'auth',
+  'device-drafts',
   'drafts',
   'offline',
   'navigation',

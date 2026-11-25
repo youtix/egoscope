@@ -8,8 +8,8 @@ import { toEpochMs } from '@/lib/time';
 import { checkDeviceDrafts } from './server-check';
 import { discardDraft, saveDraft } from './server-drafts';
 
-import type { DraftTarget } from './draft-target';
 import type { Database } from '@/lib/db';
+import type { DraftTarget } from '@/lib/device-drafts';
 
 const IMPORTED_AT = new Date(Date.UTC(2026, 10, 21));
 const SAVED_AT = toEpochMs(Date.UTC(2026, 10, 20));

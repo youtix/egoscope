@@ -4,15 +4,15 @@ import { useEffect, useEffectEvent, useState } from 'react';
 
 import { now } from '@/lib/time';
 
-import { dropExpiredCopies } from './device-copies';
-import { deleteCopy, putCopy, readContact, readCopy } from './device-store';
-import { contactServer, sendCopy, takeServerCopy } from './device-sync';
+import { dropExpiredCopies } from './copies';
 import { draftKey } from './draft-target';
+import { deleteCopy, putCopy, readContact, readCopy } from './store';
+import { contactServer, sendCopy, takeServerCopy } from './sync';
 
 import type { DraftServer } from './contract';
-import type { DeviceCopy } from './device-store';
-import type { SendOutcome } from './device-sync';
 import type { DraftTarget, ImportDraftStatus } from './draft-target';
+import type { DeviceCopy } from './store';
+import type { SendOutcome } from './sync';
 import type { EpochMs } from '@/lib/time';
 
 /** What the owner's discard did: both copies went, or it waits for the server (IHM-58). */
@@ -134,8 +134,11 @@ function copyAfter(copy: DeviceCopy, outcome: SendOutcome): DeviceCopy | undefin
   if (outcome.kind === 'superseded') {
     return outcome.copy;
   }
+  if (outcome.kind === 'sent') {
+    return { ...copy, updatedAt: outcome.updatedAt, sent: true };
+  }
   const isGone = outcome.kind === 'discarded_unsent' || outcome.kind === 'gone';
-  return isGone ? undefined : { ...copy, sent: outcome.kind === 'sent' };
+  return isGone ? undefined : { ...copy, sent: false };
 }
 
 /** The state after a send of the copy typed at `updatedAt`, unless a later change replaced it. */

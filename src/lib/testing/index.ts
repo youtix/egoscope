@@ -23,6 +23,9 @@ export type { NoQueryDatabase } from './no-query-database';
 // fake-controls.ts
 export { fakeControls, scriptFake } from './fake-controls';
 
+// draft-server.ts
+export { draftServerOf, withdrawDrafts } from './draft-server';
+
 // scenarios.ts
 export {
   applyScenarios,

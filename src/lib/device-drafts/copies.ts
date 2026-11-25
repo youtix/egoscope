@@ -2,10 +2,10 @@
 // are gone (CL-IHM-11, CL-DSN-22, CL-IHM-10).
 import { now } from '@/lib/time';
 
-import { hasExpired } from './device-rules';
-import { deleteCopy, listCopies, readContact } from './device-store';
+import { hasExpired } from './rules';
+import { deleteCopy, listCopies, readContact } from './store';
 
-import type { DeviceCopy } from './device-store';
+import type { DeviceCopy } from './store';
 
 /**
  * Deletes every device copy that has expired, by the retention the device last received,

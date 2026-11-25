@@ -4,14 +4,12 @@ import { and, eq, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 
 import { checkPastedTextSize } from '@/lib/ai-exchange';
 import { backtestRequests, drafts, eventTypes, withdrawnEventCounter } from '@/lib/db';
+import { canStoreText, expiredSince } from '@/lib/device-drafts';
 import { getParam } from '@/lib/params';
 import { err, ok } from '@/lib/result';
 import { now, toEpochMs } from '@/lib/time';
 
-import { expiredSince } from './draft-target';
-
-import type { DraftUpload, SaveDraftResult, StoredDraft } from './contract';
-import type { DraftTarget } from './draft-target';
+import type { DraftTarget, DraftUpload, SaveDraftResult, StoredDraft } from '@/lib/device-drafts';
 import type { Executor } from '@/lib/params';
 import type { SQL } from 'drizzle-orm';
 
@@ -54,9 +52,6 @@ async function doesTargetExist(executor: Executor, target: DraftTarget): Promise
     .where(eq(eventTypes.id, target.eventTypeId));
   return types.length > 0;
 }
-
-// The one character that a Postgres `text` cannot hold.
-const NUL = '\0';
 
 /** A copy that `didWriteCopy` keeps: its text, the instant it was typed at and its device. */
 type WrittenCopy = Readonly<{ text: string; updatedAt: Date; originDevice: string }>;
@@ -121,7 +116,7 @@ export async function saveDraft(
   if (!size.ok) {
     return size;
   }
-  if (upload.text.includes(NUL)) {
+  if (!canStoreText(upload.text)) {
     return err({ kind: 'unstorable_text' });
   }
   if (!(await doesTargetExist(executor, upload.target))) {
@@ -133,13 +128,13 @@ export async function saveDraft(
   if (upload.target.kind === 'research_result' && count > known) {
     return err({ kind: 'events_withdrawn', withdrawnEventCount: count });
   }
-  const updatedAt = new Date(Math.min(upload.updatedAt, now()));
+  const updatedAt = toEpochMs(Math.min(upload.updatedAt, now()));
   const wasWritten = await didWriteCopy(executor, upload.target, {
     text: upload.text,
-    updatedAt,
+    updatedAt: new Date(updatedAt),
     originDevice: upload.originDevice,
   });
-  return ok({ withdrawnEventCount: count, wasWritten });
+  return ok({ withdrawnEventCount: count, wasWritten, updatedAt });
 }
 
 /**

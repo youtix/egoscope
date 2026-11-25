@@ -2,19 +2,23 @@ import { eq } from 'drizzle-orm';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { backtestRequests, createTestDatabase, withdrawnEventCounter } from '@/lib/db';
-import { insertEventType, insertPlayer, insertRequest } from '@/lib/testing';
+import { backtestRequests, createTestDatabase } from '@/lib/db';
+import {
+  draftServerOf,
+  insertEventType,
+  insertPlayer,
+  insertRequest,
+  withdrawDrafts,
+} from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
-import { listCopies, putContact, putCopy, readContact, readCopy } from './device-store';
-import { contactServer, sendCopy } from './device-sync';
 import { draftKey } from './draft-target';
-import { checkDeviceDrafts } from './server-check';
-import { discardDraft, discardDraftsOfRequests, getDraft, saveDraft } from './server-drafts';
+import { listCopies, putContact, putCopy, readContact, readCopy } from './store';
+import { contactServer, sendCopy } from './sync';
 
 import type { DraftServer } from './contract';
-import type { DeviceCopy } from './device-store';
 import type { DraftTarget } from './draft-target';
+import type { DeviceCopy } from './store';
 import type { Database } from '@/lib/db';
 import type { FixedClock } from '@/lib/time';
 
@@ -55,12 +59,7 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
     await insertEventType(db);
     const player = await insertPlayer(db);
     await insertRequest(db, { playerId: player.id });
-    server = {
-      check: async (sent) => checkDeviceDrafts(db, sent),
-      load: async (target) => getDraft(db, target),
-      save: async (upload) => saveDraft(db, { ...upload, originDevice: 'Phone' }),
-      discard: async (target) => discardDraft(db, target),
-    };
+    server = draftServerOf(db, 'Phone');
     clock = fixedClock(NOW);
     const restoreClock = installFakeClock(clock);
     return async () => {
@@ -69,19 +68,6 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
       await database.close();
     };
   }, 60_000);
-
-  async function withdrawEventOf(requestIds: number[]) {
-    await db.transaction(async (tx) => {
-      await discardDraftsOfRequests(tx, requestIds);
-      await tx
-        .insert(withdrawnEventCounter)
-        .values({ value: 1 })
-        .onConflictDoUpdate({
-          target: withdrawnEventCounter.id,
-          set: { value: 1 },
-        });
-    });
-  }
 
   it('[IHM-42] [CL-IHM-14] sends the copies typed offline when the network returns, and records what the server answered', async () => {
     await putContact({ withdrawnEventCount: 0, retentionDays: null });
@@ -96,14 +82,14 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
       { ...copyOf(GENERAL, false, null), sent: true, withdrawnEventCount: 0 },
       { ...copyOf(IMPORT, false, 0), sent: true },
     ]);
-    expect(await getDraft(db, IMPORT)).toMatchObject({ text: `Pasted for ${draftKey(IMPORT)}.` });
+    expect(await server.load(IMPORT)).toMatchObject({ text: `Pasted for ${draftKey(IMPORT)}.` });
     expect(await readContact()).toStrictEqual({ withdrawnEventCount: 0, retentionDays: 7 });
   });
 
   it('[CL-DSN-22] after a withdrawal, drops the sent copy whose server copy went and discards an unsent import copy of any player, exploration copies sent', async () => {
     await putCopy(copyOf(IMPORT, false, 0));
     await sendCopy(copyOf(IMPORT, false, 0), server);
-    await withdrawEventOf([REQUEST_ID]);
+    await withdrawDrafts(db, [REQUEST_ID]);
     const otherPlayers: DraftTarget = { kind: 'research_result', requestId: 7 };
     await putCopy(copyOf(otherPlayers, false, 0));
     await putCopy(copyOf(GENERAL, false, 0));
@@ -121,7 +107,7 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
     await putCopy(copyOf(IMPORT, false, 0));
     await sendCopy(copyOf(IMPORT, false, 0), server);
     await db.transaction(async (tx) => {
-      await discardDraft(tx, IMPORT);
+      await draftServerOf(tx, 'Phone').discard(IMPORT);
       await tx
         .update(backtestRequests)
         .set({ status: 'imported', importedAt: new Date(NOW) })
@@ -168,7 +154,7 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
       refusals: new Map(),
     });
     expect(await readCopy(draftKey(GENERAL))).toStrictEqual(unstorable);
-    expect(await getDraft(db, GENERAL)).toBeNull();
+    expect(await server.load(GENERAL)).toBeNull();
   });
 
   it('[CL-DSN-17] deletes a copy whose request no longer exists', async () => {
@@ -179,7 +165,7 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
   });
 
   it('[CL-DSN-22] discards a copy refused for a counter that grew, and records the counter', async () => {
-    await withdrawEventOf([]);
+    await withdrawDrafts(db, []);
     await putCopy(copyOf(IMPORT, false, 0));
 
     expect(await sendCopy(copyOf(IMPORT, false, 0), server)).toStrictEqual({
@@ -197,7 +183,10 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
     };
     await putCopy(later);
 
-    expect(await sendCopy(copyOf(IMPORT, false, 0), server)).toStrictEqual({ kind: 'sent' });
+    expect(await sendCopy(copyOf(IMPORT, false, 0), server)).toStrictEqual({
+      kind: 'sent',
+      updatedAt: NOW,
+    });
     expect(await readCopy(draftKey(IMPORT))).toStrictEqual(later);
   });
 
@@ -206,12 +195,11 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
     const text = 'Typed later on the laptop.';
     clock.advance(MINUTE_MS);
     const typedAt = toEpochMs(clock.now());
-    await saveDraft(db, {
+    await draftServerOf(db, 'Laptop').save({
       target: IMPORT,
       text,
       updatedAt: typedAt,
       knownWithdrawnEventCount: 0,
-      originDevice: 'Laptop',
     });
     return { ...copyOf(IMPORT, true, 0), text, updatedAt: typedAt };
   }
@@ -237,7 +225,7 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
       copy: laptops,
     });
     expect(await readCopy(draftKey(IMPORT))).toStrictEqual(laptops);
-    expect(await getDraft(db, IMPORT)).toMatchObject({ text: 'Typed later on the laptop.' });
+    expect(await server.load(IMPORT)).toMatchObject({ text: 'Typed later on the laptop.' });
   });
 
   it('[IHM-42] [CL-DSN-17] keeps a change typed on the device after the server copy that superseded the copy sent', async () => {
@@ -254,5 +242,68 @@ describe("a device's contact with the server about its drafts", { timeout: 60_00
       copy: typedLast,
     });
     expect(await readCopy(draftKey(IMPORT))).toStrictEqual(typedLast);
+  });
+
+  it('[IHM-42] [H-IHM-08] [CL-DSN-17] keeps for a sent copy the instant the server stored, so that a device clock running ahead takes the later change of another device', async () => {
+    await putContact({ withdrawnEventCount: 0, retentionDays: 7 });
+    // The phone's clock runs two minutes ahead of the server's.
+    const typedOnPhone = { ...copyOf(IMPORT, false, 0), updatedAt: toEpochMs(NOW + 2 * MINUTE_MS) };
+    await putCopy(typedOnPhone);
+
+    expect(await sendCopy(typedOnPhone, server)).toStrictEqual({ kind: 'sent', updatedAt: NOW });
+    expect(await readCopy(draftKey(IMPORT))).toStrictEqual({
+      ...typedOnPhone,
+      updatedAt: NOW,
+      sent: true,
+    });
+    const laptops = await saveLaterFromLaptop();
+
+    await contactServer(server);
+
+    expect(await listCopies()).toStrictEqual([laptops]);
+    expect(await server.load(IMPORT)).toMatchObject({ text: 'Typed later on the laptop.' });
+  });
+
+  /** `server`, with the owner typing `typed` on the device while the server answers the check. */
+  function typingDuringCheck(typed: DeviceCopy): DraftServer {
+    return {
+      ...server,
+      check: async (sent) => {
+        const answer = await server.check(sent);
+        await putCopy(typed);
+        return answer;
+      },
+    };
+  }
+
+  it('[IHM-42] [CL-DSN-22] keeps a change typed during the round trip of a contact instead of marking the copy it judged', async () => {
+    await putCopy(copyOf(IMPORT, false, 0));
+    await sendCopy(copyOf(IMPORT, false, 0), server);
+    await db.transaction(async (tx) => {
+      await draftServerOf(tx, 'Phone').discard(IMPORT);
+      await tx
+        .update(backtestRequests)
+        .set({ status: 'imported', importedAt: new Date(NOW) })
+        .where(eq(backtestRequests.id, REQUEST_ID));
+    });
+    const typed = {
+      ...copyOf(IMPORT, false, 0),
+      text: 'Typed meanwhile.',
+      updatedAt: toEpochMs(NOW + 1),
+    };
+
+    await contactServer(typingDuringCheck(typed));
+
+    expect(await listCopies()).toStrictEqual([typed]);
+  });
+
+  it('[IHM-42] [CL-IHM-11] keeps a change typed during the round trip of a contact instead of dropping the expired copy it judged', async () => {
+    const expired = { ...copyOf(GENERAL, false, 0), updatedAt: toEpochMs(NOW - 7 * DAY_MS) };
+    await putCopy(expired);
+    const typed = { ...copyOf(GENERAL, false, 0), text: 'Typed meanwhile.' };
+
+    await contactServer(typingDuringCheck(typed));
+
+    expect(await listCopies()).toStrictEqual([typed]);
   });
 });

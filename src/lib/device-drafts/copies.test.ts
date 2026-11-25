@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
-import { dropExpiredCopies, hasUnsentDeviceDrafts } from './device-copies';
-import { listCopies, putContact, putCopy } from './device-store';
+import { dropExpiredCopies, hasUnsentDeviceDrafts } from './copies';
 import { draftKey } from './draft-target';
+import { listCopies, putContact, putCopy } from './store';
 
-import type { DeviceCopy } from './device-store';
 import type { DraftTarget } from './draft-target';
+import type { DeviceCopy } from './store';
 import type { FixedClock } from '@/lib/time';
 
 const NOW = toEpochMs(Date.UTC(2026, 10, 20, 9));

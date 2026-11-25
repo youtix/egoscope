@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 
 import { toEpochMs } from '@/lib/time';
 
-import { copyFate, hasExpired } from './device-rules';
 import { draftKey } from './draft-target';
+import { copyFate, hasExpired } from './rules';
 
 import type { DraftCheck } from './contract';
-import type { DeviceCopy } from './device-store';
 import type { DraftTarget } from './draft-target';
+import type { DeviceCopy } from './store';
 import type { EpochMs } from '@/lib/time';
 
 const TYPED_AT = toEpochMs(Date.UTC(2026, 10, 20, 9));

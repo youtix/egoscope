@@ -21,8 +21,8 @@ import {
   saveDraft,
 } from './server-drafts';
 
-import type { DraftTarget } from './draft-target';
 import type { Database } from '@/lib/db';
+import type { DraftTarget } from '@/lib/device-drafts';
 import type { FixedClock } from '@/lib/time';
 
 const SAVED_AT = toEpochMs(Date.UTC(2026, 10, 20, 9, 30));
@@ -77,7 +77,7 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
   it('[IHM-42] finds from another device the draft one device saved, with its last change and its device', async () => {
     expect(await save(IMPORT, PASTED, 'Phone')).toStrictEqual({
       ok: true,
-      value: { withdrawnEventCount: 0, wasWritten: true },
+      value: { withdrawnEventCount: 0, wasWritten: true, updatedAt: SAVED_AT },
     });
 
     expect(await getDraft(db, IMPORT)).toStrictEqual({
@@ -93,7 +93,7 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
     clock.advance(HOUR_MS);
     expect(await save(IMPORT, PASTED, 'Laptop')).toStrictEqual({
       ok: true,
-      value: { withdrawnEventCount: 0, wasWritten: true },
+      value: { withdrawnEventCount: 0, wasWritten: true, updatedAt: toEpochMs(SAVED_AT + HOUR_MS) },
     });
     await save(GENERAL, 'general response');
     await save(TARGETED, 'targeted response');
@@ -145,13 +145,13 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
       await saveDraft(db, { ...upload, target: GENERAL, knownWithdrawnEventCount: 2 }),
     ).toStrictEqual({
       ok: true,
-      value: { withdrawnEventCount: 3, wasWritten: true },
+      value: { withdrawnEventCount: 3, wasWritten: true, updatedAt: SAVED_AT },
     });
     expect(
       await saveDraft(db, { ...upload, target: IMPORT, knownWithdrawnEventCount: 3 }),
     ).toStrictEqual({
       ok: true,
-      value: { withdrawnEventCount: 3, wasWritten: true },
+      value: { withdrawnEventCount: 3, wasWritten: true, updatedAt: SAVED_AT },
     });
   });
 
@@ -164,7 +164,10 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
         knownWithdrawnEventCount: null,
         originDevice: 'Phone',
       }),
-    ).toStrictEqual({ ok: true, value: { withdrawnEventCount: 0, wasWritten: true } });
+    ).toStrictEqual({
+      ok: true,
+      value: { withdrawnEventCount: 0, wasWritten: true, updatedAt: SAVED_AT },
+    });
     expect(await getDraft(db, IMPORT)).toMatchObject({ text: PASTED });
   });
 
@@ -179,7 +182,10 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
         knownWithdrawnEventCount: 0,
         originDevice: 'Phone',
       }),
-    ).toStrictEqual({ ok: true, value: { withdrawnEventCount: 0, wasWritten: false } });
+    ).toStrictEqual({
+      ok: true,
+      value: { withdrawnEventCount: 0, wasWritten: false, updatedAt: SAVED_AT },
+    });
 
     expect(await getDraft(db, IMPORT)).toStrictEqual({
       text: PASTED,
@@ -188,21 +194,32 @@ describe('the server copy of a draft', { timeout: 60_000 }, () => {
     });
   });
 
-  it('[CL-IHM-11] keeps the instant a copy was typed at, never later than now', async () => {
+  it('[CL-IHM-11] [CL-DSN-17] keeps the instant a copy was typed at, never later than now, and answers the instant it stored', async () => {
     const typedOffline = toEpochMs(SAVED_AT - DAY_MS);
-    await saveDraft(db, {
-      target: IMPORT,
-      text: PASTED,
-      updatedAt: typedOffline,
-      knownWithdrawnEventCount: 0,
-      originDevice: 'Phone',
+    expect(
+      await saveDraft(db, {
+        target: IMPORT,
+        text: PASTED,
+        updatedAt: typedOffline,
+        knownWithdrawnEventCount: 0,
+        originDevice: 'Phone',
+      }),
+    ).toStrictEqual({
+      ok: true,
+      value: { withdrawnEventCount: 0, wasWritten: true, updatedAt: typedOffline },
     });
-    await saveDraft(db, {
-      target: GENERAL,
-      text: PASTED,
-      updatedAt: toEpochMs(SAVED_AT + DAY_MS),
-      knownWithdrawnEventCount: 0,
-      originDevice: 'Phone',
+    // A phone whose clock runs a day ahead of the server's.
+    expect(
+      await saveDraft(db, {
+        target: GENERAL,
+        text: PASTED,
+        updatedAt: toEpochMs(SAVED_AT + DAY_MS),
+        knownWithdrawnEventCount: 0,
+        originDevice: 'Phone',
+      }),
+    ).toStrictEqual({
+      ok: true,
+      value: { withdrawnEventCount: 0, wasWritten: true, updatedAt: SAVED_AT },
     });
 
     expect(await getDraft(db, IMPORT)).toMatchObject({ updatedAt: typedOffline });

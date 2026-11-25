@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { toEpochMs } from '@/lib/time';
 
+import { draftKey } from './draft-target';
 import {
   clearDeviceDrafts,
   deleteCopy,
@@ -11,11 +12,10 @@ import {
   putCopy,
   readContact,
   readCopy,
-} from './device-store';
-import { draftKey } from './draft-target';
+} from './store';
 
-import type { DeviceCopy } from './device-store';
 import type { DraftTarget } from './draft-target';
+import type { DeviceCopy } from './store';
 
 const IMPORT: DraftTarget = { kind: 'research_result', requestId: 1 };
 const GENERAL: DraftTarget = { kind: 'exploration_response', eventTypeId: null };

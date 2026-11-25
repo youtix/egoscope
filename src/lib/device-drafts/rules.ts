@@ -3,7 +3,7 @@
 import { draftExpiresAt, draftKey } from './draft-target';
 
 import type { DraftCheck } from './contract';
-import type { DeviceCopy } from './device-store';
+import type { DeviceCopy } from './store';
 import type { EpochMs } from '@/lib/time';
 
 /**
