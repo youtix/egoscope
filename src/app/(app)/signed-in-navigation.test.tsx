@@ -132,7 +132,7 @@ describe('SignedInNavigation', () => {
 
   it('leaves to Next.js the errors through which it controls a request', async () => {
     vi.mocked(requireSession).mockImplementation(() => {
-      redirect('/log-in');
+      redirect('/settings');
     });
 
     await expect(SignedInNavigation()).rejects.toThrow('NEXT_REDIRECT');
