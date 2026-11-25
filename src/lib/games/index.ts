@@ -41,8 +41,31 @@ export type {
 } from './types';
 
 // mapping.ts: confirmMapping, markMappingToEstablish, changeMapping
+export {
+  changeMapping,
+  confirmMapping,
+  establishedMappings,
+  markMappingToEstablish,
+  pendingMappings,
+  refreshPendingCandidates,
+} from './mapping';
+export type {
+  AlreadyFollowed,
+  ConfirmedMapping,
+  ConfirmRefusal,
+  MappingEstablished,
+  MappingNotFound,
+  MappingToEstablish,
+  NewCandidates,
+  PendingMapping,
+  PlayerNotFound,
+  StoredCandidate,
+  UnknownIdentity,
+} from './mapping';
 
 // directory.ts: searchCandidates, refreshPendingCandidates
+export { searchCandidates, storeDirectory } from './directory';
+export type { Candidate, FollowedAs, UnknownTeams } from './directory';
 
 // teams.ts: team, teams, teamHistory
 
