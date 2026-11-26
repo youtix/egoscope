@@ -293,7 +293,7 @@ describe('the modification of a validated sheet', { timeout: DATABASE_TEST_TIMEO
     { scope: 'narrows', isBroadening: false, mark: 'to_requalify', markedToRequalify: 2 },
     { scope: 'both', isBroadening: true, mark: 'to_requalify', markedToRequalify: 2 },
   ] as const)(
-    '[TAX-24] [TAX-25] [CL-TAX-07] makes a change that $scope the type broadening $isBroadening, and marks its earlier events $mark',
+    '[TAX-24] [TAX-25] [CL-TAX-07] gives a change that $scope the type a broadening version: $isBroadening, and its earlier events the mark $mark',
     async ({ scope, isBroadening, mark, markedToRequalify }) => {
       const first = await eventOf(MEDIA_STORM);
       const second = await eventOf(MEDIA_STORM);
