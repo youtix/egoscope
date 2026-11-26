@@ -217,7 +217,11 @@ describe('the taxonomy factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
       .where(eq(eventTypes.id, 'media-storm'));
 
     await expect(
-      insertEventType(db, { status: undefined, name: undefined, cautionNotes: undefined }),
+      insertEventType(db, {
+        status: undefined,
+        cautionNotes: undefined,
+        isIntimateSubject: undefined,
+      }),
     ).resolves.toMatchObject({
       id: 'media-storm',
       status: 'validated',
@@ -233,20 +237,33 @@ describe('the taxonomy factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
 
   it('[TAX-01] [TAX-20] takes an override given as undefined for one left out when it inserts a type', async () => {
     await expect(
-      insertEventType(db, { status: undefined, name: undefined, cautionNotes: undefined }),
+      insertEventType(db, {
+        status: undefined,
+        definition: undefined,
+        documentationDifficulty: undefined,
+      }),
     ).resolves.toMatchObject({
       id: 'media-storm',
       status: 'validated',
-      name: 'Media storm',
-      cautionNotes: null,
+      definition: 'Wide coverage of one player by the press in a short time.',
+      documentationDifficulty: 'medium',
       currentVersionNumber: 1,
     });
   });
 
-  it('[TAX-10] writes the birthday when its identifier is given as undefined', async () => {
-    await expect(insertCalendarType(db, { id: undefined, name: undefined })).resolves.toMatchObject(
-      { id: 'birthday', name: "Player's birthday", calendarDerivation: 'birthday' },
-    );
+  it("[TAX-10] keeps the birthday's own columns that an override gives as undefined", async () => {
+    await expect(
+      insertCalendarType(db, {
+        datingRule: undefined,
+        knownInAdvance: undefined,
+        calendarDerivation: undefined,
+      }),
+    ).resolves.toMatchObject({
+      id: 'birthday',
+      datingRule: 'The day of the birthday.',
+      knownInAdvance: true,
+      calendarDerivation: 'birthday',
+    });
   });
 
   it('keeps a proposed type that the reference data does not seed, as before', async () => {
