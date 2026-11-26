@@ -5,10 +5,12 @@
 // registries for IPv4 and IPv6 (RFC 6890 and its updates) that is not globally
 // reachable is refused whole, its anycast exceptions included, since no article
 // lives on a protocol's anycast address; multicast is refused too, and so is the
-// former site-local block of IPv6. An IPv6 address that holds an IPv4 one is judged
-// by the IPv4 address it holds; any other is public only inside the global unicast
-// block 2000::/3 (RFC 4291), since no web server lives outside it and a network that
-// still routes an address outside it would be reached through a link.
+// former site-local block of IPv6. An IPv6 address in a refused block has that block's
+// kind; any other is judged by the IPv4 address it holds when it holds one
+// (IPv4-compatible, IPv4-mapped, NAT64 or 6to4), wherever it lies; any other is public
+// inside the global unicast block 2000::/3 (RFC 4291) and reserved outside it, since
+// no web server lives outside it and a network that still routes an address outside
+// it would be reached through a link.
 import { isIP } from 'node:net';
 
 /** Why an IP address is not public: the kind of its block, or `unreadable`. */
@@ -205,10 +207,10 @@ function ipv6Kind(address: bigint): AddressKind {
  * Says whether `address`, an IPv4 or IPv6 address as text, is a public unicast
  * address that the link check may connect to, and if not, why (TRV-66, CL-IMP-25):
  * the kind of its block, or `unreadable` for a text that is not an address, or that
- * carries a zone. An IPv4 address is public in no refused block; an IPv6 address, in
- * no refused block and either holding a public IPv4 address (IPv4-compatible,
- * IPv4-mapped, NAT64 or 6to4) or inside the global unicast block 2000::/3, outside of
- * which it is `reserved`.
+ * carries a zone. An IPv4 address is public in no refused block. An IPv6 address in a
+ * refused block has that block's kind; any other is judged by the IPv4 address it holds
+ * when it holds one (IPv4-compatible, IPv4-mapped, NAT64 or 6to4), wherever it lies; any
+ * other is public inside the global unicast block 2000::/3 and `reserved` outside it.
  */
 export function addressKind(address: string): AddressKind {
   const version = address.includes('%') ? 0 : isIP(address);
