@@ -53,7 +53,9 @@ describe('ConfirmDialog', () => {
     const dialog = await screen.findByRole('alertdialog', { name: 'Cancel this request?' });
     expect(dialog).toHaveAccessibleDescription('The prompt can no longer be pasted back.');
     expect(screen.getByText('The request moves to the canceled ones.')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Keep the request' })).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Keep the request' })).toHaveFocus();
+    });
   });
 
   it("submits the form, with the owner's input, only once confirmed", async () => {
@@ -103,7 +105,9 @@ describe('ConfirmDialog', () => {
 
     const dialog = await screen.findByRole('alertdialog', { name: 'Delete for good?' });
     expect(dialog).toHaveAccessibleDescription('The data cannot be recovered.');
-    expect(screen.getByRole('heading', { name: 'Delete for good?' })).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Delete for good?' })).toHaveFocus();
+    });
     expect(screen.queryByText('The request moves to the canceled ones.')).not.toBeInTheDocument();
     expect(action).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Delete for good' }));
