@@ -179,6 +179,14 @@ gives no difference.
 - `/api/test/*` controls the running app from the specs, in the hermetic mode only: every route
   there calls `isHermetic()` first, after `await connection()`, and answers 404 otherwise, as
   `/api/test/ping` does. A new control is a coordinator decision.
+- A spec starts signed in: before the test opens a page, the `context` of `e2e/fixtures/test.ts`
+  asks `/api/test/session` for a session of the owner, on an account whose password the control
+  has chosen. A spec that must start without a session says `test.use({ signedIn: false })`.
+  The journeys that change the account, such as a lockout, the choice of the password or the
+  sessions that end, live in `e2e/account/` and run one after another in the `account` project,
+  against a second start of the same build with an account of its own, so that they never end
+  the sessions of the other specs nor lock them out; they log in themselves, with
+  `TEST_ACCOUNT_INITIAL`, the dummy initial password of every hermetic server.
 
 ### The accessibility watch
 

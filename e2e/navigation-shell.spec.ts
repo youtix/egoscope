@@ -77,15 +77,19 @@ const isPrefetch = (request: Request): boolean => {
 };
 
 test.describe('the navigation shell', () => {
-  for (const path of LOT_1_SCREENS) {
-    test(`[IHM-16] [IHM-10] sends ${path} to the login page without a session, to come back to it`, async ({
-      page,
-    }) => {
-      await page.goto(path);
+  test.describe('without a session', () => {
+    test.use({ signedIn: false });
 
-      await expect(page).toHaveURL(`/log-in?${new URLSearchParams({ next: path }).toString()}`);
-    });
-  }
+    for (const path of LOT_1_SCREENS) {
+      test(`[IHM-16] [IHM-10] sends ${path} to the login page without a session, to come back to it`, async ({
+        page,
+      }) => {
+        await page.goto(path);
+
+        await expect(page).toHaveURL(`/log-in?${new URLSearchParams({ next: path }).toString()}`);
+      });
+    }
+  });
 
   test('[IHM-16] answers not found for a Lot 2 screen while the lot is 1, inside the Lot 1 navigation', async ({
     page,
@@ -95,8 +99,9 @@ test.describe('the navigation shell', () => {
     expect(response?.status()).toBe(NOT_FOUND);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('This item no longer exists');
     await expect(page.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', '/');
+    // Signed in, the Home entry also carries the number of items to do (IHM-20).
     await expect(page.getByRole('navigation').getByRole('link')).toHaveText([
-      'Home',
+      /^Home\b/,
       'Players',
       'Types',
       'More',
