@@ -213,10 +213,13 @@ async function exchange<T>(
   ctx: CallContext,
   request: BotRequest<T>,
 ): Promise<TelegramOutcome<T>> {
-  if (ctx.signal.aborted || now() >= ctx.deadline) {
+  // One read of the clock: a second one could pass the deadline, and a negative delay
+  // makes `AbortSignal.timeout` throw.
+  const leftMs = ctx.deadline - now();
+  if (ctx.signal.aborted || leftMs <= 0) {
     return failed(TIMEOUT, NO_CALL);
   }
-  const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.deadline - now())]);
+  const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(leftMs)]);
   // Called on its own, as the global `fetch` expects, never as a method of the options.
   const send = bot.fetch;
   try {
