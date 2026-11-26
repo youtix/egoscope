@@ -8,11 +8,11 @@ import {
   formatExpectedCount,
   formatGap,
   formatIndex,
+  formatMegabytes,
   formatShare,
 } from './numbers';
 
-const MINUS = '\u{2212}';
-// What people read: an optional sign, digits grouped by thousands, the decimals.
+const MINUS = '\u{2212}'; // What people read: an optional sign, digits grouped by thousands, the decimals.
 const SHOWN = /^(?<sign>[+\u{2212}]?)(?<whole>\d{1,3}(?:,\d{3})*)(?:\.(?<fraction>\d+))?$/u;
 
 /** The parts of a shown number: its sign and its value, read back. */
@@ -204,6 +204,47 @@ describe('number formats', () => {
     it('[IHM-13] refuses a number of decimals that is not a positive whole number', () => {
       expect(() => formatDecimal(1, 0)).toThrow('0 is not a number of decimals.');
       expect(() => formatDecimal(1, 1.5)).toThrow(RangeError);
+    });
+  });
+
+  describe('sizes in megabytes', () => {
+    it('[IMP-02] [CL-IMP-27] writes a size in bytes in MB, rounded up to the hundredth, without the zeros that end it', () => {
+      expect(
+        [1, 10_000, 10_001, 2_000_000, 2_000_001, 21_000_000, 21_000_001].map((bytes) =>
+          formatMegabytes(bytes),
+        ),
+      ).toStrictEqual(['0.01', '0.01', '0.02', '2', '2.01', '21', '21.01']);
+      expect([0, 2_100_000, 2_099_999].map((bytes) => formatMegabytes(bytes))).toStrictEqual([
+        '0',
+        '2.1',
+        '2.1',
+      ]);
+    });
+
+    it('[IHM-13] [CL-IMP-27] puts a comma between thousands from 1,000 MB on', () => {
+      expect(
+        [999_990_000, 999_990_001, 1_000_000_000, 1_234_567_890_123].map((bytes) =>
+          formatMegabytes(bytes),
+        ),
+      ).toStrictEqual(['999.99', '1,000', '1,000', '1,234,567.9']);
+    });
+
+    it('[CL-IMP-27] writes any size as the fewest hundredths of a megabyte that hold it', () => {
+      fc.assert(
+        fc.property(fc.integer({ min: 0, max: 10_000_000_000 }), (bytes) => {
+          const shown = formatMegabytes(bytes);
+          const hundredths = Math.round(Number(shown.replaceAll(',', '')) * 100);
+
+          expect(shown).toMatch(/^\d{1,3}(?:,\d{3})*(?:\.\d?[1-9])?$/u);
+          expect(hundredths * 10_000).toBeGreaterThanOrEqual(bytes);
+          expect(hundredths * 10_000 - bytes).toBeLessThan(10_000);
+        }),
+      );
+    });
+
+    it('[IHM-13] refuses what is not a size in bytes', () => {
+      expect(() => formatMegabytes(-1)).toThrow('-1 is not a size in bytes.');
+      expect(() => formatMegabytes(1.5)).toThrow(RangeError);
     });
   });
 

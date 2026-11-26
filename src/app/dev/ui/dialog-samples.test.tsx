@@ -47,4 +47,20 @@ describe('PasteSample', () => {
 
     expect(screen.getByRole('textbox', { name: 'Pasted text' })).toHaveValue('{"format": "1.0"}');
   });
+
+  it('[CL-IMP-27] refuses a file one byte over its limit, with the size of the file', async () => {
+    const user = userEvent.setup();
+    render(<PasteSample />);
+
+    await user.click(screen.getByRole('button', { name: 'Choose a text file' }));
+    await user.upload(
+      screen.getByLabelText('Choose a text file'),
+      new File(['x'.repeat(65_537)], 'result.txt'),
+    );
+
+    expect(
+      await screen.findByText('This file is 65,537 bytes, over the 64 KiB limit.'),
+    ).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Pasted text' })).toHaveValue('');
+  });
 });

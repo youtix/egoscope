@@ -26,7 +26,8 @@ export type PasteAreaProps = Readonly<{
   fileLabel: string;
   /** The largest file, in bytes, that the area reads. */
   maxFileBytes: number;
-  fileTooLargeMessage: string;
+  /** What the area says of a file larger than `maxFileBytes`, given its size in bytes (CL-IMP-27). */
+  fileTooLargeMessage: (sizeBytes: number) => string;
   fileUnreadableMessage: string;
 }>;
 
@@ -35,7 +36,8 @@ export type PasteAreaProps = Readonly<{
  * which on iOS also brings smart punctuation, automatic capitals and the spelling
  * check are off, so the pasted JSON stays as the AI wrote it (IMP-02). A button
  * pastes the clipboard where the phone allows it, and says how to paste by a long
- * press where it does not; another reads a text file instead, up to a size. The
+ * press where it does not; another reads a text file instead, up to a size, and
+ * refuses a larger one unread, with a message built from its size (CL-IMP-27). The
  * text wraps and stays readable on a phone (IHM-63). Labeled by its FormField.
  */
 export function PasteArea({
@@ -65,7 +67,7 @@ export function PasteArea({
   };
   const read = async (file: File): Promise<void> => {
     if (file.size > maxFileBytes) {
-      setMessage(fileTooLargeMessage);
+      setMessage(fileTooLargeMessage(file.size));
       return;
     }
     try {

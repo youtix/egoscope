@@ -6,7 +6,9 @@ import { checkPastedTextSize } from '@/lib/ai-exchange';
 import { usePasteDraft } from '@/lib/device-drafts';
 import { formatInstant } from '@/lib/time';
 import { Button, ConfirmDialog, Form, FormField, Notice, PasteArea, Skeleton } from '@/lib/ui';
-import { formatCount, label, sentence } from '@/lib/wording';
+import { formatMegabytes, label, sentence } from '@/lib/wording';
+
+import { TextReceived } from './text-received';
 
 import type { DraftServer, PasteDraft } from '@/lib/device-drafts';
 import type { FieldErrors } from '@/lib/ui';
@@ -14,10 +16,8 @@ import type { ReactNode } from 'react';
 
 // The name under which the pasted text reaches the check action.
 const TEXT_FIELD = 'text';
-// How much of the end of the text shows, enough to see whether the answer was copied whole.
-const TAIL_LENGTH = 120;
-// A file is read up to this many times the limit, so that the size message can give its
-// size; a file beyond it is refused unread.
+// A file is read up to this many times the limit, so that the field shows its text and the
+// size message of the pasted text; a file beyond it is refused unread, with its size.
 const FILE_READ_FACTOR = 10;
 const BYTES_PER_MEGABYTE = 1_000_000;
 const SKELETON_LINES = 4;
@@ -48,26 +48,6 @@ function draftStatus(draft: PasteDraft, timeZone: string): string | undefined {
         time: formatInstant(draft.updatedAt, timeZone, 'short'),
       })
     : label('ImportDraftStatus', 'request_already_imported');
-}
-
-/** The characters received and the end of the text, to see whether it was all copied (IMP-02). */
-function TextReceived({ text }: Readonly<{ text: string }>): ReactNode {
-  return (
-    <div className="flex flex-col gap-1">
-      {/* UTF-16 units: only the size limit counts bytes, through checkPastedTextSize. */}
-      <p className="text-sm text-ink-muted">
-        {sentence('imports.charactersReceived', { k: formatCount(text.length) })}
-      </p>
-      {text !== '' && (
-        <>
-          <p className="text-sm text-ink-muted">{sentence('imports.endOfText')}</p>
-          <pre className="rounded-lg border border-line bg-surface-muted p-2 font-mono text-sm break-words whitespace-pre-wrap">
-            {text.slice(-TAIL_LENGTH)}
-          </pre>
-        </>
-      )}
-    </div>
-  );
 }
 
 /** The discard of both copies of the draft, after two confirmations, since the text cannot be recovered (IHM-28, IHM-42, IHM-58). */
@@ -148,9 +128,12 @@ export function ResearchResultPasteArea({
             pasteRefusedMessage={sentence('imports.clipboardRefused')}
             fileLabel={sentence('imports.chooseTextFile')}
             maxFileBytes={maxMegabytes * BYTES_PER_MEGABYTE * FILE_READ_FACTOR}
-            fileTooLargeMessage={sentence('imports.fileFarTooLarge', {
-              limit: String(maxMegabytes),
-            })}
+            fileTooLargeMessage={(sizeBytes) =>
+              sentence('imports.fileTooLarge', {
+                size: formatMegabytes(sizeBytes),
+                limit: String(maxMegabytes),
+              })
+            }
             fileUnreadableMessage={sentence('imports.fileUnreadable')}
           />
         </FormField>

@@ -2,10 +2,13 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import axe from 'axe-core';
 import { IDBFactory } from 'fake-indexeddb';
+import fc from 'fast-check';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
+import { checkPastedTextSize } from '@/lib/ai-exchange';
 import { draftKey } from '@/lib/device-drafts';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
+import { formatMegabytes } from '@/lib/wording';
 
 import { ResearchResultPasteArea } from './paste-area';
 
@@ -27,11 +30,17 @@ const TWO_BYTES = 'é';
 const AT_THE_LIMIT = TWO_BYTES.repeat(1_000_000);
 const OVER_THE_LIMIT = `${AT_THE_LIMIT}x`;
 const OVER_MESSAGE = 'The pasted text is 2.01 MB, over the 2 MB limit.';
+// The size that the size check gives a text against a limit of 0 MB, which refuses any text.
+const SIZE_OF_TEXT = /^The pasted text is (?<size>[\d.]+) MB, over the 0 MB limit\.$/u;
+// Sizes in bytes at the edges of a hundredth of a megabyte and of the 2 MB of the limit.
+const SIZE_BOUNDS = [1, 9999, 10_000, 10_001, 1_999_999, 2_000_000, 2_000_001, 2_010_000];
+const SIZES = fc.oneof(fc.constantFrom(...SIZE_BOUNDS), fc.integer({ min: 1, max: 5_000_000 }));
 
 // The work that a test started and that has not ended: the IndexedDB connections open and
 // the calls over the network. The paste area saves without waiting, and the store opens the
 // global `indexedDB` at each call, so a save still running when its test ends would write
-// into the next test's database, whose paste area would then show its text.
+// into the next test's database, whose paste area would then show its text. Each test
+// starts it from zero, so that a count leaked by one cannot hold up the others.
 const underWay = { count: 0 };
 
 async function nextTurn(): Promise<void> {
@@ -47,13 +56,19 @@ async function overTheNetwork(): Promise<void> {
   underWay.count -= 1;
 }
 
-/** A new IndexedDB for one test, which counts each connection from its opening to its closing. */
+/**
+ * A new IndexedDB for one test, which counts each connection from its opening to its
+ * closing, or to the failure of its opening, which leaves nothing to close.
+ */
 function countedIndexedDb(): IDBFactory {
   const factory = new IDBFactory();
   const openDatabase = factory.open.bind(factory);
   factory.open = (name, version) => {
     underWay.count += 1;
     const request = openDatabase(name, version);
+    request.addEventListener('error', () => {
+      underWay.count -= 1;
+    });
     request.addEventListener('success', () => {
       const database = request.result;
       const closeDatabase = database.close.bind(database);
@@ -162,11 +177,40 @@ async function confirmDiscard(user: ReturnType<typeof userEvent.setup>): Promise
   );
 }
 
+/** The event that ends the opening of a database: its success, or its failure, handled here. */
+async function openingEnd(request: IDBOpenDBRequest): Promise<Event> {
+  return new Promise((resolve) => {
+    request.addEventListener('success', resolve);
+    request.addEventListener('error', (event) => {
+      event.preventDefault();
+      resolve(event);
+    });
+  });
+}
+
+describe('the IndexedDB that these tests count', () => {
+  it('counts a connection until it closes, and an opening that fails until it fails', async () => {
+    underWay.count = 0;
+    const factory = countedIndexedDb();
+    const opening = factory.open('counted', 2);
+    await openingEnd(opening);
+    expect(underWay.count).toBe(1);
+    opening.result.close();
+
+    // An older version than the database's own, which the opening refuses.
+    const refused = await openingEnd(factory.open('counted', 1));
+
+    expect(refused.type).toBe('error');
+    expect(underWay.count).toBe(0);
+  });
+});
+
 describe('the research-result paste area', () => {
   let setup: Setup;
   let isOnline: boolean;
 
   beforeEach(() => {
+    underWay.count = 0;
     vi.stubGlobal('indexedDB', countedIndexedDb());
     isOnline = true;
     vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => isOnline);
@@ -226,31 +270,31 @@ describe('the research-result paste area', () => {
     expect(field()).toHaveValue('');
   });
 
-  it('[IMP-02] fills the field with the text file that is chosen', async () => {
+  it('[IMP-02] [CL-IMP-27] fills the field with the text file that is chosen, up to ten times the limit', async () => {
     const user = userEvent.setup();
     await open(setup);
 
-    await user.upload(
-      screen.getByLabelText('Choose a text file'),
-      new File([RESULT], 'result.json'),
-    );
+    const file = new File([RESULT], 'result.json');
+    Object.defineProperty(file, 'size', { value: 20_000_000 });
+    await user.upload(screen.getByLabelText('Choose a text file'), file);
 
     await waitFor(() => {
       expect(field()).toHaveValue(RESULT);
     });
+    expect(screen.queryByText(/^This file is/u)).not.toBeInTheDocument();
   });
 
-  it('[IMP-02] [CL-IMP-27] shows the characters received and the end of the text', async () => {
+  it('[IMP-02] [CL-IMP-27] shows the characters received, counted as code points, and the end of the text', async () => {
     const user = userEvent.setup();
     await open(setup);
     expect(screen.getByText('0 characters received')).toBeVisible();
     expect(screen.queryByText('End of the text')).not.toBeInTheDocument();
 
-    await paste(user, `${'a'.repeat(1200)}THE END`);
+    await paste(user, `${'a'.repeat(1200)}THE END 😀`);
 
-    expect(screen.getByText('1,207 characters received')).toBeVisible();
+    expect(screen.getByText('1,209 characters received')).toBeVisible();
     expect(screen.getByText('End of the text')).toBeVisible();
-    expect(screen.getByText(`${'a'.repeat(113)}THE END`, { selector: 'pre' })).toBeVisible();
+    expect(screen.getByText(`${'a'.repeat(111)}THE END 😀`, { selector: 'pre' })).toBeVisible();
   });
 
   it('[IMP-02] [CL-IMP-27] checks a text of exactly the limit in UTF-8 bytes', async () => {
@@ -287,19 +331,37 @@ describe('the research-result paste area', () => {
     expect(screen.getByText(OVER_MESSAGE)).toBeVisible();
   });
 
-  it('[IMP-02] reads a file far over the limit as too large, without filling the field', async () => {
-    const user = userEvent.setup();
-    await open(setup);
-    await paste(user, RESULT);
+  it.each([
+    [20_000_001, 'This file is 20.01 MB, over the 2 MB limit: choose a smaller text file.'],
+    [21_000_000, 'This file is 21 MB, over the 2 MB limit: choose a smaller text file.'],
+    [21_000_001, 'This file is 21.01 MB, over the 2 MB limit: choose a smaller text file.'],
+  ])(
+    '[IMP-02] [CL-IMP-27] refuses unread a file of %i bytes, ten times the limit or more, with its size, and keeps the text of the field',
+    async (size, message) => {
+      const user = userEvent.setup();
+      await open(setup);
+      await paste(user, RESULT);
 
-    const huge = new File([RESULT], 'huge.txt');
-    Object.defineProperty(huge, 'size', { value: 21_000_000 });
-    await user.upload(screen.getByLabelText('Choose a text file'), huge);
+      const huge = new File([RESULT], 'huge.txt');
+      Object.defineProperty(huge, 'size', { value: size });
+      await user.upload(screen.getByLabelText('Choose a text file'), huge);
 
-    expect(
-      await screen.findByText('This file is far over the 2 MB limit: choose a smaller text file.'),
-    ).toBeVisible();
-    expect(field()).toHaveValue(RESULT);
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(field()).toHaveValue(RESULT);
+    },
+  );
+
+  it('[CL-IMP-27] writes the size of a refused file as the size check writes that of a text of as many UTF-8 bytes', () => {
+    fc.assert(
+      fc.property(SIZES, (bytes) => {
+        // Four bytes for each emoji, then one for each letter.
+        const text = `${'😀'.repeat(Math.floor(bytes / 4))}${'x'.repeat(bytes % 4)}`;
+        const checked = checkPastedTextSize(text, 0);
+        const message = checked.ok ? '' : checked.error.message;
+
+        expect(SIZE_OF_TEXT.exec(message)?.groups?.['size']).toBe(formatMegabytes(bytes));
+      }),
+    );
   });
 
   it('[IMP-02] says when a chosen file cannot be read as text', async () => {

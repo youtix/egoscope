@@ -28,7 +28,9 @@ function ImportField(): ReactNode {
         pasteRefusedMessage="Paste refused: hold a finger on the area, then choose Paste."
         fileLabel="Choose a text file"
         maxFileBytes={MAX_FILE_BYTES}
-        fileTooLargeMessage="This file is too large for a research result."
+        fileTooLargeMessage={(sizeBytes) =>
+          `This file is ${String(sizeBytes)} bytes, over the ${String(MAX_FILE_BYTES)} bytes a research result may take.`
+        }
         fileUnreadableMessage="This file cannot be read as text."
       />
     </FormField>
@@ -94,7 +96,7 @@ describe('PasteArea', () => {
     expect(await screen.findByDisplayValue(RESULT)).toBeVisible();
   });
 
-  it('[IHM-28] refuses a file larger than its size limit, and keeps the text it had', async () => {
+  it('[IHM-28] [CL-IMP-27] refuses a file larger than its size limit with the message built from its size, and keeps the text it had', async () => {
     const user = userEvent.setup();
     render(<ImportField />);
 
@@ -104,11 +106,15 @@ describe('PasteArea', () => {
       new File(['x'.repeat(MAX_FILE_BYTES + 1)], 'result.json'),
     );
 
-    expect(await screen.findByText('This file is too large for a research result.')).toBeVisible();
+    expect(
+      await screen.findByText(
+        'This file is 101 bytes, over the 100 bytes a research result may take.',
+      ),
+    ).toBeVisible();
     expect(screen.getByRole('textbox', { name: 'Research result' })).toHaveValue('draft');
   });
 
-  it('reads a file of exactly its size limit', async () => {
+  it('[CL-IMP-27] reads a file of exactly its size limit', async () => {
     const user = userEvent.setup();
     render(<ImportField />);
 

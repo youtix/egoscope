@@ -8,6 +8,7 @@ export {
   formatExpectedCount,
   formatGap,
   formatIndex,
+  formatMegabytes,
   formatShare,
 } from './numbers';
 export type { GapStatistic } from './numbers';

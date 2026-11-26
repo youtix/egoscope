@@ -28,7 +28,7 @@ export const importsSentences = {
   chooseTextFile: 'Choose a text file',
   clipboardRefused:
     'Your phone did not allow reading the clipboard. Press and hold in the field, then choose Paste.',
-  fileFarTooLarge: 'This file is far over the {limit} MB limit: choose a smaller text file.',
+  fileTooLarge: 'This file is {size} MB, over the {limit} MB limit: choose a smaller text file.',
   fileUnreadable: 'This file could not be read as text: choose another file or paste the text.',
   charactersReceived: '{k} {k|character|characters} received',
   endOfText: 'End of the text',
