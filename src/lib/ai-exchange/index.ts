@@ -172,5 +172,25 @@ export type {
 } from './classification/request';
 
 // classification/schema.ts
+export { CLASSIFICATION_ANSWER_SCHEMA } from './classification/schema';
+export type { FactNovelty, JsonSchema } from './classification/schema';
 
 // classification/answer.ts
+export { checkAnswer } from './classification/answer';
+export type { AnswerCheckParameters, CheckedPart } from './classification/answer';
+
+// classification/answer-facts.ts
+export type {
+  CheckedContext,
+  CheckedFact,
+  CheckedKnownEntryFact,
+  CheckedNewTypeFact,
+  CheckedValidatedTypeFact,
+} from './classification/answer-facts';
+
+// classification/answer-fields.ts
+export type {
+  CheckedDescription,
+  CheckedText,
+  UnusablePartReason,
+} from './classification/answer-fields';
