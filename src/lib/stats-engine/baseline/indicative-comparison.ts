@@ -5,15 +5,13 @@
 // game shows it, labeled indicative (SUI-20). It is never a case's normalized gap and
 // enters no calculation: it carries no gap status, and nothing in the core reads it.
 
+import { firstYearOf } from '../schedule/seasons';
 import { seasonBaseline } from './season-baseline';
 
 import type { PhaseState } from '../schedule/phase-state';
 import type { GamePhase } from '../schedule/team-record';
 import type { EngineParams, GameId } from '../types';
 import type { BaselineGame, SeasonBaselineStatus } from './season-baseline';
-
-// A season is named by its two years, `2024-25`, the first written in four digits.
-const YEAR_LENGTH = 4;
 
 /** One of the player's regular seasons that a measured game may be compared with (CL-STA-13). */
 export type IndicativeSeason = Readonly<{
@@ -52,8 +50,6 @@ export type IndicativeComparison = Readonly<{
 }>;
 
 type ComparedBaseline = Readonly<{ season: string; mean: number; standardDeviation: number }>;
-
-const firstYearOf = (season: string): number => Number(season.slice(0, YEAR_LENGTH));
 
 /**
  * Whether the regular season `season` precedes the measured game (CL-STA-13): a season

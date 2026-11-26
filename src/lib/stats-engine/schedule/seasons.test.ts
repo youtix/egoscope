@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { seasonOfDate, seasonSpan } from './seasons';
+import { firstYearOf, seasonOfDate, seasonSpan, seasonStartingIn } from './seasons';
 
 import type { SeasonOfDateResult, SeasonSpan, SeasonSpanInput } from './seasons';
 
@@ -384,5 +384,36 @@ describe('seasonSpan', () => {
         isFinalsOver: true,
       }),
     ).toBeNull();
+  });
+});
+
+// The first years of the seasons that the property writes, from 1947-48 to 2099-00,
+// across two centuries.
+const FIRST_SEASON_YEAR = 1947;
+const LAST_SEASON_YEAR = 2099;
+
+describe('firstYearOf', () => {
+  it('[STA-48] [CL-STA-28] reads the first year of a season from its name, across a century', () => {
+    expect(firstYearOf('2024-25')).toBe(2024);
+    expect(firstYearOf('1999-00')).toBe(1999);
+    expect(firstYearOf('2000-01')).toBe(2000);
+    expect(firstYearOf('2019-20')).toBe(2019);
+  });
+
+  it('[STA-48] [CL-STA-28] gives back the first year of every season it is written from', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: FIRST_SEASON_YEAR, max: LAST_SEASON_YEAR }), (year) => {
+        expect(firstYearOf(nameOf(year))).toBe(year);
+      }),
+    );
+  });
+});
+
+describe('seasonStartingIn', () => {
+  it('[STA-48] [CL-STA-28] names a season by its first year and the last two digits of the second, across a century', () => {
+    expect(seasonStartingIn(2024)).toBe('2024-25');
+    expect(seasonStartingIn(1999)).toBe('1999-00');
+    expect(seasonStartingIn(2000)).toBe('2000-01');
+    expect(seasonStartingIn(2008)).toBe('2008-09');
   });
 });

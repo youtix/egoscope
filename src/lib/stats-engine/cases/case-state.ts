@@ -19,9 +19,11 @@ import type { GapStatus } from './normalized-gap';
 export type CaseStatus = 'awaiting_game' | 'measured' | 'excluded' | 'not_measurable';
 
 /**
- * The stored values of a set (SEN-07), as written and in their order, typed as the list of
- * their literals so that the set's type derives from it. An `as const` would type it as
- * well, but Stryker plants no mutant inside an `as` expression.
+ * The helper for every list of stored values of the engine that a type derives from,
+ * as written and in their order, typed as the list of their literals: the reasons of a
+ * case here (SEN-07, SEN-32), and in `tally.ts` the doubtful-case criteria (SEN-11 to
+ * SEN-17, SEN-32) and the reasons an event left a tally (SEN-33). An `as const` would type
+ * them as well, but Stryker plants no mutant inside an `as` expression.
  */
 export function valuesOf<const Values extends readonly string[]>(values: Values): Values {
   return values;

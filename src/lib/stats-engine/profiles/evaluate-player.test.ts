@@ -499,41 +499,41 @@ describe('evaluatePlayer', () => {
     );
   });
 
-  it('[SEN-21] [CL-SEN-19] [SEN-33] [SEN-43] splits a profile into all cases, historical only and tracked only, each with its valid cases by origin, the exits counted in all cases alone', () => {
-    const tracked = new Set([3, 4, 5, 6, 10, 12]);
-    const events = withEvents([
-      [3, { researchConfidence: 'low' }],
-      [11, { researchConfidence: 'low' }],
-    ]);
-    const evaluation = evaluatePlayer(
-      {
-        ...inputOf(ROWS, events),
-        types: [{ ...VALIDATED, exitReasons: ['merged', 'merged', 'erased'] }],
-        storedCaseOf: ({ eventIds }) => ({
-          origin: tracked.has(eventIds[0] ?? 0) ? 'tracked' : 'historical',
-          decisions: [],
-        }),
-      },
-      DEFAULTS,
-    );
+  it('[SEN-21] [CL-SEN-19] [SEN-31] [SEN-33] [SEN-43] splits a profile into all cases, historical only and tracked only, each with its valid cases by origin, which add up to its valid cases, and the threshold of valid cases of the parameters, the exits counted in all cases alone', () => {
+    const low = { researchConfidence: 'low' } as const;
+    const input: PlayerEvaluationInput = {
+      ...inputOf(ROWS, withEvents([3, 11].map((eventId) => [eventId, low] as const))),
+      types: [{ ...VALIDATED, exitReasons: ['merged', 'merged', 'erased'] }],
+      storedCaseOf: ({ eventIds }) => ({
+        origin: [3, 4, 5, 6, 10, 12].includes(eventIds[0] ?? 0) ? 'tracked' : 'historical',
+        decisions: [],
+      }),
+    };
+    const evaluation = evaluatePlayer(input, DEFAULTS);
     expect(caseOf(evaluation, 3).origin).toBe('tracked');
     expect(
       evaluation.profiles[0]?.views.map(
-        ({ view, tally, historicalValidCount, trackedValidCount }) => [
+        ({ view, tally, historicalValidCount, trackedValidCount, validCaseThreshold }) => [
           view,
           tally.eventCount,
           tally.validCount,
+          historicalValidCount + trackedValidCount,
           tally.lowResearchConfidenceCount,
           tally.exitCounts,
           historicalValidCount,
           trackedValidCount,
+          validCaseThreshold,
         ],
       ),
     ).toStrictEqual([
-      ['all_cases', 12, 8, 2, { merged: 2, erased: 1 }, 4, 4],
-      ['historical_only', 5, 4, 0, {}, 4, 0],
-      ['tracked_only', 7, 4, 2, {}, 0, 4],
+      ['all_cases', 12, 8, 8, 2, { merged: 2, erased: 1 }, 4, 4, 5],
+      ['historical_only', 5, 4, 4, 0, {}, 4, 0, 5],
+      ['tracked_only', 7, 4, 4, 2, {}, 0, 4, 5],
     ]);
+    const lowered = { ...DEFAULTS, sensitivity: { ...DEFAULTS.sensitivity, minValidCases: 4 } };
+    expect(
+      evaluatePlayer(input, lowered).profiles[0]?.views.map((each) => each.validCaseThreshold),
+    ).toStrictEqual([4, 4, 4]);
   });
 });
 
