@@ -8,6 +8,7 @@ import { eventTypes } from '@/lib/db';
 import { toEpochMs } from '@/lib/time';
 import { formatCount, sentence } from '@/lib/wording';
 
+import type { CoverageThreshold } from './proposals';
 import type { EventTypeRow } from './types';
 import type { Database, Transaction } from '@/lib/db';
 import type { EpochMs } from '@/lib/time';
@@ -118,9 +119,6 @@ export function sheetContent(row: SheetContent): SheetContent {
 /** What validated sheets are served to (TAX-11, CL-TAX-10). */
 export type SheetPurpose =
   'research_prompt' | 'import' | 'classification' | 'calculation' | 'exploration';
-
-/** The coverage threshold of a sheet: `outlets` distinct outlets within `days` days (CL-TAX-14). */
-export type CoverageThreshold = Readonly<{ outlets: number; days: number }>;
 
 /**
  * A validated type's sheet in its current content and version number, in full (TAX-33):

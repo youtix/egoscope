@@ -66,7 +66,6 @@ export {
 } from './queries';
 export type {
   CalendarDerivation,
-  CoverageThreshold,
   EventTypeOrigin,
   EventTypeStatus,
   ExplorationEntry,
