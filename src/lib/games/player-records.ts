@@ -64,20 +64,21 @@ async function fileTeamOf(
     : ok({ teamId: known.teamId });
 }
 
+// A record that gives no day and month of birth, as players takes it.
+const NO_SOURCE_BIRTHDAY = { month: null, day: null } as const;
+
 /**
  * Fills his day and month of birth from the source, the year dropped by the adapter, and
- * over a source-given one for the first record of a newly confirmed identity, never over
- * the owner's (CL-JOU-16, CL-JOU-11). A day that no calendar has is kept out.
+ * over a source-given one for the first record of a newly confirmed identity, which
+ * clears it when it gives none; never over the owner's (CL-JOU-16, CL-JOU-11). A day that
+ * no calendar has is kept out.
  */
 async function applyBirthday(
   tx: Transaction,
   { playerId, record, identityChanged }: PlayerRecordRead,
 ): Promise<Result<boolean, PlayerNotFound>> {
-  if (record.birthday === null) {
-    return ok(false);
-  }
   const set = await setBirthdayFromSource(tx, playerId, {
-    ...record.birthday,
+    ...(record.birthday ?? NO_SOURCE_BIRTHDAY),
     replaceSourceGiven: identityChanged,
   });
   if (set.ok) {
@@ -141,7 +142,8 @@ async function applyFileTeam(
  * player file that it read for `playerId`. Its day and month of birth go to
  * `players.setBirthdayFromSource`, which fills only an empty birthday, and, for the first
  * record of an identity confirmed after a mapping change, replaces one the source gave,
- * never one the owner entered (CL-JOU-16, CL-JOU-11). A row that lists him is news only
+ * or clears it when that record gives none, never one the owner entered (CL-JOU-16,
+ * CL-JOU-11). A row that lists him is news only
  * when its team, none for a release, differs from the one the previous read that listed
  * him gave, or when no read listed him before: then it goes to `players.recordTeamChange`,
  * dated by the read, with his membership at his latest entered change (STA-25, JOU-13,
