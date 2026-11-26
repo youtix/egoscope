@@ -178,6 +178,16 @@ named being deleted unless stated; no outside call runs inside a transaction but
    `event_import_warnings`, `event_marks`, `event_status_changes`, `event_corrections` and
    `backtest_request_events`, the outbox facts and restore-report rows that name it.
 9. E's case if it holds no other event, with its criteria, flags, decisions and history; otherwise the case is rebuilt as if E had never been recorded (CL-SUI-17): its `origin` and `created_at` become those that SUI-05, SUI-07 and CL-VUE-13 give its earliest-recorded remaining event, its `case_history_entries` recorded and its `case_review_flags` raised before that new `created_at` are deleted, and the rebuild writes no history row of its own (the job of step 12 records any change, cause `recalculation`, and raises again the flags that still apply). The case's own manual decisions (`case_manual_decisions`) stay, since they apply to its remaining events too; the decisions about E, tracking's, went in step 5, where tracking also rebuilt, created or deleted its tracked case.
+
+   Lock order. Step 8 locks the event row by deleting it (`events.eraseEvent`), and step 9 then
+   locks the case row (`sensitivity.eraseEventData`), so two transactions that each erase one event
+   take the two rows in the same order. A transaction that erases several events (a player-data
+   deletion, section 2.2 step 1, a requalification or a split, a restore's re-application) locks
+   all its event rows, in ascending id, before its first case lock: erasing them one by one would
+   hold a case row while it waits for an event row that a one-event erasure of the same case holds.
+   That order is enough because a case belongs to one player and one type
+   (`cases_id_player_type_key`), so two erasures that share a case share its events.
+
 10. `withdrawn_event_counter.value + 1`.
 11. A journal entry "an event was withdrawn", with no player, type or date (CL-TRV-10).
 12. A full recalculation job with cause `recalculation` (after an erasure by requalification or

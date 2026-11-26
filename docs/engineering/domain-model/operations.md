@@ -382,6 +382,15 @@ duration still erases its data after a logout of all devices (IHM-08, DSN-33); o
 is answered as expired, which keeps the device's drafts (IHM-42). What a device keeps offline after
 a withdrawal until its next contact stays the limit of CL-DSN-19.
 
+An ended session goes through `/log-in/erase` whatever its address says, except an expired one
+whose address already says `ended=expired`. For the four owner reasons (logout, password change,
+reset, restore), the step answers with `Clear-Site-Data: "cache", "cookies", "storage"` and expires
+the session cookie (`Max-Age=0`), so that a browser that ignores the header still finds no session
+at the next login page; for an expiry it does neither. An expired session keeps its cookie as well
+as the device's data: the cookie carries the instant the device logged in, so a later logout of
+every device is still answered `logged_out` and has the device erase what it kept (CL-IHM-10,
+operations.md §1.10).
+
 ### 1.11 `login_failures` — `LoginFailure`
 
 `id integer` identity, `occurred_at timestamptz NOT NULL DEFAULT now()`; index on `occurred_at`.
@@ -710,7 +719,7 @@ all three):
   with milliseconds; dates `YYYY-MM-DD`; jsonb columns embedded as JSON; arrays as JSON arrays;
   numbers with a plain decimal point; `null` for a null column.
 - `manifest.json`, the archive's last entry, so that a cut archive is seen as incomplete (here a
-  backup's, whose last two keys a full export does not have):
+  backup's, whose last key but one, `backup_kind`, a full export does not have):
 
 ```json
 {
