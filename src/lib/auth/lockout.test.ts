@@ -244,7 +244,7 @@ describe('the lockout of logins at a password change', { timeout: 60_000 }, () =
       [{ passwordStatus: 'chosen' }],
       {
         ok: true,
-        value: { device: 'Phone', openedAt: START + 11 * MINUTE, passwordStatus: 'chosen' },
+        value: { id: 2, device: 'Phone', openedAt: START + 11 * MINUTE, passwordStatus: 'chosen' },
       },
     ]);
   });

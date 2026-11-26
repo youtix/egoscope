@@ -31,6 +31,15 @@ const AT = toEpochMs(Date.UTC(2026, 10, 25, 9, 30));
 const PUBLIC_AT = toEpochMs(Date.UTC(2024, 10, 20, 17, 0));
 const MAX_LENGTH = 200;
 
+/** The reference of a historical event published at `PUBLIC_AT`, to the minute. */
+function publicAtInstant() {
+  return {
+    referenceAt: new Date(PUBLIC_AT),
+    referenceOffsetMinutes: 0,
+    referenceDatePrecision: 'exact',
+  } as const;
+}
+
 /** The short precision that the reason `other` requires, and that no other reason takes. */
 function precision(reason: string): string | null {
   return reason === 'other' ? 'The outlet retracted it.' : null;
@@ -64,11 +73,7 @@ describe('deleteHistorical', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     historical = await insertHistoricalEvent(db, {
       playerId,
       originImportId: importId,
-      overrides: {
-        referenceAt: new Date(PUBLIC_AT),
-        referenceOffsetMinutes: 0,
-        referenceDatePrecision: 'exact',
-      },
+      overrides: publicAtInstant(),
     });
     return async () => {
       restoreClock();
@@ -150,7 +155,7 @@ describe('deleteHistorical', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       const event = await insertHistoricalEvent(db, {
         playerId,
         originImportId: importId,
-        overrides: { referenceAt: new Date(PUBLIC_AT), referenceOffsetMinutes: 0 },
+        overrides: publicAtInstant(),
       });
       await expect(remove(event, { reason, detail: precision(reason) })).resolves.toMatchObject({
         ok: true,
