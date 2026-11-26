@@ -254,7 +254,8 @@ async function send(
  * requests a day and the tokens a minute refill, from `x-ratelimit-reset-requests` and
  * `x-ratelimit-reset-tokens` (TRV-03, CL-TRV-12); a 429 is a minute limit with its
  * `retry-after` delay, or a refusal for quota when it names a daily allowance (TRV-06);
- * the call ends at its deadline or its signal as `timeout`. The key goes into the
+ * the call ends at its deadline or its signal as `timeout`, and is not sent when its
+ * deadline has come or its signal has cancelled it before it began. The key goes into the
  * Authorization header alone, and into no outcome (TRV-64).
  */
 export function groqProviders(config: GroqConfig): readonly LanguageModelProvider[] {
@@ -267,6 +268,9 @@ export function groqProviders(config: GroqConfig): readonly LanguageModelProvide
     ctx: CallContext,
     request: ClassificationRequest,
   ): Promise<ProviderOutcome> {
+    if (ctx.signal.aborted || now() >= ctx.deadline) {
+      return { ok: false, error: TIMEOUT, call: NOT_SENT };
+    }
     return estimatedTokens(request) > GROQ_REQUEST_CEILING_TOKENS
       ? { ok: false, error: UNAVAILABLE, call: NOT_SENT }
       : send(keyed, ctx, request);
