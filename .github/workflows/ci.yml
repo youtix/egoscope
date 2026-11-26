@@ -77,10 +77,53 @@ jobs:
       - name: TypeScript
         run: bun run typecheck
 
+  # The unit suite, in three shards on three runners at once: Vitest splits the test
+  # files by a hash of their path. Each shard writes its results and its coverage
+  # into a blob report, and judges no coverage threshold, since it runs only part of
+  # the tests of a file (vitest.config.ts): the coverage job does, on the merged
+  # reports. A matrix gives ci-ok one result, a success only when every shard
+  # succeeded.
   test:
     name: test
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Unit tests of one shard, with coverage
+        env:
+          SHARD: ${{ matrix.shard }}/3
+        run: bun x --no-install vitest run --shard="$SHARD" --coverage --reporter=default --reporter=blob
+      # A re-run of one shard uploads its report again, under the same name. The
+      # reports are kept one day: a re-run of the coverage job alone a day later finds
+      # them gone and fails, so a late re-run re-runs the whole workflow.
+      - name: Upload the blob report of the shard
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unit-blob-${{ matrix.shard }}
+          path: .vitest/blob/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+  # The coverage thresholds, judged once on the merged coverage of the three shards,
+  # as `bun run test:coverage` judges them on one run of the whole suite. The
+  # provider reads the source files and vitest.config.ts, hence the checkout and the
+  # dependencies.
+  coverage:
+    name: coverage
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -88,8 +131,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-project
-      - name: Unit tests with coverage thresholds
-        run: bun run test:coverage
+      - name: Download the blob reports of the shards
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: unit-blob-*
+          merge-multiple: true
+          path: .vitest/blob/
+      - name: Coverage thresholds, on the merged reports
+        run: bun x --no-install vitest run --merge-reports --coverage
 
   migrations:
     name: migrations
@@ -139,7 +188,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: ${{ always() }}
-    needs: [lint, actionlint, typecheck, test, migrations, build, pr-title]
+    needs: [lint, actionlint, typecheck, test, coverage, migrations, build, pr-title]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
