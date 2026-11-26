@@ -20,7 +20,16 @@ export type {
 
 // prompt.ts: recordPromptCopied, hideInProgressBanner, outdatedPrompts
 
-// coverage.ts: recordImport, inheritCoverage, coverage, isProfiled
+// coverage.ts
+export { coverage, inheritCoverage, isProfiled, recordImport } from './coverage';
+export type {
+  CoverageInheritance,
+  CoverageOrigin,
+  CoveragePeriod,
+  ImportRecordRefusal,
+  SavedImport,
+  TypeCoverageEntry,
+} from './coverage';
 
 // supplements.ts: acceptSupplement, proposedSupplements
 
