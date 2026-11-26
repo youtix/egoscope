@@ -67,17 +67,13 @@ const retained = (eventTypeId: string, startOn: string, endOn: string): Retained
   endOn,
 });
 
-/** An entry of the coverage with its periods written as tuples, to compare whole. */
+/**
+ * An entry of the coverage with its periods written as tuples of their values, from
+ * `startOn` to `recordedAt`, to compare whole.
+ */
 function summary(entry: TypeCoverageEntry) {
-  const periods = entry.periods.map((period) => [
-    period.startOn,
-    period.endOn,
-    period.sheetVersionNumber,
-    period.origin,
-    period.importId,
-    period.recordedAt,
-  ]);
-  return { ...entry, periods };
+  const coveredPeriods = entry.coveredPeriods.map((period) => Object.values(period));
+  return { ...entry, coveredPeriods };
 }
 
 describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
@@ -92,12 +88,8 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
     const restoreClock = installFakeClock(fixedClock(IMPORTED_AT));
     await insertEventType(db);
     await insertEventType(db, { id: FEUD, name: 'Public feud' });
-    const [first, second] = [
-      await insertPlayer(db, { source: 'p01' }),
-      await insertPlayer(db, { source: 'p02' }),
-    ];
-    player = first.id;
-    other = second.id;
+    ({ id: player } = await insertPlayer(db, { source: 'p01' }));
+    ({ id: other } = await insertPlayer(db, { source: 'p02' }));
     sequence = 0;
     return async () => {
       restoreClock();
@@ -299,15 +291,14 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
       await expect(storedPeriods(MEDIA_STORM)).resolves.toStrictEqual([]);
     });
 
-    it('[BKT-13] [CL-BKT-20] leaves an imported request unchanged while a later import adds its coverage', async () => {
+    it('[BKT-13] [CL-BKT-20] [IMP-08] leaves an imported request unchanged while a later import, unconfirmed, adds its coverage', async () => {
       const request = await insertRequest(db, { playerId: player });
       const first = await saveImport(request);
       await record(first, [retained(MEDIA_STORM, '2023-10-24', '2024-06-30')]);
       const second = await saveImport(request, LATER_AT);
+      const nextSeason = [retained(MEDIA_STORM, '2024-07-01', '2025-06-30')];
 
-      await expect(
-        record(second, [retained(MEDIA_STORM, '2024-07-01', '2025-06-30')], true),
-      ).resolves.toStrictEqual({ ok: true });
+      await expect(record(second, nextSeason)).resolves.toStrictEqual({ ok: true });
 
       await expect(requestState(request.id)).resolves.toMatchObject({
         status: 'imported',
@@ -426,10 +417,8 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
       const latest = await covered(request, MEDIA_STORM, ['2024-07-01', '2025-06-30']);
       const longest = await covered(request, MEDIA_STORM, ['2023-10-24', '2024-06-30', 2]);
       const shortest = await covered(request, MEDIA_STORM, ['2023-10-24', '2024-01-31']);
-      await covered(await insertRequest(db, { playerId: other }), FEUD, [
-        '2023-10-24',
-        '2025-06-30',
-      ]);
+      const elsewhere = await insertRequest(db, { playerId: other });
+      await covered(elsewhere, FEUD, ['2023-10-24', '2025-06-30']);
 
       const entries = await coverage(db, player);
 
@@ -437,7 +426,7 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
         {
           eventTypeId: MEDIA_STORM,
           name: 'Media storm',
-          periods: [
+          coveredPeriods: [
             ['2023-10-24', '2024-06-30', 2, 'import', longest, IMPORTED_AT],
             ['2023-10-24', '2024-01-31', 1, 'import', shortest, IMPORTED_AT],
             ['2024-07-01', '2025-06-30', 1, 'import', latest, IMPORTED_AT],
@@ -449,7 +438,7 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
         {
           eventTypeId: FEUD,
           name: 'Public feud',
-          periods: [],
+          coveredPeriods: [],
           isIncluded: false,
           isCoveredUnderEarlierVersion: false,
           firstUncoveredOn: null,
@@ -490,8 +479,11 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
   describe('inheritCoverage', () => {
     it('[CL-BKT-06] gives the survivor of a merge the days covered for every merged type, under its version before the merge', async () => {
       await insertEventType(db, { id: SLUMP, name: 'Scoring slump' });
+      await addVersion(MEDIA_STORM, 2, false);
+      await addVersion(MEDIA_STORM, 3, false);
       const request = await insertRequest(db, { playerId: player });
-      await covered(request, MEDIA_STORM, ['2023-10-24', '2024-10-31']);
+      // Neither version 1 nor the rows' own version 2: the one given before the merge.
+      await covered(request, MEDIA_STORM, ['2023-10-24', '2024-10-31', 2]);
       await covered(request, FEUD, ['2025-03-01', '2025-04-30']);
       await covered(request, FEUD, ['2024-07-01', '2024-12-31']);
       await covered(request, FEUD, ['2023-01-01', '2024-03-31']);
@@ -501,15 +493,30 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
       await covered(await insertRequest(db, { playerId: other }), MEDIA_STORM, SEASONS);
       const restore = installFakeClock(fixedClock(MERGED_AT));
 
-      await inherit(MERGE);
+      await inherit({ ...MERGE, survivorVersionBeforeMerge: 3 });
 
       restore();
       await expect(storedPeriods(MEDIA_STORM)).resolves.toStrictEqual([
-        [player, '2023-10-24', '2024-05-31', 1, 'merge', null, MERGED_AT],
-        [player, '2024-07-01', '2024-10-31', 1, 'merge', null, MERGED_AT],
+        [player, '2023-10-24', '2024-05-31', 3, 'merge', null, MERGED_AT],
+        [player, '2024-07-01', '2024-10-31', 3, 'merge', null, MERGED_AT],
       ]);
       await expect(storedPeriods(FEUD)).resolves.toHaveLength(5);
       await expect(storedPeriods(SLUMP)).resolves.toHaveLength(1);
+    });
+
+    it('[CL-BKT-06] [TAX-27] keeps for a merge of three types the days that each covered, down to a single day', async () => {
+      await insertEventType(db, { id: SLUMP, name: 'Scoring slump' });
+      const request = await insertRequest(db, { playerId: player });
+      await covered(request, MEDIA_STORM, ['2024-01-01', '2024-12-31']);
+      await covered(request, FEUD, ['2024-03-01', '2024-12-31']);
+      await covered(request, SLUMP, ['2024-01-01', '2024-03-01']);
+
+      await inherit({ ...MERGE, absorbedTypeIds: [FEUD, SLUMP] });
+
+      // Without the scoring slump, the days would run to 2024-12-31.
+      await expect(storedPeriods(MEDIA_STORM)).resolves.toStrictEqual([
+        [player, '2024-03-01', '2024-03-01', 1, 'merge', null, IMPORTED_AT],
+      ]);
     });
 
     it('[CL-BKT-06] [CL-BKT-05] stops the inherited days counting when the merge broadened the survivor', async () => {

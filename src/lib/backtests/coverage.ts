@@ -60,7 +60,7 @@ export type TypeCoverageEntry = Readonly<{
   eventTypeId: string;
   name: string;
   /** Its covered periods, by start day, then in the order they were recorded. */
-  periods: readonly CoveragePeriod[];
+  coveredPeriods: readonly CoveragePeriod[];
   /** Whether the coverage includes the type: one period at least, whatever its version. */
   isIncluded: boolean;
   /** Included, but only under versions older than its latest broadening version. */
@@ -89,7 +89,11 @@ type Span = Readonly<{ startOn: IsoDate; endOn: IsoDate }>;
 // The version that a period a split type's children inherit is recorded under (CL-BKT-06).
 const SPLIT_INHERITED_VERSION = 0;
 
-/** The import with its player, its instant and its request's status, or a bug. */
+/**
+ * The import with its player, its instant and its request's status, or a bug. The
+ * request's row stays locked until the transaction ends, so that a cancellation cannot
+ * slip in between this read and the move to imported.
+ */
 async function importOf(tx: Transaction, importId: number) {
   const [row] = await tx
     .select({
@@ -100,7 +104,8 @@ async function importOf(tx: Transaction, importId: number) {
     })
     .from(imports)
     .innerJoin(backtestRequests, eq(backtestRequests.id, imports.backtestRequestId))
-    .where(eq(imports.id, importId));
+    .where(eq(imports.id, importId))
+    .for('update', { of: backtestRequests });
   if (row === undefined) {
     throw new Error(`recordImport: no import ${String(importId)}`);
   }
@@ -236,20 +241,20 @@ async function typeEntry(
   type: TypeRef,
   { rows, careerStart }: PlayerRows,
 ): Promise<TypeCoverageEntry> {
-  const periods = rows
+  const coveredPeriods = rows
     .filter((row) => row.eventTypeId === type.id)
     .map((row) => coveragePeriod(row));
   // A type without periods is uncovered from his career start, whatever its versions.
   const typeCoverage: TypeCoverage = {
-    coveredPeriods: periods,
+    coveredPeriods,
     latestBroadeningVersion:
-      periods.length === 0 ? undefined : await latestBroadeningVersion(db, type.id),
+      coveredPeriods.length === 0 ? undefined : await latestBroadeningVersion(db, type.id),
   };
   const isIncluded = isTypeCovered(typeCoverage);
   return {
     eventTypeId: type.id,
     name: type.name,
-    periods,
+    coveredPeriods,
     isIncluded,
     isCoveredUnderEarlierVersion: isIncluded && isTypeSupplementNeeded(typeCoverage),
     firstUncoveredOn: firstUncoveredOn(typeCoverage, careerStart) ?? null,
