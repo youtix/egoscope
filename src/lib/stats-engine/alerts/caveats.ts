@@ -61,15 +61,16 @@ export type CaveatEvent = Readonly<{
 }>;
 
 /**
- * A section of the sheet (ALE-09, ALE-14, ALE-20, ADR 0016): its type; whether the
- * player's coverage lacked that type when the section was added; whether the type has a
- * doubtful-case criterion switched off; its events; its frozen profile, null while the
- * section waits for its values (ALE-05); and the type's frozen general trend, null when
- * the section has none.
+ * A section of the sheet (ALE-09, ALE-14, ALE-20, ADR 0015, ADR 0016): its type; whether the
+ * player's coverage lacked that type when the section was added; whether the type is derived
+ * from the calendar (its `calendar_derivation` is set); whether the type has a doubtful-case
+ * criterion switched off; its events; its frozen profile, null while the section waits for
+ * its values (ALE-05); and the type's frozen general trend, null when the section has none.
  */
 export type CaveatSection = Readonly<{
   eventTypeId: EventTypeId;
   isTypeNotCovered: boolean;
+  isCalendarDerived: boolean;
   hasSwitchedOffCriterion: boolean;
   events: readonly CaveatEvent[];
   profile: CaveatProfile | null;
@@ -142,10 +143,11 @@ function isBelowThreshold(profile: CaveatProfile, thresholds: CaveatThresholds):
 
 /**
  * Whether the section's type is outside the player's coverage (ALE-14), which a type
- * derived from the calendar never is, since it leaves the backtest coverage (CL-ALE-13).
+ * derived from the calendar never is, since it leaves the backtest coverage (CL-ALE-13),
+ * whatever events its section still holds.
  */
 function isTypeNotCovered(section: CaveatSection): boolean {
-  return section.isTypeNotCovered && section.events.every(({ origin }) => origin !== 'calendar');
+  return section.isTypeNotCovered && !section.isCalendarDerived;
 }
 
 /** Whether the general trend rests on a small sample (CL-ALE-05), no trend resting on no case. */
@@ -159,34 +161,32 @@ function isSmallTrend(trend: CaveatTrend | null, thresholds: CaveatThresholds): 
 }
 
 /**
- * Whether the measure that applies to a section rests on a small sample (ALE-16,
- * CL-ALE-05): the general trend, for a player below the threshold or a type not covered
- * (ALE-12, ALE-14); otherwise the player's profile, which then has the valid cases a
- * verdict needs, so that only a low confidence makes its sample small. A section waiting
- * for its values has no measure yet.
+ * Whether a section rests on a small sample (ALE-16, CL-ALE-05): the player's profile has
+ * fewer valid cases than a verdict needs or a low confidence, on every section; and, for a
+ * type not covered (ALE-14), whose general trend is then a measure that applies, the trend
+ * rests on a small sample too. Below the threshold, the trend that applies (ALE-12) can add
+ * nothing: the player's own cases already make the sample small, as for player B of the
+ * spec's example. A section waiting for its values has no measure yet.
  */
 function isSmallSample(section: CaveatSection, thresholds: CaveatThresholds): boolean {
   const { profile } = section;
-  if (profile === null) {
-    return false;
-  }
-  return isBelowThreshold(profile, thresholds) || isTypeNotCovered(section)
-    ? isSmallTrend(section.trend, thresholds)
-    : profile.profileConfidence === 'low';
+  return (
+    profile !== null &&
+    (isBelowThreshold(profile, thresholds) ||
+      profile.profileConfidence === 'low' ||
+      (isTypeNotCovered(section) && isSmallTrend(section.trend, thresholds)))
+  );
 }
 
 /**
- * The direction caveat of a section, always there (ALE-16, CL-ALE-03): the opposite effect
- * for a profile with a direction, possible or probable, increase and decrease alike; either
- * way below the threshold, for an inconclusive profile, and while no verdict has entered
- * (ALE-05).
+ * The direction caveat of a section, always there (ALE-16, CL-ALE-03), following its frozen
+ * verdict level: the opposite effect for a profile with a direction, possible or probable,
+ * increase and decrease alike; either way for an inconclusive profile, which every profile
+ * below the threshold is (SEN-23), and while no verdict has entered (ALE-05).
  */
-function directionCaveat(section: CaveatSection, thresholds: CaveatThresholds): Caveat {
+function directionCaveat(section: CaveatSection): Caveat {
   const { profile } = section;
-  const hasDirection =
-    profile !== null &&
-    !isBelowThreshold(profile, thresholds) &&
-    profile.verdict.level !== 'inconclusive';
+  const hasDirection = profile !== null && profile.verdict.level !== 'inconclusive';
   return {
     kind: 'effect_direction',
     eventTypeId: section.eventTypeId,
@@ -260,9 +260,10 @@ function knownContextReasons(
  * The caveats of an alert sheet (ALE-16, CL-ALE-03, CL-ALE-05, CL-ALE-13, CL-DET-07,
  * H-ALE-02, H-ALE-06, D-19, SEN-46, ADR 0016): every one that applies, none hidden, in the
  * order of ALE-16's list, each kind's in the order of the sections and events given.
- * Per section: small sample, for the measure that applies to it; the direction caveat,
- * always, in one of its two forms; an incomplete profile or one resting in part on an
- * earlier type sheet version; the type not covered, never for a calendar-derived type;
+ * Per section: small sample, of the player's profile or, for a type not covered, of the
+ * general trend; the direction caveat, always, in the form its verdict gives; an incomplete
+ * profile or one resting in part on an earlier type sheet version; the type not covered,
+ * never for a calendar-derived type;
  * the confounder warning of a switched-off criterion. Per non-dismissed detected event: a
  * detection confidence near the threshold, never for an owner's classification; the dating
  * to verify. For the sheet: the known context of its expected game and of its
@@ -280,7 +281,7 @@ export function sheetCaveats(
   const reasons = knownContextReasons(input, events);
   return [
     ...sectionCaveats(sections, 'small_sample', (section) => isSmallSample(section, thresholds)),
-    ...sections.map((section) => directionCaveat(section, thresholds)),
+    ...sections.map((section) => directionCaveat(section)),
     ...caveatIf(reasons.length > 0, { kind: 'known_context', knownContextReasons: reasons }),
     ...caveatIf(events.length > 1 || input.hasRelatedSheet, { kind: 'several_events' }),
     ...eventCaveats(events, 'confidence_near_threshold', (event) =>
