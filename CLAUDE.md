@@ -56,7 +56,8 @@ never in `src/`; `data/` holds no code. ESLint and `bun run lint:structure` enfo
    folders under `src/app`.
 6. File and folder names are kebab-case (Next.js special files and route segments such as
    `[playerId]` excepted). No default exports except where Next.js requires one. No enums: use
-   `as const` objects or unions of literals.
+   `as const` objects or unions of literals; the pure core, where lint refuses `as`, uses a typed
+   object or list instead.
 
 Files that a tool generates and the repository commits, such as the drizzle-kit migrations in
 `drizzle/`, live only in the folders listed in `scripts/generated-files.ts`. There, and nowhere
@@ -178,7 +179,8 @@ gives no difference.
   from `@/lib/env` says whether the mode is on.
 - `/api/test/*` controls the running app from the specs, in the hermetic mode only: every route
   there calls `isHermetic()` first, after `await connection()`, and answers 404 otherwise, as
-  `/api/test/ping` does. A new control is a coordinator decision.
+  `/api/test/ping` does; lint refuses a handler there that starts in any other way. A new control
+  is a coordinator decision.
 - A spec starts signed in: before the test opens a page, the `context` of `e2e/fixtures/test.ts`
   asks `/api/test/session` for a session of the owner, on an account whose password the control
   has chosen. A spec that must start without a session says `test.use({ signedIn: false })`.
@@ -223,7 +225,11 @@ and AA rules:
   submission of a form that the input made, itself or through such a handler (`requestSubmit()`,
   `submit()` or a click of a submit button). Any other departure is the app's own, such as one
   that begins after a timer or a request, even one that a handler of the input started or one of
-  a form that the input submitted before, or one that a script of the test starts.
+  a form that the input submitted before, or one that a script of the test starts. The watch
+  knows the navigation of a form that the input submitted by the `formdata` event of that
+  submission, which `new FormData(form)` fires too: a script of the app that builds one from the
+  form after the input submitted it, before the navigation starts, makes that navigation the
+  app's own, and a document that the test left unchecked then goes unreported.
 - Playwright runs the checks of point 1 only while the body of the page has a box, which the root
   layout's `min-h-dvh` gives it: a check of a loaded page reports a body that has none.
 - A page that the test opens beside its `page`, such as a popup or the page of a second browser
@@ -252,7 +258,13 @@ and AA rules:
   own lines alone, from its start to the start of the next test. So an incremental run does not
   see a change to anything else that a test runs or reads: a helper, a constant or an arbitrary
   of a test file (above its first test, say), another function of the pure core, a fixture, a
-  dependency or the configuration. After such a change, run `bun run test:mutation --force`.
+  dependency or the configuration. After such a change the incremental results are stale, and
+  the `mutation` workflow, which tests every mutant afresh, is the arbiter: a local
+  `bun run test:mutation --force`, which holds the shared lock for twenty minutes or more while
+  every other worktree waits, serves to reproduce a survivor that the workflow reports.
+- Stryker plants no mutant in the code under an `as` expression, so lint refuses one, `as const`
+  included, in the non-test files of the pure core: write a type annotation, `satisfies`, or, for
+  a list that a union type comes from, a helper such as `valuesOf`.
 - A survivor, shown in `reports/mutation/mutation.html`, is a wrong formula or check that the
   tests let through: write the test that fails on it, with exact expected values. Prompt and
   message texts are asserted exactly, which kills their string mutants.
@@ -352,7 +364,7 @@ touches it and its prefix, its letters before the first hyphen, is that of an ID
 ## The local loop
 
 - Heavy scripts (`typecheck`, `lint`, `lint:fix`, `test`, `test:coverage`, `test:mutation`,
-  `build`, `knip`, `check:changed`, `gate`) queue across worktrees on a lock with two slots in the
+  `e2e`, `build`, `knip`, `check:changed`, `gate`) queue across worktrees on a lock with two slots in the
   shared git directory: a whole-project script, every test run included, runs alone on the first,
   and a narrow one, an eslint run with paths
   (`bun scripts/with-lock.ts node_modules/.bin/eslint <paths>`), on either, so run the narrowest
@@ -410,7 +422,7 @@ CI checks come in two kinds:
   `./.github/actions/setup-project`) listed in the `needs` of `ci-ok`; its local counterpart goes
   into the `gate:ci` script, in the same order.
 - A concern with its own triggers, permissions or runtime gets its own workflow file instead, which
-  ends in one final job named after the file: the planned ones are `e2e`, `mutation`, `trace` and
+  ends in one final job named after the file: these are `e2e`, `mutation`, `trace` and
   `security`. That job always starts and always reports a result: it may finish at once when
   nothing relevant changed, but no path filter or condition ever skips it. It is a required check of
   `main`, like `ci-ok`.

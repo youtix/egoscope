@@ -7,8 +7,10 @@
  * whatever way a property is named (`value.toFixed`, `value['toFixed']`, a destructured
  * `{ toFixed }`), the methods that write a number or a date by themselves — `toFixed`,
  * `toPrecision`, `toExponential`, `toLocaleString`, `toLocaleDateString`,
- * `toLocaleTimeString` — and the number and date formats of `Intl`, `Intl.NumberFormat`
- * and `Intl.DateTimeFormat`, also read through `globalThis`. It needs no type
+ * `toLocaleTimeString` — and the number, date, relative-time and duration formats of
+ * `Intl`, `Intl.NumberFormat`, `Intl.DateTimeFormat`, `Intl.RelativeTimeFormat` and
+ * `Intl.DurationFormat`, also read through `globalThis`, whose place `formatRelative` and
+ * `formatDuration` of `@/lib/time` take for relative times and durations. It needs no type
  * information: no other value has these names.
  */
 import { AST_NODE_TYPES, ASTUtils, ESLintUtils } from '@typescript-eslint/utils';
@@ -30,8 +32,13 @@ const FORMAT_METHODS: ReadonlySet<string> = new Set([
   'toLocaleTimeString',
   'toPrecision',
 ]);
-// The number and date formats of Intl.
-const INTL_FORMATS: ReadonlySet<string> = new Set(['DateTimeFormat', 'NumberFormat']);
+// The number, date, relative-time and duration formats of Intl.
+const INTL_FORMATS: ReadonlySet<string> = new Set([
+  'DateTimeFormat',
+  'DurationFormat',
+  'NumberFormat',
+  'RelativeTimeFormat',
+]);
 
 /** Says whether `node` reads `Intl`: `Intl` itself, or `globalThis.Intl` and the like. */
 const isIntl = (node: TSESTree.Node): boolean =>
@@ -49,7 +56,7 @@ export const noAdHocFormat = createRule({
     },
     messages: {
       format:
-        '`{{shown}}` writes a number or a date by itself: write numbers with formatGap, formatIndex, formatCount or formatShare of `@/lib/wording`, and dates with formatInstant, formatDate or formatGameTime of `@/lib/time`, which follow the formats of record 0010 (IHM-13).',
+        '`{{shown}}` writes a number or a date by itself: write numbers with formatGap, formatIndex, formatCount or formatShare of `@/lib/wording`, dates with formatInstant, formatDate or formatGameTime, and relative times and durations with formatRelative or formatDuration of `@/lib/time`, which follow the formats of record 0010 (IHM-13).',
     },
     schema: [],
   },

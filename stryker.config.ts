@@ -32,8 +32,9 @@ const config = {
   // Below a 100% mutation score, the run fails. A survivor gets a better test or,
   // when no test can tell it from the code, the one comment CLAUDE.md allows.
   thresholds: { high: 100, low: 100, break: 100 },
-  // Each run records its results in INCREMENTAL_FILE, which git ignores and CI
-  // caches, and the next run tests only the mutants of what changed. First,
+  // Each local run records its results in INCREMENTAL_FILE, which git ignores, and the
+  // next tests only the mutants of what changed; CI keeps no result (mutation.yml), so
+  // there every run tests every mutant afresh. First,
   // scripts/mutation-run.ts takes out of them the mutants of code that runs when its
   // module loads, whose results Stryker cannot judge, so that every run tests them.
   incremental: true,

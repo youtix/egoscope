@@ -263,7 +263,8 @@ async function until(isDone: () => boolean): Promise<void> {
 
 /**
  * Runs the script in `root` without options, the stand-in reading `file`, and sends
- * it SIGTERM once the stand-in's first run waits.
+ * it SIGTERM once the stand-in's first run waits. A script that ends before then ends
+ * the wait too, so that the test fails at once with the script's status and output.
  */
 async function stopMutation(root: string, file: string): Promise<Outcome> {
   const child = spawn('bun', [SCRIPT], { cwd: root, env: envOf(root, file) });
@@ -274,10 +275,14 @@ async function stopMutation(root: string, file: string): Promise<Outcome> {
   child.stderr.on('data', (chunk: Buffer) => {
     output.stderr += chunk.toString();
   });
+  let hasClosed = false;
   const ended = new Promise<number | null>((resolve) => {
-    child.on('close', resolve);
+    child.on('close', (status: number | null) => {
+      hasClosed = true;
+      resolve(status);
+    });
   });
-  await until(() => existsSync(path.join(root, STAND_IN_FOLDER, 'waiting-1')));
+  await until(() => hasClosed || existsSync(path.join(root, STAND_IN_FOLDER, 'waiting-1')));
   child.kill('SIGTERM');
   const status = await ended;
   return { status, stdout: linesOf(output.stdout), stderr: linesOf(output.stderr) };

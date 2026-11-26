@@ -145,11 +145,18 @@ const NO_IMPORT_OUTSIDE_STATS_ENGINE: ImportPattern = {
   regex: String.raw`^(?!\.\.?/)`,
   message: 'The statistics core imports nothing outside itself (module rule 2).',
 };
-const NO_IMPORT_OUTSIDE_STATS_ENGINE_TESTS: ImportPattern = {
-  regex: String.raw`^(?!\.\.?/|vitest$|fast-check$|@data/)`,
+// A test of the pure core may also import its own module's barrel, to prove what the
+// module exports: as `'.'` from the module's root, as `'..'` from one of its parts.
+// Any other `'.'` or `'..'` stays refused, and `'./index'` is a useless path segment.
+const ROOT_TEST_BARREL = String.raw`\.$`;
+const PART_TEST_BARREL = String.raw`\.\.$`;
+const PURE_TEST_IMPORTS = 'vitest$|fast-check$|@data/';
+/** What a test of the statistics core may import, `barrel` being its module's barrel. */
+const statsEngineTestImports = (barrel: string): ImportPattern => ({
+  regex: String.raw`^(?!\.\.?/|${barrel}|${PURE_TEST_IMPORTS})`,
   message:
-    'The statistics core imports nothing outside itself; its tests may also import vitest, fast-check and fixtures from @data/ (module rule 2).',
-};
+    "The statistics core imports nothing outside itself; its tests may also import vitest, fast-check, fixtures from @data/ and their module's barrel, as '.' from the module's root and '..' from a part (module rule 2).",
+});
 // The exchange contracts may use zod; no other package, so that no import can
 // bring Node or DOM types (next, react…) into the pure-core type check.
 const NO_IMPORT_OUTSIDE_AI_EXCHANGE: ImportPattern = {
@@ -157,11 +164,12 @@ const NO_IMPORT_OUTSIDE_AI_EXCHANGE: ImportPattern = {
   message:
     'src/lib/ai-exchange imports nothing outside itself but zod, so that no Node or DOM type reaches the pure core (module rule 2).',
 };
-const NO_IMPORT_OUTSIDE_AI_EXCHANGE_TESTS: ImportPattern = {
-  regex: String.raw`^(?!\.\.?/|zod(?:/|$)|vitest$|fast-check$|@data/)`,
+/** What a test of the exchange contracts may import, `barrel` being its module's barrel. */
+const aiExchangeTestImports = (barrel: string): ImportPattern => ({
+  regex: String.raw`^(?!\.\.?/|zod(?:/|$)|${barrel}|${PURE_TEST_IMPORTS})`,
   message:
-    'src/lib/ai-exchange imports nothing outside itself but zod; its tests may also import vitest, fast-check and fixtures from @data/ (module rule 2).',
-};
+    "src/lib/ai-exchange imports nothing outside itself but zod; its tests may also import vitest, fast-check, fixtures from @data/ and their module's barrel, as '.' from the module's root and '..' from a part (module rule 2).",
+});
 const NO_SRC_FROM_AI_EXCHANGE: ImportPattern = {
   regex: '^@/',
   message: 'src/lib/ai-exchange imports nothing from src/ (module rule 2).',
@@ -278,6 +286,19 @@ const STATS_ENGINE_SYNTAX: readonly SyntaxRestriction[] = [
   ...PURE_SYNTAX,
   { selector: 'ImportExpression', message: PURE_MESSAGE },
   { selector: ':function[async=true], AwaitExpression', message: PURE_MESSAGE },
+];
+// Stryker does not traverse an `as` expression, so it plants no mutant in the code under
+// one; it does traverse `satisfies`, an angle-bracket assertion and a non-null assertion.
+// The tests of the pure core, which Stryker does not mutate, may still write `as const`.
+const NO_AS_EXPRESSION: SyntaxRestriction = {
+  selector: 'TSAsExpression',
+  message:
+    'Stryker plants no mutant in the code under an `as` expression, `as const` included: in the pure core, type the value with an annotation or `satisfies`, and a list that a union type comes from with a helper such as the `valuesOf` of profiles/tally.ts or src/lib/ai-exchange/conventions.ts (CLAUDE.md, "Mutation testing").',
+};
+const PURE_SOURCE_SYNTAX: readonly SyntaxRestriction[] = [...PURE_SYNTAX, NO_AS_EXPRESSION];
+const STATS_ENGINE_SOURCE_SYNTAX: readonly SyntaxRestriction[] = [
+  ...STATS_ENGINE_SYNTAX,
+  NO_AS_EXPRESSION,
 ];
 
 const NO_PROCESS_ENV: PropertyRestriction = {
@@ -421,61 +442,61 @@ const MODULE_AREAS: readonly Area[] = [
     name: 'ai-exchange',
     files: [`src/lib/ai-exchange/*.${TS}`],
     imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_MODULE],
-    syntax: PURE_SYNTAX,
+    syntax: PURE_SOURCE_SYNTAX,
   },
   {
     name: 'ai-exchange-subfolder',
     files: [`src/lib/ai-exchange/*/*.${TS}`],
     imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
-    syntax: PURE_SYNTAX,
+    syntax: PURE_SOURCE_SYNTAX,
   },
   {
     name: 'ai-exchange-tests',
     files: [`src/lib/ai-exchange/*.test.${TS}`],
-    imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE_TESTS, NO_RELATIVE_EXIT_FROM_MODULE],
+    imports: [aiExchangeTestImports(ROOT_TEST_BARREL), NO_RELATIVE_EXIT_FROM_MODULE],
     syntax: PURE_SYNTAX,
   },
   {
     name: 'ai-exchange-subfolder-tests',
     files: [`src/lib/ai-exchange/*/*.test.${TS}`],
-    imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE_TESTS, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
+    imports: [aiExchangeTestImports(PART_TEST_BARREL), NO_RELATIVE_EXIT_FROM_SUBFOLDER],
     syntax: PURE_SYNTAX,
   },
   {
     name: 'ai-exchange-index',
     files: [`src/lib/ai-exchange/index.${TS}`],
     imports: [NO_IMPORT_OUTSIDE_AI_EXCHANGE, NO_RELATIVE_EXIT_FROM_MODULE],
-    syntax: [...BARREL_SYNTAX, ...PURE_SYNTAX],
+    syntax: [...BARREL_SYNTAX, ...PURE_SOURCE_SYNTAX],
   },
   {
     name: 'stats-engine',
     files: [`src/lib/stats-engine/*.${TS}`],
     imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE, NO_RELATIVE_EXIT_FROM_MODULE],
-    syntax: STATS_ENGINE_SYNTAX,
+    syntax: STATS_ENGINE_SOURCE_SYNTAX,
   },
   {
     name: 'stats-engine-subfolder',
     files: [`src/lib/stats-engine/*/*.${TS}`],
     imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
-    syntax: STATS_ENGINE_SYNTAX,
+    syntax: STATS_ENGINE_SOURCE_SYNTAX,
   },
   {
     name: 'stats-engine-tests',
     files: [`src/lib/stats-engine/*.test.${TS}`],
-    imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE_TESTS, NO_RELATIVE_EXIT_FROM_MODULE],
+    imports: [statsEngineTestImports(ROOT_TEST_BARREL), NO_RELATIVE_EXIT_FROM_MODULE],
     syntax: STATS_ENGINE_SYNTAX,
   },
   {
     name: 'stats-engine-subfolder-tests',
     files: [`src/lib/stats-engine/*/*.test.${TS}`],
-    imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE_TESTS, NO_RELATIVE_EXIT_FROM_SUBFOLDER],
+    imports: [statsEngineTestImports(PART_TEST_BARREL), NO_RELATIVE_EXIT_FROM_SUBFOLDER],
     syntax: STATS_ENGINE_SYNTAX,
   },
   {
     name: 'stats-engine-index',
     files: [`src/lib/stats-engine/index.${TS}`],
     imports: [NO_IMPORT_OUTSIDE_STATS_ENGINE, NO_RELATIVE_EXIT_FROM_MODULE],
-    syntax: [...BARREL_SYNTAX, ...STATS_ENGINE_SYNTAX],
+    syntax: [...BARREL_SYNTAX, ...STATS_ENGINE_SOURCE_SYNTAX],
   },
 ];
 
@@ -888,6 +909,16 @@ const composed = defineConfig(
     },
   },
   {
+    // The pure core imports nothing and receives plain values, so its shared types name
+    // what a number or a string stands for (`type EpochMs = number`), which
+    // sonarjs/redundant-type-aliases cannot know. The rest of the core keeps the rule.
+    name: 'egoscope/pure-core-types',
+    files: ['src/lib/{stats-engine,ai-exchange}/types.ts'],
+    rules: {
+      'sonarjs/redundant-type-aliases': 'off',
+    },
+  },
+  {
     // The one deliberate exception to the comment bans (CLAUDE.md): mutation testing
     // covers the pure core, where a genuinely equivalent mutant may be spared by the
     // reasoned next-line form of Stryker's comment (scripts/eslint-plugin.ts), whose
@@ -990,6 +1021,16 @@ const composed = defineConfig(
       'max-nested-callbacks': ['error', { max: 2 }],
       'max-statements': ['error', { max: 6 }],
       'sonarjs/cognitive-complexity': ['error', 2],
+    },
+  },
+  {
+    // The routes that control the running app from the end-to-end specs answer in the
+    // hermetic mode only: each handler starts as /api/test/ping does (CLAUDE.md,
+    // "End-to-end tests"; scripts/eslint-hermetic-routes.ts).
+    name: 'egoscope/hermetic-test-routes',
+    files: ['src/app/api/test/**/route.ts'],
+    rules: {
+      'egoscope/hermetic-test-routes': 'error',
     },
   },
   {

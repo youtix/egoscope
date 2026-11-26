@@ -1,5 +1,5 @@
 // Proves where no-ad-hoc-format bites: in src/, tests included, outside src/lib/time and
-// src/lib/wording, for each of the eight formats and each way of naming one, and nowhere
+// src/lib/wording, for each of the ten formats and each way of naming one, and nowhere
 // else. Deliberate violations are linted in the probe project of lint-probes.ts.
 import path from 'node:path';
 
@@ -47,6 +47,14 @@ const FORMATS = [
   [
     'Intl.DateTimeFormat',
     "export const text = (at: Date): string => new Intl.DateTimeFormat('en-US', { timeZone: 'UTC' }).format(at);\n",
+  ],
+  [
+    'Intl.RelativeTimeFormat',
+    "export const text = (days: number): string => new Intl.RelativeTimeFormat('en-US').format(days, 'day');\n",
+  ],
+  [
+    'Intl.DurationFormat',
+    "export const text = (hours: number): string => new Intl.DurationFormat('en-US').format({ hours });\n",
   ],
 ] as const;
 
@@ -102,6 +110,22 @@ describe(
       [
         'a destructured format',
         "const { DateTimeFormat } = Intl;\n\nexport const text = (at: Date): string => new DateTimeFormat('en-US', { timeZone: 'UTC' }).format(at);\n",
+      ],
+      [
+        'a relative-time format read through globalThis',
+        "export const text = (days: number): string => new globalThis.Intl.RelativeTimeFormat('en-US').format(days, 'day');\n",
+      ],
+      [
+        'a destructured relative-time format',
+        "const { RelativeTimeFormat } = Intl;\n\nexport const text = (days: number): string => new RelativeTimeFormat('en-US').format(days, 'day');\n",
+      ],
+      [
+        'a duration format read through globalThis',
+        "export const text = (hours: number): string => new globalThis.Intl.DurationFormat('en-US').format({ hours });\n",
+      ],
+      [
+        'a destructured duration format',
+        "const { DurationFormat } = Intl;\n\nexport const text = (hours: number): string => new DurationFormat('en-US').format({ hours });\n",
       ],
     ])('[IHM-13] rejects %s in src/lib', async (_kind, code) => {
       expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(RULE);

@@ -328,10 +328,6 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
       ['a parsed date', "export const at = (): number => Date.parse('2026-11-10');\n"],
       ['a date string', "export const at = (): Date => new Date('2026-11-10T19:30');\n"],
       ['local calendar fields', 'export const at = (): Date => new Date(2026, 10, 10);\n'],
-      [
-        "Temporal's clock",
-        "import { Temporal } from 'temporal-polyfill';\n\nexport const now = (): number => Temporal.Now.instant().epochMilliseconds;\n",
-      ],
     ];
 
     it.each(AMBIENT)('rejects %s in src/lib', async (_kind, code) => {
@@ -371,7 +367,6 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
   });
 
   describe("no-ambient-time: only src/lib/time reads the machine's time zone", () => {
-    const TEMPORAL = "import { Temporal } from 'temporal-polyfill';\n\n";
     const ZONE_READS = [
       ['a local-time getter', 'export const hour = (at: Date): number => at.getHours();\n'],
       [
@@ -408,14 +403,6 @@ describe('comments and directives that switch a check off', { timeout: 120_000 }
       [
         'a date format whose zone may be left out',
         "export const format = (options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat => new Intl.DateTimeFormat('en-US', options);\n",
-      ],
-      [
-        'an instant parsed by Temporal',
-        `${TEMPORAL}export const at = (text: string): number => Temporal.Instant.from(text).epochMilliseconds;\n`,
-      ],
-      [
-        'a zoned date-time parsed by Temporal',
-        `${TEMPORAL}export const at = (): number => Temporal.ZonedDateTime.from('2026-11-10T19:30[America/New_York]').epochMilliseconds;\n`,
       ],
     ];
 

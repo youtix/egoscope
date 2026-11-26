@@ -286,7 +286,7 @@ function rebuild(
 ): RebuiltSeries {
   const { placed, isRebuilt } = placeGames(pairing, series.winsNeeded, hasLaterSeasonGame);
   const places = new Map<GameId, Placed>(
-    isRebuilt ? placed.map((place) => [place.game.id, place] as const) : [],
+    isRebuilt ? placed.map((place): [GameId, Placed] => [place.game.id, place]) : [],
   );
   return {
     phase: series.phase,

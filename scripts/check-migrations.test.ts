@@ -9,6 +9,11 @@ const ROOT = path.join(import.meta.dirname, '..');
 const SCHEMA = path.join('src', 'lib', 'db', 'schema');
 const FIRST_MIGRATION = path.join('drizzle', '0000_installation_and_sequence_counters.sql');
 const JOURNAL = path.join('drizzle', 'meta', '_journal.json');
+const GENERATE_AGAIN =
+  'Take drizzle/meta/ as origin/main has it, journal and snapshots (`git restore --source=origin/main --staged --worktree drizzle/meta`), delete only the .sql files of your own migrations, then run `bun run db:generate` again: never edit drizzle/meta by hand.';
+const SKIPPED = ", and Drizzle's migrator would skip it without a word.";
+const BY_HAND =
+  ': drizzle-kit numbers each migration after the one before it, so the journal was merged or edited by hand.';
 
 type Outcome = Readonly<{ status: number | null; output: string }>;
 type JournalEntry = Readonly<{ idx: number; when: number; tag: string }>;
@@ -76,8 +81,7 @@ describe('the drift check', { timeout: 120_000 }, () => {
         { idx: 1, when: 300, tag: '0001_from_main' },
         { idx: 2, when: 200, tag: '0002_from_the_branch' },
       ],
-      problem:
-        '0002_from_the_branch (idx 2, when 200) does not come after 0001_from_main (idx 1, when 300)',
+      problem: `0002_from_the_branch (idx 2, when 200) does not come after 0001_from_main (idx 1, when 300)${SKIPPED}`,
     },
     {
       order:
@@ -87,8 +91,7 @@ describe('the drift check', { timeout: 120_000 }, () => {
         { idx: 1, when: 200, tag: '0001_from_main' },
         { idx: 2, when: 200, tag: '0002_from_the_branch' },
       ],
-      problem:
-        '0002_from_the_branch (idx 2, when 200) does not come after 0001_from_main (idx 1, when 200)',
+      problem: `0002_from_the_branch (idx 2, when 200) does not come after 0001_from_main (idx 1, when 200)${SKIPPED}`,
     },
     {
       order: 'two entries of one idx, as a journal merged by hand keeps them',
@@ -97,8 +100,16 @@ describe('the drift check', { timeout: 120_000 }, () => {
         { idx: 1, when: 200, tag: '0001_from_main' },
         { idx: 1, when: 300, tag: '0001_from_the_branch' },
       ],
-      problem:
-        '0001_from_the_branch (idx 1, when 300) does not come after 0001_from_main (idx 1, when 200)',
+      problem: `0001_from_the_branch (idx 1, when 300) does not come after 0001_from_main (idx 1, when 200)${BY_HAND}`,
+    },
+    {
+      order: 'an idx that goes down while when goes up, as a journal edited by hand leaves it',
+      entries: [
+        { idx: 0, when: 100, tag: '0000_first' },
+        { idx: 2, when: 200, tag: '0002_from_main' },
+        { idx: 1, when: 300, tag: '0001_from_the_branch' },
+      ],
+      problem: `0001_from_the_branch (idx 1, when 300) does not come after 0002_from_main (idx 2, when 200)${BY_HAND}`,
     },
   ])('[TRV-76] fails on a journal out of order: $order', ({ entries, problem }) => {
     const folder = projectCopy();
@@ -108,7 +119,7 @@ describe('the drift check', { timeout: 120_000 }, () => {
 
     expect(status).toBe(1);
     expect(output).toContain(
-      `✖ db:check: the journal is out of order: ${problem}, and Drizzle's migrator would skip it without a word.`,
+      `✖ db:check: the journal is out of order: ${problem} ${GENERATE_AGAIN}\n`,
     );
   });
 
@@ -123,7 +134,7 @@ describe('the drift check', { timeout: 120_000 }, () => {
 
     expect(status).toBe(1);
     expect(output).toContain(
-      '✖ db:check: drizzle/meta/_journal.json is not a journal that drizzle-kit wrote. Take drizzle/meta/ as origin/main has it, journal and snapshots (`git restore --source=origin/main --staged --worktree drizzle/meta`), delete only the .sql files of your own migrations, then run `bun run db:generate` again: never edit drizzle/meta by hand.',
+      `✖ db:check: drizzle/meta/_journal.json is not a journal that drizzle-kit wrote. ${GENERATE_AGAIN}`,
     );
   });
 

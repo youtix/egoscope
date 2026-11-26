@@ -9,17 +9,21 @@
  * - `no-local-time`, `no-ambient-time` and `no-default-locale`, in
  *   eslint-time-rules.ts: local time in the pure core, the clock, the machine's
  *   time zone, date parsing and default locales, whose results depend on the
- *   machine.
+ *   machine, and any import of temporal-polyfill outside the time module.
  * - `no-ad-hoc-format`, in eslint-format-rule.ts: numbers and dates written by
  *   anything but the formatters of the wording and time modules (IHM-13).
  * - `module-order` and `lot-boundary`, in eslint-module-order.ts: an import of a module
  *   that comes later in the allowed order of the module map, and an import of Lot 2
  *   from the code below the lot boundary (module map, section 1.2, rules 3 and 9).
+ * - `hermetic-test-routes`, in eslint-hermetic-routes.ts: a route under /api/test/
+ *   whose handler does not start as /api/test/ping does, waiting for the request,
+ *   then answering only in the hermetic mode.
  */
 import { AST_NODE_TYPES, AST_TOKEN_TYPES, ASTUtils, ESLintUtils } from '@typescript-eslint/utils';
 import ts from 'typescript';
 
 import { noAdHocFormat } from './eslint-format-rule';
+import { hermeticTestRoutes } from './eslint-hermetic-routes';
 import { lotBoundary, moduleOrder } from './eslint-module-order';
 import { noAmbientTime, noDefaultLocale, noLocalTime } from './eslint-time-rules';
 import { contextPart, vitestNames } from './vitest-names';
@@ -366,6 +370,7 @@ const noSkippedTests = createRule({
 });
 
 const rules = {
+  'hermetic-test-routes': hermeticTestRoutes,
   'lot-boundary': lotBoundary,
   'module-order': moduleOrder,
   'no-ad-hoc-format': noAdHocFormat,

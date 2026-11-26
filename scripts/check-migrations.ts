@@ -38,6 +38,7 @@ const JOURNAL = path.join(MIGRATIONS, 'meta', '_journal.json');
 // What the check reads of the journal that drizzle-kit writes, entry by entry.
 const JOURNAL_ENTRY = z.object({ idx: z.number(), when: z.number(), tag: z.string() });
 const JOURNAL_ENTRIES = z.object({ entries: z.array(JOURNAL_ENTRY) });
+type JournalEntry = z.infer<typeof JOURNAL_ENTRY>;
 // How a conflict in the journal is resolved after a rebase (CLAUDE.md, "Database").
 const GENERATE_AGAIN =
   'Take drizzle/meta/ as origin/main has it, journal and snapshots (`git restore --source=origin/main --staged --worktree drizzle/meta`), delete only the .sql files of your own migrations, then run `bun run db:generate` again: never edit drizzle/meta by hand.';
@@ -130,6 +131,22 @@ function jsonValue(text: string): unknown {
  * each entry must come after the one before it, by `idx` and by `when`, as when
  * drizzle-kit generates the migrations one after the other.
  */
+/**
+ * Why `entry` cannot follow `previous` in the journal, if it cannot: the migrator applies
+ * a migration only when its `when` is later than that of the last one applied, and skips
+ * any other without a word; drizzle-kit numbers each migration after the one before it,
+ * so an `idx` that does not increase, while `when` does, comes from a journal merged or
+ * edited by hand.
+ */
+function disorderOf(previous: JournalEntry, entry: JournalEntry): string | undefined {
+  if (entry.when <= previous.when) {
+    return ", and Drizzle's migrator would skip it without a word.";
+  }
+  return entry.idx <= previous.idx
+    ? ': drizzle-kit numbers each migration after the one before it, so the journal was merged or edited by hand.'
+    : undefined;
+}
+
 function journalProblem(): string | undefined {
   const journal = JOURNAL_ENTRIES.safeParse(jsonValue(readFileSync(JOURNAL, 'utf8')));
   if (!journal.success) {
@@ -138,8 +155,9 @@ function journalProblem(): string | undefined {
   const { entries } = journal.data;
   for (const [index, entry] of entries.entries()) {
     const previous = entries[index - 1];
-    if (previous !== undefined && (entry.idx <= previous.idx || entry.when <= previous.when)) {
-      return `the journal is out of order: ${entry.tag} (idx ${String(entry.idx)}, when ${String(entry.when)}) does not come after ${previous.tag} (idx ${String(previous.idx)}, when ${String(previous.when)}), and Drizzle's migrator would skip it without a word. ${GENERATE_AGAIN}`;
+    const reason = previous === undefined ? undefined : disorderOf(previous, entry);
+    if (reason !== undefined && previous !== undefined) {
+      return `the journal is out of order: ${entry.tag} (idx ${String(entry.idx)}, when ${String(entry.when)}) does not come after ${previous.tag} (idx ${String(previous.idx)}, when ${String(previous.when)})${reason} ${GENERATE_AGAIN}`;
     }
   }
   return undefined;

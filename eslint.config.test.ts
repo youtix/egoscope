@@ -1,8 +1,10 @@
 // Proves that the lint policy bites: each module rule of CLAUDE.md, and the other
 // guarantees of eslint.config.ts, must reject a deliberate violation. The probes
-// run in the temporary project of scripts/lint-probes.ts. Every comment or
-// directive that would switch a check off has its probe in
-// scripts/eslint-plugin.test.ts, next to the project's own rules.
+// run in the temporary project of scripts/lint-probes.ts, whose header says where
+// the other kinds of probe live: those of the route shells beside their list, in
+// scripts/route-shells.test.ts, those of the end-to-end specs in
+// scripts/eslint-playwright.test.ts, and those of the project's own rules beside
+// each rule, every comment or directive that would switch a check off included.
 import path from 'node:path';
 
 import { afterAll, describe, expect, it } from 'vitest';
@@ -10,7 +12,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import config from './eslint.config';
 import { GENERATED_FOLDERS } from './scripts/generated-files';
 import { IGNORED_FOLDERS } from './scripts/ignored-folders';
-import { createProbes, SHELL_PROBES } from './scripts/lint-probes';
+import { createProbes } from './scripts/lint-probes';
 
 import type { Linter } from 'eslint';
 
@@ -20,6 +22,16 @@ const { project, eslint, lint, ruleIds, remove } = createProbes();
 const isGlobalIgnores = (block: Linter.Config): boolean =>
   block.ignores !== undefined &&
   Object.keys(block).every((key) => ['name', 'basePath', 'ignores'].includes(key));
+
+/** A file that imports everything `source` exports. */
+const barrelImport = (source: string): string =>
+  `import * as barrel from '${source}';\n\nexport const exported = Object.keys(barrel);\n`;
+
+/** Modules of one constant each, written with `as const`, `as` a type and `satisfies`. */
+const AS_CONST = "export const KINDS = ['played', 'entered'] as const;\n";
+const AS_TYPE = 'export const count = (value: unknown): number => value as number;\n';
+const SATISFIES =
+  "type Kind = 'played' | 'entered';\n\nexport const KIND = 'played' satisfies Kind;\n";
 
 /** A module that runs `query` on a Drizzle-like database `db`, a transaction `tx` or a Map `seen`. */
 const drizzleProbe = (query: string): string =>
@@ -186,6 +198,75 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
         'no-restricted-imports',
       );
     });
+
+    it('lets the shared types of the pure core name a plain value, which its other files may not', async () => {
+      const code = 'export type PlayerId = string;\n';
+
+      expect(await ruleIds('src/lib/ai-exchange/types.ts', code)).not.toContain(
+        'sonarjs/redundant-type-aliases',
+      );
+      expect(await ruleIds('src/lib/stats-engine/probe.ts', code)).toContain(
+        'sonarjs/redundant-type-aliases',
+      );
+    });
+
+    it.each([
+      ['src/lib/stats-engine/probe.test.ts', '.'],
+      ['src/lib/ai-exchange/probe.test.ts', '.'],
+      ['src/lib/stats-engine/performance/probe.test.ts', '..'],
+      ['src/lib/ai-exchange/research-result/probe.test.ts', '..'],
+    ])("lets %s import its own module's barrel as '%s'", async (file, source) => {
+      const rules = await ruleIds(file, barrelImport(source));
+
+      expect(rules).not.toContain('no-restricted-imports');
+      expect(rules).not.toContain('import-x/no-useless-path-segments');
+    });
+
+    it.each([
+      ['src/lib/stats-engine/probe.ts', '.'],
+      ['src/lib/ai-exchange/probe.ts', '.'],
+      ['src/lib/stats-engine/performance/probe.ts', '..'],
+      ['src/lib/stats-engine/probe.test.ts', '..'],
+      ['src/lib/ai-exchange/probe.test.ts', '..'],
+      ['src/lib/stats-engine/performance/probe.test.ts', '.'],
+    ])(
+      "refuses '%s' an import of '%s', which is not its own module's barrel or not a test",
+      async (file, source) => {
+        expect(await ruleIds(file, barrelImport(source))).toContain('no-restricted-imports');
+      },
+    );
+
+    it.each([
+      ['src/lib/stats-engine/probe.ts', 'as const', AS_CONST],
+      ['src/lib/stats-engine/performance/probe.ts', 'as const', AS_CONST],
+      ['src/lib/ai-exchange/probe.ts', 'as const', AS_CONST],
+      ['src/lib/stats-engine/probe.ts', 'as T', AS_TYPE],
+      ['src/lib/ai-exchange/probe.ts', 'as T', AS_TYPE],
+    ])(
+      'refuses in %s an expression written with %s, under which Stryker plants no mutant',
+      async (file, _form, code) => {
+        expect(await ruleIds(file, code)).toContain('no-restricted-syntax');
+      },
+    );
+
+    it.each([
+      ['src/lib/stats-engine/probe.ts', 'satisfies', SATISFIES],
+      ['src/lib/ai-exchange/probe.ts', 'satisfies', SATISFIES],
+      ['src/lib/stats-engine/probe.test.ts', 'as const', AS_CONST],
+      ['src/lib/ai-exchange/probe.test.ts', 'as const', AS_CONST],
+      ['src/lib/probe/probe.ts', 'as const', AS_CONST],
+    ])(
+      'lets %s write %s, which Stryker traverses or does not mutate there',
+      async (file, _form, code) => {
+        expect(await ruleIds(file, code)).not.toContain('no-restricted-syntax');
+      },
+    );
+
+    it("refuses './index' in a test of the pure core, a useless path segment of '.'", async () => {
+      expect(
+        await ruleIds('src/lib/stats-engine/probe.test.ts', barrelImport('./index')),
+      ).toContain('import-x/no-useless-path-segments');
+    });
   });
 
   describe('module rule 3: routes are isolated from each other', () => {
@@ -270,17 +351,17 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
     it.each([
       [
         'a static',
-        "export { gameScore } from '@/lib/stats-engine/game-score';\n",
+        "export { gameScore } from '@/lib/stats-engine/performance/game-score';\n",
         'no-restricted-imports',
       ],
       [
         'a type-only',
-        "import type { GameScoreInput } from '@/lib/stats-engine/game-score';\n\nexport type Input = GameScoreInput;\n",
+        "import type { GameScoreInput } from '@/lib/stats-engine/performance/game-score';\n\nexport type Input = GameScoreInput;\n",
         'no-restricted-imports',
       ],
       [
         'a dynamic',
-        "export const load = async (): Promise<unknown> => import('@/lib/stats-engine/game-score');\n",
+        "export const load = async (): Promise<unknown> => import('@/lib/stats-engine/performance/game-score');\n",
         'no-restricted-syntax',
       ],
     ])('rejects %s deep import into another module', async (_form, code, rule) => {
@@ -342,88 +423,6 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
     });
   });
 
-  describe('route shells stay thin', () => {
-    const page = 'export default function Page(): null {\n  return null;\n}\n';
-
-    it.each(SHELL_PROBES)('applies the shell rules to %s', async (file) => {
-      const code =
-        'export default function Shell(): null {\n  for (const item of [1]) {\n    void item;\n  }\n  return null;\n}\n';
-
-      expect(await ruleIds(file, code)).toContain('no-restricted-syntax');
-    });
-
-    it.each([
-      [
-        'a loop',
-        'export default function Page(): null {\n  for (const item of [1]) {\n    void item;\n  }\n  return null;\n}\n',
-      ],
-      [
-        'a top-level helper',
-        "const helper = (): string => 'x';\n\nexport default function Page(): string {\n  return helper();\n}\n",
-      ],
-      [
-        'an exported helper function',
-        `export function label(): string {\n  return 'x';\n}\n\n${page}`,
-      ],
-      ['an exported helper arrow', `export const label = (): string => 'x';\n\n${page}`],
-      ['a class', `export class Store {}\n\n${page}`],
-      ['an export list', `const label = 'x';\nexport { label };\n\n${page}`],
-      ['a default export that is not a function declaration', 'export default (): null => null;\n'],
-    ])('rejects %s in page.tsx', async (_kind, code) => {
-      expect(await ruleIds('src/app/probe/page.tsx', code)).toContain('no-restricted-syntax');
-    });
-
-    it('tolerates a condition and an inline callback under the caps, as CLAUDE.md says', async () => {
-      const code = [
-        'export default function Page({ names }: Readonly<{ names: readonly string[] }>): string {',
-        "  return names.length > 0 ? names.map((name) => name.trim()).join(', ') : 'none';",
-        '}',
-        '',
-      ].join('\n');
-
-      expect(await ruleIds('src/app/probe/page.tsx', code)).not.toContain('no-restricted-syntax');
-    });
-
-    it('accepts the exports that Next.js reads from page.tsx', async () => {
-      const code = [
-        "import type { Metadata } from 'next';",
-        '',
-        "export const metadata: Metadata = { title: 'Probe' };",
-        '',
-        'export function generateStaticParams(): { id: string }[] {',
-        "  return [{ id: 'one' }];",
-        '}',
-        '',
-        page,
-      ].join('\n');
-
-      expect(await ruleIds('src/app/probe/page.tsx', code)).not.toContain('no-restricted-syntax');
-    });
-
-    it.each([
-      [
-        'not-found.tsx',
-        'src/app/probe/not-found.tsx',
-        "export const viewport = { colorScheme: 'dark' };\n",
-      ],
-      ['loading.tsx', 'src/app/probe/loading.tsx', "export const metadata = { title: 'Probe' };\n"],
-    ])('rejects an export that Next.js does not read from %s', async (_kind, file, code) => {
-      expect(await ruleIds(file, `${code}\n${page}`)).toContain('no-restricted-syntax');
-    });
-
-    it('caps the complexity of every function in the file', async () => {
-      const code = [
-        'export default function Page({ a, b }: Readonly<{ a: boolean; b: boolean }>): string {',
-        "  const pick = (): string => (a ? (b ? 'ab' : 'a') : b ? 'b' : 'none');",
-        '  return pick();',
-        '}',
-        '',
-      ].join('\n');
-
-      expect(await ruleIds('src/app/probe/page.tsx', code)).toContain('complexity');
-    });
-  });
-
   describe('type-aware rules', () => {
     it.each([
       [
@@ -456,25 +455,6 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
 
       expect(await ruleIds('src/lib/probe/use-probe.ts', code)).toContain(
         'react-hooks/rules-of-hooks',
-      );
-    });
-  });
-
-  describe('end-to-end specs', () => {
-    it.each(['e2e/smoke.spec.ts', 'e2e/fixtures.ts'])(
-      'let %s import a development dependency',
-      async (file) => {
-        const code = "import { expect } from 'vitest';\n\nexport const check = expect;\n";
-
-        expect(await ruleIds(file, code)).not.toContain('import-x/no-extraneous-dependencies');
-      },
-    );
-
-    it('still keeps development dependencies out of src/', async () => {
-      const code = "import { expect } from 'vitest';\n\nexport const check = expect;\n";
-
-      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(
-        'import-x/no-extraneous-dependencies',
       );
     });
   });
