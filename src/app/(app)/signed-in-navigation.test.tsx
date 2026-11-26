@@ -38,6 +38,7 @@ function signedIn(count: number): void {
     },
   });
   getDb.mockResolvedValue({ ok: true, db: DB });
+  vi.mocked(recordDatabaseActivity).mockResolvedValue(undefined);
   vi.mocked(todoCount).mockResolvedValue(count);
 }
 
@@ -106,7 +107,7 @@ describe('SignedInNavigation', () => {
 
   it('[IHM-16] keeps the bar, without a count, when the activity record fails', async () => {
     signedIn(5);
-    vi.mocked(recordDatabaseActivity).mockRejectedValue(new Error('Connection terminated'));
+    vi.mocked(recordDatabaseActivity).mockRejectedValueOnce(new Error('Connection terminated'));
 
     await renderNavigation();
 
