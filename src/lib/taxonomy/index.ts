@@ -51,8 +51,24 @@ export type {
 
 // exploration.ts: generateExplorationPrompt, previewExplorationResponse, createFromExploration
 
-// detection-proposals.ts: receiveDetectionProposal, addOccurrence, attachAsOccurrence,
-//   detachOccurrence, eraseOccurrencesOf, proposalArticleReferences (Lot 2)
+// detection-proposals.ts (Lot 2)
+export {
+  addOccurrence,
+  attachAsOccurrence,
+  detachOccurrence,
+  eraseOccurrencesOf,
+  proposalArticleReferences,
+  receiveDetectionProposal,
+} from './detection-proposals';
+export type {
+  ArticleReference,
+  AttachRefusal,
+  DetachRefusal,
+  DetectedFact,
+  DetectionProposal,
+  EntryRefusal,
+  ReceivedFact,
+} from './detection-proposals';
 
 // queries.ts, with type-detail.ts and duplicates.ts beside it for the size limits
 export {
