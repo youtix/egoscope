@@ -282,12 +282,12 @@ export { forecastVersions } from './tracking/forecast';
 export { frozenForecast } from './tracking/forecast';
 export { isAwaitingLateForecast } from './tracking/forecast';
 export type { Forecast } from './tracking/forecast';
+export type { ForecastFreeze } from './tracking/forecast';
 export type { ForecastHistory } from './tracking/forecast';
 export type { ForecastSource } from './tracking/forecast';
 export type { ForecastVersion } from './tracking/forecast';
-export type { FrozenForecast } from './tracking/forecast';
-export type { ProfileValueVersion } from './tracking/forecast';
-export type { ThresholdChange } from './tracking/forecast';
+export type { PairValueVersion } from './tracking/forecast';
+export type { TrendValueVersion } from './tracking/forecast';
 
 // tracking/recording.ts
 export { recordingTiming } from './tracking/recording';
