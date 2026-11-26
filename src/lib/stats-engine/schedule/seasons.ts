@@ -65,14 +65,27 @@ export type SeasonSpanInput = Readonly<{
   isFinalsOver: boolean;
 }>;
 
-// A date is written `YYYY-MM-DD`: its year is its first four characters.
+// A date is written `YYYY-MM-DD`, and a season `2024-25`: the year of a date, and the
+// first year of a season, are its first four characters.
 const YEAR_LENGTH = 4;
 // A season's second year is written by its last two digits: 1999-00, 2000-01.
 const CENTURY = 100;
 
-/** The name of the season whose first year is `year`: 2024 gives `2024-25`. */
-function seasonStartingIn(year: number): string {
+/**
+ * The name of the season whose first year is `year` (STA-48, CL-STA-28): a season is
+ * named by its two years, the second written by its last two digits, so that 2024 gives
+ * `2024-25` and 1999 gives `1999-00`.
+ */
+export function seasonStartingIn(year: number): string {
   return `${String(year)}-${String((year + 1) % CENTURY).padStart(2, '0')}`;
+}
+
+/**
+ * The first year of `season` (STA-48, CL-STA-28): a season is written `2024-25`, and its
+ * first year is its first four characters, 2024.
+ */
+export function firstYearOf(season: string): number {
+  return Number(season.slice(0, YEAR_LENGTH));
 }
 
 /**

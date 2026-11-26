@@ -84,6 +84,7 @@ describe('checkLeadsAndLimitations', () => {
       lead('public-humiliation', { reason: undefined, approximatePeriod: undefined }),
       lead('public-humiliation', { description: undefined, reason: undefined }),
       lead('player-conflict', { approximatePeriod: '🏀'.repeat(MAX_LENGTH) }),
+      lead('public-humiliation', texts(201, 230, 215)),
     ];
     const checked = checkLeadsAndLimitations(
       { unverifiedLeads, declaredLimitations: [] },
@@ -98,6 +99,7 @@ describe('checkLeadsAndLimitations', () => {
         { kind: 'lead_ignored', detail: 2, length: 205, maxLength: MAX_LENGTH },
         { kind: 'lead_ignored', detail: 3 },
         { kind: 'lead_ignored', detail: 4 },
+        { kind: 'lead_ignored', detail: 6, length: 230, maxLength: MAX_LENGTH },
       ],
     });
   });

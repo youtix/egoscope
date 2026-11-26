@@ -397,15 +397,15 @@ function isExplorationText(error: ExtractJsonError): boolean {
  * the cut, which the correction message needs (IMP-21, CL-IMP-04). The result names
  * format egoscope-backtest and version 1.0; a missing format or version assumes 1.0 with
  * a warning when the structure is recognized (CL-IMP-06), and version 1 does with a
- * warning. Its covered
- * types, which must hold one of `requestedTypes`, the request's types, count each once
- * (CL-IMP-23); its covered period keeps the calendar dates of its bounds (CL-IMP-08); its
- * events are a list, maybe empty (BKT-23), whose order the warning of CL-IMP-19 checks;
- * missing leads and limitations read as empty with a warning. Identifiers, enumerated
- * values, the format and its version compare trimmed, without case or accents
- * (CL-IMP-22); a key that the format does not define is dropped, and counted in one
- * warning (IMP-16); `null` or a blank text is a missing field (CL-IMP-06). The reference
- * and the player come back as written, for the import to tie to the request (IMP-07).
+ * warning. Its covered types, which must hold one of `requestedTypes`, the request's
+ * types, count each once (CL-IMP-23); its covered period keeps the calendar dates of its
+ * bounds (CL-IMP-08); its events are a list, maybe empty (BKT-23), whose order the
+ * warning of CL-IMP-19 checks; missing leads and limitations read as empty with a
+ * warning. Identifiers, enumerated values, the format and its version compare trimmed,
+ * without case or accents (CL-IMP-22); a key that the format does not define is dropped,
+ * and counted in one warning (IMP-16); `null` or a blank text is a missing field
+ * (CL-IMP-06). The reference and the player come back as written, for the import to tie
+ * to the request (IMP-07).
  */
 export function readResult(
   pastedText: string,

@@ -7,7 +7,7 @@
 // game he misses gives a case that is not measurable (record 0015). The calendar-events
 // module turns these games into events.
 
-import { seasonOfDate } from '../schedule/seasons';
+import { firstYearOf, seasonOfDate } from '../schedule/seasons';
 import { teamGames } from '../schedule/team-membership';
 
 import type { SeasonNotRead, SeasonSpan } from '../schedule/seasons';
@@ -85,9 +85,6 @@ type Coverage = Readonly<{ ok: true; isCovered: boolean }> | SeasonNotRead;
 // teamGames lists the team games strictly after an instant: from this one, all of them.
 const FROM_THE_START = -Infinity;
 
-// A season is named by its two years, `2024-25`: its first four characters are the first.
-const YEAR_LENGTH = 4;
-
 // A birthday on 29 February falls on 28 February in a common year (CL-JOU-17).
 const FEBRUARY = 2;
 const LEAP_DAY = 29;
@@ -111,8 +108,6 @@ function isBirthday(date: IsoDate, birthday: Birthday): boolean {
     isOnLeapDay && !isLeapYear(year) ? LEAP_BIRTHDAY_IN_A_COMMON_YEAR : birthday.day;
   return month === birthday.month && day === birthdayDay;
 }
-
-const firstYearOf = (season: string): number => Number(season.slice(0, YEAR_LENGTH));
 
 /**
  * Whether every season from that of one game to that of another, both included, is

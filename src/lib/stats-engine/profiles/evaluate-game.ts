@@ -11,6 +11,7 @@ import { gameScore } from '../performance/game-score';
 import { performanceIndex } from '../performance/performance-index';
 import { classifyGame, playingTimeThreshold } from '../performance/playing-time';
 import { phaseState } from '../schedule/phase-state';
+import { firstYearOf, seasonStartingIn } from '../schedule/seasons';
 import { byScheduledStart } from '../schedule/series';
 
 import type { BaselineGame, SeasonBaseline } from '../baseline/season-baseline';
@@ -138,10 +139,6 @@ export const NO_GAME: GameFacts = {
   judgment: NOT_JUDGED,
   reviewFlags: [],
 };
-// A season is written `2024-25`: its first year is its first four characters, and its
-// second year is written by the last two digits of the year after (seasons.ts).
-const YEAR_LENGTH = 4;
-const CENTURY_DIGITS = 2;
 
 /**
  * One of his team games, from its id (CL-SEN-05): an id that is none of them is a bug of
@@ -176,8 +173,7 @@ function storedGamesOf(season: string, context: GameContext): readonly PhaseGame
 
 /** The season before `season`: `2017-18` before `2018-19`, `1999-00` before `2000-01`. */
 function previousSeasonOf(season: string): string {
-  const firstYear = Number(season.slice(0, YEAR_LENGTH)) - 1;
-  return `${String(firstYear)}-${season.slice(CENTURY_DIGITS, YEAR_LENGTH)}`;
+  return seasonStartingIn(firstYearOf(season) - 1);
 }
 
 /** His team games of `season`, of every phase, in any order. */
