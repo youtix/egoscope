@@ -220,18 +220,18 @@ describe('the current team from his games', { timeout: DATABASE_TEST_TIMEOUT_MS 
     // His games observe his trade after the addition, which no game came before.
     await ingest(playerId, 'p02', { lastDay: '2025-11-06' });
     const afterGames = await membership();
-    // Another player is added later, by an entered row of his own, with his lines of the season before.
+    // Another player is added later, by an entered row of his own.
     moveTo(noon(11, 4));
     const other = await follow('p04', '5');
-    await insertBoxScores(db, { playerId: other, source: 'p04', season: PREVIOUS_SEASON });
     const besideAnother = await membership();
-    // The sheet of his game of 11-08 is unavailable, and the owner enters a change the next day.
-    const unavailable = await scheduledGame(redstone, '2025-11-08');
-    await insertPlaceholder(playerId, unavailable.id);
     moveTo(noon(11, 9));
     await enter(playerId, '5');
-    // The lines of an older season are stored after the entry.
+    // Stored after the entry: his lines of an older season, the unavailable sheet of his
+    // game of 11-08, and the other player's lines, whose game of 11-08 is the latest of all.
     await insertBoxScores(db, { playerId, source: 'p02', season: PREVIOUS_SEASON });
+    const unavailable = await scheduledGame(redstone, '2025-11-08');
+    await insertPlaceholder(playerId, unavailable.id);
+    await insertBoxScores(db, { playerId: other, source: 'p04', season: SEASON });
     const afterEntry = await membership();
 
     expect([atAddition, afterGames, besideAnother, afterEntry]).toStrictEqual([
