@@ -12,6 +12,7 @@ import type {
   PlayerEvent,
   PlayerEventSource,
 } from '@/lib/events';
+import type { EpochMs } from '@/lib/time';
 import type { DefinitionItem } from '@/lib/ui';
 import type { ReactNode } from 'react';
 
@@ -19,7 +20,11 @@ import type { ReactNode } from 'react';
 type AnySource = PlayerEventSource | OwnerAddedSource;
 
 /** A date as written, or an instant, in the form `form` (CL-IHM-04). */
-function dateOrInstant(date: DateOrInstant, zone: string, form: 'full' | 'short'): string {
+function dateOrInstant(
+  date: Pick<DateOrInstant, 'on'> & Readonly<{ at: EpochMs | null }>,
+  zone: string,
+  form: 'full' | 'short',
+): string {
   return date.at === null ? formatDate(date.on, form) : formatInstant(date.at, zone, form);
 }
 

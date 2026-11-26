@@ -53,8 +53,9 @@ async function eventsOfEveryOrigin(db: Database) {
   await insertEventType(db);
   const request = await insertRequest(db, { playerId: player.id });
   const imported = await insertImport(db, { request });
-  const historical = async (overrides: Parameters<typeof insertHistoricalEvent>[1]['overrides']) =>
-    insertHistoricalEvent(db, { playerId: player.id, originImportId: imported.id, overrides });
+  const historical = async (
+    overrides: NonNullable<Parameters<typeof insertHistoricalEvent>[1]['overrides']>,
+  ) => insertHistoricalEvent(db, { playerId: player.id, originImportId: imported.id, overrides });
   const older = await historical({});
   const sameDay = await historical({});
   const timed = await historical({
