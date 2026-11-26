@@ -336,6 +336,21 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
 - **Why:** the status is how this source says "released"; reading the team id it keeps as his team would keep a released player's next game and his count of missed games alive (STA-26, CL-JOU-15).
 - **Owner review:** no
 
+## CL-STA-32 — The candidate search: which names, and what a close name is
+
+- **Affects:** STA-03, JOU-08, JOU-10, CA-STA-15; CL-JOU-04, CL-JOU-13 (file 01 rulings), CL-STA-29
+- **Problem:** STA-03 has the application present the candidates « homonymes et noms proches compris », and JOU-10 has the owner confirm one. Neither says which of the player's names are searched or what a close name is. As built, the search also uses a first-name-only spelling variant, which JOU-08 lists for press texts. Over up to 34 seasons, that variant makes every player with a word that starts like it a candidate.
+- **Ruling:**
+  1. The searched names are the followed player's display name and his spelling variants (kind `spelling`), never his nicknames. A spelling variant of one word is left out when the display name has several words; a display name of one word is searched as it is.
+  2. Names are compared folded, as `foldName` (`src/lib/games/directory.ts`) does: normalized as CL-JOU-13 says, then decomposed (NFD), combining marks removed and recomposed (NFC). Words are split on every character that is neither a letter nor a digit.
+  3. A stored name is close to a searched name when every word of the searched name is answered by a word of the stored name. A word is answered by a word that starts with it, or, when it has 4 letters or more (`CLOSE_WORD_MIN_LENGTH`), by a word within one substitution, insertion or deletion of it.
+  4. A candidate is found when one of its stored folded names is close to one of the searched names.
+  5. Candidates are ordered as `byRelevance` orders them: the same names first (a folded stored name equal to a searched name), then the latest season first, then the display name, then the source reference.
+  6. Invented examples: a search for "Tobias Renwick" finds "Tobias Renwick Jr.", "Tobias Renwik" and "Tobyas Renwick", and finds neither "Toby Renwick" nor "T. Renwick"; a search for "T. Renwick" finds "Tobias Renwick".
+  7. As built, `searchNamesOf` (`src/lib/games/mapping.ts`) does not leave the one-word variant out yet: a later games task (`F-followups-games`) changes it, with a test of a first-name-only variant.
+- **Why:** a spelling variant serves the detection in press texts, where a first name alone can designate the player; in a directory of every NBA player over the covered seasons, it designates hundreds of them. Folding and one edit catch accents and typing slips without matching another player's whole name.
+- **Owner review:** yes — the candidate search leaves out a one-word spelling variant of a several-word name, and counts a name as close when each word of the searched name is answered by one of its words, one that starts with it or, from 4 letters, is one letter away from it; the owner can still add the candidate's exact spelling as a variant.
+
 ## Passed to the glossary
 
 - Game statuses « prévu », « en cours », « terminé », « reporté », « annulé »; phases « saison régulière », « tournoi de qualification », « phases finales », and the baseline phase "postseason".
