@@ -1,0 +1,27 @@
+{
+  "results": [
+    {
+      "article_id": "1024",
+      "players": [
+        {
+          "player_id": "3f1c9a2e-7b4d-4e8a-9c61-2d5f8e0b7a14",
+          "validated_type_facts": [
+            {
+              "event_type": "public-humiliation",
+              "detection_confidence": 86,
+              "description": "At a press conference, team X's coach questioned player A's ability to decide a game.",
+              "novelty": "new_fact",
+              "player_event_id": null,
+              "timing_hint": null,
+              "context": { "injury_return": "unknown", "game_stakes": "unknown" },
+              "justification": "An identified coach publicly belittled the player at a press conference."
+            }
+          ],
+          "known_entry_facts": [],
+          "new_type_facts": [],
+          "calendar_facts": []
+        }
+      ]
+    }
+  ]
+}

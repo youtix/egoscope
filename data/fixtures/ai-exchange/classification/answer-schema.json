@@ -1,0 +1,146 @@
+{
+  "name": "classification_answer",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "article_id": {
+              "type": "string"
+            },
+            "players": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "player_id": {
+                    "type": "string"
+                  },
+                  "validated_type_facts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "event_type": {
+                          "type": "string"
+                        },
+                        "detection_confidence": {
+                          "type": "number"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "novelty": {
+                          "type": "string",
+                          "enum": ["new_fact", "old_fact", "known_event"]
+                        },
+                        "player_event_id": {
+                          "type": ["string", "null"]
+                        },
+                        "timing_hint": {
+                          "type": ["string", "null"]
+                        },
+                        "context": {
+                          "type": "object",
+                          "properties": {
+                            "injury_return": {
+                              "type": "string",
+                              "enum": ["yes", "no", "unknown"]
+                            },
+                            "game_stakes": {
+                              "type": "string",
+                              "enum": ["high", "normal", "unknown"]
+                            }
+                          },
+                          "required": ["injury_return", "game_stakes"],
+                          "additionalProperties": false
+                        },
+                        "justification": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "event_type",
+                        "detection_confidence",
+                        "description",
+                        "novelty",
+                        "player_event_id",
+                        "timing_hint",
+                        "context",
+                        "justification"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "known_entry_facts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "entry_id": {
+                          "type": "string"
+                        },
+                        "justification": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["entry_id", "justification"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "new_type_facts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "suggested_name": {
+                          "type": "string"
+                        },
+                        "suggested_definition": {
+                          "type": "string"
+                        },
+                        "justification": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["suggested_name", "suggested_definition", "justification"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "calendar_facts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "calendar_type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["calendar_type"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "player_id",
+                  "validated_type_facts",
+                  "known_entry_facts",
+                  "new_type_facts",
+                  "calendar_facts"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["article_id", "players"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["results"],
+    "additionalProperties": false
+  }
+}
