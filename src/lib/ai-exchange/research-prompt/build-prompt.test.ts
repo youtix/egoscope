@@ -267,15 +267,15 @@ describe('buildPrompt', () => {
       );
     });
 
-    it('[DSN-22] forbids value judgments, interpretations of feelings and forecasts', () => {
+    it('[DSN-22] forbids value judgments, interpretations of feelings or intentions and forecasts', () => {
       expect(rule('2.6')).toContain(
-        "No value judgment, no interpretation of the player's feelings, no forecast.",
+        "No value judgment, no interpretation of the player's feelings or intentions, no forecast.",
       );
     });
 
-    it('[DSN-17] [CA-DSN-06] designates every person other than the player by role, never by name', () => {
+    it('[DSN-17] [CA-DSN-06] designates every person other than the player by role, never by name, and gives no personal detail of a private person', () => {
       expect(rule('2.6')).toContain(
-        'Designate every person other than the player by role (an opponent, a teammate, a coach, an executive, a spectator, a loved one), never by name.',
+        'Designate every person other than the player by role (an opponent, a teammate, a coach, an executive, a spectator, a loved one), never by name, and say nothing of the age or any other personal detail of a loved one, a child, a spectator, an anonymous author or a complainant.',
       );
       expect(checks()).toContain(
         '- that no person other than the player is named and that no description, detail, unverified note, lead or limitation contains quotation marks;',
@@ -288,18 +288,28 @@ describe('buildPrompt', () => {
       );
     });
 
-    it('[DSN-13] [CA-DSN-05] copies no racist term and names neither the origin, skin color, nationality nor religion of the player', () => {
+    it('[DSN-13] [CA-DSN-05] copies no racist term, and no insult, racist remark or hateful message', () => {
+      expect(rule('2.6')).toContain('for racist remarks, not the terms used;');
       expect(rule('2.6')).toContain(
-        "for racist remarks, neither the terms used nor the player's origin, skin color, nationality or religion;",
+        'Summarize what was said: no quotation between quotation marks, no insult, racist remark or hateful message copied.',
       );
+    });
+
+    it("[DSN-14] [DSN-18] names none of the player's private matters, for every event", () => {
       expect(rule('2.6')).toContain(
-        'Summarize what was said: no quotation between quotation marks, no insult copied.',
+        "nothing about the player's origin, skin color, nationality, religion, opinions or beliefs, sexual orientation, love life, family, home (address or place of residence), private travel or finances;",
       );
     });
 
     it('[DSN-16] says of a legal matter only that the player is publicly implicated', () => {
       expect(rule('2.6')).toContain(
         'for a legal matter, say only that the player is publicly implicated, without the alleged facts or the other parties.',
+      );
+    });
+
+    it('[DSN-12] [DSN-13] [DSN-14] [DSN-16] [DSN-17] [DSN-18] [DSN-19] [DSN-21] [DSN-22] [DSN-24] [BKT-21] names every element of DSN-18 for every event, in the whole rule', () => {
+      expect(rule('2.6')).toBe(
+        '2.6 Discretion. Describe each event in one factual, neutral sentence, in English, of at most 200 characters: who, designated by role, did what to the player, and what kind of outlet reported it. Designate every person other than the player by role (an opponent, a teammate, a coach, an executive, a spectator, a loved one), never by name, and say nothing of the age or any other personal detail of a loved one, a child, a spectator, an anonymous author or a complainant. Summarize what was said: no quotation between quotation marks, no insult, racist remark or hateful message copied. No value judgment, no interpretation of the player\'s feelings or intentions, no forecast. No intimate detail: for a bereavement, say only that a loved one died, with no name, family relationship, cause, circumstances or funeral; for racist remarks, not the terms used; no health information (diagnosis, nature of an injury or illness, treatment, mental health); nothing about the player\'s origin, skin color, nationality, religion, opinions or beliefs, sexual orientation, love life, family, home (address or place of residence), private travel or finances; for a legal matter, say only that the player is publicly implicated, without the alleged facts or the other parties. These rules also apply to the "detail" and "unverified_note" fields, the leads and the limitations; article titles, however, are copied as published.',
       );
     });
 

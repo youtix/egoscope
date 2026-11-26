@@ -36,10 +36,10 @@ You classify press articles for Egoscope, a personal app that studies whether NB
 
 3. WORDING
 3.1 Write each description as one factual, neutral sentence, in English whatever the language of the article, of at most 200 characters: who, designated by role, did what to the player, and what kind of outlet reported it. Example: An opponent publicly says that player A is overrated; a national outlet reports it the day before the game against team X.
-3.2 Designate every person other than the player by role (an opponent, a teammate, a coach, an executive, a spectator, a loved one), never by name.
-3.3 Summarize what was said: never a quotation between quotation marks, never an insult copied.
-3.4 No value judgment, no interpretation of the player's personality or state of mind, no forecast about a game.
-3.5 No health detail and no intimate detail: no diagnosis, nature of an injury or illness, treatment or mental health; for a bereavement, only that a loved one died, with no name, family relationship, cause, circumstances or funeral; for racist remarks, neither the terms used nor the player's origin, skin color, nationality or religion; for a legal matter, only that the player is publicly implicated in a case the press reports, without the alleged facts or the identity of the other parties; nothing about family, love life, sexual orientation, home, private travel, finances, opinions or beliefs.
+3.2 Designate every person other than the player by role (an opponent, a teammate, a coach, an executive, a spectator, a loved one), never by name, and say nothing of the age or any other personal detail of a loved one, a child, a spectator, an anonymous author or a complainant.
+3.3 Summarize what was said: never a quotation between quotation marks, never an insult, a racist remark or a hateful message copied.
+3.4 No value judgment, no interpretation of the player's personality, state of mind or intentions, no forecast about a game.
+3.5 No health detail and no intimate detail: no diagnosis, nature of an injury or illness, treatment or mental health; for a bereavement, only that a loved one died, with no name, family relationship, cause, circumstances or funeral; for racist remarks, not the terms used; for a legal matter, only that the player is publicly implicated in a case the press reports, without the alleged facts or the identity of the other parties; nothing about the player's origin, skin color, nationality, religion, opinions or beliefs, sexual orientation, love life, family, home (address or place of residence), private travel or finances.
 3.6 These rules also apply to every justification, suggested name and suggested definition. A justification is one sentence that cites the criterion of the sheet that the fact meets.
 
 4. ANSWER
@@ -117,9 +117,18 @@ describe('classificationInstructions', () => {
     );
   });
 
-  it('[DSN-12] [DSN-16] [DSN-18] keeps out the funeral of a bereavement and the alleged facts and parties of a legal matter', () => {
+  it('[DSN-12] [DSN-13] [DSN-14] [DSN-15] [DSN-16] [DSN-17] [DSN-18] [DSN-21] [DSN-22] names every element of DSN-18 for every event, in rules 3.2 to 3.5', () => {
+    expect(lineOf('3.2 ')).toBe(
+      '3.2 Designate every person other than the player by role (an opponent, a teammate, a coach, an executive, a spectator, a loved one), never by name, and say nothing of the age or any other personal detail of a loved one, a child, a spectator, an anonymous author or a complainant.',
+    );
+    expect(lineOf('3.3 ')).toBe(
+      '3.3 Summarize what was said: never a quotation between quotation marks, never an insult, a racist remark or a hateful message copied.',
+    );
+    expect(lineOf('3.4 ')).toBe(
+      "3.4 No value judgment, no interpretation of the player's personality, state of mind or intentions, no forecast about a game.",
+    );
     expect(lineOf('3.5 ')).toBe(
-      "3.5 No health detail and no intimate detail: no diagnosis, nature of an injury or illness, treatment or mental health; for a bereavement, only that a loved one died, with no name, family relationship, cause, circumstances or funeral; for racist remarks, neither the terms used nor the player's origin, skin color, nationality or religion; for a legal matter, only that the player is publicly implicated in a case the press reports, without the alleged facts or the identity of the other parties; nothing about family, love life, sexual orientation, home, private travel, finances, opinions or beliefs.",
+      "3.5 No health detail and no intimate detail: no diagnosis, nature of an injury or illness, treatment or mental health; for a bereavement, only that a loved one died, with no name, family relationship, cause, circumstances or funeral; for racist remarks, not the terms used; for a legal matter, only that the player is publicly implicated in a case the press reports, without the alleged facts or the identity of the other parties; nothing about the player's origin, skin color, nationality, religion, opinions or beliefs, sexual orientation, love life, family, home (address or place of residence), private travel or finances.",
     );
   });
 
@@ -129,16 +138,10 @@ describe('classificationInstructions', () => {
     );
   });
 
-  it('[DSN-19] [DSN-20] [DSN-21] [DSN-22] [DSN-23] states the wording rules of a description, its maximum length from the parameter', () => {
+  it('[DSN-19] [DSN-20] [DSN-23] states the form of a description, its maximum length from the parameter', () => {
     const shorter = { ...DEFAULTS, maxDescriptionLength: 150 };
     expect(lineOf('3.1 ', shorter)).toBe(
       '3.1 Write each description as one factual, neutral sentence, in English whatever the language of the article, of at most 150 characters: who, designated by role, did what to the player, and what kind of outlet reported it. Example: An opponent publicly says that player A is overrated; a national outlet reports it the day before the game against team X.',
-    );
-    expect(lineOf('3.3 ')).toBe(
-      '3.3 Summarize what was said: never a quotation between quotation marks, never an insult copied.',
-    );
-    expect(lineOf('3.4 ')).toBe(
-      "3.4 No value judgment, no interpretation of the player's personality or state of mind, no forecast about a game.",
     );
   });
 
