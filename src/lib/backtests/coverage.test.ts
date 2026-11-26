@@ -489,7 +489,8 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
     it('[CL-BKT-06] gives the survivor of a merge the days covered for every merged type, under its version before the merge', async () => {
       await insertEventType(db, { id: SLUMP, name: 'Scoring slump' });
       const request = await insertRequest(db, { playerId: player });
-      await covered(request, MEDIA_STORM, SEASONS);
+      await covered(request, MEDIA_STORM, ['2023-10-24', '2024-10-31']);
+      await covered(request, FEUD, ['2025-03-01', '2025-04-30']);
       await covered(request, FEUD, ['2024-07-01', '2024-12-31']);
       await covered(request, FEUD, ['2023-01-01', '2024-03-31']);
       await covered(request, FEUD, ['2023-02-01', '2023-03-01']);
@@ -503,9 +504,9 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
       restore();
       await expect(storedPeriods(MEDIA_STORM)).resolves.toStrictEqual([
         [player, '2023-10-24', '2024-05-31', 1, 'merge', null, MERGED_AT],
-        [player, '2024-07-01', '2024-12-31', 1, 'merge', null, MERGED_AT],
+        [player, '2024-07-01', '2024-10-31', 1, 'merge', null, MERGED_AT],
       ]);
-      await expect(storedPeriods(FEUD)).resolves.toHaveLength(4);
+      await expect(storedPeriods(FEUD)).resolves.toHaveLength(5);
       await expect(storedPeriods(SLUMP)).resolves.toHaveLength(1);
     });
 
