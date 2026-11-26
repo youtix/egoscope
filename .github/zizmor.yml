@@ -22,3 +22,7 @@ rules:
       # use of ./.github/actions/setup-project moves to $/... in the same change, which
       # removes this entry too.
       - e2e.yml
+      # remote-test.yml, of the remote-test task, loads the setup action as the workflows above
+      # do. Its use of ./.github/actions/setup-project moves to $/... in the same change, which
+      # removes this entry too.
+      - remote-test.yml

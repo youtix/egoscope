@@ -1,0 +1,48 @@
+# A targeted Vitest run of a branch on a GitHub runner, where it starts within seconds and
+# takes no local lock (CLAUDE.md, "The local loop"). `bun run test:remote <path>...`
+# (scripts/remote-test.ts) dispatches it on the branch it runs from, waits for it and prints
+# the output of the tests; whoever has write access to the repository may also dispatch it by
+# hand from the Actions page. It is not a check: main never requires it and no pull request
+# waits for it (NON_CHECK_WORKFLOWS in scripts/workflow-rules.ts).
+name: Remote test
+run-name: Remote test of ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      filters:
+        description: The Vitest filters, separated by spaces, such as src/lib/time
+        required: true
+        type: string
+      coverage:
+        description: The coverage globs, separated by spaces, such as src/lib/time/** (none by default)
+        required: false
+        default: ''
+        type: string
+
+permissions: {}
+
+# One run per branch: a newer dispatch cancels the run that a stopped command left behind.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  remote-test:
+    name: remote-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      # The inputs reach the script through the environment only, never inside the script
+      # text, and the script checks them before it starts Vitest without a shell.
+      - name: Run the tests
+        env:
+          REMOTE_TEST_FILTERS: ${{ inputs.filters }}
+          REMOTE_TEST_COVERAGE: ${{ inputs.coverage }}
+        run: bun scripts/remote-test.ts --runner

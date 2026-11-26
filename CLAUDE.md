@@ -349,6 +349,12 @@ touches it and its prefix, its letters before the first hyphen, is that of an ID
   question. The lock refuses watch, UI and dev-server modes; for watch mode, run `bun x vitest`.
 - While developing, run `bun run check:changed` (format, lint and tests for what differs from
   `origin/main`, plus the whole-project type check) and targeted tests: `bun run test <path>`.
+- A targeted test run can also go to a GitHub runner, where it starts within seconds and takes no
+  lock: commit, push your branch, then run `bun run test:remote <path>…`, adding
+  `--coverage.include='src/lib/<module>/**'` for the coverage of one module. It tests the commit
+  you pushed, prints the output of the tests and exits with 0 when they pass, 1 when they fail and
+  2 when it has no result. Use it rather than wait when the lock is busy. A task whose brief holds
+  back its first push keeps to the lock until that push.
 - The coverage of one module, without the per-file thresholds of other files failing the run:
   `bun run test src/lib/<module> --coverage --coverage.include='src/lib/<module>/**'`.
 - The full gate is CI's job on every push. Run `bun run gate` locally only after changing tooling,

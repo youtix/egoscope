@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { finalJobOf, workflowViolations } from './workflow-rules';
@@ -248,5 +250,22 @@ describe('workflowViolations', () => {
 
     expect(workflowViolations(file, release, [file])).toStrictEqual([]);
     expect(problems(violations)).toContain('continue-on-error');
+  });
+
+  it('passes remote-test.yml only as a workflow that is not a check, still without continue-on-error', () => {
+    const file = '.github/workflows/remote-test.yml';
+    const text = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    const careless = text.replace(
+      '    timeout-minutes:',
+      '    continue-on-error: true\n    timeout-minutes:',
+    );
+
+    expect(workflowViolations(file, text)).toStrictEqual([]);
+    expect(problems(workflowViolations(file, text, []))).toContain(
+      'remote-test must judge the jobs it needs with `sh scripts/ci-ok.sh`',
+    );
+    expect(problems(workflowViolations(file, careless))).toContain(
+      'continue-on-error on job "remote-test"',
+    );
   });
 });
