@@ -388,4 +388,92 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       ],
     });
   });
+
+  /**
+   * The news collection at `times` in Paris, last run on 24 November at 16:00 UTC, whose
+   * handler fails at its first call, run by passes on 25 November at 16:30, 17:30 and
+   * 18:30 UTC: the handler's calls, by the pass at which each came, and the runs of the 25th.
+   */
+  const collectAfterAFailure = async (times: readonly string[]) => {
+    const { execute } = await load();
+    const calls: EpochMs[] = [];
+    const clock = fixedClock(nov(25, 16, 30));
+    const collection: ScheduledTask = {
+      ...task('news-collection', [{ kind: 'daily', times: () => times }]),
+      run: async () => {
+        calls.push(clock.now());
+        const result: TaskRunResult = calls.length === 1 ? 'failed' : 'succeeded';
+        return answer<ChunkOutcome>({ kind: 'done', result })();
+      },
+    };
+    await insertRuns([{ taskKey: 'news-collection', dueAt: nov(24, 16), result: 'succeeded' }]);
+    const restore = installFakeClock(clock);
+    try {
+      for (const at of [nov(25, 16, 30), nov(25, 17, 30), nov(25, 18, 30)]) {
+        clock.advance(at - clock.now());
+        await execute(db, [collection]);
+      }
+    } finally {
+      restore();
+    }
+    const runs = await db.select().from(taskRuns).orderBy(asc(taskRuns.id));
+    return {
+      calls,
+      runs: runs.slice(1).map(({ dueAt, startedAt, result }) => ({ dueAt, startedAt, result })),
+    };
+  };
+
+  it('[TRV-31] [CL-TRV-08] journals the earlier occurrence that a failed run stood for once its margin has passed, and catches it up at that pass', async () => {
+    // 16:00 and 17:00 in Paris, 15:00 and 16:00 UTC: the run of the 16:30 pass, due at
+    // 16:00, stands for 15:00 too, and fails; by 17:00 no run has succeeded for 15:00.
+    const { calls, runs } = await collectAfterAFailure(['16:00', '17:00']);
+    expect(calls).toStrictEqual([nov(25, 16, 30), nov(25, 17, 30)]);
+    expect(runs).toStrictEqual([
+      { dueAt: new Date(nov(25, 16)), startedAt: new Date(nov(25, 16, 30)), result: 'failed' },
+      { dueAt: new Date(nov(25, 16)), startedAt: new Date(nov(25, 17, 30)), result: 'succeeded' },
+    ]);
+    expect(await missesOf()).toStrictEqual([{ task: 'news-collection', dueAt: nov(25, 15) }]);
+    expect(await incidentsOf()).toStrictEqual([
+      { kind: 'task_not_run', causeKey: 'news-collection', isClosed: true },
+    ]);
+  });
+
+  it('[TRV-31] [CL-TRV-08] journals the occurrence that a failed catch-up run stood for once its margin has passed, and catches it up again at that pass', async () => {
+    // 10:00, 16:00 and 17:00 in Paris: the 09:00 UTC occurrence is missed, and its catch-up
+    // run at 16:30, due at 16:00, stands for 15:00 too, and fails.
+    const { calls, runs } = await collectAfterAFailure(['10:00', '16:00', '17:00']);
+    expect(calls).toStrictEqual([nov(25, 16, 30), nov(25, 17, 30)]);
+    expect(runs).toStrictEqual([
+      { dueAt: new Date(nov(25, 16)), startedAt: new Date(nov(25, 16, 30)), result: 'failed' },
+      { dueAt: new Date(nov(25, 16)), startedAt: new Date(nov(25, 17, 30)), result: 'succeeded' },
+    ]);
+    expect(await missesOf()).toStrictEqual([
+      { task: 'news-collection', dueAt: nov(25, 9) },
+      { task: 'news-collection', dueAt: nov(25, 15) },
+    ]);
+    expect(await incidentsOf()).toStrictEqual([
+      { kind: 'task_not_run', causeKey: 'news-collection', isClosed: true },
+    ]);
+  });
+
+  it('[TRV-31] [CL-TRV-08] makes the catch-up run of a task whose timed schedule has no time due at its last missed occurrence', async () => {
+    const { checkMissedRuns } = await load();
+    const linkCheck = task('link-check', [
+      { kind: 'computed', nextDueAt: answer(nov(25, 9)) },
+      { kind: 'daily', times: () => [] },
+    ]);
+    await insertRuns([{ taskKey: 'link-check', dueAt: nov(24, 6), result: 'succeeded' }]);
+    expect(await checkMissedRuns(db, [linkCheck], nov(25, 12))).toStrictEqual({
+      ok: true,
+      caughtUp: ['link-check'],
+    });
+    const runs = await db.select().from(taskRuns).orderBy(asc(taskRuns.id));
+    expect(runs.at(-1)).toMatchObject({
+      taskKey: 'link-check',
+      trigger: 'scheduled',
+      dueAt: new Date(nov(25, 9)),
+      startedAt: new Date(nov(25, 12)),
+      result: null,
+    });
+  });
 });
