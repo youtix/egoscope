@@ -23,27 +23,14 @@ const FIRST_VERSION = 1;
 const IDENTIFIER_CHECK = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LONGEST_IDENTIFIER = 50;
 const PROPERTY_RUNS = 25;
+// fast-check draws at most 10 units for a string unless it is given a size: this one reaches the 70 of the bound.
+const LONG_NAMES = 'large';
+// The longest slug before a suffix (CL-TAX-02): a name with more letters and digits is cut.
+const MAX_SLUG_LENGTH = 40;
 // Letters and digits in both cases, accents and compatibility forms, separators, and a character that has none.
-const NAME_CHARACTERS = [
-  'a',
-  'b',
-  'A',
-  'B',
-  '0',
-  '9',
-  ' ',
-  '-',
-  '_',
-  'é',
-  'É',
-  'ñ',
-  'ß',
-  '²',
-  'ﬁ',
-  '.',
-  '!',
-  '日',
-];
+const NAME_CHARACTERS = 'abAB09 -_éÉñß²ﬁ.!日'.split('');
+// Mostly letters and digits, with the two separators: a name of 60 of them holds more than 40.
+const LONG_NAME_CHARACTERS = 'aB0é²abcD9 -'.split('');
 const CO_OCCURRING_PARAM = 'sensitivity.coOccurringCasesDoubtful';
 // A name whose first 40 characters end a word: its identifier is cut there, not at 39.
 const WORDS_ENDING_AT_FORTY = 'aaaaaaaaaa bbbbbbbbbb cccccccccc ddddddd eeee';
@@ -82,6 +69,14 @@ async function twoProposals(db: Database, name: string) {
       (result) => result.ok || result.error.fields.name !== undefined,
     ),
   };
+}
+
+/** How many letters and digits `name` keeps once its accents are removed: a slug is at least that long. */
+function lettersAndDigitsOf(name: string): number {
+  return name
+    .normalize('NFKD')
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]/g, '').length;
 }
 
 /** The identifiers that pass the check but are taken, or fail it; the good ones join `taken`. */
@@ -384,16 +379,27 @@ describe('the proposals of event types', { timeout: DATABASE_TEST_TIMEOUT_MS }, 
       const seeded = await db.select({ id: eventTypes.id }).from(eventTypes);
       const seen = new Set(seeded.map(({ id }) => id));
       const unit = fc.constantFrom(...NAME_CHARACTERS);
+      // Half the names are long and mostly letters, so that most runs go past the cut for certain.
+      const longUnit = fc.constantFrom(...LONG_NAME_CHARACTERS);
+      const names = fc.oneof(
+        fc.string({ unit, maxLength: 70, size: LONG_NAMES }),
+        fc.string({ unit: longUnit, minLength: 60, maxLength: 70 }),
+      );
+      let namesPastTheCut = 0;
 
       await fc.assert(
-        fc.asyncProperty(fc.string({ unit, maxLength: 70 }), async (name) => {
+        fc.asyncProperty(names, async (name) => {
           const { ids, refusalsBlameTheName } = await twoProposals(db, name);
+          namesPastTheCut += lettersAndDigitsOf(name) > MAX_SLUG_LENGTH ? 1 : 0;
 
           expect(refusalsBlameTheName).toBe(true);
           expect(identifierProblems(ids, seen)).toStrictEqual([]);
         }),
         { numRuns: PROPERTY_RUNS * 2 },
       );
+
+      // Without this, a property that never draws a name past the cut would pass whatever the cut does.
+      expect(namesPastTheCut).toBeGreaterThan(0);
     });
   });
 
@@ -469,7 +475,7 @@ describe('the proposals of event types', { timeout: DATABASE_TEST_TIMEOUT_MS }, 
       let version = FIRST_VERSION;
 
       await fc.assert(
-        fc.asyncProperty(fc.string({ maxLength: 60 }), async (name) => {
+        fc.asyncProperty(fc.string({ maxLength: 60, size: LONG_NAMES }), async (name) => {
           const outcome = await rename(db, { typeId: id, name, version });
           version = outcome.version;
 
