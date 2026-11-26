@@ -19,7 +19,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { oneOf, timestamptz } from './builders';
-import { games } from './games';
+import { games, seasonLabel } from './games';
 import { followedPlayers } from './players';
 import { eventTypes } from './taxonomy';
 
@@ -81,7 +81,7 @@ const REFERENCE_INSTANT_ORIGINS = [
 // BaselinePhase (STA-16, STA-18, CL-STA-02).
 const BASELINE_PHASES = ['regular_season', 'postseason'] as const;
 // SeasonBaselineStatus (STA-19 to STA-22).
-const BASELINE_STATUSES = ['final', 'provisional', 'building', 'insufficient'] as const;
+export const BASELINE_STATUSES = ['final', 'provisional', 'building', 'insufficient'] as const;
 /** GapStatus (SEN-09). */
 export const GAP_STATUSES = ['provisional', 'final'] as const;
 /** VerdictChangeCause, the cause of a recalculation and of each change it records (SEN-37, CL-SEN-17). */
@@ -213,6 +213,7 @@ export const cases = pgTable(
       'cases_reference_instant_origin_check',
       oneOf(table.referenceInstantOrigin, REFERENCE_INSTANT_ORIGINS),
     ),
+    check('cases_baseline_season_check', seasonLabel(table.baselineSeason)),
     check('cases_baseline_phase_check', oneOf(table.baselinePhase, BASELINE_PHASES)),
     check('cases_baseline_status_check', oneOf(table.baselineStatus, BASELINE_STATUSES)),
     check('cases_gap_status_check', oneOf(table.gapStatus, GAP_STATUSES)),

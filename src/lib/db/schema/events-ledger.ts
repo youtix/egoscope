@@ -61,9 +61,11 @@ export const tallyExits = pgTable(
   (table) => [
     check('tally_exits_exit_reason_check', oneOf(table.exitReason, TALLY_EXIT_REASONS)),
     check('tally_exits_deletion_reason_check', oneOf(table.deletionReason, DELETION_REASONS)),
+    // A deletion has its reason, its public date and its instant; any other exit has
+    // neither the reason nor the date, whichever of the three it would carry.
     check(
       'tally_exits_deleted_check',
-      sql`(${table.exitReason} = 'deleted') = (${table.deletionReason} IS NOT NULL AND ${table.publicDateOn} IS NOT NULL AND ${table.exitedAt} IS NOT NULL)`,
+      sql`CASE WHEN ${table.exitReason} = 'deleted' THEN num_nulls(${table.deletionReason}, ${table.publicDateOn}, ${table.exitedAt}) = 0 ELSE num_nonnulls(${table.deletionReason}, ${table.publicDateOn}) = 0 END`,
     ),
     check(
       'tally_exits_dated_check',

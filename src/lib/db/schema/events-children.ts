@@ -109,6 +109,8 @@ export const eventSources = pgTable(
     spotCheckVerdict: text('spot_check_verdict', { enum: SPOT_CHECK_VERDICTS }),
   },
   (table) => [
+    // A source's place among the event's sources, from 1 (glossary, `position`).
+    check('event_sources_position_check', sql`${table.position} >= 1`),
     check(
       'event_sources_publication_precision_check',
       oneOf(table.publicationPrecision, SOURCE_PRECISIONS),
@@ -162,6 +164,7 @@ export const eventImportWarnings = pgTable(
       'event_import_warnings_source_dropped_check',
       sql`(${table.kind} = 'source_dropped') = (${table.sourceDropCause} IS NOT NULL)`,
     ),
+    check('event_import_warnings_related_position_check', sql`${table.relatedPosition} >= 1`),
     check(
       'event_import_warnings_source_position_check',
       sql`(${table.kind} IN ('source_dropped', 'source_outlet_or_title_missing')) = (${table.relatedPosition} IS NOT NULL)`,

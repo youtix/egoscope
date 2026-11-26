@@ -195,6 +195,7 @@ describe('the tables that hang off an event', { timeout: 60_000 }, () => {
     ['a time without its offset', { ...SOURCE, publicationAt: PUBLISHED_AT }, 'publication'],
     ['an offset without its time', { ...SOURCE, publicationOffsetMinutes: OFFSET }, 'publication'],
     ['a precision without a time', { ...SOURCE, publicationPrecision: 'exact' }, 'publication'],
+    ['a position of 0, before the first', { ...SOURCE, position: 0 }, 'position'],
   ] as const)('[CL-IMP-09] [CL-DET-26] refuses a source with %s', async (_case, source, check) => {
     const insert = db.insert(eventSources).values(source);
 
@@ -270,6 +271,11 @@ describe('the tables that hang off an event', { timeout: 60_000 }, () => {
       'of a missing outlet without its position',
       { kind: 'source_outlet_or_title_missing' },
       'source_position',
+    ],
+    [
+      'of a missing outlet at position 0, before the first source',
+      { kind: 'source_outlet_or_title_missing', relatedPosition: 0 },
+      'related_position',
     ],
     [
       'of another kind with a position',
