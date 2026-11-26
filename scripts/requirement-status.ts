@@ -1,12 +1,17 @@
 /**
- * The requirement status of TRV-79, docs/guide/requirement-status.md: for every
- * requirement of the French specifications, Done, Partial or Not done (the glossary's
- * `RequirementStatus`), how to verify it, and the rows of the deviations register that
- * change it, with their record. It reads what the traceability check reads, through the
- * same helpers (trace-requirements.ts): the IDs that the specs define, the test titles
- * and the waiver register.
+ * The requirement status of TRV-79: for every requirement of the French specifications,
+ * Done, Partial or Not done (the glossary's `RequirementStatus`), how to verify it, and
+ * the rows of the deviations register that change it, with their record; then, file by
+ * file, the acceptance criteria that cite no requirement, with their tests. It reads what
+ * the traceability check reads, through the same helpers (trace-requirements.ts): the IDs
+ * that the specs define, the test titles and the waiver register.
  *
- *   bun scripts/requirement-status.ts
+ *   bun run docs:status [--committed]
+ *
+ * It writes reports/requirement-status.md, which git ignores, so that a run leaves no
+ * page to commit; with `--committed`, it writes docs/guide/requirement-status.md
+ * instead, which only the Lot 1 milestone and the final release commit. The text is the
+ * same in both places, its links relative to docs/guide/.
  *
  * - Done: a test names the requirement, and a test names every acceptance criterion
  *   that cites it.
@@ -15,8 +20,9 @@
  * - Not done: neither.
  *
  * A criterion cites the requirements that its text starts with: `(JOU-04, JOU-05) Étant
- * donné…` or `**BKT-01, BKT-08** — …`. The trace workflow writes the page on every run
- * and uploads it; only the Lot 1 milestone and the final release commit it.
+ * donné…` or `**BKT-01, BKT-08** — …`; one that starts with none counts for no
+ * requirement. The trace workflow writes the page on every run, to reports/, and uploads
+ * it.
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,11 +43,14 @@ import type { TracedId } from './trace-rules';
 import type { RegisterEntry } from './waiver-register';
 import type { StatusValue } from '@/lib/wording';
 
+/** The committed place of the page, which its links start from wherever it is written. */
 export const STATUS_PATH = 'docs/guide/requirement-status.md';
+/** Where a run writes the page without `--committed`: a folder that git ignores. */
+export const REPORT_PATH = 'reports/requirement-status.md';
 export const DEVIATIONS_PATH = 'docs/engineering/spec-deviations.md';
 
 /** What the generator reads and writes: the files of the repository and the console. */
-type StatusIo = Pick<TraceIo, 'paths' | 'read' | 'write' | 'info'>;
+type StatusIo = Pick<TraceIo, 'paths' | 'read' | 'write' | 'info' | 'error'>;
 
 type Status = StatusValue<'RequirementStatus'>;
 
@@ -58,6 +67,11 @@ type RequirementRow = Readonly<{
 }>;
 
 const STATUSES: readonly Status[] = ['done', 'partial', 'not_done'];
+const COMMITTED = '--committed';
+const USAGE = 'Usage: bun scripts/requirement-status.ts [--committed]';
+const EXIT_WRITTEN = 0;
+const EXIT_USAGE = 2;
+const UNCITED_HEADING = '### Criteria that cite no requirement';
 // The columns of a table of the deviations register: ID, what the spec says, what we do
 // instead, kind, record.
 const DEVIATION_COLUMNS = 5;
@@ -81,11 +95,15 @@ const INTRODUCTION = [
   'Each requirement lists the tests that name it or its criteria, with their file and title, its',
   'entries in the waiver register, and the rows of the',
   '[deviations register](../engineering/spec-deviations.md) that change it, with their record.',
+  'Under each specification file, after its requirements, "Criteria that cite no requirement" lists',
+  'with their tests the acceptance criteria whose text starts with no requirement, so that no',
+  "requirement's status counts them.",
   '',
-  'This page is generated, so never edit it by hand: `bun run docs:generate` writes it from the',
-  'specifications, the test titles and the two registers. The trace workflow uploads it as the',
-  '`requirement-status` artifact of every run, and the repository commits it only at the Lot 1',
-  'milestone and the final release.',
+  'This page is generated, so never edit it by hand: `bun run docs:status` writes it from the',
+  'specifications, the test titles and the two registers to `reports/requirement-status.md`, which',
+  'git ignores. The trace workflow uploads it as the `requirement-status` artifact of every run, and',
+  'only the Lot 1 milestone and the final release commit it, to `docs/guide/requirement-status.md`,',
+  'with `bun run docs:status --committed`.',
   '',
 ];
 
@@ -178,6 +196,20 @@ function verificationLines(id: TracedId): readonly string[] {
   return [...entry, ...tests, ...none];
 }
 
+/**
+ * The criteria of the specs, in their order, that cite no requirement of the specs, so
+ * count for no requirement's status (TRV-79).
+ */
+function uncitedCriteria(specs: SpecIds, traced: readonly TracedId[]): readonly TracedId[] {
+  const byId = new Map(traced.map((each) => [each.id, each]));
+  const requirements = new Set(specs.requirements.map((requirement) => requirement.id));
+  return specs.criteria.flatMap((criterion) => {
+    const tracedCriterion = byId.get(criterion.id);
+    const hasCitedRequirement = citedBy(criterion.text).some((cited) => requirements.has(cited));
+    return tracedCriterion === undefined || hasCitedRequirement ? [] : [tracedCriterion];
+  });
+}
+
 function requirementSection(row: RequirementRow): readonly string[] {
   const deviations = row.deviations.map(
     (deviation) =>
@@ -192,10 +224,25 @@ function requirementSection(row: RequirementRow): readonly string[] {
   ];
 }
 
-function fileSection(file: string, rows: readonly RequirementRow[]): readonly string[] {
+function uncitedSection(criteria: readonly TracedId[]): readonly string[] {
+  return criteria.length === 0
+    ? []
+    : [UNCITED_HEADING, '', ...criteria.flatMap((criterion) => verificationLines(criterion)), ''];
+}
+
+function fileSection(
+  file: string,
+  rows: readonly RequirementRow[],
+  uncited: readonly TracedId[],
+): readonly string[] {
   const name = path.posix.basename(file);
   const link = path.posix.relative(path.posix.dirname(STATUS_PATH), file);
-  return [`## [${name}](${link})`, '', ...rows.flatMap((row) => requirementSection(row))];
+  return [
+    `## [${name}](${link})`,
+    '',
+    ...rows.flatMap((row) => requirementSection(row)),
+    ...uncitedSection(uncited),
+  ];
 }
 
 /** The count of each status, lot by lot. */
@@ -219,7 +266,8 @@ function summary(rows: readonly RequirementRow[]): readonly string[] {
 /**
  * The requirement status page of the repository that `io` reads, formatted as Prettier
  * formats Markdown (TRV-79): every requirement ID of the specs with its status, its tests
- * or waiver, and the deviations that change it, with their record.
+ * or waiver, and the deviations that change it, with their record, and every criterion
+ * that cites no requirement, with its tests or waiver.
  */
 export async function requirementStatus(io: Pick<StatusIo, 'paths' | 'read'>): Promise<string> {
   const specs = readSpecIds(
@@ -241,24 +289,45 @@ export async function requirementStatus(io: Pick<StatusIo, 'paths' | 'read'>): P
   );
   const rows = requirementRows(specs, trace.ids, readDeviations(io.read(DEVIATIONS_PATH)));
   const files = Map.groupBy(rows, (row) => row.requirement.file);
+  const uncited = Map.groupBy(uncitedCriteria(specs, trace.ids), (criterion) => criterion.file);
   const markdown = [
     ...INTRODUCTION,
     ...summary(rows),
-    ...Array.from(files, ([file, ofFile]) => fileSection(file, ofFile)).flat(),
+    ...Array.from(files, ([file, ofFile]) =>
+      fileSection(file, ofFile, uncited.get(file) ?? []),
+    ).flat(),
   ].join('\n');
   const options = await resolveConfig(STATUS_PATH);
   return format(markdown, { ...options, filepath: STATUS_PATH });
 }
 
-/** Writes docs/guide/requirement-status.md from the repository that `io` reads (TRV-79). */
-export async function writeRequirementStatus(io: StatusIo): Promise<void> {
-  io.write(STATUS_PATH, await requirementStatus(io));
-  io.info(`Wrote ${STATUS_PATH}.`);
+/** Where the arguments `args` send the page, or undefined when they are not understood. */
+function outputOf(args: readonly string[]): string | undefined {
+  if (args.length === 0) {
+    return REPORT_PATH;
+  }
+  return args.length === 1 && args[0] === COMMITTED ? STATUS_PATH : undefined;
+}
+
+/**
+ * Writes the requirement status of the repository that `io` reads (TRV-79): to
+ * reports/requirement-status.md, or with `--committed` to docs/guide/requirement-status.md,
+ * and returns the exit code: 2 for any other argument, which writes nothing.
+ */
+export async function runRequirementStatus(args: readonly string[], io: StatusIo): Promise<number> {
+  const output = outputOf(args);
+  if (output === undefined) {
+    io.error(`Unexpected arguments: ${args.join(' ')}\n${USAGE}`);
+    return EXIT_USAGE;
+  }
+  io.write(output, await requirementStatus(io));
+  io.info(`Wrote ${output}.`);
+  return EXIT_WRITTEN;
 }
 
 if (
   process.argv[1] !== undefined &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  await writeRequirementStatus(systemIo());
+  process.exitCode = await runRequirementStatus(process.argv.slice(2), systemIo());
 }

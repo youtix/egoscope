@@ -19,7 +19,9 @@ import type { MigrationError } from '@/lib/db';
 function explain(error: MigrationError): string {
   switch (error.kind) {
     case 'database-not-configured': {
-      return 'DATABASE_URL and DATABASE_URL_UNPOOLED must both be set for Production in Vercel.';
+      // A production deployment without both strings stops at the validation of the
+      // environment first ("the server environment is invalid"), so this is a bug.
+      return 'the database layer found no connection string although the environment was valid, which is a bug: report it.';
     }
     case 'migration-failed': {
       return `the migrations could not be applied, and the structure is unchanged: ${error.reason}`;

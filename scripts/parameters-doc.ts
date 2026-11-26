@@ -8,8 +8,9 @@
  *
  *   bun --no-env-file --conditions=react-server scripts/parameters-doc.ts
  *
- * `bun run docs:generate` runs it, and parameters-doc.test.ts fails when the committed
- * page no longer matches the registry.
+ * `bun run docs:parameters` runs it alone (and `bun run docs:generate` with the requirement
+ * status), and parameters-doc.test.ts fails when the committed page no longer matches the
+ * registry.
  */
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -39,7 +40,7 @@ const INTRODUCTION = [
   'confirmed. The owner changes them on the parameters screen; a Lot 2 parameter shows there once',
   'Lot 2 runs.',
   '',
-  'This page is generated, so never edit it by hand: `bun run docs:generate` writes it from the',
+  'This page is generated, so never edit it by hand: `bun run docs:parameters` writes it from the',
   'parameter registry, and a test fails when it no longer matches.',
   '',
 ];
