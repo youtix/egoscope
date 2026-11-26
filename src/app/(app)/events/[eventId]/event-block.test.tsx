@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import axe from 'axe-core';
-import { and, eq, inArray, or } from 'drizzle-orm';
+import { and, eq, gt, inArray, or } from 'drizzle-orm';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import {
@@ -52,6 +52,8 @@ const NEW_YORK_OFFSET_MINUTES = -300;
 const FIRST_CORRECTION = new Date(Date.UTC(2024, 10, 21, 9));
 const SECOND_CORRECTION = new Date(Date.UTC(2024, 10, 21, 10, 15));
 const FORMER_TEAM = 'former-team';
+// The second invented player moves from team 2 to team 3 on 3 November 2025.
+const TRADE = new Date(Date.UTC(2025, 10, 3));
 
 /** A database of the test's own, which the block reaches through `getDb()`. */
 async function servedDatabase(): Promise<Database> {
@@ -257,6 +259,10 @@ describe('EventBlock of a calendar-derived event', { timeout: DATABASE_TEST_TIME
   it('[IHM-67] [CA-VUE-04] [CL-IHM-21] [CL-VUE-15] shows the derived game and the basis of the derivation in place of sources, with only the context to correct', async () => {
     const db = await servedDatabase();
     const { player, event, tracked } = await birthdayEvent(db);
+    await db
+      .update(events)
+      .set({ injuryReturn: 'yes', injuryReturnOrigin: 'user' })
+      .where(eq(events.id, event.id));
     await insertCorrections(db, [
       {
         playerEventId: event.id,
@@ -276,10 +282,10 @@ describe('EventBlock of a calendar-derived event', { timeout: DATABASE_TEST_TIME
       ['Sheet version', '1'],
       ['Origin', 'Derived from the calendar'],
       ['Reference date', 'Monday 26 October 2026, before tip-off'],
-      ['Description', 'DESCRIPTION'],
+      ['Description', 'The player plays on his birthday.'],
       ['Derived game', 'Tuesday 27 October 2026, 00:30 Paris time — Monday evening in the US'],
-      ['Opponent', 'OPPONENT'],
-      ['Home or away', 'VENUE'],
+      ['Opponent', 'Redstone Comets'],
+      ['Home or away', 'Home'],
       ['Basis of the derivation', 'His recorded birthday, 26 October'],
       ['Return from injury', 'Yes (origin: You)'],
       ['Game stakes', 'Unknown'],
@@ -331,7 +337,7 @@ describe('EventBlock of a calendar-derived event', { timeout: DATABASE_TEST_TIME
     const [game] = await db
       .select({ id: games.id, on: games.gameDayOn })
       .from(games)
-      .where(and(withComets, withLynx, inArray(games.season, ['2025-26'])))
+      .where(and(withComets, withLynx, gt(games.scheduledStartAt, TRADE)))
       .orderBy(games.scheduledStartAt);
     const [event] = await db
       .insert(events)
@@ -409,7 +415,7 @@ describe('EventBlock of a detected event', { timeout: DATABASE_TEST_TIMEOUT_MS }
       ['Origin', 'Detected'],
       ['Reference date', 'Wednesday 20 November 2024, 19:30 Paris time'],
       ['Precision', 'Approximate'],
-      ['Description', 'DESCRIPTION'],
+      ['Description', 'Every outlet covered the player on the same day.'],
       ['Return from injury', 'Unknown'],
       ['Game stakes', 'Unknown'],
       ['Case', 'Not in a case yet'],
