@@ -359,21 +359,49 @@ describe('applyCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     await expect(correctionValues(historical.id)).resolves.toStrictEqual([['sources', null, null]]);
   });
 
-  it('[IMP-32] refuses a change of player of a historical event, and refuses every field of a detected event until its own branch exists', async () => {
+  it('[IMP-32] [DET-47] refuses a change of player or a detected-event field of a historical event, and a historical field of a detected event', async () => {
     const detected = await insertDetectedEvent(db, { playerId });
 
     await expect(
-      correct(historical, { playerId, researchConfidence: 'low' }),
+      correct(historical, {
+        playerId,
+        researchConfidence: 'low',
+        reference: { at: TIMED_AT, precision: 'exact', rule: 'earliest_source' },
+        detectionConfidence: null,
+        classificationOrigin: 'user',
+        detachedArticle: 'reference_article',
+        mergedEventId: detected.id,
+      }),
     ).resolves.toStrictEqual({
       ok: false,
-      error: { kind: 'not_correctable', fields: ['player'] },
+      error: {
+        kind: 'not_correctable',
+        fields: [
+          'player',
+          'reference_date',
+          'detection_confidence',
+          'classification_origin',
+          'article_detached',
+          'event_merged_in',
+        ],
+      },
     });
     await expect(
-      correct(detected, { description: 'A new sentence.', gameStakes: 'high' }),
+      correct(detected, {
+        publicDate: { on: toIsoDate('2024-11-21'), at: null },
+        description: 'A new sentence.',
+        sources: [source(KEPT_LINK, '2024-11-20')],
+        researchConfidence: 'high',
+        unverifiedNote: 'Nothing to add.',
+      }),
     ).resolves.toStrictEqual({
       ok: false,
-      error: { kind: 'not_correctable', fields: ['description', 'game_stakes'] },
+      error: {
+        kind: 'not_correctable',
+        fields: ['reference_date', 'sources', 'research_confidence', 'unverified_note'],
+      },
     });
+    expect(await correctionsOf(detected.id)).toStrictEqual([]);
   });
 
   describe('of a calendar-derived event', () => {

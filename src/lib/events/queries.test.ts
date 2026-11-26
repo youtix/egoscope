@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createTestDatabase } from '@/lib/db';
+import { createTestDatabase, eventSources } from '@/lib/db';
 import {
   BIRTHDAY,
   DATABASE_TEST_TIMEOUT_MS,
@@ -17,11 +17,18 @@ import { fixedClock, installFakeClock, toEpochMs, toIsoDate } from '@/lib/time';
 
 import { createCalendarDerived, createHistorical } from './create';
 import { eventsOfPlayer, getEvent } from './queries';
+import { setDetectedStatus } from './status';
 
 import type { NewHistoricalEvent } from './create';
+import type { ContextIndication } from './views';
 import type { Database } from '@/lib/db';
 
 const START = toEpochMs(Date.UTC(2026, 10, 25, 9, 0));
+// A source the owner gave as a date alone is timed at the end of that day at UTC−12, with
+// no offset (CL-DET-26); one given with its time and zone keeps the zone's offset.
+const DATE_ONLY_AT = toEpochMs(Date.UTC(2026, 10, 24, 11, 59, 59, 999));
+const ZONED_AT = toEpochMs(Date.UTC(2026, 10, 24, 20, 30));
+const NEW_YORK_OFFSET = -300;
 
 /** A historical media storm of `playerId` described by `description`, with one source named after it. */
 function historical(playerId: string, description: string): NewHistoricalEvent {
@@ -121,11 +128,75 @@ describe('the reads of events', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ]);
   });
 
-  it('[DSN-06] gives detected events only once Lot 2 adds their view', async () => {
+  it('[DSN-06] [DET-44] [DET-48] [CL-DET-26] gives a dismissed detected event with its reason, its marks, its status changes and the sources the owner added, timed with or without a zone', async () => {
     const detected = await insertDetectedEvent(db, { playerId: second });
+    const ownerSources = [
+      { on: '2026-11-23', at: DATE_ONLY_AT, offsetMinutes: null, precision: 'approximate' },
+      { on: '2026-11-24', at: ZONED_AT, offsetMinutes: NEW_YORK_OFFSET, precision: 'exact' },
+    ] as const;
+    await db.insert(eventSources).values(
+      ownerSources.map(({ on, at, offsetMinutes, precision }, index) => ({
+        playerEventId: detected.id,
+        position: index + 1,
+        url: `https://daily.example.test/${on}`,
+        cleanedUrl: `https://daily.example.test/${on}`,
+        outlet: 'Daily',
+        title: null,
+        publicationDateOn: on,
+        publicationAt: new Date(at),
+        publicationOffsetMinutes: offsetMinutes,
+        publicationPrecision: precision,
+      })),
+    );
+    await db.transaction(async (tx) =>
+      setDetectedStatus(tx, detected.id, {
+        kind: 'dismiss',
+        dismissal: { reason: 'old_fact' },
+        expectedVersion: 1,
+      }),
+    );
+    await db.transaction(async (tx) =>
+      setDetectedStatus(tx, detected.id, {
+        kind: 'set_mark',
+        mark: 'description_to_review',
+        expectedVersion: 2,
+      }),
+    );
     const otherEvents = await eventsOfPlayer(db, second);
 
-    expect(await getEvent(db, detected.id)).toBeNull();
-    expect(otherEvents.map(({ origin }) => origin)).toStrictEqual(['historical']);
+    expect(await getEvent(db, detected.id)).toMatchObject({
+      origin: 'detected',
+      detectedStatus: 'dismissed',
+      dismissal: { reason: 'old_fact', comment: null, at: START },
+      marks: [{ mark: 'description_to_review', status: 'set', setAt: START, liftedAt: null }],
+      statusChanges: [{ changedAt: START, toStatus: 'dismissed', dismissalReason: 'old_fact' }],
+      sources: [
+        {
+          position: 1,
+          publicationDate: { on: '2026-11-23', at: DATE_ONLY_AT, offsetMinutes: null },
+          publicationPrecision: 'approximate',
+        },
+        {
+          position: 2,
+          publicationDate: { on: '2026-11-24', at: ZONED_AT, offsetMinutes: NEW_YORK_OFFSET },
+          publicationPrecision: 'exact',
+        },
+      ],
+    });
+    expect(otherEvents.map(({ origin }) => origin)).toStrictEqual(['historical', 'detected']);
+  });
+
+  it('[DSN-07] [H-09] types a known context indication with its origin, as the row checks hold it', () => {
+    type Indicated = 'yes' | 'no' | 'unknown';
+    // @ts-expect-error -- a known value always comes with its origin.
+    const originless: ContextIndication<Indicated> = { value: 'yes', origin: null };
+    const known: ContextIndication<Indicated> = { value: 'yes', origin: 'user' };
+    const unknown: ContextIndication<Indicated> = { value: 'unknown', origin: null };
+
+    expect([originless, known, unknown].map(({ origin }) => origin)).toStrictEqual([
+      null,
+      'user',
+      null,
+    ]);
   });
 });

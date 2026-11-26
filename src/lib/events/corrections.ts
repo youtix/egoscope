@@ -8,12 +8,14 @@ import { now } from '@/lib/time';
 
 import {
   checkChanges,
+  checkDetectedChanges,
   columnChanges,
-  contextValue,
-  CORRECTABLE,
-  givenFields,
+  isTraced,
+  refusedFields,
+  structuredValue,
 } from './correction-fields';
 import { plannedSources, saveSources } from './correction-sources';
+import { detectedColumnChanges } from './status';
 
 import type { CorrectedField, CorrectionFieldErrors, EventChanges } from './correction-fields';
 import type { EventRow, NewEventRow } from './types';
@@ -38,23 +40,29 @@ type EventSet = Partial<NewEventRow>;
 const NO_LONGER_EXISTS: NoLongerExists = { kind: 'no_longer_exists' };
 
 /**
- * The correction rows of `fields` at `at`: values before and after only for a
- * calendar-derived event's context, never for a historical event nor a free text (IMP-32,
- * CL-DSN-15, CL-DSN-20).
+ * Writes the correction rows of the traced `fields`: values before and after only for the
+ * structured fields of a detected or calendar-derived event, never for a historical event,
+ * a free text, the sources or an action (IMP-32, DET-52, CL-DSN-15, CL-DSN-20).
  */
-function correctionRows(
-  before: EventRow,
-  after: EventRow,
+async function writeCorrections(
+  tx: Transaction,
+  states: Readonly<{ before: EventRow; after: EventRow }>,
   fields: readonly CorrectedField[],
-): (typeof eventCorrections.$inferInsert)[] {
-  const isKeepingValues = before.origin === 'calendar';
-  return fields.map((field) => ({
-    playerEventId: before.id,
-    correctedAt: after.updatedAt,
-    field,
-    beforeValue: isKeepingValues ? contextValue(before, field) : null,
-    afterValue: isKeepingValues ? contextValue(after, field) : null,
-  }));
+): Promise<void> {
+  const { before, after } = states;
+  const isKeepingValues = before.origin !== 'historical';
+  const rows = fields
+    .filter((field) => isTraced(field))
+    .map((field) => ({
+      playerEventId: before.id,
+      correctedAt: after.updatedAt,
+      field,
+      beforeValue: isKeepingValues ? structuredValue(before, field) : null,
+      afterValue: isKeepingValues ? structuredValue(after, field) : null,
+    }));
+  if (rows.length > 0) {
+    await tx.insert(eventCorrections).values(rows);
+  }
 }
 
 /** The columns that `changes` set together, with the instant of the change. */
@@ -76,6 +84,7 @@ async function save(
   const sources = await plannedSources(tx, event.id, correction.sources);
   const changes = [
     ...columnChanges(event, correction, version),
+    ...detectedColumnChanges(event, correction),
     ...(sources === null ? [] : [{ field: 'sources' as const, set: {} }]),
   ];
   if (changes.length === 0) {
@@ -94,7 +103,7 @@ async function save(
     await saveSources(tx, sources, { eventId: event.id, at });
   }
   const fields = changes.map((change) => change.field);
-  await tx.insert(eventCorrections).values(correctionRows(event, updated.value, fields));
+  await writeCorrections(tx, { before: event, after: updated.value }, fields);
   return ok({ event: updated.value, changed: fields });
 }
 
@@ -106,11 +115,14 @@ async function save(
  * description and an unverified note under the length and quotation-mark rules of their
  * creation (DSN-20, DSN-21), sources whose corrected or added links lose their check
  * (CL-IMP-25), its context and its research confidence; a calendar-derived event its
- * context alone, never its type, player or date (ADR 0015, CL-IHM-21). Writes one
- * correction row per field changed with its instant, keeping values before and after only
- * of a calendar-derived event's context, never of a historical event nor a free text
- * (IMP-32, CL-DSN-15, CL-DSN-20). A detected event is refused until its own branch, with
- * the values of DET-52, exists.
+ * context alone, never its type, player or date (ADR 0015, CL-IHM-21); a detected event
+ * its type, its player, its description and context, its reference instant, precision
+ * and rule, later only once its reference article is detached, its detection confidence
+ * and classification origin, and the detached article or merged event it traces (DET-31,
+ * DET-47, DET-53, CL-DET-07, CL-DET-27). Writes one correction row per traced field
+ * changed with its instant, keeping values before and after only of the structured fields
+ * of a detected or calendar-derived event, never of a historical event, a free text, the
+ * sources or an action (IMP-32, DET-52, CL-DSN-15, CL-DSN-20).
  */
 export async function applyCorrection(
   tx: Transaction,
@@ -124,13 +136,13 @@ export async function applyCorrection(
   if (event.rowVersion !== correction.expectedVersion) {
     return err(changedElsewhere(event));
   }
-  const allowed = CORRECTABLE[event.origin];
-  const refused = givenFields(correction).filter((field) => !allowed.includes(field));
+  const refused = refusedFields(correction, event.origin);
   if (refused.length > 0) {
     return err({ kind: 'not_correctable', fields: refused });
   }
-  const { fields, version } = await checkChanges(tx, correction);
+  const checked = await checkChanges(tx, correction);
+  const fields = { ...checked.fields, ...(await checkDetectedChanges(tx, event, correction)) };
   return Object.keys(fields).length > 0
     ? err({ kind: 'invalid_fields', fields })
-    : save(tx, event, { correction, version });
+    : save(tx, event, { correction, version: checked.version });
 }

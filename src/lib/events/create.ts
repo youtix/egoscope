@@ -9,10 +9,9 @@ import { err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
 import { sentence } from '@/lib/wording';
 
-import { calendarEventOf } from './queries';
 import { insertSourceRows, putInSourceOrder, sourceRows, timeColumns } from './sources';
+import { calendarEventOf } from './views';
 
-import type { CalendarDerivedEvent, ContextIndications } from './queries';
 import type { DateOrInstant, NewSource, SourceAddition } from './sources';
 import type {
   EventImportWarningRow,
@@ -20,6 +19,7 @@ import type {
   NewEventImportWarningRow,
   NewEventRow,
 } from './types';
+import type { CalendarDerivedEvent, ContextIndications } from './views';
 import type { TextRuleBreach } from '@/lib/ai-exchange';
 import type { Transaction } from '@/lib/db';
 import type { Result } from '@/lib/result';
@@ -112,8 +112,12 @@ export type NewCalendarDerivedEvent = Readonly<{
 /** A calendar-derived event, and whether this call created it or found it recorded. */
 export type CalendarCreation = Readonly<{ playerEvent: CalendarDerivedEvent; created: boolean }>;
 
-/** The refusal of `text` by the wording rules under `maxLength`, or null when it passes. */
-function refusalOf(text: string | null, field: CheckedText, maxLength: number): TextRefusal | null {
+/** The refusal of `text` by the wording rules under `maxLength`, or null when it passes (DSN-20, DSN-21, CL-DSN-03). */
+export function refusalOf(
+  text: string | null,
+  field: CheckedText,
+  maxLength: number,
+): TextRefusal | null {
   const breaches = text === null ? [] : checkText(text, maxLength);
   return breaches.length === 0 ? null : { kind: 'text_refused', field, breaches };
 }
@@ -135,7 +139,13 @@ function firstRefusal(
 }
 
 /** The columns of the context indications, each with its origin (DSN-07, H-09). */
-function contextColumns({ injuryReturn, gameStakes }: ContextIndications) {
+export function contextColumns({
+  injuryReturn,
+  gameStakes,
+}: ContextIndications): Pick<
+  NewEventRow,
+  'injuryReturn' | 'injuryReturnOrigin' | 'gameStakes' | 'gameStakesOrigin'
+> {
   return {
     injuryReturn: injuryReturn.value,
     injuryReturnOrigin: injuryReturn.origin,
@@ -225,6 +235,19 @@ function withSourceIds(
 }
 
 /**
+ * Refuses, as a bug of the caller, an event without a source: DSN-06 gives every event
+ * one source or more, and the import refuses a sourceless one at validation (IMP-14).
+ */
+function requireSources(batch: readonly NewHistoricalEvent[]): void {
+  const sourceless = batch.findIndex((event) => event.sources.length === 0);
+  if (sourceless !== -1) {
+    throw new RangeError(
+      `The event of the import at the index ${String(sourceless)} has no source, which DSN-06 requires.`,
+    );
+  }
+}
+
+/**
  * Saves the events of an import, the only way any module writes a historical event
  * (module map §1.2 rule 7), with exactly the DSN-06 items of its origin (DSN-06,
  * DSN-07, CA-DSN-02): each event, its sources with each link and title as given (DSN-08)
@@ -232,12 +255,14 @@ function withSourceIds(
  * shared link names the other event by reference (IMP-17, IMP-37). A description or an
  * unverified note longer than `events.maxDescriptionLength`, read at this call, or
  * holding a quotation mark of CL-DSN-03 is refused, and nothing is written (DSN-20,
- * DSN-21). Gives each saved event and its sources, in the order of the import.
+ * DSN-21). An event without a source is a bug of the caller, which throws (DSN-06,
+ * IMP-14). Gives each saved event and its sources, in the order of the import.
  */
 export async function createHistorical(
   tx: Transaction,
   { importId, events: batch }: HistoricalImport,
 ): Promise<Result<readonly CreatedHistorical[], HistoricalRefusal>> {
+  requireSources(batch);
   const refusal = firstRefusal(batch, await getParam(tx, 'events.maxDescriptionLength'));
   if (refusal !== null) {
     return err(refusal);
@@ -276,6 +301,25 @@ function templateDescription(description: CalendarDescription): string {
       });
 }
 
+/** The calendar-derived event of the player, type and game of `event`, if one is recorded (CL-TAX-18). */
+async function recordedCalendarEvent(
+  tx: Transaction,
+  event: NewCalendarDerivedEvent,
+): Promise<EventRow | undefined> {
+  const [recorded] = await tx
+    .select()
+    .from(events)
+    .where(
+      and(
+        eq(events.playerId, event.playerId),
+        eq(events.eventTypeId, event.eventTypeId),
+        eq(events.derivedGameId, event.derivedGameId),
+        eq(events.origin, 'calendar'),
+      ),
+    );
+  return recorded;
+}
+
 /**
  * Creates the calendar-derived event of a player, type and game, the only way any
  * module writes one (module map §1.2 rule 7), holding only what CL-DSN-20 lists: its
@@ -284,12 +328,16 @@ function templateDescription(description: CalendarDescription): string {
  * rules like every description (DSN-20, DSN-21, CL-DSN-03), and its context unknown
  * until the owner sets it (H-09); no source, confidence, precedence or mark (DSN-06).
  * Idempotent: the event of a player, type and game already recorded is given back as
- * it is (CL-TAX-18).
+ * it is, whatever its description would now be (CL-TAX-18); only a new one is checked.
  */
 export async function createCalendarDerived(
   tx: Transaction,
   event: NewCalendarDerivedEvent,
 ): Promise<Result<CalendarCreation, TextRefusal>> {
+  const recorded = await recordedCalendarEvent(tx, event);
+  if (recorded !== undefined) {
+    return ok({ playerEvent: calendarEventOf(recorded), created: false });
+  }
   const description = templateDescription(event.description);
   const maxLength = await getParam(tx, 'events.maxDescriptionLength');
   const refusal = refusalOf(description, 'description', maxLength);
@@ -316,22 +364,10 @@ export async function createCalendarDerived(
       where: sql`origin = 'calendar'`,
     })
     .returning();
-  if (created !== undefined) {
-    return ok({ playerEvent: calendarEventOf(created), created: true });
-  }
-  const [recorded] = await tx
-    .select()
-    .from(events)
-    .where(
-      and(
-        eq(events.playerId, event.playerId),
-        eq(events.eventTypeId, event.eventTypeId),
-        eq(events.derivedGameId, event.derivedGameId),
-        eq(events.origin, 'calendar'),
-      ),
-    );
-  if (recorded === undefined) {
+  // Another transaction may have recorded it since the read: that one is given back.
+  const playerEvent = created ?? (await recordedCalendarEvent(tx, event));
+  if (playerEvent === undefined) {
     throw new Error('The calendar-derived event that blocked the insert is not readable.');
   }
-  return ok({ playerEvent: calendarEventOf(recorded), created: false });
+  return ok({ playerEvent: calendarEventOf(playerEvent), created: created !== undefined });
 }

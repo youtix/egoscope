@@ -26,7 +26,7 @@ export type {
   WithdrawnEventCounterRow,
 } from './types';
 
-// create.ts: createHistorical, createDetected, createCalendarDerived
+// create.ts: createHistorical, createCalendarDerived (createDetected sits in status.ts)
 export { createCalendarDerived, createHistorical } from './create';
 export type {
   CalendarCreation,
@@ -70,7 +70,15 @@ export type {
 } from './correction-fields';
 export type { CorrectedSource, PublicDate } from './correction-sources';
 
-// status.ts: setDetectedStatus (Lot 2)
+// status.ts (Lot 2): createDetected, setDetectedStatus; the detected branch of applyCorrection
+export { createDetected, setDetectedStatus } from './status';
+export type {
+  DetectedStatusChange,
+  DetectedStatusRefusal,
+  NewDetectedEvent,
+  NewDismissal,
+  StatusSaved,
+} from './status';
 
 // delete.ts
 export { deleteHistorical } from './delete';
@@ -84,16 +92,26 @@ export type { DeletionReason, DeletionRefusal, HistoricalDeletion } from './dele
 export { eraseEvent, scrubPlayerFromCorrections } from './erase';
 export type { ErasedEvent, ErasureVariant } from './erase';
 
-// queries.ts: getEvent, eventsOfPlayer, uncheckedSources
+// queries.ts: getEvent, eventsOfPlayer, uncheckedSources, and the views they give
 export { eventsOfPlayer, getEvent, uncheckedSources } from './queries';
+export type { UncheckedSource } from './queries';
 export type {
   CalendarDerivedEvent,
+  ClassificationOrigin,
   ContextIndication,
   ContextIndicationOrigin,
   ContextIndications,
+  DetectedEvent,
+  DetectedEventMark,
+  DetectedReference,
+  DetectedState,
+  DetectedStatusRecord,
+  DismissalReason,
   HistoricalEvent,
   ImportWarning,
+  OwnerAddedSource,
   PlayerEvent,
   PlayerEventSource,
-  UncheckedSource,
-} from './queries';
+  ReferenceDateRule,
+  StoredEventMark,
+} from './views';
