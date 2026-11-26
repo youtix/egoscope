@@ -73,6 +73,10 @@ export type { CaseFactoryOptions, CaseRow } from './factories/sensitivity';
 
 // --- statistics-sensitivity ------------------------------------------------------
 
+// factories/profiles.ts
+export { buildProfile, buildTrend } from './factories/profiles';
+export type { ViewShape } from './factories/profiles';
+
 // --- collection-detection --------------------------------------------------------
 
 // --- alerts-tracking-telegram ----------------------------------------------------
