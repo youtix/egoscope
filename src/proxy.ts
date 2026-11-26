@@ -15,6 +15,9 @@ const PERMANENT_REDIRECT = 308;
 const HSTS_MAX_AGE_SECONDS = 63_072_000;
 // A path that no route can take, since Next.js never routes a folder whose name starts
 // with an underscore: rewritten to it, with a 404, a request gets the not-found page.
+// Under `next start --hostname`, Next.js names its own address with another host name
+// than the one the proxy sees, and so sends the rewrite back to itself as a new request,
+// which comes through the proxy again: that request passes, and finds no route.
 const NO_ROUTE = '/_closed';
 
 /**
@@ -147,7 +150,7 @@ function route(request: NextRequest): NextResponse {
   if (path === GALLERY && !isGalleryOpen()) {
     return NextResponse.rewrite(new URL(NO_ROUTE, request.url), { status: NOT_FOUND });
   }
-  if (isPublic(path)) {
+  if (path === NO_ROUTE || isPublic(path)) {
     return NextResponse.next();
   }
   const cookie = request.cookies.get(SESSION_COOKIE)?.value;

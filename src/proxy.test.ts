@@ -156,6 +156,12 @@ describe('the request proxy', () => {
     ]);
   });
 
+  it('lets the path of the closed gallery through without a session, where no route answers it', async () => {
+    const proxy = await proxyOf();
+
+    expect(isLetThrough(ask(proxy, '/_closed'))).toBe(true);
+  });
+
   it('asks a session for the gallery under next dev', async () => {
     const proxy = await proxyOf(DEVELOPMENT);
 
