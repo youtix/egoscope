@@ -27,7 +27,7 @@ const STEP_TOLERANCE = 1e-9;
 const DECIMAL_BASE = 10;
 const URL_MAX_LENGTH = 2000;
 // Any one code point, a lone surrogate included, newlines too.
-const CODE_POINT = /./gu;
+const CODE_POINT = /\P{Cs}/gu;
 // A lowercase domain name of at least two labels, without scheme, port or path: the
 // engineering reading of CL-TRV-16's "domain names, lowercase, without scheme or path".
 const DOMAIN_NAME = /^(?=.{1,253}$)(?:[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?\.)+[a-z][a-z\d-]{0,62}$/u;

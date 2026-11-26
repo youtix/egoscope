@@ -167,17 +167,15 @@ export async function applyCorrection(
   if (event.rowVersion !== correction.expectedVersion) {
     return err(changedElsewhere(event));
   }
-  const player = await refusedPlayer(tx, event, correction);
-  if (player !== null) {
-    return err(player);
-  }
   const refused = refusedFields(correction, event.origin);
   if (refused.length > 0) {
     return err({ kind: 'not_correctable', fields: refused });
   }
   const checked = await checkChanges(tx, correction);
   const fields = { ...checked.fields, ...(await checkDetectedChanges(tx, event, correction)) };
-  return Object.keys(fields).length > 0
-    ? err({ kind: 'invalid_fields', fields })
-    : save(tx, event, { correction, version: checked.version });
+  if (Object.keys(fields).length > 0) {
+    return err({ kind: 'invalid_fields', fields });
+  }
+  const player = await refusedPlayer(tx, event, correction);
+  return player === null ? save(tx, event, { correction, version: checked.version }) : err(player);
 }

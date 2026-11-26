@@ -539,9 +539,10 @@ describe(
     it('[SEN-37] [CL-IHM-12] gives the last change of a calculation parameter with its journal entry', async () => {
       const { db } = world;
       onTestFinished(installFakeClock(fixedClock(LATER)));
-      await db.transaction(async (tx) =>
-        setParam(tx, { key: 'sensitivity.minValidCases', value: 6, expectedVersion: 0 }),
-      );
+      await db.transaction(async (tx) => {
+        await setParam(tx, { key: 'sensitivity.minValidCases', value: 6, expectedVersion: 0 });
+        throw new Error('A break on purpose.');
+      });
 
       await expect(getProfile(db, key)).resolves.toMatchObject({
         lastCalculationChange: { changedAt: LATER, journalEntryId: ANY_ID },
