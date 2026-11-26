@@ -40,11 +40,11 @@ export type StatsSourceHarness = Readonly<{
   /** A player whom the current season's player file lists with no current team: released (STA-26, CL-STA-31). */
   releasedPlayer: SourcePlayerId;
   /**
-   * A player with box scores in `season`, a final game of it in which he has no line,
-   * and the side of that game, home or not, of a team of his whose lines of other
-   * players the source holds (CL-STA-04).
+   * A player with box scores in `season`, and a final game of it in which he has no line
+   * and whose two sides hold lines of other players, so that both sides are flagged
+   * whichever players were asked (CL-STA-04).
    */
-  playerWithoutLine: Readonly<{ player: SourcePlayerId; game: SourceGameId; isHome: boolean }>;
+  playerWithoutLine: Readonly<{ player: SourcePlayerId; game: SourceGameId }>;
   /** A player whom no file of the source lists. */
   unknownPlayer: SourcePlayerId;
   inject: (fault: ContractFault) => void;

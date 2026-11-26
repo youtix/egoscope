@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { backtestRequests, events, eventSources, importEventOutcomes, imports } from '@/lib/db';
 import { toEpochMs } from '@/lib/time';
@@ -188,6 +188,10 @@ function refusedOf(importIds: SQLWrapper) {
   return and(
     inArray(importEventOutcomes.importId, importIds),
     eq(importEventOutcomes.outcome, 'refused'),
+    // True of every refused row (import_event_outcomes_set_aside_check), so no result
+    // changes; Postgres reads no check, and this condition lets the planner use the
+    // partial index on ranks, import_event_outcomes_position_key.
+    isNotNull(importEventOutcomes.position),
   );
 }
 

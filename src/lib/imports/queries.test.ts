@@ -370,7 +370,7 @@ describe('the import traces read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, ()
       await remainingRefusalSum(db, PLAYER);
 
       expect(statements).toStrictEqual([
-        `select "import_event_outcomes"."position", "event_type_as_read", "date_as_read", "import_event_outcomes"."reason" from "import_event_outcomes" where ("import_event_outcomes"."import_id" in (select "id" from "imports" where "imports"."backtest_request_id" = $1 order by "imports"."imported_at" desc, "imports"."sequence_number" desc limit $2) and "import_event_outcomes"."outcome" = $3 and "import_event_outcomes"."position" is not null) order by "import_event_outcomes"."position" asc [${String(into.id)},1,"refused"]`,
+        `select "position", "event_type_as_read", "date_as_read", "reason" from "import_event_outcomes" where ("import_event_outcomes"."import_id" in (select "id" from "imports" where "imports"."backtest_request_id" = $1 order by "imports"."imported_at" desc, "imports"."sequence_number" desc limit $2) and "import_event_outcomes"."outcome" = $3 and "import_event_outcomes"."position" is not null) order by "import_event_outcomes"."position" asc [${String(into.id)},1,"refused"]`,
         `select count(*) from "import_event_outcomes" where ("import_event_outcomes"."import_id" in (select distinct on ("imports"."backtest_request_id") "id" from "imports" where "imports"."player_id" = $1 order by "imports"."backtest_request_id", "imports"."imported_at" desc, "imports"."sequence_number" desc) and "import_event_outcomes"."outcome" = $2 and "import_event_outcomes"."position" is not null) ["${PLAYER}","refused"]`,
       ]);
     });

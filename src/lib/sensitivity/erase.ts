@@ -97,7 +97,8 @@ async function rebuild(tx: Transaction, caseId: CaseId, earliest: EarliestEvent)
 /**
  * The sensitivity step of an event's erasure (sensitive-data.md section 2.1, step 9), in
  * the caller's transaction `tx`, once `events.eraseEvent` has deleted the event and given
- * its case `caseId`, null when it had none: the case, when no event is left in it, is
+ * its case `caseId`, null when it had none. It locks the case row first, and does nothing
+ * more when the case is already gone; otherwise the case, when no event is left in it, is
  * deleted with its criteria, flags, decisions and history (DSN-27, JOU-24); otherwise,
  * unless `cause` is a player-data deletion, it is rebuilt from its remaining events
  * (CL-SUI-17). No sensitivity row names an event, so none designates it afterwards
@@ -109,6 +110,18 @@ export async function eraseEventData(
   cause: ErasureCause,
 ): Promise<void> {
   if (caseId === null) {
+    return;
+  }
+  // The transaction has locked its event row by deleting it (`events.eraseEvent`, step 8 of
+  // sensitive-data.md section 2.1) and locks the case row now (step 9): every erasure takes
+  // the two in that order, so two cannot wait for each other. A second erasure in the case
+  // waits here for the first to commit, then reads the events left, so the last one deletes it.
+  const [locked] = await tx
+    .select({ id: cases.id })
+    .from(cases)
+    .where(eq(cases.id, caseId))
+    .for('update');
+  if (locked === undefined) {
     return;
   }
   const earliest = await earliestEventOf(tx, caseId);

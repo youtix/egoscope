@@ -54,7 +54,7 @@ function fakeHarness(): StatsSourceHarness {
     players: ['p01', 'p02'],
     formerPlayer: 'p06',
     releasedPlayer: RELEASED,
-    playerWithoutLine: { player: 'p02', game: '2025-26:r01:h3', isHome: true },
+    playerWithoutLine: { player: 'p02', game: '2025-26:r01:h3' },
     unknownPlayer: 'p99',
     inject: (fault) => {
       fake.clearFaults();

@@ -80,8 +80,7 @@ async function recordedHarness(): Promise<StatsSourceHarness> {
     players: PLAYERS,
     formerPlayer: FORMER,
     releasedPlayer: RELEASED,
-    // He played for team 15 in the NBA Cup final alone; team 15 is at home in this game.
-    playerWithoutLine: { player: '9000355', game: '401705483', isHome: true },
+    playerWithoutLine: { player: '9000355', game: '401705483' },
     unknownPlayer: UNKNOWN,
     inject: (fault) => {
       replay.inject(SCHEDULE, replayFaultOf(fault));
