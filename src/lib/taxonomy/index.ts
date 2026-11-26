@@ -48,9 +48,11 @@ export type {
 // review-events.ts (eventsToReview sits in type-detail.ts)
 export { distributeEvent, requalifyEvent } from './review-events';
 export type {
+  Distribution,
   DistributionChoice,
   EventSettled,
   EventToErase,
+  Requalification,
   RequalificationChoice,
   ReviewOutcome,
   ReviewRefusal,
