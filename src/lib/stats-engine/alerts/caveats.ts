@@ -1,0 +1,299 @@
+// The caveats of an alert sheet (ALE-16, CL-ALE-03, CL-ALE-05, CL-ALE-13, CL-DET-07,
+// ADR 0016): every caveat that applies, none ever hidden, read from the frozen profile and
+// trend values of its sections, its events, what is known of its expected game and its
+// marks. Whether the game's stakes are high and whether its opponent makes a case doubtful
+// come from the cases/ and schedule/ rules, which the caller applies (SEN-14, SEN-15);
+// freezing the caveats at the game's scheduled start is the alerts module's (CL-ALE-07).
+// Every threshold is received as data.
+
+import type { ContextIndications } from '../cases/doubtful-criteria';
+import type { ProfileConfidence } from '../profiles/confidence';
+import type { Verdict } from '../profiles/verdict';
+import type { EventTypeId, PlayerEventId } from '../types';
+
+/** The thresholds the caveats compare with (CL-ALE-05, ALE-16), each a registry parameter. */
+export type CaveatThresholds = Readonly<{
+  /** Valid cases a verdict needs, `sensitivity.minValidCases` (SEN-23). */
+  minValidCases: number;
+  /** Distinct players a general trend needs, `sensitivity.trendMinPlayers` (SEN-29). */
+  trendMinPlayers: number;
+  /** Points a detection needs, `detection.threshold` (DET-24). */
+  detectionThreshold: number;
+  /** Points above the detection threshold within which a confidence is near it (H-ALE-06). */
+  confidenceVigilanceMargin: number;
+}>;
+
+/**
+ * The frozen values of a section's profile that its caveats read (ALE-09, SEN-25, SEN-46),
+ * its verdict with its direction, which no caveat tells apart (H-04).
+ */
+export type CaveatProfile = Readonly<{
+  validCount: number;
+  verdict: Verdict;
+  profileConfidence: ProfileConfidence;
+  /** « profil incomplet »: the type's coverage has gaps, or a widening change awaits its supplement. */
+  isIncomplete: boolean;
+  /** Its cases that rest on an earlier version of the type sheet (TAX-25). */
+  earlierVersionCaseCount: number;
+}>;
+
+/** The frozen values of the type's general trend that the caveats read (ALE-12, SEN-29). */
+export type CaveatTrend = Readonly<{
+  validCount: number;
+  playerCount: number;
+  profileConfidence: ProfileConfidence;
+}>;
+
+/**
+ * An event of a section (ALE-08, CL-ALE-13): detected, the owner's classifications and
+ * rescues included, or derived from the calendar; dismissed or not (ALE-22); its context
+ * indications (H-09); its detection confidence as issued (ALE-21), a model's, null when
+ * the owner classified or rescued it (CL-DET-07); whether it carries the « datation à
+ * vérifier » mark (DET-32).
+ */
+export type CaveatEvent = Readonly<{
+  playerEventId: PlayerEventId;
+  origin: 'detected' | 'calendar';
+  isDismissed: boolean;
+  context: ContextIndications;
+  detectionConfidence: number | null;
+  isDatingToVerify: boolean;
+}>;
+
+/**
+ * A section of the sheet (ALE-09, ALE-14, ALE-20, ADR 0016): its type; whether the
+ * player's coverage lacked that type when the section was added; whether the type has a
+ * doubtful-case criterion switched off; its events; its frozen profile, null while the
+ * section waits for its values (ALE-05); and the type's frozen general trend, null when
+ * the section has none.
+ */
+export type CaveatSection = Readonly<{
+  eventTypeId: EventTypeId;
+  isTypeNotCovered: boolean;
+  hasSwitchedOffCriterion: boolean;
+  events: readonly CaveatEvent[];
+  profile: CaveatProfile | null;
+  trend: CaveatTrend | null;
+}>;
+
+/**
+ * What a sheet's caveats are computed from (ALE-16, H-ALE-02, D-19): its sections; whether
+ * its expected game has high stakes by the statistics, a playoff elimination game included,
+ * and whether its opponent's strength would make the case doubtful, both false while no
+ * expected game is known; its « tardive » mark (ALE-24); and whether a related sheet of the
+ * player ends on the same game.
+ */
+export type SheetCaveatsInput = Readonly<{
+  sections: readonly CaveatSection[];
+  expectedGame: Readonly<{ isHighStakes: boolean; isOpponentDoubtful: boolean }>;
+  isLate: boolean;
+  hasRelatedSheet: boolean;
+}>;
+
+/**
+ * The two forms of the direction caveat (CL-ALE-03): an opposite effect remains possible
+ * and would be counted the same way; the effect, if any, can go either way.
+ */
+export type DirectionCaveatForm = 'opposite_effect_possible' | 'either_way';
+
+/** What the known-context caveat names (ALE-16, D-19), as it is stored. */
+export type KnownContextReason = 'high_stakes' | 'injury_return_flagged' | 'opponent_strength';
+
+/** A caveat of a section that names its type alone (ALE-16, SEN-46, ADR 0016). */
+type SectionCaveat = Readonly<{
+  kind:
+    | 'small_sample'
+    | 'incomplete_or_earlier_version'
+    | 'type_not_covered'
+    | 'confounder_not_separable';
+  eventTypeId: EventTypeId;
+}>;
+
+/** A caveat of an event, which names it (ALE-16). */
+type EventCaveat = Readonly<{
+  kind: 'confidence_near_threshold' | 'dating_to_verify';
+  playerEventId: PlayerEventId;
+}>;
+
+/**
+ * One caveat of a sheet (ALE-16, ADR 0016), as `alert_sheet_caveats` stores it: a caveat
+ * of a section names its type, the direction caveat with its form; one of an event names
+ * the event; the known context lists its reasons; the others concern the whole sheet.
+ */
+export type Caveat =
+  | SectionCaveat
+  | Readonly<{ kind: 'effect_direction'; eventTypeId: EventTypeId; form: DirectionCaveatForm }>
+  | Readonly<{ kind: 'known_context'; knownContextReasons: readonly KnownContextReason[] }>
+  | Readonly<{ kind: 'several_events' | 'late_sheet' }>
+  | EventCaveat;
+
+/** A caveat's kind (ALE-16, ADR 0016), as it is stored. */
+export type CaveatKind = Caveat['kind'];
+
+/** The caveat when its condition holds, as a list of none or one. */
+function caveatIf(isApplicable: boolean, caveat: Caveat): readonly Caveat[] {
+  return isApplicable ? [caveat] : [];
+}
+
+/** Whether the player has fewer valid cases than a verdict needs (ALE-12, SEN-31). */
+function isBelowThreshold(profile: CaveatProfile, thresholds: CaveatThresholds): boolean {
+  return profile.validCount < thresholds.minValidCases;
+}
+
+/**
+ * Whether the section's type is outside the player's coverage (ALE-14), which a type
+ * derived from the calendar never is, since it leaves the backtest coverage (CL-ALE-13).
+ */
+function isTypeNotCovered(section: CaveatSection): boolean {
+  return section.isTypeNotCovered && section.events.every(({ origin }) => origin !== 'calendar');
+}
+
+/** Whether the general trend rests on a small sample (CL-ALE-05), no trend resting on no case. */
+function isSmallTrend(trend: CaveatTrend | null, thresholds: CaveatThresholds): boolean {
+  return (
+    trend === null ||
+    trend.validCount < thresholds.minValidCases ||
+    trend.playerCount < thresholds.trendMinPlayers ||
+    trend.profileConfidence === 'low'
+  );
+}
+
+/**
+ * Whether the measure that applies to a section rests on a small sample (ALE-16,
+ * CL-ALE-05): the general trend, for a player below the threshold or a type not covered
+ * (ALE-12, ALE-14); otherwise the player's profile, which then has the valid cases a
+ * verdict needs, so that only a low confidence makes its sample small. A section waiting
+ * for its values has no measure yet.
+ */
+function isSmallSample(section: CaveatSection, thresholds: CaveatThresholds): boolean {
+  const { profile } = section;
+  if (profile === null) {
+    return false;
+  }
+  return isBelowThreshold(profile, thresholds) || isTypeNotCovered(section)
+    ? isSmallTrend(section.trend, thresholds)
+    : profile.profileConfidence === 'low';
+}
+
+/**
+ * The direction caveat of a section, always there (ALE-16, CL-ALE-03): the opposite effect
+ * for a profile with a direction, possible or probable, increase and decrease alike; either
+ * way below the threshold, for an inconclusive profile, and while no verdict has entered
+ * (ALE-05).
+ */
+function directionCaveat(section: CaveatSection, thresholds: CaveatThresholds): Caveat {
+  const { profile } = section;
+  const hasDirection =
+    profile !== null &&
+    !isBelowThreshold(profile, thresholds) &&
+    profile.verdict.level !== 'inconclusive';
+  return {
+    kind: 'effect_direction',
+    eventTypeId: section.eventTypeId,
+    form: hasDirection ? 'opposite_effect_possible' : 'either_way',
+  };
+}
+
+/** Whether the profile is incomplete or rests in part on an earlier type sheet version (SEN-46). */
+function isIncompleteOrEarlierVersion({ profile }: CaveatSection): boolean {
+  return profile !== null && (profile.isIncomplete || profile.earlierVersionCaseCount > 0);
+}
+
+/** Whether a model's detection confidence is below the threshold plus the vigilance margin (H-ALE-06). */
+function isConfidenceNearThreshold(
+  { detectionConfidence }: CaveatEvent,
+  thresholds: CaveatThresholds,
+): boolean {
+  return (
+    detectionConfidence !== null &&
+    detectionConfidence < thresholds.detectionThreshold + thresholds.confidenceVigilanceMargin
+  );
+}
+
+/** The caveats of one kind that the sections bring, in their order. */
+function sectionCaveats(
+  sections: readonly CaveatSection[],
+  kind: SectionCaveat['kind'],
+  isApplicable: (section: CaveatSection) => boolean,
+): readonly Caveat[] {
+  return sections
+    .filter((section) => isApplicable(section))
+    .map(({ eventTypeId }) => ({ kind, eventTypeId }));
+}
+
+/**
+ * The caveats of one kind that the detected events bring, in their order; an event derived
+ * from the calendar has no detection confidence and no dating mark (CL-ALE-13).
+ */
+function eventCaveats(
+  events: readonly CaveatEvent[],
+  kind: EventCaveat['kind'],
+  isApplicable: (event: CaveatEvent) => boolean,
+): readonly Caveat[] {
+  return events
+    .filter((event) => event.origin === 'detected' && isApplicable(event))
+    .map(({ playerEventId }) => ({ kind, playerEventId }));
+}
+
+/**
+ * The reasons of the known-context caveat (ALE-16, D-19, CL-SEN-28): high stakes, flagged
+ * on an event or given by the statistics for the expected game; a return from injury
+ * flagged on an event; an opponent whose strength would make the case doubtful.
+ */
+function knownContextReasons(
+  input: SheetCaveatsInput,
+  events: readonly CaveatEvent[],
+): readonly KnownContextReason[] {
+  const reasons: readonly (readonly [KnownContextReason, boolean])[] = [
+    [
+      'high_stakes',
+      input.expectedGame.isHighStakes ||
+        events.some(({ context }) => context.gameStakes === 'high'),
+    ],
+    ['injury_return_flagged', events.some(({ context }) => context.injuryReturn === 'yes')],
+    ['opponent_strength', input.expectedGame.isOpponentDoubtful],
+  ];
+  return reasons.filter(([, applies]) => applies).map(([reason]) => reason);
+}
+
+/**
+ * The caveats of an alert sheet (ALE-16, CL-ALE-03, CL-ALE-05, CL-ALE-13, CL-DET-07,
+ * H-ALE-02, H-ALE-06, D-19, SEN-46, ADR 0016): every one that applies, none hidden, in the
+ * order of ALE-16's list, each kind's in the order of the sections and events given.
+ * Per section: small sample, for the measure that applies to it; the direction caveat,
+ * always, in one of its two forms; an incomplete profile or one resting in part on an
+ * earlier type sheet version; the type not covered, never for a calendar-derived type;
+ * the confounder warning of a switched-off criterion. Per non-dismissed detected event: a
+ * detection confidence near the threshold, never for an owner's classification; the dating
+ * to verify. For the sheet: the known context of its expected game and of its
+ * non-dismissed events; several events, when more than one is not dismissed or a related
+ * sheet shares the game; the late sheet.
+ */
+export function sheetCaveats(
+  input: SheetCaveatsInput,
+  thresholds: CaveatThresholds,
+): readonly Caveat[] {
+  const { sections } = input;
+  const events = sections
+    .flatMap((section) => section.events)
+    .filter(({ isDismissed }) => !isDismissed);
+  const reasons = knownContextReasons(input, events);
+  return [
+    ...sectionCaveats(sections, 'small_sample', (section) => isSmallSample(section, thresholds)),
+    ...sections.map((section) => directionCaveat(section, thresholds)),
+    ...caveatIf(reasons.length > 0, { kind: 'known_context', knownContextReasons: reasons }),
+    ...caveatIf(events.length > 1 || input.hasRelatedSheet, { kind: 'several_events' }),
+    ...eventCaveats(events, 'confidence_near_threshold', (event) =>
+      isConfidenceNearThreshold(event, thresholds),
+    ),
+    ...eventCaveats(events, 'dating_to_verify', ({ isDatingToVerify }) => isDatingToVerify),
+    ...sectionCaveats(sections, 'incomplete_or_earlier_version', isIncompleteOrEarlierVersion),
+    ...caveatIf(input.isLate, { kind: 'late_sheet' }),
+    ...sectionCaveats(sections, 'type_not_covered', isTypeNotCovered),
+    ...sectionCaveats(
+      sections,
+      'confounder_not_separable',
+      ({ hasSwitchedOffCriterion }) => hasSwitchedOffCriterion,
+    ),
+  ];
+}

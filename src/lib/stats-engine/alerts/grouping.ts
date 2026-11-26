@@ -29,12 +29,13 @@ export type SheetEvent =
     }>;
 
 /**
- * A sheet as the grouping reads it (ALE-03, H-ALE-02): its player; the expected game its
- * events had at their detection, null when none was known; its current expected game,
- * which a schedule change may have moved (ALE-23), null while none is known; and the
- * events placed on it.
+ * A sheet as the grouping reads it (ALE-03, ALE-06, H-ALE-02): its number, which tells it
+ * from every other sheet; its player; the expected game its events had at their detection,
+ * null when none was known; its current expected game, which a schedule change may have
+ * moved (ALE-23), null while none is known; and the events placed on it.
  */
 export type GroupingSheet = Readonly<{
+  number: number;
   playerId: PlayerId;
   expectedGameIdAtDetection: GameId | null;
   currentExpectedGameId: GameId | null;
@@ -99,16 +100,16 @@ export function placeEvent<S extends GroupingSheet>(
 }
 
 /**
- * The sheets related to a sheet (H-ALE-02): the other sheets of its player, among
+ * The sheets related to a sheet (ALE-03, H-ALE-02): the other sheets of its player, among
  * `sheets`, whose current expected game is its own, as when a schedule change moves one
- * onto the game of another; none while its expected game is unknown. `sheet` is one of
- * `sheets`, or a sheet about to join them.
+ * onto the game of another; none while its expected game is unknown. `sheet` may be among
+ * `sheets`, or read apart from them: it is told from them by its number (ALE-06).
  */
 export function relatedSheets<S extends GroupingSheet>(
   sheet: S,
   sheets: readonly S[],
 ): readonly S[] {
   return sheetsEndingOn(sheets, sheet.playerId, sheet.currentExpectedGameId).filter(
-    (other) => other !== sheet,
+    (other) => other.number !== sheet.number,
   );
 }

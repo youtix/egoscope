@@ -15,7 +15,7 @@ const SATURDAY = 102;
 const MONDAY = 103;
 const WEDNESDAY = 104;
 
-/** A sheet with a number, as the alerts module keeps one, for the tests to tell sheets apart. */
+/** A sheet as the alerts module keeps one, with its status, which the grouping never reads. */
 type Sheet = {
   number: number;
   status: 'open' | 'closed' | 'canceled';
@@ -205,6 +205,16 @@ describe('relatedSheets', () => {
     expect(relatedSheets(first, [first, second])).toStrictEqual([]);
     expect(relatedSheets(second, [first, second])).toStrictEqual([]);
   });
+
+  it('[ALE-03] [H-ALE-02] tells a sheet read apart from the others by its number, never relating it to itself', () => {
+    const stored = sheet(1, PLAYER, { games: [TONIGHT, SATURDAY], eventIds: [10] });
+    const saturday = sheet(2, PLAYER, { games: [SATURDAY], eventIds: [11] });
+
+    expect(relatedSheets({ ...stored }, [stored])).toStrictEqual([]);
+    expect(
+      relatedSheets({ ...stored }, [stored, saturday]).map(({ number }) => number),
+    ).toStrictEqual([2]);
+  });
 });
 
 // --- Random sequences of events ---------------------------------------------------
@@ -346,7 +356,7 @@ function partitionOf(sheets: readonly GroupingSheet[]): readonly (readonly Playe
 /** Whether two sheets are distinct sheets of a player ending on the same known game. */
 function areOnSameKnownGame(one: Sheet, other: Sheet): boolean {
   return (
-    other !== one &&
+    other.number !== one.number &&
     other.playerId === one.playerId &&
     one.currentExpectedGameId !== null &&
     other.currentExpectedGameId === one.currentExpectedGameId
