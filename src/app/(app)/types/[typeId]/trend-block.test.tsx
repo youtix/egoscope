@@ -11,7 +11,7 @@ import { TrendBlock } from './trend-block';
 import type { TrendDetail } from '@/lib/sensitivity';
 
 const { getDb } = vi.hoisted(() => ({ getDb: vi.fn() }));
-vi.mock(import('@/lib/db'), () => ({ getDb }));
+vi.mock(import('@/lib/db'), async (importOriginal) => ({ ...(await importOriginal()), getDb }));
 vi.mock(import('@/lib/sensitivity'), () => ({ getTrend: vi.fn() }));
 
 // The WCAG 2.2 A and AA rules, as the end-to-end watch runs them (CL-IHM-08).
