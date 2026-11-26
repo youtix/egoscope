@@ -8,6 +8,8 @@ import { parseTimestamp } from '@/lib/time';
 import { MAX_FEED_BYTES } from './syndication';
 import { feedIn, MAX_FEED_DEPTH, MAX_FEED_ITEMS, webAddress } from './syndication-xml';
 
+import type { PressFeedsErrorKind } from './errors';
+import type { FeedDocument } from './syndication-xml';
 import type { FeedItem } from './types';
 import type { ParsedTimestamp } from '@/lib/time';
 
@@ -85,6 +87,91 @@ function titleOf(bytes: Uint8Array, contentType: string | null): unknown {
   const document = feedIn(bytes, contentType, COURTSIDE);
   return document.ok ? document.feed.items[0]?.title : document.error;
 }
+
+/** What a body gives: `read` for a feed, else the kind of its failure. */
+type Kind = 'read' | PressFeedsErrorKind;
+const kindOf = (document: FeedDocument): Kind => (document.ok ? 'read' : document.error.kind);
+
+// What comes before a document's root, and the content type of its answer. The byte order
+// mark of UTF-8 is read as three characters under the ISO-8859-1 that the answer names.
+const BEFORE = {
+  nothing: { text: '', type: XML_TYPE },
+  textWarning: {
+    text: 'Warning: Undefined variable $title in /srv/feed.php on line 12\n',
+    type: XML_TYPE,
+  },
+  htmlWarning: {
+    text: '<br />\n<b>Warning</b>:  Undefined variable $title in <b>/srv/feed.php</b> on line <b>12</b><br />\n',
+    type: XML_TYPE,
+  },
+  unclosedHtml: { text: '<html><body><p>A cached copy<br>\n', type: XML_TYPE },
+  comment: { text: '<!-- cached -->\n', type: XML_TYPE },
+  byteOrderMark: { text: 'ï»¿', type: 'application/rss+xml; charset=ISO-8859-1' },
+  brokenMarkup: { text: 'Unclosed <b>markup</p>\n'.repeat(400), type: XML_TYPE },
+} as const;
+const DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>\n';
+// The documents, in ASCII alone, so that their bytes are the same in UTF-8 and in ISO-8859-1.
+const DOCUMENTS = {
+  rss2: `${DECLARATION}<rss version="2.0"><channel><title>Courtside</title><item><guid>c-1</guid><title>Teodor Vrask is back</title></item><item><guid>c-2</guid></item></channel></rss>\n`,
+  atom: `${DECLARATION}<feed xmlns="http://www.w3.org/2005/Atom"><title>Baseline</title><entry><id>b-1</id><title>Ilan Corvato stays</title></entry><entry><id>b-2</id></entry></feed>\n`,
+  rss1: `${DECLARATION}<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/"><channel><title>Quiet</title></channel><item rdf:about="https://quiet.example.test/a1"><title>Calme plat</title></item><item rdf:about="https://quiet.example.test/a2"/></rdf:RDF>\n`,
+  htmlPage: `<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><title>Courtside</title><link rel="alternate" type="application/rss+xml" href="/feed.xml"></head><body><p>The front page.</p></body></html>\n`,
+  // A page whose script writes a feed's start tag, which a broken body holds as text.
+  quotingPage: `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><script>const head = '<rss version="2.0">';</script></head><body><p>A page about feeds, and longer than its script.</p></body></html>\n`,
+  otherXml: `${DECLARATION}<scores><game home="Harbor City" away="Mesa Verde"/><game home="Pine Hollow" away="Red Rock"/></scores>\n`,
+  json: '{"items":[{"title":"Teodor Vrask is back"},{"title":"Mika Lindqvar signs"}]}\n',
+  plainText: 'The feed has moved: the news is on the front page of Courtside.\n',
+} as const;
+// The damage done to a document: none, cut in the middle, or a server's warning after it.
+const DAMAGES: readonly ((document: string) => string)[] = [
+  (document) => document,
+  (document) => document.slice(0, Math.floor(document.length / 2)),
+  (document) => `${document}<br />\n<b>Warning</b>:  Cannot modify header information<br />\n`,
+];
+
+/** The kinds that a document gives after `before`, for each damage. */
+const kindsAfter = (
+  { text, type }: (typeof BEFORE)[keyof typeof BEFORE],
+  document: string,
+): Kind[] =>
+  DAMAGES.map((damage) => {
+    const body = Buffer.from(`${text}${damage(document)}`, 'latin1');
+    return kindOf(feedIn(body, type, COURTSIDE));
+  });
+
+const READ_ONLY_INTACT = ['read', 'unreadable', 'unreadable'];
+const UNREADABLE_ALL = ['unreadable', 'unreadable', 'unreadable'];
+const NOT_A_FEED_ALL = ['not_a_feed', 'not_a_feed', 'not_a_feed'];
+// What each body gives, by the rule of feedIn, worked out by hand: by what comes before the
+// root, then by what the document is, for each damage (none, cut, an error after the root).
+const BROKEN_BEFORE = {
+  rss2: UNREADABLE_ALL,
+  atom: UNREADABLE_ALL,
+  rss1: UNREADABLE_ALL,
+  htmlPage: NOT_A_FEED_ALL,
+  quotingPage: UNREADABLE_ALL,
+  otherXml: NOT_A_FEED_ALL,
+  json: NOT_A_FEED_ALL,
+  plainText: NOT_A_FEED_ALL,
+};
+const EXPECTED_KINDS = {
+  nothing: {
+    rss2: READ_ONLY_INTACT,
+    atom: READ_ONLY_INTACT,
+    rss1: READ_ONLY_INTACT,
+    htmlPage: NOT_A_FEED_ALL,
+    quotingPage: UNREADABLE_ALL,
+    otherXml: NOT_A_FEED_ALL,
+    json: NOT_A_FEED_ALL,
+    plainText: NOT_A_FEED_ALL,
+  },
+  textWarning: BROKEN_BEFORE,
+  htmlWarning: BROKEN_BEFORE,
+  unclosedHtml: BROKEN_BEFORE,
+  comment: BROKEN_BEFORE,
+  byteOrderMark: BROKEN_BEFORE,
+  brokenMarkup: BROKEN_BEFORE,
+};
 
 describe('feedIn', () => {
   it('[TRV-17] [COL-06] [COL-17] [COL-19] [COL-20] [COL-27] [CL-COL-01] reads an RSS 2.0 feed into its items as the feed gives them', () => {
@@ -328,30 +415,19 @@ describe('feedIn', () => {
     expect(elapsedMs).toBeLessThan(READ_BUDGET_MS);
   });
 
-  it('[COL-41] answers a feed with an error before its root as unreadable, and a page with one as not a feed', () => {
-    const feed = rss('<item><title>Stray text above</title></item>');
-    const before = [
-      'Some text',
-      'Warning: Undefined variable $title in /srv/feed.php on line 12\n<?xml version="1.0"?>\n',
-      '<!-- cached -->\n<?xml version="1.0"?>',
-    ];
-    // A UTF-8 byte order mark, read as three characters under the ISO-8859-1 that the answer names.
-    const marked = Buffer.concat([
-      Buffer.from([0xef, 0xbb, 0xbf]),
-      Buffer.from(`<?xml version="1.0"?>${feed}`),
+  it('[COL-41] answers a broken body as unreadable when it holds the start tag of a feed, else as not a feed, whatever comes before the root', () => {
+    const kinds = Object.entries(BEFORE).map(([name, before]) => [
+      name,
+      Object.fromEntries(
+        Object.entries(DOCUMENTS).map(([documentName, document]) => [
+          documentName,
+          kindsAfter(before, document),
+        ]),
+      ),
     ]);
 
-    expect([
-      ...before.map((text) => feedIn(bytesOf(`${text}${feed}`), XML_TYPE, COURTSIDE)),
-      feedIn(marked, 'application/rss+xml; charset=ISO-8859-1', COURTSIDE),
-    ]).toStrictEqual([UNREADABLE, UNREADABLE, UNREADABLE, UNREADABLE]);
-    // The same feed read without the error, and a page after the same errors.
-    expect(titleOf(bytesOf(feed), XML_TYPE)).toBe('Stray text above');
-    expect(
-      ['Some text<html><body/></html>', '<!-- cached -->\n<?xml version="1.0"?><html/>'].map(
-        (text) => feedIn(bytesOf(text), XML_TYPE, COURTSIDE),
-      ),
-    ).toStrictEqual([NOT_A_FEED, NOT_A_FEED]);
+    expect(BEFORE.brokenMarkup.text.length).toBeGreaterThan(8192);
+    expect(Object.fromEntries(kinds)).toStrictEqual(EXPECTED_KINDS);
   });
 
   it('[COL-17] [TRV-17] decodes a feed in the charset its answer names, else its declaration', () => {
