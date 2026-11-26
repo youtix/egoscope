@@ -81,6 +81,18 @@ export type ExplorationCreationRefusal =
 type NotInResponse = Readonly<{ kind: 'not_in_response'; position: number }>;
 type ResolvedPick = Readonly<{ element: CopiedElement; from: CheckedType }>;
 
+// The elements of the sheet that a pick may copy, in the order of the sheet.
+const SHEET_ELEMENTS: readonly SheetElement[] = [
+  'name',
+  'definition',
+  'inclusionCriteria',
+  'exclusionCriteria',
+  'datingRule',
+  'knownInAdvance',
+  'genericExample',
+  'documentationDifficulty',
+];
+
 /** The sheet of a ticked type, named `name`: a missing text is empty (TAX-17), a missing mark unset. */
 function sheetOf(type: ProposedType, name: string): ProposalSheet {
   return {
@@ -221,9 +233,10 @@ function resolvePicks(
 /** `sheet` with each picked element of the sheet copied in, a later pick of an element winning. */
 function withPicks(sheet: ProposalSheet, picks: readonly ResolvedPick[]): ProposalSheet {
   let copied = sheet;
-  for (const { element, from } of picks) {
-    if (element !== 'illustrationSources') {
-      copied = { ...copied, [element]: from.type[element] };
+  for (const element of SHEET_ELEMENTS) {
+    const picked = picks.findLast((pick) => pick.element === element)?.from.type[element];
+    if (picked !== undefined) {
+      copied = { ...copied, [element]: picked };
     }
   }
   return copied;
