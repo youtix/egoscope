@@ -83,7 +83,7 @@ export type {
 export { getCase } from './case-detail';
 export type {
   CaseCriterion,
-  CaseDecision,
+  CaseDecisionItem,
   CaseDetail,
   CaseEventDetail,
   CaseEventSource,

@@ -3,7 +3,7 @@
 // computed with, so that a result is reproduced on read with the values that made it.
 import { z } from 'zod';
 
-import { getParams, valueOf } from '@/lib/params';
+import { getParams, storedValueOf } from '@/lib/params';
 
 import type { Database, Transaction } from '@/lib/db';
 import type { ParamReader } from '@/lib/params';
@@ -70,5 +70,5 @@ export async function paramsInForce(db: Database | Transaction): Promise<EngineP
  */
 export function snapshotParams(values: unknown): EngineParams {
   const stored = SNAPSHOT_VALUES.parse(values);
-  return engineParamsOf({ get: (key) => valueOf(key, stored[key]) });
+  return engineParamsOf({ get: (key) => storedValueOf(key, stored[key]) });
 }

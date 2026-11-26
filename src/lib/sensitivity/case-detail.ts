@@ -71,7 +71,7 @@ export type CaseFlag = Readonly<{
 }>;
 
 /** A manual decision on a case, with its closed-list reason and comment, bound to its game (SEN-17, CL-SEN-12). */
-export type CaseDecision = Readonly<{
+export type CaseDecisionItem = Readonly<{
   decidedAt: EpochMs;
   kind: CaseManualDecisionRow['kind'];
   exclusionReason: CaseManualDecisionRow['exclusionReason'];
@@ -111,7 +111,7 @@ export type CaseDetail = Omit<CaseLine, 'events' | 'criteria'> &
     stakesNotEvaluable: boolean;
     criteria: readonly CaseCriterion[];
     reviewFlags: readonly CaseFlag[];
-    decisions: readonly CaseDecision[];
+    decisions: readonly CaseDecisionItem[];
     history: readonly CaseHistoryItem[];
   }>;
 

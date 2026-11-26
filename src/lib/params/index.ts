@@ -4,8 +4,8 @@ export {
   lastCalculationChange,
   listRegistry,
   snapshotCalculationParams,
+  storedValueOf,
   valueAt,
-  valueOf,
 } from './accessors';
 export type { CalculationChange, Executor, RegistryRow, Setting } from './accessors';
 export type { ParameterKey, ParamReader, ParamValue } from './catalog';

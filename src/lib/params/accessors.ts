@@ -22,7 +22,7 @@ export type Executor = Database | Transaction;
  * The value of `key` that `stored` holds, an override or a value of the history: the
  * default when it holds none, or one that the registry no longer accepts.
  */
-export function valueOf<K extends OverridableKey>(key: K, stored: unknown): ParamValue<K> {
+export function storedValueOf<K extends OverridableKey>(key: K, stored: unknown): ParamValue<K> {
   return ENTRIES[key].kind.parse(stored) ?? ENTRIES[key].defaultValue;
 }
 
@@ -39,7 +39,7 @@ export async function getParam<K extends OverridableKey>(
     .select({ value: parameterOverrides.value })
     .from(parameterOverrides)
     .where(eq(parameterOverrides.parameterKey, key));
-  return valueOf(key, override?.value);
+  return storedValueOf(key, override?.value);
 }
 
 /**
@@ -51,7 +51,7 @@ export async function getParams(db: Executor): Promise<ParamReader> {
     .select({ key: parameterOverrides.parameterKey, value: parameterOverrides.value })
     .from(parameterOverrides);
   const stored = new Map(overrides.map(({ key, value }) => [key, value]));
-  return { get: (key) => valueOf(key, stored.get(key)) };
+  return { get: (key) => storedValueOf(key, stored.get(key)) };
 }
 
 /**
@@ -74,7 +74,7 @@ export async function valueAt<K extends OverridableKey>(
     .orderBy(desc(parameterChanges.changedAt), desc(parameterChanges.id))
     .limit(1);
   if (before !== undefined) {
-    return valueOf(key, before.value);
+    return storedValueOf(key, before.value);
   }
   const [after] = await db
     .select({ value: parameterChanges.oldValue })
@@ -82,7 +82,7 @@ export async function valueAt<K extends OverridableKey>(
     .where(and(ofKey, gt(parameterChanges.changedAt, at)))
     .orderBy(asc(parameterChanges.changedAt), asc(parameterChanges.id))
     .limit(1);
-  return after === undefined ? getParam(db, key) : valueOf(key, after.value);
+  return after === undefined ? getParam(db, key) : storedValueOf(key, after.value);
 }
 
 /** What the parameters screen shows of a parameter that holds a value (TRV-34). */
@@ -112,7 +112,7 @@ function settingOf(
   override: Readonly<{ value: unknown; rowVersion: number }> | undefined,
   changes: Readonly<{ count: number; last: Date | null }> | undefined,
 ): Setting {
-  const value = valueOf(key, override?.value);
+  const value = storedValueOf(key, override?.value);
   const { defaultValue } = ENTRIES[key];
   const last = changes?.last ?? null;
   return {
