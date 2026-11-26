@@ -52,11 +52,6 @@ const SCHEMA_VARIABLES = [
   'EGOSCOPE_FAKES',
 ];
 
-// The folder of each lot's build, since a build prerenders the screens of its own lot
-// only (IHM-16): two folders, so that both servers run side by side, the Lot 2 one
-// inside .next/, which git and every tool already skip.
-const BUILD_DIRS: Readonly<Record<Lot, string>> = { 1: '.next', 2: '.next/lot2' };
-
 /** The variable that holds the port of the server of `lot`, once it listens. */
 const portVariable = (lot: Lot): string => `EGOSCOPE_E2E_LOT${String(lot)}_PORT`;
 // The variable that holds the port of the server of the account journeys.
@@ -78,8 +73,10 @@ export function hermeticEnvironment(lot: Lot): Readonly<Record<string, string>> 
     EGOSCOPE_FAKES: 'all',
     // Set explicitly, so that a change of the default lot changes nothing here.
     EGOSCOPE_LOT: String(lot),
-    // The folder of the lot's build, which next.config.ts reads, `next build` and `next start` alike.
-    EGOSCOPE_E2E_BUILD_DIR: BUILD_DIRS[lot],
+    // A build serves the screens of its own lot only: the Lot 2 one goes to a folder
+    // of its own, which next.config.ts gives `next build` and `next start` alike, so
+    // that both servers run side by side.
+    EGOSCOPE_E2E_LOT2_BUILD: String(lot === 2),
     // The account starts from it, as a deployment's does from its own (TRV-57).
     INITIAL_PASSWORD: TEST_ACCOUNT_INITIAL,
     NODE_ENV: 'production',

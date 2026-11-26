@@ -7,12 +7,13 @@ import { build } from 'esbuild';
 import type { NextConfig } from 'next';
 
 // --- The service worker (F-pwa) ---------------------------------------------------------
-// After each production build, src/app/sw.ts is bundled into .next/static/sw.js and started
-// with the build's static files, which it precaches; /sw.js serves it, so that it controls
-// the whole app. Every build lists other files, so each deployment gives a new worker,
-// which is how the app detects a new version (module map section 3.1). The browser checks
-// a worker's script past any cache whenever it looks for a new version. `next dev` builds
-// no worker.
+// After each production build, src/app/sw.ts is bundled into the static folder of the
+// build's own directory (.next/static/sw.js, .next/lot2/static/sw.js for the Lot 2 build
+// below) and started with the build's static files, which it precaches; /sw.js serves it,
+// so that it controls the whole app. Every build lists other files, so each deployment
+// gives a new worker, which is how the app detects a new version (module map section
+// 3.1). The browser checks a worker's script past any cache whenever it looks for a new
+// version. `next dev` builds no worker.
 const SERVICE_WORKER_SOURCE = './src/app/sw.ts';
 const SERVICE_WORKER_URL = '/sw.js';
 const STATIC_FOLDER = 'static';
@@ -58,13 +59,20 @@ async function buildServiceWorker({ projectDir, distDir }: BuildMetadata): Promi
   });
 }
 
+// The end-to-end harness builds the Lot 2 hermetic server beside the Lot 1 one, which
+// keeps .next/ (e2e/fixtures/hermetic-server.ts): a build serves the screens of its own
+// lot only, so the Lot 2 build goes to a folder of its own, inside .next/, which git and
+// every tool skip, and is type-checked against its own route types (tsconfig.lot2.json).
+const LOT_2_BUILD: NextConfig = {
+  distDir: '.next/lot2',
+  typescript: { tsconfigPath: 'tsconfig.lot2.json' },
+};
+const isLot2Build = process.env['EGOSCOPE_E2E_LOT2_BUILD'] === 'true';
+
 const nextConfig: NextConfig = {
   // Version-matched Next.js guidance for agents lives in CLAUDE.md, so `next dev`
   // must not write its own AGENTS.md into the working tree.
   agentRules: false,
-  // The end-to-end harness builds the hermetic server of each lot into a folder of its
-  // own (e2e/fixtures/hermetic-server.ts); every other build uses Next.js's own, .next/.
-  distDir: process.env['EGOSCOPE_E2E_BUILD_DIR'] ?? '.next',
   // Routes are prerendered except where they read request-time or uncached data.
   cacheComponents: true,
   partialPrefetching: true,
@@ -87,6 +95,7 @@ const nextConfig: NextConfig = {
   rewrites: async () => [
     { source: SERVICE_WORKER_URL, destination: STATIC_URL + BUILT_SERVICE_WORKER },
   ],
+  ...(isLot2Build && LOT_2_BUILD),
 };
 
 export default nextConfig;
