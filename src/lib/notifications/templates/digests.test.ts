@@ -132,6 +132,18 @@ describe('the digests', () => {
     ]);
   });
 
+  it('[CL-TEL-14] keeps no fact when the title alone is over the limit, every fact counted in "and N more"', () => {
+    const title: DigestData['title'] = {
+      kind: 'pass',
+      taskName: 'a'.repeat(MESSAGE_MAX_LENGTH),
+      passStartedAt: onWednesday(22),
+    };
+
+    expect(linesOf(digest({ ...PASS_DIGEST, title, moreCount: 2 }, PARIS)).slice(1)).toStrictEqual([
+      '<a href="https://egoscope.example/">and 3 more</a>',
+    ]);
+  });
+
   it('[TEL-08] [CL-TEL-14] drops whole fact lines from the end of a digest over the limit and counts them in "and N more"', () => {
     const line = { text: 'a'.repeat(450), afterTipOff: false, url: `${BASE}${paths.case(1)}` };
     const text = digest(

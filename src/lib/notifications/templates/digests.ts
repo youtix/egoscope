@@ -73,9 +73,9 @@ export function digest(data: DigestData, zone: string): string {
       moreLine(data.moreCount + lines.length - kept, data.homeUrl),
       ...footer,
     ]);
-  let kept = lines.length;
-  while (kept > 0 && textLength(composed(kept)) > MESSAGE_MAX_LENGTH) {
-    kept -= 1;
-  }
+  // From every fact down to none, the first count whose message fits; none when even the
+  // title is over the limit.
+  const counts = Array.from({ length: lines.length + 1 }, (_value, index) => lines.length - index);
+  const kept = counts.find((count) => textLength(composed(count)) <= MESSAGE_MAX_LENGTH) ?? 0;
   return composed(kept);
 }
