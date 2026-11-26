@@ -42,7 +42,12 @@ is `PlayerEvent`, keyed by `playerEventId` (columns `player_event_id`), and its 
 followed player is `player_id`. Stored enumeration values are the glossary's; module names, routes,
 parameter keys (namespaced, module map section 6, for example `journal.retentionDays`) and
 scheduled-task keys (module map section 4, for example `statistics-update`) are the module map's.
-The origin of a calendar-derived event is stored `calendar`, never `schedule`.
+The origin of a calendar-derived event is stored `calendar`, never `schedule`. The keys of a JSON
+value stored in a `jsonb` column are the camelCase names that code uses, as the key
+`waitingArticles` of an incident's `details` already is (operations.md §1.3); snake_case stays the
+rule of tables, of columns and of the file formats: the exchange formats with the outside AI
+(glossary, "Exchange formats") and the export archive, whose rows are keyed by column and whose
+manifest has keys of its own (operations.md §5.1).
 
 **Keys.** Every table has an integer identity `id` primary key, except where a spec demands another
 identifier: `followed_players.id` is a random UUID (CL-JOU-09); `event_types.id` is the kebab-case

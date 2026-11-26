@@ -541,8 +541,10 @@ a pass, hence a row: one row for every pass, as the module map adopted.
 
 `minute_at timestamptz NOT NULL` (truncated to the minute) and `instance_id text NOT NULL` (the
 server instance), primary key `(minute_at, instance_id)`: at most one row a minute per instance,
-written by each database pass and each authenticated page, from which the month's compute-hours are
-estimated with the database's five-minute idle tail (TRV-03, TRV-04, module map `quotas`). Kept for
+written by each database pass and at each render of an authenticated page, a client navigation
+included, by the page guard, from which the month's compute-hours are estimated with the database's
+five-minute idle tail (TRV-03, TRV-04, module map `quotas`). Until F-followups-shell (issue #496)
+moves it to the page guard, the authenticated layout records it at full page loads only. Kept for
 the current and the previous month, then deleted by the purge.
 
 ### 1.18 `database_size_samples` — measured volumes
@@ -696,9 +698,13 @@ result.
 ### 5.1 Full export, format `egoscope-export` 1.0
 
 One ZIP archive, readable without the application (TRV-52, TRV-53), named
-`egoscope-export-<YYYYMMDDTHHMMSSZ>.zip`, holding one JSON Lines file per table and a manifest, the
-archive layout the module map gives the export, backup and restore (one format for all three):
+`egoscope-export-<YYYYMMDDTHHMMSSZ>.zip`, holding a readme, one JSON Lines file per table and a
+manifest, the archive layout the module map gives the export, backup and restore (one format for
+all three):
 
+- `readme.txt`, the archive's first entry: a plain-text description of what the archive holds and
+  never holds, its files and the order in which to load them, export copy kept in
+  `src/lib/backups/archive.ts`.
 - `<table>.jsonl` for every table the backup holds (sensitive-data section 3): UTF-8, one JSON object
   per row and per line, one key per column named as in this model; instants as ISO 8601 UTC strings
   with milliseconds; dates `YYYY-MM-DD`; jsonb columns embedded as JSON; arrays as JSON arrays;
@@ -713,8 +719,24 @@ archive layout the module map gives the export, backup and restore (one format f
   "exported_at": "2026-11-11T04:10:00.000Z",
   "withdrawn_event_count": 2,
   "tables": [
-    { "name": "teams", "file": "teams.jsonl", "rows": 30, "sha256": "…" },
-    { "name": "followed_players", "file": "followed_players.jsonl", "rows": 24, "sha256": "…" }
+    {
+      "name": "teams",
+      "file": "teams.jsonl",
+      "rows": 30,
+      "sha256": "…",
+      "columns": [{ "name": "id", "type": "integer", "nullable": false, "references": null }],
+      "second_pass_columns": []
+    },
+    {
+      "name": "followed_players",
+      "file": "followed_players.jsonl",
+      "rows": 24,
+      "sha256": "…",
+      "columns": [
+        { "name": "current_team_id", "type": "integer", "nullable": true, "references": "teams.id" }
+      ],
+      "second_pass_columns": []
+    }
   ],
   "backup_kind": "weekly",
   "identity_sequences": { "teams": 30 }
@@ -727,9 +749,14 @@ archive layout the module map gives the export, backup and restore (one format f
 | `format_version`        | string  | `1.0`; a new column, table or value changes the version                                                                                                                                                                                                                                                                                                                            |
 | `exported_at`           | string  | ISO 8601 instant in UTC with milliseconds                                                                                                                                                                                                                                                                                                                                          |
 | `withdrawn_event_count` | integer | the counter's value (CL-DSN-08)                                                                                                                                                                                                                                                                                                                                                    |
-| `tables`                | array   | every exported table, in the loading order below: `name`, `file`, `rows` (integer), `sha256` (hex of the file)                                                                                                                                                                                                                                                                     |
+| `tables`                | array   | every exported table, in the loading order below: `name`, `file`, `rows` (integer), `sha256` (hex of the file), `columns`, each with `name`, `type` (its SQL type), `nullable` (boolean) and `references` (`table.column` or null), and `second_pass_columns` (the names of its columns loaded in the second pass, below; the example lists one column of each table)              |
 | `backup_kind`           | string  | in a backup only: `weekly`, `manual` or `before_update`                                                                                                                                                                                                                                                                                                                            |
 | `identity_sequences`    | object  | in every manifest, a full export's as a backup's (TRV-53): for every exported table with an identity column, its name and the last value its sequence has issued, rows erased since included (0 when it has issued none), read after the tables, so that each is at least the highest identifier exported; the value a restore compares with the target's (§2.5 step 3, CL-TRV-06) |
+
+**ZIP limits.** The archive writes no ZIP64 record, so a 4-byte size, offset or count stays at
+most `0xFFFFFFFE` and a 2-byte count or length at most `0xFFFE`, the all-ones value being ZIP64's
+marker; a CRC-32 takes any value. A larger value ends the archive with an error
+(`src/lib/backups/zip.ts`).
 
 **Loading order.** The manifest lists the tables so that each one comes after every table it
 references, and a restore inserts them in that sequence, in one transaction. The foreign keys of
@@ -766,7 +793,10 @@ kind. The file never holds the key or the token.
 
 CSV files in UTF-8 with a header row, comma separators and RFC 4180 quoting; numbers with a plain
 decimal point, no thousands separator and the ASCII minus; instants as ISO 8601 UTC; dates
-`YYYY-MM-DD`; enumerated values as their code (CL-IHM-03).
+`YYYY-MM-DD`; enumerated values as their code (CL-IHM-03). A text cell whose first character is
+`=`, `+`, `-`, `@`, a tab or a carriage return gets a leading apostrophe, so that no spreadsheet
+reads it as a formula; numbers, booleans and instants keep their form (`FORMULA_START` and
+`field()` of `src/lib/backups/export.ts`).
 
 | file           | one row per | columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | -------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

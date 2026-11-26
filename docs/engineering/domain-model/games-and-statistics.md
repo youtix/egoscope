@@ -164,7 +164,9 @@ once in a postseason (CL-STA-18).
 One followed player's line for one official game in which he played, or the placeholder that marks
 his sheet unavailable (STA-08, STA-35). A did-not-play line, a missing line while his team's lines
 are published, and a line with zero minutes and no non-zero element all mean "not played" and are
-not stored (CL-STA-04). The did-not-play reason is dropped by the adapter (JOU-21, DSN-15).
+not stored (CL-STA-04). The did-not-play reason is dropped by the adapter (JOU-21, DSN-15). A
+season's read stores lines only for the games of that season (`games.season` equal to the season
+read, CL-STA-28): a game that another season owns is not that read's (`src/lib/games/lines.ts`).
 
 | column                  | type        | null | default  | constraint or reference                                                                                                                                                 | class | spec IDs                  |
 | ----------------------- | ----------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------- |
@@ -288,24 +290,44 @@ its port operation (`getPublication`, `getSeasonGames`, `getSeasonBoxScores`, `g
 `getPlayerRecords`). A
 unit is deleted once done; runs are in the journal.
 
-| column              | type        | null | default  | constraint or reference                                                                                      | class | spec IDs               |
-| ------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------ | ----- | ---------------------- |
-| `id`                | integer     | no   | identity | primary key                                                                                                  | —     | —                      |
-| `stats_source`      | text        | no   | —        | `CHECK (stats_source IN ('sportsdataverse_espn'))`                                                           | —     | STA-02                 |
-| `kind`              | text        | no   | —        | `CHECK (kind IN ('publication_probe','season_games','season_box_scores','season_players','player_records'))` | —     | STA-32, STA-41, STA-44 |
-| `season`            | text        | yes  | —        | required for the three season kinds                                                                          | —     | STA-40, STA-41         |
-| `game_id`           | integer     | yes  | —        | `REFERENCES games(id) ON DELETE CASCADE`; narrows a manual refetch to one game                               | —     | STA-44                 |
-| `is_manual_refetch` | boolean     | no   | `false`  | forces consolidated data and traces corrections as `manual_refetch`                                          | —     | STA-34, STA-44         |
-| `priority`          | smallint    | no   | —        | `CHECK (priority BETWEEN 1 AND 5)`; the highest need among the cases and players it serves                   | —     | STA-40, H-STA-15       |
-| `attempts`          | smallint    | no   | `0`      | —                                                                                                            | —     | STA-36                 |
-| `next_attempt_at`   | timestamptz | no   | `now()`  | —                                                                                                            | —     | STA-36, CL-STA-15      |
-| `wait_reason`       | text        | yes  | —        | `CHECK (wait_reason IN ('outage','quota'))`                                                                  | —     | STA-36, STA-39         |
-| `lease_expires_at`  | timestamptz | yes  | —        | technical: an invocation holds the unit until then; an expired lease is free again (TRV-30)                  | —     | TRV-29, TRV-30         |
-| `cursor`            | text        | yes  | —        | technical: the port's resume point for a paged source                                                        | —     | TRV-30                 |
-| `requested_at`      | timestamptz | no   | `now()`  | —                                                                                                            | —     | STA-41                 |
+| column              | type        | null | default  | constraint or reference                                                                                                                                      | class | spec IDs               |
+| ------------------- | ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | ---------------------- |
+| `id`                | integer     | no   | identity | primary key                                                                                                                                                  | —     | —                      |
+| `stats_source`      | text        | no   | —        | `CHECK (stats_source IN ('sportsdataverse_espn'))`                                                                                                           | —     | STA-02                 |
+| `kind`              | text        | no   | —        | `CHECK (kind IN ('publication_probe','season_games','season_box_scores','season_players','player_records'))`                                                 | —     | STA-32, STA-41, STA-44 |
+| `season`            | text        | yes  | —        | required for the three season kinds                                                                                                                          | —     | STA-40, STA-41         |
+| `game_id`           | integer     | yes  | —        | `REFERENCES games(id) ON DELETE CASCADE`; narrows a manual refetch to one game                                                                               | —     | STA-44                 |
+| `is_manual_refetch` | boolean     | no   | `false`  | forces consolidated data and traces corrections as `manual_refetch`                                                                                          | —     | STA-34, STA-44         |
+| `priority`          | smallint    | no   | —        | `CHECK (priority BETWEEN 1 AND 5)`; the highest need among the cases and players it serves                                                                   | —     | STA-40, H-STA-15       |
+| `attempts`          | smallint    | no   | `0`      | —                                                                                                                                                            | —     | STA-36                 |
+| `next_attempt_at`   | timestamptz | no   | `now()`  | —                                                                                                                                                            | —     | STA-36, CL-STA-15      |
+| `wait_reason`       | text        | yes  | —        | `CHECK (wait_reason IN ('outage','quota'))`                                                                                                                  | —     | STA-36, STA-39         |
+| `failing_since`     | timestamptz | yes  | —        | the instant of the first failed attempt of the outages in a row that the unit waits after; set exactly when `wait_reason` is `outage`                        | —     | STA-37                 |
+| `schema_changed_at` | timestamptz | yes  | —        | when the unit's file last answered with a changed layout, or was missing when due, until the file reads again; an outage or a quota wait in between keeps it | —     | CL-STA-15              |
+| `lease_expires_at`  | timestamptz | yes  | —        | technical: an invocation holds the unit until then; an expired lease is free again (TRV-30)                                                                  | —     | TRV-29, TRV-30         |
+| `cursor`            | text        | yes  | —        | technical: the port's resume point for a paged source                                                                                                        | —     | TRV-30                 |
+| `requested_at`      | timestamptz | no   | `now()`  | —                                                                                                                                                            | —     | STA-41                 |
 
 Row check: `kind IN ('season_games','season_box_scores','season_players')` iff `season IS NOT NULL`;
-`game_id IS NOT NULL` implies `kind = 'season_box_scores' AND is_manual_refetch`.
+`game_id IS NOT NULL` implies `kind = 'season_box_scores' AND is_manual_refetch`;
+`fetch_queue_items_failing_since_check`,
+`(wait_reason IS NOT DISTINCT FROM 'outage') = (failing_since IS NOT NULL)` (migration 0005).
+`schema_changed_at` has no check.
+
+The answers of the source and the state they leave (`src/lib/games/outage.ts`, CL-STA-15):
+
+- An outage counts one more failure in a row and keeps `failing_since`, or sets it now after any
+  other answer. The incident "Stats source unavailable" starts at the earliest `failing_since` of
+  the units waiting after an outage, once it is 12 hours old (`games.incidentAfterHours`, STA-37).
+- A changed layout, or a current-season file missing when due, counts as an answer: it sets
+  `schema_changed_at`, and `recordAnswer` closes `not_answering` and makes due at once the units
+  that waited after an outage, clearing their `attempts`, `wait_reason` and `failing_since`. A
+  normal answer does the same and clears the unit's `schema_changed_at`.
+- A quota answer of the source itself ends the failures in a row. A deferral by the quota guard
+  makes no call, so it leaves `wait_reason`, `attempts` and `failing_since` as they are and only
+  moves `next_attempt_at`. As built, `classifyAnswer` treats a deferral as a quota answer, which
+  sets `wait_reason` to `quota` and clears `failing_since`: a later games task
+  (`F-followups-games`) changes the code.
 
 Unique: `fetch_queue_items_scope_key (stats_source, kind, season, game_id, is_manual_refetch) NULLS NOT DISTINCT`
 — one pending unit per scope; a new need raises its priority instead of adding a row.
@@ -348,7 +370,10 @@ Row check: `(resource = 'publication') = (season IS NULL)`;
 Unique: `stats_source_versions_key (stats_source, resource, season) NULLS NOT DISTINCT`.
 
 A season's lines are read for the players who need them: when that set gains a player without
-stored lines for the season, the fetch sends no version, so the answer is never "not modified".
+stored lines for the season, or when a requested player's mapping was established after the
+version's `fetched_at`, as for `player_records` below, the fetch sends no version, so the answer is
+never "not modified". No code chooses the version a fetch sends yet: SS-games-fetch-queue builds
+both cases.
 The player file is read the same way, through `getPlayerRecords(season, players, knownVersion)`
 (module map section 5), for the current season and the followed players with an established
 mapping: `games` sends the stored `player_records` version, so an unchanged file answers "not
@@ -504,8 +529,10 @@ Unique: `mapping_candidates_mapping_ref_key (mapping_id, source_player_ref)`;
 `mapping_candidates_preselected_key (mapping_id) WHERE is_preselected` — at most one preselected
 candidate per mapping.
 
-Lifetime: replaced at each search, except the candidate the crosswalk preselected, which stays
-preselected until the owner confirms a mapping (CL-TRV-14); all rows of a mapping are deleted when it becomes established
+Lifetime: replaced at each search, except the candidate the crosswalk preselected, which keeps its
+row and its mark until the owner confirms a mapping, also when a later search no longer finds it
+(CL-TRV-14). As built, `storeCandidates` (`src/lib/games/mapping.ts`) keeps the mark only while the
+search still finds the candidate: a later games task (`F-followups-games`) changes the code. All rows of a mapping are deleted when it becomes established
 (store less). Candidates may describe NBA players who are not followed; they never leave this
 table. "Already followed as {name}" is derived by joining `source_player_ref` with established
 mappings (CL-JOU-04).

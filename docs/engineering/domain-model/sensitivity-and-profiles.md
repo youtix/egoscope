@@ -214,28 +214,35 @@ tracking reads to build forecast versions and freeze the last one before tip-off
 CL-SEN-19, CL-SUI-03). The glossary's `ProfileSnapshot` is the alert sheet's frozen copy, hence
 another name.
 
-| column                   | type             | null | default  | constraint or reference                                                                                                                                                                         | class | spec IDs          |
-| ------------------------ | ---------------- | ---- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------- |
-| `id`                     | integer          | no   | identity | primary key                                                                                                                                                                                     | EV    | —                 |
-| `sensitivity_profile_id` | integer          | yes  | —        | `REFERENCES sensitivity_profiles(id) ON DELETE CASCADE`; a profile of view `historical_only`                                                                                                    | EV    | SUI-08, CL-SEN-19 |
-| `general_trend_id`       | integer          | yes  | —        | `REFERENCES general_trends(id) ON DELETE CASCADE`; a trend of view `historical_only`                                                                                                            | EV    | SUI-09, CL-SEN-19 |
-| `effective_at`           | timestamptz      | no   | —        | the instant the job wrote these values, the row's `computed_at` (CL-SEN-16), except the single version that replaces all the others, effective as the Deletion paragraph below says (CL-SEN-18) | EV    | SUI-08, CL-SUI-03 |
-| `valid_count`            | integer          | no   | —        | —                                                                                                                                                                                               | EV    | SUI-08            |
-| `mean_gap`               | double precision | yes  | —        | null when no valid case                                                                                                                                                                         | EV    | SUI-08            |
-| `verdict_level`          | text             | no   | —        | values of `verdict_level`                                                                                                                                                                       | EV    | SUI-08            |
-| `verdict_direction`      | text             | yes  | —        | values of `verdict_direction`                                                                                                                                                                   | EV    | SUI-08            |
-| `profile_confidence`     | text             | no   | —        | values of `profile_confidence`                                                                                                                                                                  | EV    | SUI-08            |
+| column                   | type             | null | default  | constraint or reference                                                                                                                                                                                                              | class | spec IDs          |
+| ------------------------ | ---------------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | ----------------- |
+| `id`                     | integer          | no   | identity | primary key                                                                                                                                                                                                                          | EV    | —                 |
+| `sensitivity_profile_id` | integer          | yes  | —        | `REFERENCES sensitivity_profiles(id) ON DELETE CASCADE`; a profile of view `historical_only`                                                                                                                                         | EV    | SUI-08, CL-SEN-19 |
+| `general_trend_id`       | integer          | yes  | —        | `REFERENCES general_trends(id) ON DELETE CASCADE`; a trend of view `historical_only`                                                                                                                                                 | EV    | SUI-09, CL-SEN-19 |
+| `effective_at`           | timestamptz      | no   | —        | the instant the job wrote these values, the row's `computed_at` (CL-SEN-16), except the single version that replaces all the others, effective as the Deletion paragraph below says (CL-SEN-18)                                      | EV    | SUI-08, CL-SUI-03 |
+| `valid_count`            | integer          | no   | —        | —                                                                                                                                                                                                                                    | EV    | SUI-08            |
+| `mean_gap`               | double precision | yes  | —        | null when no valid case                                                                                                                                                                                                              | EV    | SUI-08            |
+| `verdict_level`          | text             | no   | —        | values of `verdict_level`                                                                                                                                                                                                            | EV    | SUI-08            |
+| `verdict_direction`      | text             | yes  | —        | values of `verdict_direction`                                                                                                                                                                                                        | EV    | SUI-08            |
+| `profile_confidence`     | text             | no   | —        | values of `profile_confidence`                                                                                                                                                                                                       | EV    | SUI-08            |
+| `valid_case_threshold`   | smallint         | yes  | —        | the case threshold, the parameter `sensitivity.minValidCases` in force at this calculation; null for a row of a general trend. Not in the schema on `main`: F-followups-version-threshold adds it, with its migration and the writer | EV    | SUI-08            |
 
 Row checks: exactly one of `sensitivity_profile_id` and `general_trend_id` is not null;
-`(verdict_level = 'inconclusive') = (verdict_direction IS NULL)`. The referenced row's view is
-`historical_only` (recalculation service).
+`(verdict_level = 'inconclusive') = (verdict_direction IS NULL)`;
+`(valid_case_threshold IS NULL) = (sensitivity_profile_id IS NULL)`, the threshold set exactly when
+the row is a profile's, added with the column by F-followups-version-threshold. The referenced
+row's view is `historical_only` (recalculation service).
 
-Written by the job, in the transaction that writes the profile or trend, when one of the five values
-differs from its latest version or it has none; never updated.
+Written by the job, in the transaction that writes the profile or trend, when one of its values
+differs from its latest version or it has none; never updated. The writer counts the case threshold
+as a sixth value of a profile's version, so that a change of the threshold shows through the
+versions that its recalculation writes.
 
 Indexes: `profile_value_versions_profile_idx (sensitivity_profile_id, effective_at)` and
 `profile_value_versions_trend_idx (general_trend_id, effective_at)` — "the values in force at
-instant t" for a pair or a type (SUI-08, SUI-09).
+instant t" for a pair or a type (SUI-08, SUI-09). Two versions at one instant are ordered by the
+instant, then by `id`, the later row winning, as `params.valueAt` breaks the same tie; the engine
+follows with F-followups-forecast.
 
 Deletion: with its profile or trend, so a withdrawal or player deletion that erases them erases
 these rows too (CL-SEN-18). The versions also leave no trace of a withdrawal on a profile or trend
@@ -257,13 +264,22 @@ trend older than the last one effective before the creation of its earliest trac
 waiting for its measured game, and, with no such case, every version but the latest.
 
 ```ts
-interface ProfileValueVersion {
+type ConclusiveLevel = Exclude<VerdictLevel, 'inconclusive'>;
+type ProfileValueVersion = Readonly<{
+  id: number; // added by F-followups-forecast, which orders two versions at one instant by it
   effectiveAt: EpochMs;
   validCount: number;
-  meanGap: number | null;
-  verdict: Verdict;
   profileConfidence: ProfileConfidence;
-} // of a historical-only profile or trend
+  validCaseThreshold: number | null; // added by F-followups-version-threshold; null for a trend
+}> &
+  (
+    | Readonly<{ verdictLevel: 'inconclusive'; verdictDirection: null; meanGap: number | null }>
+    | Readonly<{
+        verdictLevel: ConclusiveLevel;
+        verdictDirection: VerdictDirection;
+        meanGap: number;
+      }>
+  ); // of a historical-only profile or trend; stats-engine/tracking/ builds it (#485) without `id` and `validCaseThreshold` yet
 ```
 
 ## 2. Lifecycles
@@ -354,7 +370,7 @@ Profiles appear in the spreadsheet export of profiles and in the full export
 - Own choice, at Lot 2's request: `profile_value_versions` (`ProfileValueVersion`) is the
   history of the historical-only view, its rows never updated, that the module map calls profile
   snapshots;
-  it keeps only the five values tracking reads (store less), and its name leaves `ProfileSnapshot`
+  it keeps only the values tracking reads (store less), and its name leaves `ProfileSnapshot`
   to the alert sheet's frozen copy (glossary section 3.10).
 
 ## 7. Diagram

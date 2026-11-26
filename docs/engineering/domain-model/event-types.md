@@ -128,10 +128,10 @@ under (TAX-20 to TAX-23, CL-TAX-06).
 | `erased_count`                          | integer     | no   | `0`      | events erased as non-conforming, or left out of a split (counted on the split type's last version)        | —     | TAX-25, TAX-26, CL-TAX-09    |
 | `supplementary_requests_proposed_count` | integer     | no   | `0`      | supplements proposed by this version                                                                      | —     | TAX-24, TAX-26               |
 
-`content` holds `name`, `definition`, `inclusion_criteria`, `exclusion_criteria`, `dating_rule`,
-`known_in_advance`, `generic_example`, `documentation_difficulty`, `caution_notes`,
-`is_intimate_subject`, `coverage_threshold_outlets`, `coverage_threshold_days`, each as on
-`event_types`. The switched-off criterion is not part of a version (ADR 0016).
+`content` holds the keys `name`, `definition`, `inclusionCriteria`, `exclusionCriteria`,
+`datingRule`, `knownInAdvance`, `genericExample`, `documentationDifficulty`, `cautionNotes`,
+`isIntimateSubject`, `coverageThresholdOutlets` and `coverageThresholdDays`, the camelCase names
+that code uses for the columns of `event_types` (README, "Names"), each typed as its column. The switched-off criterion is not part of a version (ADR 0016).
 
 Unique: `type_sheet_versions_type_number_key (event_type_id, version_number)`; it is the target of
 the composite foreign key of an event's qualification and of request types.
@@ -164,7 +164,7 @@ A merge writes one substantive entry on the surviving type.
 | `change_kind`              | text        | no   | —        | `CHECK (change_kind IN ('formal','substantive','criterion_switch'))` | —     | TAX-22, CL-TAX-06, CL-TAX-17 |
 | `substantive_scope`        | text        | yes  | —        | `CHECK (substantive_scope IN ('broadens','narrows','both'))`         | —     | TAX-22                       |
 | `reason`                   | text        | yes  | —        | the owner's reason                                                   | TX    | TAX-21                       |
-| `content_before`           | jsonb       | no   | —        | snapshot: the version content shape plus `switched_off_criterion`    | TX    | TAX-21                       |
+| `content_before`           | jsonb       | no   | —        | snapshot: the version content shape plus `switchedOffCriterion`      | TX    | TAX-21                       |
 | `content_after`            | jsonb       | no   | —        | same shape                                                           | TX    | TAX-21                       |
 | `resulting_version_number` | smallint    | yes  | —        | the version a substantive change or a merge created                  | —     | TAX-22, TAX-27               |
 
