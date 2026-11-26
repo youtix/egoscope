@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { checkEvents } from './check-events';
 import { checkScope } from './check-scope';
 import { readDate } from './dates';
 
@@ -9,8 +10,10 @@ import type { ResearchEvent } from './format';
 const WHOLE_REQUEST = { startOn: '2019-10-01', endOn: '2026-11-11' };
 
 // The taxonomy today: T2 and T6 merged into T1 after the request, the first sheet covering
-// the union and the second not; T3 split into T4 and T5; the record approach withdrawn
-// since the request; two calendar-derived types.
+// the union and the second not; T7 and T8 merged into the player conflict and the racist
+// abuse, which the request holds, and T9 into the trade request, which it does not; T3
+// split into T4 and T5; the record approach withdrawn since the request; two
+// calendar-derived types.
 const FACTS: ScopeFacts = {
   taxonomy: [
     { id: 'public-humiliation', standing: 'research', status: 'validated' },
@@ -22,6 +25,27 @@ const FACTS: ScopeFacts = {
     { id: 't1', standing: 'research', status: 'validated' },
     { id: 't2', standing: 'merged', survivorId: 't1', mergeVersion: 4, mergeCoversUnion: true },
     { id: 't6', standing: 'merged', survivorId: 't1', mergeVersion: 4, mergeCoversUnion: false },
+    {
+      id: 't7',
+      standing: 'merged',
+      survivorId: 'player-conflict',
+      mergeVersion: 5,
+      mergeCoversUnion: true,
+    },
+    {
+      id: 't8',
+      standing: 'merged',
+      survivorId: 'racist-abuse',
+      mergeVersion: 6,
+      mergeCoversUnion: false,
+    },
+    {
+      id: 't9',
+      standing: 'merged',
+      survivorId: 'trade-request',
+      mergeVersion: 2,
+      mergeCoversUnion: true,
+    },
     {
       id: 't3',
       standing: 'split',
@@ -117,6 +141,86 @@ describe('checkScope', () => {
       ...validType('t1', 3),
       type: { kind: 'type', typeId: 't1', sheetVersion: 3, toRequalify: true },
       warnings: [attached],
+    });
+  });
+
+  it('[IMP-11] [CL-IMP-21] judges an absorbed type that the request held by its own period, version and coverage, even when the request holds the survivor too', () => {
+    const t1 = {
+      id: 't1',
+      period: { startOn: '2022-01-01', endOn: '2022-12-31' },
+      sheetVersion: 9,
+    };
+    const withSurvivor = { requestedTypes: [...FACTS.requestedTypes, t1] };
+    expect(scopeOf('t6', undefined, withSurvivor)).toStrictEqual({
+      ...validType('t1', 3),
+      type: { kind: 'type', typeId: 't1', sheetVersion: 3, toRequalify: true },
+      warnings: [{ kind: 'attached_to_surviving_type', typeId: 't1' }],
+    });
+    expect(scopeOf('t6', undefined, { ...withSurvivor, coveredTypes: ['t1', 't2'] })).toStrictEqual(
+      {
+        ...validType('t1', 3),
+        type: { kind: 'type', typeId: 't1', sheetVersion: 3, toRequalify: true },
+        warnings: [
+          { kind: 'attached_to_surviving_type', typeId: 't1' },
+          { kind: 'type_not_declared_covered' },
+        ],
+      },
+    );
+  });
+
+  it('[IMP-11] [CA-IMP-23] [CL-IMP-21] attaches an absorbed type that the request did not hold to its requested survivor, judged by the period, the version and the coverage of the survivor', () => {
+    expect(scopeOf('t7')).toStrictEqual({
+      ...validType('player-conflict', 5),
+      warnings: [{ kind: 'attached_to_surviving_type', typeId: 'player-conflict' }],
+    });
+    expect(scopeOf('t8')).toStrictEqual({
+      ...validType('racist-abuse', 1),
+      type: { kind: 'type', typeId: 'racist-abuse', sheetVersion: 1, toRequalify: true },
+      warnings: [
+        { kind: 'attached_to_surviving_type', typeId: 'racist-abuse' },
+        { kind: 'type_not_declared_covered' },
+      ],
+    });
+    const dates = ['2020-12-31', '2021-01-01', '2023-12-31', '2024-01-01'];
+    expect(decisions(dates.map((date) => scopeOf('t7', date)))).toStrictEqual([
+      'outside_requested_period',
+      'valid',
+      'valid',
+      'outside_requested_period',
+    ]);
+  });
+
+  it('[IMP-11] [CL-IMP-21] adds with a warning, through the event checks, the event of an absorbed type under its requested survivor', () => {
+    const accepted: ResearchEvent = {
+      ...event('t7'),
+      description: 'Player A and a teammate argue on the bench, as a national outlet reports.',
+      sources: [
+        {
+          url: 'https://www.media-national.example/basket/2021/01/14/argument-on-the-bench',
+          outlet: 'A national outlet (fictitious)',
+          title: 'Argument on the bench',
+          publicationDate: readDate('2021-01-14'),
+        },
+      ],
+      context: { injuryReturn: 'no', gameStakes: 'normal', detail: undefined },
+      researchConfidence: 'high',
+    };
+    const sourceRules = { cleanLink: String, disallowedDomains: [], checkedAt: Date.UTC(2026, 10) };
+    const limits = { maxDescriptionLength: 200, maxSourcesPerEvent: 3, maxSourceLeadDays: 1 };
+    expect(checkEvents([accepted], { ...FACTS, ...limits, sourceRules })).toMatchObject([
+      {
+        outcome: 'added_with_warning',
+        event: { type: { kind: 'type', typeId: 'player-conflict', sheetVersion: 5 } },
+        warnings: [{ kind: 'attached_to_surviving_type', typeId: 'player-conflict' }],
+      },
+    ]);
+  });
+
+  it('[IMP-11] [CL-IMP-21] ignores an absorbed type whose survivor the request did not hold either, as not requested', () => {
+    expect(scopeOf('t9')).toStrictEqual({ kind: 'ignored', reason: 'type_not_requested' });
+    expect(scopeOf('t2', undefined, { requestedTypes: [] })).toStrictEqual({
+      kind: 'ignored',
+      reason: 'type_not_requested',
     });
   });
 

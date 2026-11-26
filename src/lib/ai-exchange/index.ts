@@ -117,6 +117,9 @@ export { blockingErrorMessage, resultWarningMessage } from './research-result/re
 export type { BlockingError, ResultWarning } from './research-result/result-messages';
 
 // --- exploration/ ----------------------------------------------------------------
+// format.ts stays internal to the part: its constants are the two readers' own, the
+// exploration response's and the research result's, which compare a pasted text with
+// them, and no other module reads a format's keys.
 
 // exploration/prompt.ts
 export { buildExplorationPrompt } from './exploration/prompt';

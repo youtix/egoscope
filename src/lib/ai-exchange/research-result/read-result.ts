@@ -390,14 +390,14 @@ function isExplorationText(error: ExtractJsonError): boolean {
  * IMP-06, IMP-09, IMP-16, BKT-23, BKT-24, CL-BKT-02). The JSON object is isolated from the
  * text (IMP-04), a result kept over an exploration response pasted with it; a text whose
  * objects name the exploration format and not this one is refused as not a backtest
- * result before any recovery, cut, broken or pasted twice (IMP-06), as the coordinator
- * decided on 20 November, ahead of the documents. Otherwise a cut answer goes to the
- * recovery of IMP-05, which, when it allows, gives the result read like a whole one,
- * every recovered event included, its covered period as the recovery leaves it
- * (CL-IMP-18); read or refused, it keeps what the recovery says of the cut, which the
- * correction message needs (IMP-21, CL-IMP-04). The result names format egoscope-backtest
- * and version 1.0; a missing format or version assumes 1.0 with a warning when the
- * structure is recognized (CL-IMP-06), and version 1 does with a warning. Its covered
+ * result before any recovery, cut, broken or pasted twice (IMP-06), as CL-IMP-06 rules.
+ * Otherwise a cut answer goes to the recovery of IMP-05, which, when it allows, gives the
+ * result read like a whole one, every recovered event included, its covered period as
+ * the recovery leaves it (CL-IMP-18); read or refused, it keeps what the recovery says of
+ * the cut, which the correction message needs (IMP-21, CL-IMP-04). The result names
+ * format egoscope-backtest and version 1.0; a missing format or version assumes 1.0 with
+ * a warning when the structure is recognized (CL-IMP-06), and version 1 does with a
+ * warning. Its covered
  * types, which must hold one of `requestedTypes`, the request's types, count each once
  * (CL-IMP-23); its covered period keeps the calendar dates of its bounds (CL-IMP-08); its
  * events are a list, maybe empty (BKT-23), whose order the warning of CL-IMP-19 checks;

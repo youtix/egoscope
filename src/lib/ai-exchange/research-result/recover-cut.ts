@@ -235,13 +235,12 @@ type ShortenedPeriod = Readonly<{ period: unknown; retainedCoverageEmpty: boolea
  * The covered period of a recovered result (IMP-05, IMP-09, CL-IMP-18): it ends on `end`,
  * the day before the last recovered event's date, or keeps, as written, a declared end
  * that comes no later. A period that the reader refuses whatever the cut stays exactly as
- * written, so that the reader refuses it as in the whole answer, as the coordinator
- * decided on 20 November, ahead of the documents: one that is no object, one whose end is
- * missing or no date that readDate reads, and one whose end comes before a start that
- * readDate reads, compared by their calendar dates as the reader compares them. A start
- * that names no date leaves the period shortened, for the reader to refuse its start.
- * The retained coverage is empty when the shortened end comes before a start that
- * readDate reads.
+ * written, so that the reader refuses it as in the whole answer, as CL-IMP-18 rules: one
+ * that is no object, one whose end is missing or no date that readDate reads, and one
+ * whose end comes before a start that readDate reads, compared by their calendar dates
+ * as the reader compares them. A start that names no date leaves the period shortened,
+ * for the reader to refuse its start. The retained coverage is empty when the shortened
+ * end comes before a start that readDate reads.
  */
 function shortenedPeriod(period: unknown, end: string): ShortenedPeriod {
   if (!isRecord(period)) {
@@ -271,7 +270,7 @@ function recovered(
 }
 
 /**
- * A result cut after its events list is closed (coordinator decision of 20 November):
+ * A result cut after its events list is closed (CL-IMP-18):
  * no event can be missing, so every member written in full is kept, wherever it is
  * written, and the covered period stays as written, whether the events are sorted,
  * dated or none at all, since those conditions only serve the shortening.
@@ -327,8 +326,7 @@ function insideEventsList(value: Readonly<Record<string, unknown>>): RecoverCutR
  * on the day before the last of these dates, never after the end that the result declares;
  * a declared period whose end is missing, no date or before its start stays as written,
  * for the reader to refuse as in the whole answer (IMP-09). When the events list is closed
- * before the cut, the covered period stays as written. Both rules are the coordinator's
- * decisions of 20 November, ahead of the documents.
+ * before the cut, the covered period stays as written. Both rules are CL-IMP-18's.
  */
 export function recoverCut(partialText: string): RecoverCutResult {
   const reader = readMembers(partialText);

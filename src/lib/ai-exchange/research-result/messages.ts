@@ -342,7 +342,12 @@ function problemParts(
     : parts('the outlet or the title is missing.', 'Nothing to correct: the source is kept.');
 }
 
-/** The 1-based position of the source that a problem of an event names, if it names one (CL-IMP-02). */
+/**
+ * The 1-based position of the source that a problem of an event names, if it names one
+ * (CL-IMP-02): `sourcePosition` for a source too early and for a warning raised on the
+ * outlet, the title or the publication date of a source, `position` for a dropped source
+ * and for a missing outlet or title.
+ */
 function sourcePositionOf(problem: ImportRefusal | ImportWarning): number | undefined {
   if ('sourcePosition' in problem) {
     return problem.sourcePosition;

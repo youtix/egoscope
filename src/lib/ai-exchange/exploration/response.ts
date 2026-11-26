@@ -10,7 +10,7 @@
 // in a text that a proposal would store is flagged, never rewritten (CL-IMP-07). Nothing
 // else is repaired, and every text stays as written. The source checks of IMP-14 on the
 // illustration sources are the taxonomy's (taxonomy/exploration.ts).
-import { canonicalValue, isAbsent, valuesOf } from '../conventions';
+import { canonicalValue, isAbsent, isRecord, valuesOf } from '../conventions';
 import { extractJson } from '../extract-json';
 import { checkPastedTextSize } from '../pasted-text-size';
 import { BACKTEST_FORMAT } from '../research-result/format';
@@ -245,8 +245,7 @@ function extractionRefusal(error: ExtractJsonError): ExplorationResponseResult {
 
 /** The members of a value that JSON read, when it is an object; none otherwise. */
 function fieldsOf(value: unknown): Fields {
-  const isObject = typeof value === 'object' && value !== null && !Array.isArray(value);
-  return new Map<string, unknown>(isObject ? Object.entries(value) : []);
+  return new Map<string, unknown>(isRecord(value) ? Object.entries(value) : []);
 }
 
 /** The elements of a value that JSON read, when it is a list; undefined otherwise. */

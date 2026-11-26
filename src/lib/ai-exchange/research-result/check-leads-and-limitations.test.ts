@@ -21,6 +21,13 @@ const lead = (
 
 const tooLong = 'a'.repeat(MAX_LENGTH + 1);
 
+/** The description, the reason and the approximate period of a lead, of these lengths. */
+const texts = (description: number, reason: number, period: number): Partial<UnverifiedLead> => ({
+  description: 'a'.repeat(description),
+  reason: 'a'.repeat(reason),
+  approximatePeriod: 'a'.repeat(period),
+});
+
 describe('checkLeadsAndLimitations', () => {
   it('[IMP-15] [CL-IMP-23] counts each kept lead under its requested type, compared as CL-IMP-22 says, or under none', () => {
     const unverifiedLeads = [
@@ -61,9 +68,46 @@ describe('checkLeadsAndLimitations', () => {
       MAX_LENGTH,
     );
     expect(checked.leadCounts).toStrictEqual({ 'player-conflict': 1 });
-    expect(checked.warnings).toStrictEqual(
-      [1, 2, 3, 4, 5].map((detail) => ({ kind: 'lead_ignored', detail })),
+    expect(checked.warnings).toStrictEqual([
+      { kind: 'lead_ignored', detail: 1 },
+      { kind: 'lead_ignored', detail: 2 },
+      { kind: 'lead_ignored', detail: 3, length: 201, maxLength: MAX_LENGTH },
+      { kind: 'lead_ignored', detail: 4, length: 201, maxLength: MAX_LENGTH },
+      { kind: 'lead_ignored', detail: 5, length: 201, maxLength: MAX_LENGTH },
+    ]);
+  });
+
+  it('[IMP-15] [CL-IMP-02] [CL-IMP-26] gives the length in code points of the longest text of a too-long lead and the maximum, and none for a lead only incomplete', () => {
+    const unverifiedLeads = [
+      lead('public-humiliation', { description: `${'é'.repeat(230)} `, reason: tooLong }),
+      lead('public-humiliation', { description: undefined, approximatePeriod: '🏀'.repeat(205) }),
+      lead('public-humiliation', { reason: undefined, approximatePeriod: undefined }),
+      lead('public-humiliation', { description: undefined, reason: undefined }),
+      lead('player-conflict', { approximatePeriod: '🏀'.repeat(MAX_LENGTH) }),
+    ];
+    const checked = checkLeadsAndLimitations(
+      { unverifiedLeads, declaredLimitations: [] },
+      REQUESTED,
+      MAX_LENGTH,
     );
+    expect(checked).toStrictEqual({
+      leadCounts: { 'player-conflict': 1 },
+      limitations: [],
+      warnings: [
+        { kind: 'lead_ignored', detail: 1, length: 230, maxLength: MAX_LENGTH },
+        { kind: 'lead_ignored', detail: 2, length: 205, maxLength: MAX_LENGTH },
+        { kind: 'lead_ignored', detail: 3 },
+        { kind: 'lead_ignored', detail: 4 },
+      ],
+    });
+  });
+
+  it('[IMP-15] [CL-IMP-26] takes the maximum it is given for the leads', () => {
+    const unverifiedLeads = [lead(undefined, texts(3, 12, 11)), lead(undefined, texts(11, 10, 9))];
+    const checked = checkLeadsAndLimitations({ unverifiedLeads, declaredLimitations: [] }, [], 11);
+    expect(checked.warnings).toStrictEqual([
+      { kind: 'lead_ignored', detail: 1, length: 12, maxLength: 11 },
+    ]);
   });
 
   it('[IMP-15] [CL-IMP-05] [CL-IMP-07] keeps a limitation trimmed and warns of a citation marker in it, and ignores one too long, quoted or no text', () => {

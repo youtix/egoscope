@@ -19,6 +19,9 @@ const TITLE = 'Player A taunted by an opponent';
 // Texts of the maximum length of 200 code points, and of one more.
 const LONGEST = 'a'.repeat(200);
 const TOO_LONG = 'a'.repeat(201);
+// Enough accepted events that a comparison of every pair of them would outlast the
+// default timeout of a test.
+const MANY_EVENTS = 20_000;
 
 const CONTEXT: EventCheckContext = {
   taxonomy: [
@@ -137,6 +140,16 @@ const isSound = (check: EventCheck): boolean => {
   }
   return check.outcome === (check.warnings.length > 0 ? 'added_with_warning' : 'added');
 };
+
+/** The warnings of IMP-17 for the other events that share a link, in this order. */
+const linkWarnings = (positions: readonly number[]): readonly ImportWarning[] =>
+  positions.map((otherPosition) => ({ kind: 'shared_link', otherPosition }));
+
+/** A warning on the public date of an event, then the same on the date of its first source (CL-IMP-02). */
+const onBothDates = (kind: 'non_standard_date' | 'time_ignored'): readonly ImportWarning[] => [
+  { kind },
+  { kind, sourcePosition: 1 },
+];
 
 describe('checkEvents', () => {
   it('[IMP-19] adds an event that passes every check, with its type, its values and its sources as checked', () => {
@@ -338,16 +351,16 @@ describe('checkEvents', () => {
     expect(decide(twoDays, { maxSourceLeadDays: 2 })).toBe('added');
   });
 
-  it('[IMP-14] [CL-IMP-16] keeps the oldest sources up to backtests.maxSourcesPerEvent, a timed one first on its date, ties in list order', () => {
+  it('[IMP-14] [CL-IMP-02] [CL-IMP-16] keeps the oldest sources up to backtests.maxSourcesPerEvent, a timed one first on its date, ties in list order, and warns of nothing in those it leaves out', () => {
     const sources = [
-      source({ url: `${ARTICLE}-1`, outlet: undefined }, '2021-01-16'),
+      source({ url: `${ARTICLE}-1`, outlet: undefined, title: 'Taunted [5]' }, '2021-01-16T19:30'),
       source({ url: `${ARTICLE}-2` }, '2021-01-15'),
       source({ url: `${ARTICLE}-3` }, '2021-01-15T20:00-0500'),
       source({ url: `${ARTICLE}-4` }, '2021-01-15T09:00+00:00'),
     ];
     const kept = checkOne({ publicDate: readDate('2021-01-15'), sources });
     expect(acceptedOf(kept)?.sources.map(({ position }) => position)).toStrictEqual([4, 3, 2]);
-    expect(warningsOf(kept)).toStrictEqual([{ kind: 'non_standard_date' }]);
+    expect(warningsOf(kept)).toStrictEqual([{ kind: 'non_standard_date', sourcePosition: 3 }]);
     // The calendar date as written decides first: the second source is the earliest instant.
     const byDate = [
       source({ url: `${ARTICLE}-1` }, '2021-01-15'),
@@ -367,15 +380,17 @@ describe('checkEvents', () => {
     ).toStrictEqual([1]);
   });
 
-  it('[IMP-14] [CL-IMP-07] only warns of a missing outlet or title and of a citation marker in a kept source, once per field', () => {
+  it('[IMP-14] [CL-IMP-02] [CL-IMP-07] only warns of a missing outlet or title, of a citation marker and of a date of a kept source, once per field and source, at its position', () => {
     const sources = [
       source({ title: undefined, outlet: 'Outlet [3]' }),
-      source({ url: OTHER_ARTICLE, outlet: 'Another outlet [4]', title: 'Taunted¹' }),
+      source({ url: OTHER_ARTICLE, outlet: 'Outlet [4]', title: 'Taunted¹' }, '2021-01-14T19:30'),
     ];
     expect(warningsOne({ sources })).toStrictEqual([
       { kind: 'source_outlet_or_title_missing', position: 1 },
-      { kind: 'possible_citation_marker', field: 'outlet' },
-      { kind: 'possible_citation_marker', field: 'title' },
+      { kind: 'possible_citation_marker', field: 'outlet', sourcePosition: 1 },
+      { kind: 'time_ignored', sourcePosition: 2 },
+      { kind: 'possible_citation_marker', field: 'outlet', sourcePosition: 2 },
+      { kind: 'possible_citation_marker', field: 'title', sourcePosition: 2 },
     ]);
   });
 
@@ -408,34 +423,40 @@ describe('checkEvents', () => {
     expect(decide({ publicDate: readDate(null) })).toBe('refused: public_date_missing');
   });
 
-  it('[IMP-17] [CL-IMP-13] warns each accepted event that cites a cleaned link of another accepted one, once per other event', () => {
-    const checks = checkEvents(
-      [
-        event({ sources: [source(), source({ url: OTHER_ARTICLE })] }),
-        event({ eventType: 'player-conflict', sources: [source({ url: `${ARTICLE}-2` })] }),
-        event({
-          eventType: 'player-conflict',
-          sources: [source({ url: `${OTHER_ARTICLE}#comments` }), source({ url: `${ARTICLE}-3` })],
-        }),
-        event({ description: undefined, sources: [source({ url: `${ARTICLE}-2` })] }),
-        event({ eventType: 'record-approach', sources: [source({ url: `${ARTICLE}-2` })] }),
-      ],
-      CONTEXT,
+  it('[IMP-17] [CL-IMP-13] warns each accepted event that cites a cleaned link of another accepted one, once per other event, in their order, in one pass over 20,000 events', () => {
+    // The first and the third share a link once cleaned; a refused and an ignored event
+    // share the second's. Further on, a link shared by three events, two events that share
+    // two links, and an event whose second shared link brings one before those of its first.
+    const first = [
+      event({ sources: [source(), source({ url: OTHER_ARTICLE })] }),
+      event({ eventType: 'player-conflict', sources: [source({ url: `${ARTICLE}-2` })] }),
+      event({
+        eventType: 'player-conflict',
+        sources: [source({ url: `${OTHER_ARTICLE}#comments` }), source({ url: `${ARTICLE}-3` })],
+      }),
+      event({ description: undefined, sources: [source({ url: `${ARTICLE}-2` })] }),
+      event({ eventType: 'record-approach', sources: [source({ url: `${ARTICLE}-2` })] }),
+    ];
+    // By position, the paths of the links of an event after the first five, apart by a
+    // space, and the events that share one of its links.
+    const shared = new Map<number, readonly [string, readonly number[]]>([
+      [1, ['', [3]]],
+      [3, ['', [1]]],
+      [100, ['by-three', [7000, 15_000]]],
+      [200, ['first-of-two second-of-two', [300]]],
+      [300, ['second-of-two first-of-two', [200]]],
+      [400, ['later', [15_000]]],
+      [7000, ['by-three', [100, 15_000]]],
+      [15_000, ['by-three later', [100, 400, 7000]]],
+    ]);
+    const events = Array.from({ length: MANY_EVENTS }, (_, index) => {
+      const [paths] = shared.get(index + 1) ?? [`own-${String(index + 1)}`];
+      const sources = paths.split(' ').map((path) => source({ url: `${ARTICLE}/${path}` }));
+      return first[index] ?? event({ sources });
+    });
+    expect(checkEvents(events, CONTEXT).map((check) => warningsOf(check))).toStrictEqual(
+      events.map((_, index) => linkWarnings(shared.get(index + 1)?.[1] ?? [])),
     );
-    expect(checks.map((check) => decision(check))).toStrictEqual([
-      'added_with_warning',
-      'added',
-      'added_with_warning',
-      'refused: description_missing',
-      'ignored: type_not_validated',
-    ]);
-    expect(checks.map((check) => warningsOf(check))).toStrictEqual([
-      [{ kind: 'shared_link', otherPosition: 3 }],
-      [],
-      [{ kind: 'shared_link', otherPosition: 1 }],
-      [],
-      [],
-    ]);
   });
 
   it('[CL-IMP-06] [CL-IMP-07] [CL-IMP-08] [CL-IMP-22] gives each event-level quirk of research AIs its own outcome', () => {
@@ -446,7 +467,7 @@ describe('checkEvents', () => {
         'added_with_warning',
         [
           { kind: 'possible_citation_marker', field: 'description' },
-          { kind: 'possible_citation_marker', field: 'title' },
+          { kind: 'possible_citation_marker', field: 'title', sourcePosition: 1 },
         ],
       ],
       ['added', []],
@@ -456,8 +477,8 @@ describe('checkEvents', () => {
       ],
       ['refused: description_missing', []],
       ['added', []],
-      ['added_with_warning', [{ kind: 'non_standard_date' }]],
-      ['added_with_warning', [{ kind: 'time_ignored' }]],
+      ['added_with_warning', onBothDates('non_standard_date')],
+      ['added_with_warning', onBothDates('time_ignored')],
       ['refused: type_missing, public_date_missing', []],
     ]);
     // The marked description kept as written, the blank optional texts absent, the
