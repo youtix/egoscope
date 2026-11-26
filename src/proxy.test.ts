@@ -148,8 +148,12 @@ describe('the request proxy', () => {
   it('answers the gallery not found, with its 404, outside development and the hermetic mode, with or without a session', async () => {
     const proxy = await proxyOf();
 
-    expect(getRewrittenUrl(ask(proxy, '/dev/ui'))).toBe(`${SITE}/_closed`);
-    expect(getRewrittenUrl(ask(proxy, '/dev/ui', { cookie: TOKEN }))).toBe(`${SITE}/_closed`);
+    const answers = [ask(proxy, '/dev/ui'), ask(proxy, '/dev/ui', { cookie: TOKEN })];
+
+    expect(answers.map((answer) => [answer.status, getRewrittenUrl(answer)])).toStrictEqual([
+      [404, `${SITE}/_closed`],
+      [404, `${SITE}/_closed`],
+    ]);
   });
 
   it('asks a session for the gallery under next dev', async () => {

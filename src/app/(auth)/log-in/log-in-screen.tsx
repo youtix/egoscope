@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { io } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { currentSession, lockoutStatus } from '@/lib/auth';
@@ -15,14 +16,44 @@ import { destination, returnPath } from './return-path';
 import { endedLabel, endReasonOf } from './session-ending';
 
 import type { Lockout } from './lockout';
+import type { SessionEndReason } from '@/lib/auth';
 import type { Result } from '@/lib/result';
+import type { Route } from 'next';
 import type { ReactNode } from 'react';
 
 /** The query of the login address: the screen to return to, and how the session ended. */
 export type LogInQuery = Readonly<Record<string, string | string[] | undefined>>;
 
+type Unchecked = Readonly<{ kind: string }>;
+
+/**
+ * Sends on a device that has no login to make: one whose session is open, to `target`
+ * or first to "Choose your password" (TRV-57); one whose session ended, when the address
+ * has not `told` it how, through the step that erases its data if the owner ended it
+ * (IHM-08, CL-TRV-05). Any other stays, unless the server cannot read its session.
+ */
+async function sendOnward(
+  target: Route,
+  told: SessionEndReason | null,
+): Promise<Result<undefined, Unchecked>> {
+  // The session is read at the time of the request, never in a prerender.
+  await io();
+  const session = await currentSession();
+  if (!session.ok) {
+    return session;
+  }
+  const state = session.value;
+  if (state.state === 'open') {
+    redirect(destination(state.session.passwordStatus, target));
+  }
+  if (state.state === 'ended' && state.reason !== told) {
+    redirect(`/log-in/erase?${new URLSearchParams({ next: target }).toString()}`);
+  }
+  return ok(undefined);
+}
+
 /** The lockout in progress, if any, or why the server cannot tell. */
-async function currentLockout(): Promise<Result<Lockout | null, Readonly<{ kind: string }>>> {
+async function currentLockout(): Promise<Result<Lockout | null, Unchecked>> {
   const status = await lockoutStatus();
   if (!status.ok) {
     return status;
@@ -56,16 +87,9 @@ export async function LogInScreen({
   const { next, ended } = await query;
   const target = returnPath(next);
   const told = endReasonOf(ended);
-  const session = await currentSession();
-  if (!session.ok) {
-    return unavailable(session.error.kind);
-  }
-  const state = session.value;
-  if (state.state === 'open') {
-    redirect(destination(state.session.passwordStatus, target));
-  }
-  if (state.state === 'ended' && state.reason !== told) {
-    redirect(`/log-in/erase?${new URLSearchParams({ next: target }).toString()}`);
+  const onward = await sendOnward(target, told);
+  if (!onward.ok) {
+    return unavailable(onward.error.kind);
   }
   const lockout = await currentLockout();
   if (!lockout.ok) {

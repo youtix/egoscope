@@ -9,11 +9,12 @@ const LOG_IN = '/log-in';
 const LOG_IN_STEPS = `${LOG_IN}/`;
 const GALLERY = '/dev/ui';
 const UNAUTHORIZED = 401;
+const NOT_FOUND = 404;
 const PERMANENT_REDIRECT = 308;
 // Two years, in seconds: the duration that browsers' HSTS preload lists ask for.
 const HSTS_MAX_AGE_SECONDS = 63_072_000;
 // A path that no route can take, since Next.js never routes a folder whose name starts
-// with an underscore: rewritten to it, a request gets the not-found page and its 404.
+// with an underscore: rewritten to it, with a 404, a request gets the not-found page.
 const NO_ROUTE = '/_closed';
 
 /**
@@ -144,7 +145,7 @@ function route(request: NextRequest): NextResponse {
   }
   const path = request.nextUrl.pathname;
   if (path === GALLERY && !isGalleryOpen()) {
-    return NextResponse.rewrite(new URL(NO_ROUTE, request.url));
+    return NextResponse.rewrite(new URL(NO_ROUTE, request.url), { status: NOT_FOUND });
   }
   if (isPublic(path)) {
     return NextResponse.next();

@@ -442,10 +442,10 @@ test.describe('the component gallery outside development and the hermetic mode',
       const response = await request.get(new URL('/dev/ui', server.address).href);
       const body = await response.text();
 
-      expect(response.status()).toBe(404);
       expect(body).toContain('This page could not be found.');
       expect(body).toContain('<meta name="robots" content="noindex"/>');
       expect(body).not.toContain('Component gallery');
+      expect(response.status()).toBe(404);
     } finally {
       server.stop();
     }

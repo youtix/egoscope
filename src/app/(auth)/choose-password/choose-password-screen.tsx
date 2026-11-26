@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { io } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { currentSession } from '@/lib/auth';
@@ -40,6 +41,8 @@ export async function ChoosePasswordScreen({
   query,
 }: Readonly<{ query: Promise<ChoosePasswordQuery> }>): Promise<ReactNode> {
   const { next } = await query;
+  // The session is read at the time of the request, never in a prerender.
+  await io();
   const session = await currentSession();
   if (!session.ok) {
     return unavailable(session.error.kind);

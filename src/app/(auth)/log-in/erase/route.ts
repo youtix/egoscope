@@ -1,5 +1,3 @@
-import { NextResponse } from 'next/server';
-
 import { currentSession } from '@/lib/auth';
 import { logger } from '@/lib/log';
 
@@ -38,11 +36,14 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (ended !== null) {
     query.set('ended', ended);
   }
-  const logIn = new URL(`/log-in?${query.toString()}`, request.url);
-  const response = NextResponse.redirect(logIn, SEE_OTHER);
-  response.headers.set('Cache-Control', 'no-store');
+  // A path, which the browser reads against the address it asked for: the server may know
+  // itself by another host name than the one the device reached it by.
+  const headers = new Headers({
+    Location: `/log-in?${query.toString()}`,
+    'Cache-Control': 'no-store',
+  });
   if (ended !== null && ended !== 'expired') {
-    response.headers.set('Clear-Site-Data', EVERYTHING);
+    headers.set('Clear-Site-Data', EVERYTHING);
   }
-  return response;
+  return new Response(null, { status: SEE_OTHER, headers });
 }

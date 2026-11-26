@@ -41,7 +41,7 @@ describe('the step of the login page that tells a device how its session ended',
 
       expect(told(response)).toStrictEqual({
         status: 303,
-        location: `${SITE}/log-in?next=%2Fplayers%3Ftab%3Dcases&ended=${reason}`,
+        location: `/log-in?next=%2Fplayers%3Ftab%3Dcases&ended=${reason}`,
         clear: EVERYTHING,
         cache: 'no-store',
       });
@@ -53,7 +53,7 @@ describe('the step of the login page that tells a device how its session ended',
 
     expect(told(response)).toStrictEqual({
       status: 303,
-      location: `${SITE}/log-in?next=%2Fplayers%3Ftab%3Dcases&ended=expired`,
+      location: `/log-in?next=%2Fplayers%3Ftab%3Dcases&ended=expired`,
       clear: null,
       cache: 'no-store',
     });
@@ -64,7 +64,7 @@ describe('the step of the login page that tells a device how its session ended',
 
     expect(told(response)).toStrictEqual({
       status: 303,
-      location: `${SITE}/log-in?next=%2Fplayers%3Ftab%3Dcases`,
+      location: `/log-in?next=%2Fplayers%3Ftab%3Dcases`,
       clear: null,
       cache: 'no-store',
     });
@@ -80,7 +80,7 @@ describe('the step of the login page that tells a device how its session ended',
 
     expect(told(response)).toStrictEqual({
       status: 303,
-      location: `${SITE}/log-in?next=%2F`,
+      location: `/log-in?next=%2F`,
       clear: null,
       cache: 'no-store',
     });
@@ -89,6 +89,6 @@ describe('the step of the login page that tells a device how its session ended',
   it('[IHM-11] returns to Home when the address names no screen', async () => {
     const response = await erase({ state: 'ended', reason: 'logged_out' }, null);
 
-    expect(response.headers.get('location')).toBe(`${SITE}/log-in?next=%2F&ended=logged_out`);
+    expect(response.headers.get('location')).toBe('/log-in?next=%2F&ended=logged_out');
   });
 });
