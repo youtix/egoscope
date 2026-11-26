@@ -294,9 +294,10 @@ async function catchUp(
  * two checks never journal the same occurrence: each occurrence missed since the task's
  * last scheduled run that succeeded is journaled once, opens the task's "task not run" incident,
  * closed by its next success, and makes the task due at once for one catch-up run, recorded
- * as scheduled, which starts at the task's next turn, in that pass if its budget allows and
- * otherwise at the next one. A statistics update that waits for the source is running, and a
- * late source is never missed (CL-TRV-23). Returns the tasks whose catch-up run is due now.
+ * as scheduled, which starts at the task's next turn: in that pass while its budget allows
+ * and the task has started no scheduled run in it, one a pass, otherwise at the next one
+ * (TRV-28). A statistics update that waits for the source is running, and a late source is
+ * never missed (CL-TRV-23). Returns the tasks whose catch-up run is due now.
  */
 export async function runCheck(
   db: Database,
