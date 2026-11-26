@@ -263,6 +263,8 @@ describe('the exploration prompt and preview', { timeout: DATABASE_TEST_TIMEOUT_
       });
       const frenzy = { name: 'Press frenzy', definition: MEDIA_STORM_DEFINITION };
       const longer = { ...FEUD, name: 'Locker room feud between teammates' };
+      const unnamed = { definition: 'A coach changes the starting lineup for a road trip.' };
+      const withoutDefinition = { name: 'Quiet offseason' };
       const fightPair = {
         closeness: 'names',
         other: { kind: 'type', ...fight, status: 'rejected' },
@@ -272,7 +274,10 @@ describe('the exploration prompt and preview', { timeout: DATABASE_TEST_TIMEOUT_
         other: { kind: 'proposed_type', position, name, definition: FEUD.definition },
       });
 
-      const preview = await previewExplorationResponse(db, responseOf([FEUD, frenzy, longer]));
+      const preview = await previewExplorationResponse(
+        db,
+        responseOf([FEUD, frenzy, longer, unnamed, withoutDefinition]),
+      );
 
       expect(
         preview.ok && preview.value.proposedTypes.map((type) => type.possibleDuplicates),
@@ -291,6 +296,8 @@ describe('the exploration prompt and preview', { timeout: DATABASE_TEST_TIMEOUT_
           },
         ],
         [fightPair, responsePair(1, FEUD.name)],
+        [],
+        [],
       ]);
     });
 

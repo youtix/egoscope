@@ -24,13 +24,17 @@ import type { Database, Transaction } from '@/lib/db';
 
 const START = toEpochMs(Date.UTC(2026, 10, 26, 9, 0));
 const { feud: FEUD, standoff: STANDOFF, benching: BENCHING } = fixture.types;
-const { timed: TIMED, french: FRENCH } = fixture.sources;
+const { timed: TIMED, french: FRENCH, social: SOCIAL } = fixture.sources;
+const { noOutlet: NO_OUTLET, noTitle: NO_TITLE } = fixture.sources;
 const TIMED_URL = TIMED.url.trim();
 
 // A response as an AI pastes it, its keys written as the format writes them.
 const responseOf = (types: readonly object[]): string =>
   `Here is the response.\n{"format": "egoscope-exploration", "format_version": "1.0", "proposed_types": ${JSON.stringify(types)}}`;
 const THREE_TYPES = responseOf([FEUD, STANDOFF, BENCHING]);
+/** `type` with the illustration sources given, under the key of the format. */
+const withSources = (type: object, sources: readonly object[]): object =>
+  Object.fromEntries([...Object.entries(type), ['illustration_sources', sources]]);
 const heldLock = z.object({ classid: z.string(), objid: z.string(), objsubid: z.number() });
 const heldLocks = z.object({ rows: z.array(heldLock) });
 
@@ -193,11 +197,17 @@ describe('createFromExploration', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   });
 
   it('[TAX-03] [CL-TAX-16] stores the kept illustration sources with their proposal only, as published and as written, never in a sheet, a prompt or a classification', async () => {
-    await create({ pastedText: THREE_TYPES, ticked: [1], target: null });
+    const sources = [TIMED, SOCIAL, FRENCH, NO_OUTLET, NO_TITLE];
+    await create({
+      pastedText: responseOf([withSources(FEUD, sources)]),
+      ticked: [1],
+      target: null,
+    });
     const source = { eventTypeId: 'locker-room-feud' };
     const texts = [
       TIMED.title,
       FRENCH.title,
+      NO_OUTLET.title,
       'example.com',
       'example.org',
       'Hoops Daily Ledger',
@@ -232,6 +242,26 @@ describe('createFromExploration', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         outlet: FRENCH.outlet,
         title: FRENCH.title,
         publicationDateOn: '2026-11-11',
+        publicationAt: null,
+        publicationOffsetMinutes: null,
+      },
+      {
+        ...source,
+        position: 3,
+        url: NO_OUTLET.url,
+        outlet: null,
+        title: NO_OUTLET.title,
+        publicationDateOn: '2026-11-09',
+        publicationAt: null,
+        publicationOffsetMinutes: null,
+      },
+      {
+        ...source,
+        position: 4,
+        url: NO_TITLE.url,
+        outlet: NO_TITLE.outlet,
+        title: null,
+        publicationDateOn: '2026-11-08',
         publicationAt: null,
         publicationOffsetMinutes: null,
       },

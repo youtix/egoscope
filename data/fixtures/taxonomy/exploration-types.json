@@ -39,6 +39,11 @@
       "url": "https://www.example.org/story/12345",
       "title": "A locker room in turmoil",
       "publication_date": "2026-11-09"
+    },
+    "noTitle": {
+      "url": "https://www.example.org/story/67890",
+      "outlet": "Gazette des Paniers",
+      "publication_date": "2026-11-08"
     }
   },
   "types": {
