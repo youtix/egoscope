@@ -179,7 +179,7 @@ describe('the case block', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         caseId: row.id,
         decidedAt: new Date(AT),
         kind: 'reinstate',
-        reinstatementReason: 'criterion_unsuited_to_case',
+        reinstatementReason: 'incorrect_context_indication',
         previousStatus: 'excluded',
         measuredGameId,
       },
@@ -449,7 +449,7 @@ describe('the case block', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       ],
       [
         'Fri 20 Nov 2026, 09:15',
-        'ReinstateCriterion unsuited to this caseStatus before the decision: Excluded (doubtful case)',
+        'ReinstateIncorrect context indicationStatus before the decision: Excluded (doubtful case)',
       ],
     ]);
     expect(factsOf(partOf(view, 'History'))).toStrictEqual([
