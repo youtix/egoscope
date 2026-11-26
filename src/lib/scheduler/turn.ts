@@ -1,6 +1,6 @@
 // A task's turn in a pass (TRV-26, TRV-28, TRV-30, CL-TRV-07, CL-TRV-08): the run to work
 // on, if any, and the postponement of an occurrence that comes due while a run runs.
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { journalEntries } from '@/lib/db';
 import { record } from '@/lib/journal';
@@ -33,8 +33,9 @@ export type Pass = Readonly<{
 type Turn = Readonly<{ pass: Pass; task: ScheduledTask; state: TaskState; context: DueContext }>;
 
 /**
- * Journals, once per occurrence, that the task of `turn` came due while `running` runs:
- * the occurrence waits for that run's end (TRV-28, CL-TRV-07).
+ * Journals that the task of `turn` came due while `running` runs, once per postponed
+ * occurrence, whichever run it waits for: the resumption of a cut run journals it no more
+ * than the run did. The occurrence waits for that run's end (TRV-28, CL-TRV-07).
  */
 async function journalPostponement(turn: Turn, running: RunRow): Promise<void> {
   const { task, state, context } = turn;
@@ -48,7 +49,7 @@ async function journalPostponement(turn: Turn, running: RunRow): Promise<void> {
   const { db } = context;
   const thisPostponement = and(
     eq(journalEntries.messageKey, 'task_run_postponed'),
-    eq(journalEntries.taskRunId, running.id),
+    sql`${journalEntries.messageParams}->>'task' = ${task.key}`,
     eq(journalEntries.occurredAt, new Date(next.dueAt)),
   );
   const journaled = await db
