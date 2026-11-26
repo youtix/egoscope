@@ -391,16 +391,42 @@ describe('the mutation gate', { timeout: TIMEOUT_MS }, () => {
       ]);
     });
 
-    it('runs every mutant, and asks GitHub nothing, when GITHUB_REPOSITORY is unset', () => {
-      vi.stubEnv('GITHUB_REPOSITORY', '');
-      const root = repositoryWith();
-      const calls = standInGh(runOn('0'.repeat(40)));
+    it.each([undefined, ''])(
+      'runs every mutant, and asks GitHub nothing, when GITHUB_REPOSITORY is %j',
+      (repository) => {
+        vi.stubEnv('GITHUB_REPOSITORY', repository);
+        const root = repositoryWith();
+        const calls = standInGh(runOn('0'.repeat(40)));
 
-      expect(gateLines(root, ['--event', 'push'])).toStrictEqual([
-        'Mutation tests from scratch, because GITHUB_REPOSITORY is unset, so the runs of the mutation workflow cannot be listed.',
-        STRYKER,
-      ]);
-      expect(calls()).toStrictEqual([]);
+        expect(gateLines(root, ['--event', 'push'])).toStrictEqual([
+          'Mutation tests from scratch, because GITHUB_REPOSITORY is unset, so the runs of the mutation workflow cannot be listed.',
+          STRYKER,
+        ]);
+        expect(calls()).toStrictEqual([]);
+      },
+    );
+  });
+
+  it('fails, and runs nothing, when git cannot list the changes against the base', () => {
+    // The one commit of the repository has no parent, so HEAD^1 names nothing.
+    const run = gate(repositoryWith(), ['--event', 'pull_request']);
+
+    expect(run).toStrictEqual({
+      status: 1,
+      lines: ['Mutation tests: compared with HEAD^1, the base branch of the pull request.'],
+      errors:
+        '✖ Mutation tests: git cannot list the changes against HEAD^1: run `git fetch origin main`, then try again.\n',
+    });
+  });
+
+  it('fails when the mutation tests fail, with their exit code', () => {
+    const failing = JSON.stringify({ scripts: { 'test:mutation': "sh -c 'exit 3'" } });
+    const root = repositoryWith({ 'package.json': failing });
+    write(root, { [CORE_FILE]: 'changed\n' });
+
+    expect(gate(root)).toMatchObject({
+      status: 3,
+      lines: [LOCAL_BASE, `Mutation tests from scratch, because of ${CORE_FILE}.`],
     });
   });
 
