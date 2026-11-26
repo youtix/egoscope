@@ -296,6 +296,8 @@ const RANGE_EDGES: readonly bigint[] = [
 // The first octets of the refused IPv4 blocks, which a uniform draw of 32 bits seldom hits.
 const REFUSED_IPV4_OCTETS = [0n, 10n, 100n, 127n, 169n, 172n, 192n, 198n, 224n, 240n, 255n];
 const IPV4_LOW_BITS = 24n;
+const EIGHTHS_OF_SPACE = 8;
+const EIGHTH_SHIFT_BITS = 125n;
 
 /** A 32-bit value, uniform or in a refused IPv4 block. */
 const heldIpv4 = fc.oneof(
@@ -329,6 +331,42 @@ const ipv6Values = fc.oneof(
     weight: 2,
   },
 );
+
+// The first octets of which every IPv4 address is refused, and of which every one is public.
+const FULLY_REFUSED_IPV4_OCTETS = [0n, 10n, 127n, 224n, 240n, 255n];
+const FULLY_PUBLIC_IPV4_OCTETS = [8n, 9n, 11n, 12n];
+
+/**
+ * One address inside every range of the rule, drawn afresh in each run: each of the refused
+ * blocks, each eighth of the 128-bit space (the three top bits, which tell 2000::/3 from its
+ * neighbors), and each IPv4-holding block with a refused and with a public held IPv4 address. A
+ * single draw of `ipv6Values` reaches a given narrow block in a run seldom, so a rule broken
+ * for one block would pass about one run in five hundred; this reaches every block in every run.
+ */
+const ipv6EveryRange = fc.tuple(
+  ...REFUSED_RANGES.map(([first, last]) => fc.bigInt({ min: first, max: last })),
+  ...Array.from({ length: EIGHTHS_OF_SPACE }, (_, eighth) =>
+    fc
+      .bigInt({ min: 0n, max: GLOBAL_UNICAST_FIRST - 1n })
+      .map((rest) => (BigInt(eighth) << EIGHTH_SHIFT_BITS) | rest),
+  ),
+  ...IPV4_HOLDERS.flatMap((holder) =>
+    [FULLY_REFUSED_IPV4_OCTETS, FULLY_PUBLIC_IPV4_OCTETS].map((octets) =>
+      fc
+        .tuple(
+          fc.constantFrom(...octets),
+          fc.bigInt({ min: 0n, max: (1n << IPV4_LOW_BITS) - 1n }),
+          fc.bigInt({ min: 0n, max: (1n << HOLDER_FILLER_BITS) - 1n }),
+        )
+        .map(([octet, rest, filler]) => holder.place((octet << IPV4_LOW_BITS) | rest, filler)),
+    ),
+  ),
+);
+
+/** The addresses of one run: one of `ipv6Values` and one in every range. */
+const ipv6Run = fc
+  .tuple(ipv6Values, ipv6EveryRange)
+  .map(([address, inRanges]) => [address, ...inRanges]);
 
 describe('addressKind', () => {
   it.each(IPV4_BLOCKS.map(([first, last, kind, neighbors]) => ({ first, last, kind, neighbors })))(
@@ -423,37 +461,50 @@ describe('addressKind', () => {
 
   it('[TRV-66] [CL-IMP-25] judges every address of the 128-bit space by the complement of the refused blocks', () => {
     fc.assert(
-      fc.property(ipv6Values, (address) => {
-        const text = ipv6Text(address);
+      fc.property(ipv6Run, (addresses) => {
+        const texts = addresses.map((address) => ipv6Text(address));
 
-        expect({ address: text, kind: addressKind(text) }).toStrictEqual({
-          address: text,
-          kind: oracle(address).kind,
-        });
+        expect(texts.map((text) => ({ address: text, kind: addressKind(text) }))).toStrictEqual(
+          addresses.map((address, index) => ({
+            address: texts[index],
+            kind: oracle(address).kind,
+          })),
+        );
       }),
     );
   });
 
-  it('[TRV-66] draws addresses of every case of the rule: each refused block, each IPv4 holder, 2000::/3 and its complement', () => {
-    const sampled = fc.sample(ipv6Values, { numRuns: 5000 });
-    const count = (isCounted: (address: bigint) => boolean) =>
-      sampled.filter((address) => isCounted(address)).length;
-    const minimum = 40;
+  it('[TRV-66] draws, in every run, an address of every case of the rule: each refused block, each IPv4 holder with a refused and a public address, 2000::/3 and its complement', () => {
+    const cases: readonly (readonly [string, (address: bigint) => boolean])[] = [
+      ...REFUSED_RANGES.map(
+        ([first, last, kind]) =>
+          [`refused ${kind} ${ipv6Text(first)}`, (a: bigint) => a >= first && a <= last] as const,
+      ),
+      ...IPV4_HOLDERS.flatMap(({ first, last }) => [
+        [
+          `held refused ${ipv6Text(first)}`,
+          (a: bigint) =>
+            a >= first && a <= last && oracle(a).source === 'held' && oracle(a).kind !== 'public',
+        ] as const,
+        [
+          `held public ${ipv6Text(first)}`,
+          (a: bigint) =>
+            a >= first && a <= last && oracle(a).source === 'held' && oracle(a).kind === 'public',
+        ] as const,
+      ]),
+      [
+        'complement public',
+        (a: bigint) => oracle(a).source === 'complement' && oracle(a).kind === 'public',
+      ],
+      [
+        'complement reserved',
+        (a: bigint) => oracle(a).source === 'complement' && oracle(a).kind === 'reserved',
+      ],
+    ];
+    const unreachedIn = (addresses: readonly bigint[]) =>
+      cases.filter(([, isCase]) => addresses.every((a) => !isCase(a))).map(([name]) => name);
+    const unreached = fc.sample(ipv6Run, { numRuns: 50 }).flatMap((run) => unreachedIn(run));
 
-    expect(
-      count((a) => oracle(a).source === 'complement' && oracle(a).kind === 'public'),
-    ).toBeGreaterThan(minimum);
-    expect(
-      count((a) => oracle(a).source === 'complement' && oracle(a).kind === 'reserved'),
-    ).toBeGreaterThan(minimum);
-    for (const [first, last] of REFUSED_RANGES) {
-      expect(count((a) => a >= first && a <= last)).toBeGreaterThan(0);
-    }
-    for (const { first, last } of IPV4_HOLDERS) {
-      const isHeld = (a: bigint) => a >= first && a <= last && oracle(a).source === 'held';
-      expect(count(isHeld)).toBeGreaterThan(0);
-      expect(count((a) => isHeld(a) && oracle(a).kind !== 'public')).toBeGreaterThan(0);
-      expect(count((a) => isHeld(a) && oracle(a).kind === 'public')).toBeGreaterThan(0);
-    }
+    expect(unreached).toStrictEqual([]);
   });
 });
