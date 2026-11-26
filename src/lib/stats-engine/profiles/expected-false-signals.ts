@@ -73,17 +73,20 @@ function millsRatioNear(point: number, millsRatio: number, offset: number): numb
 }
 
 /**
- * The upper tail 1 − Φ(t) of the standard normal law beyond a threshold t from 0 to 11,
- * as R(t) × φ(t), which keeps its relative precision far into the tail, where 1 − Φ(t)
- * would lose its digits to Φ(t)'s rounding: its relative error stays below 1e-12. Only a
- * bug can give another threshold, since the registry's run from 0.5 to 10 (CL-TRV-16).
+ * Computes the upper tail 1 − Φ(t) of the standard normal law beyond a threshold t from 0 up
+ * to, but not including, 11 (SEN-41, CL-SEN-20, CL-SUI-15), as R(t) × φ(t), which keeps its
+ * relative precision far into the tail, where 1 − Φ(t) would lose its digits to Φ(t)'s
+ * rounding: its relative error stays below 1e-12. Only a bug can give another threshold,
+ * since the registry keeps the signal-to-noise thresholds read here from 0.5 to 10, and the
+ * category threshold of the validation table's chance-expected counts from 0 to 5
+ * (CL-TRV-16).
  */
-function upperTail(threshold: number): number {
+export function upperTail(threshold: number): number {
   const index = Math.round(threshold / POINT_SPACING);
   const millsRatio = MILLS_RATIOS[index];
   if (millsRatio === undefined || threshold < 0) {
     throw new RangeError(
-      `No normal tail for a threshold of ${String(threshold)}: it is computed from 0 to 11.`,
+      `No normal tail for a threshold of ${String(threshold)}: it is computed from 0 up to, but not including, 11.`,
     );
   }
   const point = POINT_SPACING * index;
