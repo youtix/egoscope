@@ -4,6 +4,7 @@ import {
   caseHistoryEntries,
   caseManualDecisions,
   caseReviewFlags,
+  caseTriggeredCriteria,
   createTestDatabase,
   eventSources,
 } from '@/lib/db';
@@ -252,6 +253,26 @@ describe('the detail of a case', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ).toStrictEqual([
       { id: first.id, urls: ['https://news.example.com/first-report'] },
       { id: second.id, urls: ['https://news.example.com/second-report'] },
+    ]);
+  });
+
+  it('[SEN-06] [SEN-18] gives a co-occurring case the other types it shares its game with', async () => {
+    const caseId = world.birthday.tracked.id;
+    await db.insert(caseTriggeredCriteria).values({
+      caseId,
+      criterion: 'co_occurring',
+      condition: null,
+      triggeringValues: { coOccurringTypeIds: ['media-storm', 'trade-rumor'] },
+    });
+
+    const detail = await getCase(db, caseId);
+
+    expect(detail?.criteria).toStrictEqual([
+      {
+        criterion: 'co_occurring',
+        condition: null,
+        triggeringValues: { coOccurringTypeIds: ['media-storm', 'trade-rumor'] },
+      },
     ]);
   });
 

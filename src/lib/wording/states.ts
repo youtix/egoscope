@@ -1,6 +1,8 @@
 // The labels of every state the application shows: the common states of 00 (VUE-08)
 // and every other state set of the specs, which the glossary names `…Status` (« état »,
-// « statut », glossary section 2), with the UI labels of glossary section 4.1, in its
+// « statut », glossary section 2), and the other sets of glossary section 4.1 that a
+// screen shows (origins, reasons, criteria, flags, kinds, causes), each added by the
+// task of the first screen that shows it, with the UI labels of section 4.1, in its
 // order. A state whose UI label the glossary leaves out ("—", or a note such as
 // "(the mark's label)") is never shown, so it has none here.
 import { fill } from './template';
@@ -37,17 +39,96 @@ export const STATUS_LABELS = {
   ],
 
   // --- Events (EventMarkStatus shows the mark's own label, never a state) ------------
+  EventOrigin: [
+    ['detected', 'Detected'],
+    ['historical', 'Historical'],
+    ['calendar', 'Derived from the calendar'],
+  ],
   DetectedEventStatus: [
     ['detected', 'Detected'],
     ['dismissed', 'Dismissed'],
   ],
+  InjuryReturn: [
+    ['yes', 'Yes'],
+    ['no', 'No'],
+    ['unknown', 'Unknown'],
+  ],
+  GameStakes: [
+    ['high', 'High'],
+    ['normal', 'Normal'],
+    ['unknown', 'Unknown'],
+  ],
+  ContextIndicationOrigin: [
+    ['research', 'Research'],
+    ['classification', 'Classification'],
+    ['user', 'You'],
+    ['calculation', 'Calculated'],
+  ],
+  ReferenceInstantOrigin: [
+    ['known_instant', 'Known time'],
+    ['date_only', 'Date only'],
+    ['known_in_advance', 'Known in advance'],
+    ['uncertain_precedence_shift', 'Uncertain precedence'],
+  ],
 
   // --- Cases -----------------------------------------------------------------------
+  CaseOrigin: [
+    ['historical', 'Historical'],
+    ['tracked', 'Tracked'],
+  ],
   CaseStatus: [
     ['awaiting_game', 'Awaiting game'],
     ['measured', 'Measured'],
     ['excluded', 'Excluded (doubtful case)'],
     ['not_measurable', 'Not measurable'],
+  ],
+  CaseStatusReason: [
+    ['game_not_played_yet', 'Game not played yet'],
+    ['statistics_pending', 'Statistics pending'],
+    ['mapping_not_established', 'Stats-source mapping not established'],
+    ['baseline_building', 'Baseline being built'],
+    ['precedence_to_verify', 'Precedence to verify'],
+    ['dating_to_verify', 'Dating to verify'],
+    ['no_game_within_window', 'No game played within the window'],
+    ['box_score_incomplete', 'Box score incomplete'],
+    ['box_score_suspect', 'Box score suspect'],
+    ['box_score_unavailable', 'Box score unavailable'],
+    ['insufficient_baseline', 'Insufficient baseline'],
+    ['season_not_covered', 'Season not covered by the source'],
+    ['precedence_not_established', 'Precedence not established'],
+    ['derived_game_missed', 'Did not play the derived game'],
+  ],
+  DoubtfulCaseCriterion: [
+    ['playing_time_too_low', 'Playing time too low'],
+    ['injury_return', 'Return from injury'],
+    ['unusual_stakes', 'Unusual stakes'],
+    ['opponent_strength', 'Opponent strength'],
+    ['co_occurring', 'Co-occurring'],
+    ['manual', 'Excluded by you'],
+  ],
+  CriterionCondition: [
+    ['flagged', 'Flagged'],
+    ['calculated', 'Calculated'],
+  ],
+  ReviewFlag: [
+    ['first_game_with_new_team', 'First game with a new team'],
+    ['ejection', 'Ejected during the game'],
+    ['manual_decision_to_review', 'Manual decision to review: the measured game changed'],
+  ],
+  ManualDecisionKind: [
+    ['exclude', 'Exclude'],
+    ['reinstate', 'Reinstate'],
+  ],
+  ManualExclusionReason: [
+    ['playing_time', 'Playing time'],
+    ['injury_return', 'Return from injury'],
+    ['unusual_stakes', 'Unusual stakes'],
+    ['opponent_strength', 'Opponent strength'],
+    ['other_confounding_factor', 'Other confounding factor'],
+  ],
+  ManualReinstatementReason: [
+    ['incorrect_context_indication', 'Incorrect context indication'],
+    ['criterion_unsuited_to_case', 'Criterion unsuited to this case'],
   ],
 
   // --- Backtest requests and import --------------------------------------------------
@@ -63,6 +144,15 @@ export const STATUS_LABELS = {
   ],
 
   // --- Games and statistics ----------------------------------------------------------
+  GamePhase: [
+    ['regular_season', 'Regular season'],
+    ['play_in', 'Play-in'],
+    ['playoffs', 'Playoffs'],
+  ],
+  BaselinePhase: [
+    ['regular_season', 'Regular season'],
+    ['postseason', 'Postseason'],
+  ],
   GameStatus: [
     ['scheduled', 'Scheduled'],
     ['in_progress', 'In progress'],
@@ -85,6 +175,20 @@ export const STATUS_LABELS = {
   GapStatus: [
     ['provisional', 'Provisional'],
     ['final', 'Final'],
+  ],
+
+  // --- Sensitivity, verdicts and profiles ------------------------------------------
+  VerdictChangeCause: [
+    ['new_cases', 'New cases'],
+    ['stats_correction', 'Statistics correction'],
+    ['baseline_updated', 'Baseline updated'],
+    ['manual_decision', 'Manual decision'],
+    ['event_dismissed', 'Event dismissed'],
+    ['parameter_change', 'Parameter change'],
+    ['recalculation', 'Recalculation'],
+    ['event_corrected_or_removed', 'Event corrected or removed'],
+    ['event_reinstated', 'Event reinstated'],
+    ['taxonomy_changed', 'Taxonomy changed'],
   ],
 
   // --- Press collection ----------------------------------------------------------------

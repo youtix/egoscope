@@ -55,11 +55,11 @@ export type CaseEventDetail = CaseEvent &
     gameStakesOrigin: EventRow['gameStakesOrigin'];
   }>;
 
-/** A criterion retained on a case, `calculated` or `flagged` for the two that have a condition, with the values that triggered it (SEN-11 to SEN-18). */
+/** A criterion retained on a case, `calculated` or `flagged` for the two that have a condition, with the values that triggered it, the other types' identifiers of a co-occurring case among them (SEN-06, SEN-11 to SEN-18). */
 export type CaseCriterion = Readonly<{
   criterion: CaseTriggeredCriterionRow['criterion'];
   condition: CaseTriggeredCriterionRow['condition'];
-  triggeringValues: Readonly<Record<string, string | number | boolean | null>>;
+  triggeringValues: Readonly<Record<string, string | number | boolean | null | readonly string[]>>;
 }>;
 
 /** A review flag on a case, raised on a game, acknowledged or not (SEN-16, SEN-17). */
@@ -115,10 +115,16 @@ export type CaseDetail = Omit<CaseLine, 'events' | 'criteria'> &
     history: readonly CaseHistoryItem[];
   }>;
 
-const TRIGGERING_VALUES = z.record(
+// One triggering value: a number, a flag, a code value, or the other types of a
+// co-occurring case.
+const TRIGGERING_VALUE = z.union([
   z.string(),
-  z.union([z.string(), z.number(), z.boolean(), z.null()]),
-);
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(z.string()),
+]);
+const TRIGGERING_VALUES = z.record(z.string(), TRIGGERING_VALUE);
 
 /** The instant of a timestamp column. */
 const at = (value: Date): EpochMs => toEpochMs(value.getTime());
