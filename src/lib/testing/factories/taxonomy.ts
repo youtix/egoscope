@@ -42,9 +42,24 @@ const VALIDATED_SHEET = {
   documentationDifficulty: 'medium',
 } as const;
 
+// The columns that a scenario gives, without those it gives as `undefined`: a column given
+// so is left out, as an insert leaves it out, and takes the factory's default (TAX-15).
+function givenColumns(
+  overrides: Partial<typeof eventTypes.$inferInsert>,
+): Partial<typeof eventTypes.$inferInsert> {
+  const given = { ...overrides };
+  for (const [column, value] of Object.entries(overrides)) {
+    if (value === undefined) {
+      Reflect.deleteProperty(given, column);
+    }
+  }
+  return given;
+}
+
 /**
  * Writes an event type (TAX-01, TAX-20): a validated research type, the media storm, by
- * default; `overrides` replaces any column. A validated or withdrawn type gets the first
+ * default; `overrides` replaces any column, and one given as `undefined` counts as left
+ * out. A validated or withdrawn type gets the first
  * version of its sheet, which its validation produced; a proposed or rejected one, never
  * validated, has no version and no version number. A candidate type that the reference
  * data seeded and that is still proposed gives way to the type asked for, written whole
@@ -58,12 +73,13 @@ export async function insertEventType(
   db: Database,
   overrides: Partial<typeof eventTypes.$inferInsert> = {},
 ): Promise<EventTypeRow> {
-  const status = overrides.status ?? VALIDATED_SHEET.status;
+  const given = givenColumns(overrides);
+  const status = given.status ?? VALIDATED_SHEET.status;
   const wasValidated = status === 'validated' || status === 'withdrawn';
   const type = {
     ...VALIDATED_SHEET,
     currentVersionNumber: wasValidated ? FIRST_VERSION : null,
-    ...overrides,
+    ...given,
   };
   // A proposed type was never validated, so it has no sheet version to replace.
   const { id, ...columns } = type;
@@ -106,7 +122,8 @@ export const BIRTHDAY = 'birthday';
 
 /**
  * Writes the calendar-derived type of the player's birthday, known in advance and
- * validated (TAX-01, TAX-10); `overrides` replaces any column.
+ * validated (TAX-01, TAX-10); `overrides` replaces any column, and one given as
+ * `undefined` counts as left out.
  */
 export async function insertCalendarType(
   db: Database,
@@ -119,6 +136,6 @@ export async function insertCalendarType(
     genericExample: 'A player plays on his birthday.',
     knownInAdvance: true,
     calendarDerivation: 'birthday',
-    ...overrides,
+    ...givenColumns(overrides),
   });
 }
