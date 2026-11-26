@@ -1,0 +1,104 @@
+{
+  "tokens_per_minute": {
+    "status": 429,
+    "headers": {
+      "content-type": "application/json",
+      "retry-after": "7",
+      "x-ratelimit-limit-requests": "1000",
+      "x-ratelimit-limit-tokens": "8000",
+      "x-ratelimit-remaining-requests": "940",
+      "x-ratelimit-remaining-tokens": "1210",
+      "x-ratelimit-reset-requests": "1h26m24s",
+      "x-ratelimit-reset-tokens": "6.4s"
+    },
+    "body": {
+      "error": {
+        "message": "Rate limit reached for model `openai/gpt-oss-120b` in organization `org_invented00000000` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6790, Requested 1650. Please try again in 6.4s.",
+        "type": "tokens",
+        "code": "rate_limit_exceeded"
+      }
+    }
+  },
+  "requests_per_day": {
+    "status": 429,
+    "headers": {
+      "content-type": "application/json",
+      "retry-after": "5184",
+      "x-ratelimit-limit-requests": "1000",
+      "x-ratelimit-limit-tokens": "8000",
+      "x-ratelimit-remaining-requests": "0",
+      "x-ratelimit-remaining-tokens": "8000",
+      "x-ratelimit-reset-requests": "1h26m24s",
+      "x-ratelimit-reset-tokens": "0s"
+    },
+    "body": {
+      "error": {
+        "message": "Rate limit reached for model `openai/gpt-oss-120b` in organization `org_invented00000000` service tier `on_demand` on requests per day (RPD): Limit 1000, Used 1000, Requested 1. Please try again in 1h26m24s.",
+        "type": "requests",
+        "code": "rate_limit_exceeded"
+      }
+    }
+  },
+  "tokens_per_day": {
+    "status": 429,
+    "headers": {
+      "content-type": "application/json",
+      "retry-after": "2950",
+      "x-ratelimit-limit-requests": "1000",
+      "x-ratelimit-limit-tokens": "8000",
+      "x-ratelimit-remaining-requests": "610",
+      "x-ratelimit-remaining-tokens": "8000",
+      "x-ratelimit-reset-requests": "9h21m36s",
+      "x-ratelimit-reset-tokens": "0s"
+    },
+    "body": {
+      "error": {
+        "message": "Rate limit reached for model `openai/gpt-oss-120b` in organization `org_invented00000000` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199100, Requested 1650. Please try again in 49m10s.",
+        "type": "tokens",
+        "code": "rate_limit_exceeded"
+      }
+    }
+  },
+  "json_validate_failed": {
+    "status": 400,
+    "headers": {
+      "content-type": "application/json",
+      "x-ratelimit-limit-requests": "1000",
+      "x-ratelimit-limit-tokens": "8000",
+      "x-ratelimit-remaining-requests": "997",
+      "x-ratelimit-remaining-tokens": "6100",
+      "x-ratelimit-reset-requests": "4m19.2s",
+      "x-ratelimit-reset-tokens": "14.25s"
+    },
+    "body": {
+      "error": {
+        "message": "Generated JSON does not match the expected schema. Please adjust your prompt. See 'failed_generation' for more details.",
+        "type": "invalid_request_error",
+        "code": "json_validate_failed",
+        "failed_generation": "{\"articles\":[{\"article\":\"article-1\",\"facts\":["
+      }
+    }
+  },
+  "invalid_api_key": {
+    "status": 401,
+    "headers": { "content-type": "application/json" },
+    "body": {
+      "error": {
+        "message": "Invalid API Key",
+        "type": "invalid_request_error",
+        "code": "invalid_api_key"
+      }
+    }
+  },
+  "service_unavailable": {
+    "status": 503,
+    "headers": { "content-type": "application/json" },
+    "body": {
+      "error": {
+        "message": "Service Unavailable",
+        "type": "internal_server_error",
+        "code": "service_unavailable"
+      }
+    }
+  }
+}

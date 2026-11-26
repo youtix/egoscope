@@ -1,0 +1,44 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json",
+    "x-ratelimit-limit-requests": "1000",
+    "x-ratelimit-limit-tokens": "8000",
+    "x-ratelimit-remaining-requests": "998",
+    "x-ratelimit-remaining-tokens": "6380",
+    "x-ratelimit-reset-requests": "2m52.8s",
+    "x-ratelimit-reset-tokens": "12.15s",
+    "x-request-id": "req_01invented0000000000000000"
+  },
+  "body": {
+    "id": "chatcmpl-invented-0001",
+    "object": "chat.completion",
+    "created": 1795600000,
+    "model": "openai/gpt-oss-120b",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "{\"articles\":[{\"article\":\"article-1\",\"facts\":[{\"player\":\"player-7\",\"type\":\"public_dispute\",\"confidence\":82,\"description\":\"He argued with his coach after the game.\",\"justification\":\"The article quotes the exchange on the bench.\",\"event\":null}],\"proposals\":[]},{\"article\":\"article-2\",\"facts\":[],\"proposals\":[]}]}",
+          "reasoning": "Article 1 reports a dispute of a recognized player; article 2 reports nothing about one."
+        },
+        "logprobs": null,
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "queue_time": 0.041,
+      "prompt_tokens": 1520,
+      "prompt_time": 0.012,
+      "completion_tokens": 140,
+      "completion_time": 0.28,
+      "total_tokens": 1660,
+      "total_time": 0.292,
+      "prompt_tokens_details": { "cached_tokens": 1280 }
+    },
+    "system_fingerprint": "fp_invented01",
+    "x_groq": { "id": "req_01invented0000000000000000" },
+    "service_tier": "on_demand"
+  }
+}
