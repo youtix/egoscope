@@ -24,6 +24,7 @@ const SEASON = '2026-27';
 const LYNX = 2;
 const TRADE_SEASON = '2025-26';
 const TRADED_ON = '2025-11-03';
+const SIXTH_TEAM = 6;
 
 /** A database of the test's own, closed when the test ends. */
 async function testDatabase(): Promise<Database> {
@@ -84,6 +85,21 @@ describe('derivedGame', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       opponent: { venue: 'home', team: { location: 'Pine Valley', name: 'Lynx' } },
       lastGameForOpponentOn: '2025-11-02',
     });
+  });
+
+  it('[CL-VUE-15] gives no opponent for a game that his team games do not place him in', async () => {
+    const db = await testDatabase();
+    const event = await birthdayEvent(db);
+    await insertLeagueSeason(db, TRADE_SEASON);
+    // A game of the Comets against the sixth team, which his Herons do not play.
+    const [other] = await db
+      .select({ id: games.id })
+      .from(games)
+      .where(and(eq(games.homeTeamId, COMETS), eq(games.awayTeamId, SIXTH_TEAM)));
+
+    const game = await derivedGame(db, { ...event, derivedGameId: other?.id ?? 0 }, 'birthday');
+
+    expect(game).toMatchObject({ opponent: null, lastGameForOpponentOn: null });
   });
 
   it('refuses an event whose game the database does not hold, a bug', async () => {
