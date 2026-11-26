@@ -396,6 +396,7 @@ describe('checkAnswer', () => {
     [fault('wrong_type', ['results', 0, 'players']), answer(result('1024', {}))],
     [fault('wrong_type', ['results']), answerText({ results: {} })],
     [fault('empty_text', at('description')), withFact({ description: '  ' })],
+    [fault('wrong_type', at('justification')), withFact({ justification: false })],
     [
       fault('empty_text', listAt('new_type_facts', 'suggested_definition')),
       withNewType({ suggestedDefinition: '' }),
