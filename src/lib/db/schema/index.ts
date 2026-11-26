@@ -66,6 +66,8 @@ export {
 } from './events-children';
 export {
   deletedPlayerEntries,
+  DELETION_REASONS,
+  TALLY_EXIT_REASONS,
   tallyExits,
   withdrawalFingerprints,
   withdrawnEventCounter,

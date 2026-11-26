@@ -34,6 +34,7 @@ const LIMIT_RESETS_AT = toEpochMs(Date.UTC(2026, 10, 16, 6));
 const UNAVAILABLE = { kind: 'unavailable' };
 const NOT_FOUND = { kind: 'not_found' };
 const TOKEN_REJECTED = { kind: 'unauthorized', cause: 'token_rejected' };
+const RATE_LIMITED = { kind: 'rate_limited' };
 const NOT_CONFIGURED = { error: { kind: 'unauthorized', cause: 'not_configured' } };
 
 /** The instant at which the recorded asset was created. */
@@ -364,6 +365,42 @@ describe('createGithubReleasesStorage', () => {
         error,
         call: { httpRequests: 1, bytesSent: 0, rateLimitResetsAt: resetsAt },
       });
+    },
+  );
+
+  it.each([
+    { what: 'no request left', recorded: errors.rate_limited, error: RATE_LIMITED },
+    {
+      what: 'retry-after, a permission message and requests left',
+      recorded: errors.forbidden_retry_after,
+      error: RATE_LIMITED,
+    },
+    {
+      what: 'the message of the secondary limit and neither header',
+      recorded: errors.secondary_rate_limit_forbidden,
+      error: RATE_LIMITED,
+    },
+    {
+      what: 'a permission message and requests left',
+      recorded: errors.not_accessible,
+      error: TOKEN_REJECTED,
+    },
+    {
+      what: 'an empty body',
+      recorded: { ...errors.not_accessible, body: undefined },
+      error: TOKEN_REJECTED,
+    },
+  ])(
+    '[TRV-47] reads a 403 with $what the same way at a read and at a download',
+    async ({ recorded, error }) => {
+      const github = replay();
+      github.script('repository', recorded);
+      github.script('asset', recorded);
+      const storage = adapterOn(github);
+      const read = await storage.checkHealth(context());
+      const downloaded = await storage.download(FIRST_ASSET_ID, context());
+
+      expect([told(read), told(downloaded)]).toStrictEqual([{ error }, { error }]);
     },
   );
 

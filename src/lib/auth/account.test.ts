@@ -215,8 +215,9 @@ describe('the single account', { timeout: 60_000 }, () => {
   });
 
   it('[TRV-60] counts the characters of the initial password as a person does, not its code units', async () => {
-    const eleven = 'é'.repeat(11);
-    const twelve = 'é'.repeat(12);
+    // A decomposed é: e and the combining acute accent, one character in two code units.
+    const eleven = 'e\u{301}'.repeat(11);
+    const twelve = 'e\u{301}'.repeat(12);
     expect([eleven.length, twelve.length]).toStrictEqual([22, 24]);
 
     await expect(ensure(eleven)).resolves.toStrictEqual({

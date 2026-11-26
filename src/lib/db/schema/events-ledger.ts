@@ -11,17 +11,24 @@ import { bytea, oneOf, timestamptz } from './builders';
 import { followedPlayers } from './players';
 import { eventTypes } from './taxonomy';
 
-// TallyExitReason without `dismissed`, which is counted from the events, a dismissal
-// leaving its event in place (SEN-33, CL-SEN-25).
-const TALLY_EXIT_REASONS = [
+/**
+ * The reasons an event leaves a profile's count (TallyExitReason), without `dismissed`,
+ * which is counted from the events, a dismissal leaving its event in place (SEN-33,
+ * CL-SEN-25). The CHECK of `tally_exits.exit_reason` is built from this list.
+ */
+export const TALLY_EXIT_REASONS = [
   'merged',
   'deleted',
   'replaced_at_import',
   'erased',
   'no_longer_derived',
 ] as const;
-// HistoricalEventDeletionReason (IMP-33).
-const DELETION_REASONS = [
+/**
+ * The closed list of the reasons for deleting an event (HistoricalEventDeletionReason,
+ * IMP-33), in its order. The CHECK of `tally_exits.deletion_reason` is built from this list,
+ * and the deletion of `events` reads it.
+ */
+export const DELETION_REASONS = [
   'inaccurate_fact_or_false_source',
   'outside_type_criteria',
   'duplicate',

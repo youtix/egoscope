@@ -3,7 +3,7 @@ import 'server-only';
 import { eq } from 'drizzle-orm';
 
 import { checkText } from '@/lib/ai-exchange';
-import { events, tallyExits } from '@/lib/db';
+import { DELETION_REASONS, events, tallyExits } from '@/lib/db';
 import { getParam } from '@/lib/params';
 import { changedElsewhere, err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
@@ -38,19 +38,12 @@ export type DeletionRefusal =
   | ChangedElsewhere<EventRow>
   | NoLongerExists;
 
-// HistoricalEventDeletionReason (IMP-33).
-const DELETION_REASONS: readonly string[] = [
-  'inaccurate_fact_or_false_source',
-  'outside_type_criteria',
-  'duplicate',
-  'other',
-] satisfies readonly DeletionReason[];
 const OTHER: DeletionReason = 'other';
 const NO_LONGER_EXISTS: NoLongerExists = { kind: 'no_longer_exists' };
 
 /** Whether `reason` is one of the IMP-33 list. */
 function isDeletionReason(reason: string): reason is DeletionReason {
-  return DELETION_REASONS.includes(reason);
+  return DELETION_REASONS.some((known) => known === reason);
 }
 
 /**

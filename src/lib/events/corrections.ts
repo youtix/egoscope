@@ -2,7 +2,7 @@ import 'server-only';
 
 import { eq } from 'drizzle-orm';
 
-import { eventCorrections, events, updateVersioned } from '@/lib/db';
+import { eventCorrections, events, followedPlayers, updateVersioned } from '@/lib/db';
 import { changedElsewhere, err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
 
@@ -29,6 +29,7 @@ export type EventCorrection = EventChanges & Readonly<{ expectedVersion: number 
 export type CorrectionRefusal =
   | Readonly<{ kind: 'not_correctable'; fields: readonly CorrectedField[] }>
   | Readonly<{ kind: 'invalid_fields'; fields: CorrectionFieldErrors }>
+  | Readonly<{ kind: 'player_not_followed' }>
   | ChangedElsewhere<EventRow>
   | NoLongerExists;
 
@@ -38,6 +39,33 @@ export type Corrected = Readonly<{ event: EventRow; changed: readonly CorrectedF
 type EventSet = Partial<NewEventRow>;
 
 const NO_LONGER_EXISTS: NoLongerExists = { kind: 'no_longer_exists' };
+const PLAYER_NOT_FOLLOWED: CorrectionRefusal = { kind: 'player_not_followed' };
+// A followed player's id is a random uuid, which Postgres refuses to compare with other text.
+const PLAYER_ID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu;
+
+/** Whether `playerId` names a followed player, in any of his states (DET-47, JOU-15). */
+async function isFollowed(tx: Transaction, playerId: string): Promise<boolean> {
+  if (!PLAYER_ID_PATTERN.test(playerId)) {
+    return false;
+  }
+  const [player] = await tx
+    .select({ id: followedPlayers.id })
+    .from(followedPlayers)
+    .where(eq(followedPlayers.id, playerId))
+    // A deletion that commits after this check then waits, instead of reaching the foreign key.
+    .for('key share');
+  return player !== undefined;
+}
+
+/** The refusal of a correction that moves `event` to a player who is not followed (DET-47). */
+async function refusedPlayer(
+  tx: Transaction,
+  event: EventRow,
+  { playerId }: EventCorrection,
+): Promise<CorrectionRefusal | null> {
+  const isMoved = playerId !== undefined && playerId !== event.playerId;
+  return isMoved && !(await isFollowed(tx, playerId)) ? PLAYER_NOT_FOLLOWED : null;
+}
 
 /**
  * Writes the correction rows of the traced `fields`: values before and after only for the
@@ -119,7 +147,11 @@ async function save(
  * its type, its player, its description and context, its reference instant, precision
  * and rule, later only once its reference article is detached, its detection confidence
  * and classification origin, and the detached article or merged event it traces (DET-31,
- * DET-47, DET-53, CL-DET-07, CL-DET-27). Writes one correction row per traced field
+ * DET-47, DET-53, CL-DET-07, CL-DET-27). A detected event moves only to a followed player,
+ * in any of the three states of JOU-15, active, paused or withdrawn, since what detection,
+ * alerts and requests do for a paused or withdrawn player is decided elsewhere (JOU-18,
+ * JOU-19, CL-JOU-05): any other id, a malformed one included, is refused before the field
+ * checks and writes nothing (DET-47). Writes one correction row per traced field
  * changed with its instant, keeping values before and after only of the structured fields
  * of a detected or calendar-derived event, never of a historical event, a free text, the
  * sources or an action (IMP-32, DET-52, CL-DSN-15, CL-DSN-20).
@@ -139,6 +171,10 @@ export async function applyCorrection(
   const refused = refusedFields(correction, event.origin);
   if (refused.length > 0) {
     return err({ kind: 'not_correctable', fields: refused });
+  }
+  const player = await refusedPlayer(tx, event, correction);
+  if (player !== null) {
+    return err(player);
   }
   const checked = await checkChanges(tx, correction);
   const fields = { ...checked.fields, ...(await checkDetectedChanges(tx, event, correction)) };

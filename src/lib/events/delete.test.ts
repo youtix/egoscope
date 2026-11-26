@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   createTestDatabase,
+  DELETION_REASONS,
   eventCorrections,
   eventImportWarnings,
   events,
@@ -29,6 +30,11 @@ import type { Database } from '@/lib/db';
 const AT = toEpochMs(Date.UTC(2026, 10, 25, 9, 30));
 const PUBLIC_AT = toEpochMs(Date.UTC(2024, 10, 20, 17, 0));
 const MAX_LENGTH = 200;
+
+/** The short precision that the reason `other` requires, and that no other reason takes. */
+function precision(reason: string): string | null {
+  return reason === 'other' ? 'The outlet retracted it.' : null;
+}
 
 describe('deleteHistorical', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
@@ -137,6 +143,26 @@ describe('deleteHistorical', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         .select({ reason: tallyExits.deletionReason, detail: tallyExits.deletionDetail })
         .from(tallyExits),
     ).toStrictEqual([{ reason: 'other', detail: 'The outlet retracted its story.' }]);
+  });
+
+  it('[IMP-33] accepts every reason of the list that the schema keeps, other with its precision and the others without', async () => {
+    for (const reason of DELETION_REASONS) {
+      const event = await insertHistoricalEvent(db, {
+        playerId,
+        originImportId: importId,
+        overrides: { referenceAt: new Date(PUBLIC_AT), referenceOffsetMinutes: 0 },
+      });
+      await expect(remove(event, { reason, detail: precision(reason) })).resolves.toMatchObject({
+        ok: true,
+      });
+    }
+
+    expect(
+      await db
+        .select({ reason: tallyExits.deletionReason, detail: tallyExits.deletionDetail })
+        .from(tallyExits)
+        .orderBy(tallyExits.id),
+    ).toStrictEqual(DELETION_REASONS.map((reason) => ({ reason, detail: precision(reason) })));
   });
 
   it('[IMP-33] [CA-IMP-20] refuses a reason outside the list, and other without its precision or with a precision the wording rules refuse', async () => {
