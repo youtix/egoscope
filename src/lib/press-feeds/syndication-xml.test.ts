@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { parseTimestamp } from '@/lib/time';
 
 import { MAX_FEED_BYTES } from './syndication';
-import { feedIn, MAX_FEED_DEPTH, MAX_FEED_ITEMS, webAddress } from './syndication-xml';
+import { feedIn, MAX_FEED_DEPTH, MAX_FEED_ITEMS, outlineOf, webAddress } from './syndication-xml';
 
 import type { PressFeedsErrorKind } from './errors';
 import type { FeedDocument } from './syndication-xml';
@@ -61,15 +61,32 @@ const nested = (levels: number): Uint8Array =>
   );
 
 // Room left beside the repeated content for a document's root, within the byte bound.
-const ROOT_BYTES = 64;
-// A body up to the byte bound is read in far less time than this.
+const ROOT_BYTES = 128;
+// A body up to the byte bound that stops at its first error is read in far less time than
+// this; one that the parser reads to its end, element by element, takes about a second on a
+// GitHub runner, and far less than the longer budget.
 const READ_BUDGET_MS = 1000;
+const FULL_READ_BUDGET_MS = 4000;
+// A test that reads nine such bodies to their end takes about eight seconds.
+const FULL_READS_TIMEOUT_MS = 40_000;
 const UNREADABLE = { ok: false, error: { kind: 'unreadable' } } as const;
 const NOT_A_FEED = { ok: false, error: { kind: 'not_a_feed' } } as const;
 
 /** `unit` repeated as often as the byte bound allows beside a root. */
 const filling = (unit: string): string =>
   unit.repeat(Math.floor((MAX_FEED_BYTES - ROOT_BYTES) / unit.length));
+
+// The digits of the number that sets an attribute apart from the others of its element.
+const NUMBER_DIGITS = 7;
+
+/** Distinct attributes, each written by `attribute` from its number, as many as the byte bound allows beside a root. */
+function distinct(attribute: (number: string) => string): string {
+  const unit = attribute('0'.repeat(NUMBER_DIGITS));
+  return Array.from(
+    { length: Math.floor((MAX_FEED_BYTES - ROOT_BYTES) / unit.length) },
+    (_, index) => attribute(String(index).padStart(NUMBER_DIGITS, '0')),
+  ).join('');
+}
 
 /** What `documents` give, the time they took to read and the bytes of the largest. */
 function timed(
@@ -91,6 +108,23 @@ function titleOf(bytes: Uint8Array, contentType: string | null): unknown {
 /** What a body gives: `read` for a feed, else the kind of its failure. */
 type Kind = 'read' | PressFeedsErrorKind;
 const kindOf = (document: FeedDocument): Kind => (document.ok ? 'read' : document.error.kind);
+
+type Kept = NonNullable<ReturnType<typeof outlineOf>['feed']>['root'];
+/** The elements kept of a document, its root and every element kept below it, and the attributes they keep. */
+function keptIn(
+  element: Kept,
+): Readonly<{ elements: number; attributes: number; characters: number }> {
+  let elements = 1;
+  let attributes = element.attributes.length;
+  let characters = element.text.join('').length;
+  for (const child of element.children) {
+    const kept = keptIn(child);
+    elements += kept.elements;
+    attributes += kept.attributes;
+    characters += kept.characters;
+  }
+  return { elements, attributes, characters };
+}
 
 // What comes before a document's root, and the content type of its answer. The byte order
 // mark of UTF-8 is read as three characters under the ISO-8859-1 that the answer names.
@@ -277,7 +311,7 @@ describe('feedIn', () => {
     });
   });
 
-  it('[TRV-17] [CL-COL-01] reads an RSS 1.0 feed, an RSS feed without a channel and an Atom feed whose elements carry a prefix', () => {
+  it('[TRV-17] [COL-17] [CL-COL-01] reads an RSS 1.0 feed, an RSS feed without a channel and an Atom feed whose elements carry a prefix and whose root gives its language', () => {
     const rdf = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
         xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">
       <channel rdf:about="https://quiet.example.test/"><title>Quiet</title><dc:language>fr</dc:language></channel>
@@ -285,8 +319,8 @@ describe('feedIn', () => {
         <link>https://quiet.example.test/a1</link><dc:date>2026-11-20T10:00:00+01:00</dc:date>
         <description>Rien de neuf.</description></item>
     </rdf:RDF>`;
-    const prefixed = `<atom:feed xmlns:atom="http://www.w3.org/2005/Atom">
-      <atom:entry><atom:id>p-1</atom:id><atom:title>Prefixed</atom:title>
+    const prefixed = `<atom:feed xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:language>de</dc:language><atom:entry><atom:id>p-1</atom:id><atom:title>Prefixed</atom:title>
         <atom:link href="https://prefixed.example.test/p-1"/></atom:entry>
     </atom:feed>`;
 
@@ -312,7 +346,7 @@ describe('feedIn', () => {
     expect(feedIn(bytesOf(prefixed), XML_TYPE, BASELINE)).toStrictEqual({
       ok: true,
       feed: {
-        language: null,
+        language: 'de',
         items: [
           item({ identifier: 'p-1', link: 'https://prefixed.example.test/p-1', title: 'Prefixed' }),
         ],
@@ -402,18 +436,83 @@ describe('feedIn', () => {
     expect(elapsedMs).toBeLessThan(READ_BUDGET_MS);
   });
 
-  it('[TRV-17] [COL-41] stops at the first error of a body full of them, unreadable after a feed root and not a feed when no root opens near it', () => {
+  it('[TRV-17] [COL-41] stops at the first error of a body full of them, then looks for the start tag of a feed in one scan of its text', () => {
     const { answers, elapsedMs, largestBytes } = timed([
       `<rss version="2.0">${filling('&x;')}</rss>`,
       `<rss version="2.0">${filling('</>')}</rss>`,
       `${filling('</>')}<rss version="2.0"/>`,
       `${filling('</>')}<html><body/></html>`,
+      // A prefix at every `<`, and a name as long as the byte bound allows after one.
+      filling('<a:'),
+      `<${'a'.repeat(MAX_FEED_BYTES - ROOT_BYTES)}`,
     ]);
 
     expect(largestBytes).toBeLessThanOrEqual(MAX_FEED_BYTES);
-    expect(answers).toStrictEqual([UNREADABLE, UNREADABLE, NOT_A_FEED, NOT_A_FEED]);
+    expect(answers).toStrictEqual([
+      UNREADABLE,
+      UNREADABLE,
+      UNREADABLE,
+      NOT_A_FEED,
+      NOT_A_FEED,
+      NOT_A_FEED,
+    ]);
     expect(elapsedMs).toBeLessThan(READ_BUDGET_MS);
   });
+
+  it(
+    '[TRV-17] keeps only the elements, attributes and text that the reader looks up, however many a body holds, within a budget of time',
+    () => {
+      const atom = `<feed xmlns="http://www.w3.org/2005/Atom"><entry>${filling('<link rel="enclosure" href="/e"/>')}<link href="/a"/></entry></feed>`;
+      const attributes = distinct((number) => ` a${number}=""`);
+      const declarations = distinct((number) => ` xmlns:n${number}="urn:x"`);
+      const deeper = filling('<p>Deeper</p>');
+      const inner = rss('<item><extra><title>Inner</title></extra><title>Outer</title></item>');
+      const documents = [
+        rss(filling('<x/>')),
+        `<rss version="2.0">${filling('<channel/>')}</rss>`,
+        rss(filling('<item><item/></item>')),
+        rss(`<item>${filling('<title>Again</title>')}</item>`),
+        rss(`<item><description>${deeper}</description></item>`),
+        atom,
+        `<feed xmlns="http://www.w3.org/2005/Atom"><entry>${filling('<source/>')}</entry></feed>`,
+        rss(`<item xml:lang="fr"${attributes}/>`),
+        rss(`<item${declarations}><title>Kept</title></item>`),
+        inner,
+      ];
+      const outlines = documents.map((text) => {
+        const started = performance.now();
+        const root = outlineOf(text).feed?.root;
+        const elapsedMs = performance.now() - started;
+        return { kept: root === undefined ? null : keptIn(root), elapsedMs };
+      });
+
+      expect(Math.max(...documents.map((text) => bytesOf(text).byteLength))).toBeLessThanOrEqual(
+        MAX_FEED_BYTES,
+      );
+      expect(outlines.map(({ kept }) => kept)).toStrictEqual([
+        { elements: 2, attributes: 0, characters: 0 },
+        { elements: 2, attributes: 0, characters: 0 },
+        { elements: 2 + MAX_FEED_ITEMS, attributes: 0, characters: 0 },
+        { elements: 4, attributes: 0, characters: 'Again'.length },
+        // A field keeps the text of everything it holds, and none of its elements.
+        { elements: 4, attributes: 0, characters: deeper.replaceAll(/<\/?p>/gu, '').length },
+        { elements: 3, attributes: 1, characters: 0 },
+        { elements: 3, attributes: 0, characters: 0 },
+        { elements: 3, attributes: 1, characters: 0 },
+        { elements: 4, attributes: 0, characters: 'Kept'.length },
+        { elements: 4, attributes: 0, characters: 'Outer'.length },
+      ]);
+      expect(Math.max(...outlines.map(({ elapsedMs }) => elapsedMs))).toBeLessThan(
+        FULL_READ_BUDGET_MS,
+      );
+      // The one alternate link kept is the one the reader gives, and so is the title of the item.
+      expect(feedIn(bytesOf(atom), XML_TYPE, BASELINE)).toMatchObject({
+        feed: { items: [{ link: 'https://baseline.example.test/a' }] },
+      });
+      expect(titleOf(bytesOf(inner), XML_TYPE)).toBe('Outer');
+    },
+    FULL_READS_TIMEOUT_MS,
+  );
 
   it('[COL-41] answers a broken body as unreadable when it holds the start tag of a feed, else as not a feed, whatever comes before the root', () => {
     const kinds = Object.entries(BEFORE).map(([name, before]) => [
@@ -428,6 +527,22 @@ describe('feedIn', () => {
 
     expect(BEFORE.brokenMarkup.text.length).toBeGreaterThan(8192);
     expect(Object.fromEntries(kinds)).toStrictEqual(EXPECTED_KINDS);
+  });
+
+  it('[COL-41] tells the start tag of a feed in a broken body from a longer name, an escaped tag and a prefixed rss', () => {
+    const tags = ['<rss>', '<rss/>', '<rss\tversion="2.0">', '<rss\r\n', '<feed\nxmlns="urn:x">'];
+    const prefixed = ['<atom:feed xmlns:atom="urn:x">', '<RDF>', '<rdf:RDF/>', '<r-1.x:RDF>'];
+    const others = ['<rssx>', '<feeds/>', '<rdf:RDFa>', '<x:rss>', '&lt;rss version="2.0"&gt;'];
+    const more = ['< rss>', '<RSS>', '<:feed>', '<1x:feed>', '<rss'];
+    const kinds = [...tags, ...prefixed, ...others, ...more].map((tag) => {
+      const body = bytesOf(`Warning: a broken body\n${tag}`);
+      return kindOf(feedIn(body, XML_TYPE, COURTSIDE));
+    });
+
+    expect(kinds).toStrictEqual([
+      ...[...tags, ...prefixed].map(() => 'unreadable'),
+      ...[...others, ...more].map(() => 'not_a_feed'),
+    ]);
   });
 
   it('[COL-17] [TRV-17] decodes a feed in the charset its answer names, else its declaration', () => {

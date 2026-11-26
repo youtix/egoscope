@@ -2,8 +2,9 @@
 // answer, decoded in its charset and parsed by a strict XML parser into an RSS 2.0,
 // RSS 1.0 or Atom feed (TRV-17). The parser reads no DTD and knows only the five
 // entities that XML predefines, so that a stranger's document can neither make it
-// fetch an entity nor expand one; it stops at a document nested past a bound, and
-// keeps only the first items of a feed, up to a bound.
+// fetch an entity nor expand one. It stops at the first error, an element nested past a
+// bound included, and keeps only the elements and attributes that the reader looks up,
+// among them the first items of a feed, up to a bound.
 import { SaxesParser } from 'saxes';
 
 import { parseTimestamp } from '@/lib/time';
@@ -28,10 +29,6 @@ export const MAX_FEED_DEPTH = 64;
 export type FeedDocument =
   Readonly<{ ok: true; feed: Feed }> | Readonly<{ ok: false; error: PressFeedsError }>;
 
-// The depth of the deepest element read apart: Atom's feed > entry > source > title.
-// A deeper one, such as the XHTML of an Atom summary, gives its text to its kept
-// ancestors, each of which gathers the text of everything it holds.
-const KEPT_DEPTH = 4;
 // The characters given to the parser at a time: a handler cannot stop the parser within
 // a write, so a document that fails, by an error or by a nesting past the depth bound,
 // is dropped at the end of the slice in which it does, a few thousand characters later.
@@ -40,6 +37,10 @@ const PARSE_SLICE_CHARS = 4096;
 const DECLARATION_BYTES = 200;
 const CHARSET = /charset\s*=\s*"?(?<label>[^";\s]+)/iu;
 const XML_ENCODING = /^<\?xml[^>]+encoding\s*=\s*["'](?<label>[\w.:-]+)/u;
+// The start tag of a syndication format's root, wherever a broken document holds it:
+// `<rss`, or `<feed` or `<RDF` with a prefix or without, then XML whitespace, `>` or `/`.
+// A prefix holds neither `<` nor `:`, so that one scan of a text stays linear in its length.
+const SYNDICATION_ROOT_TAG = /<(?:rss|(?:[A-Z_a-z][\w.-]*:)?(?:feed|RDF))[\t\n\r />]/u;
 const WEB_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:']);
 
 const ATOM = 'http://www.w3.org/2005/Atom';
@@ -79,8 +80,6 @@ const LANGUAGE: readonly Name[] = [
 ];
 // RSS's source names the outlet; Atom's names its feed, whose title is the outlet (COL-06).
 const RSS_SOURCE: readonly Name[] = [['', 'source']];
-const ATOM_SOURCE: readonly Name[] = [[ATOM, 'source']];
-const ATOM_TITLE: readonly Name[] = [[ATOM, 'title']];
 // The summary, else the content of an item that gives no summary (COL-27).
 const EXCERPT: readonly Name[] = [
   ['', 'description'],
@@ -89,12 +88,17 @@ const EXCERPT: readonly Name[] = [
   [CONTENT, 'encoded'],
   [ATOM, 'content'],
 ];
+const FIELDS = [IDENTIFIER, LINK, TITLE, PUBLISHED, UPDATED, LANGUAGE, RSS_SOURCE, EXCERPT];
+const ATOM_SOURCE: Name = [ATOM, 'source'];
+const ATOM_TITLE: Name = [ATOM, 'title'];
 const ATOM_LINK: Name = [ATOM, 'link'];
 const XML_LANG: Name = [XML, 'lang'];
 const XML_BASE: Name = [XML, 'base'];
 const RDF_ABOUT: Name = [RDF, 'about'];
 const HREF: Name = ['', 'href'];
 const REL: Name = ['', 'rel'];
+// The attributes that the reader looks up, the only ones that an element keeps.
+const ATTRIBUTES: readonly Name[] = [XML_LANG, XML_BASE, RDF_ABOUT, HREF, REL];
 
 /** A syndication format: its root element, its channel (none in Atom) and its items. */
 type Format = Readonly<{ root: Name; channel: Name | null; item: Name; itemsInChannel: boolean }>;
@@ -104,22 +108,34 @@ const FORMATS: readonly Format[] = [
   { root: [RDF, 'RDF'], channel: [RSS_1, 'channel'], item: [RSS_1, 'item'], itemsInChannel: false },
   { root: [ATOM, 'feed'], channel: null, item: [ATOM, 'entry'], itemsInChannel: false },
 ];
-const ITEMS: readonly Name[] = FORMATS.map(({ item }) => item);
 
-/** An element of a document, down to the kept depth: its name, its attributes, its elements and its whole text. */
+/** What a kept element is to the reader. A field is the one kind that keeps its text. */
+type Role = 'root' | 'channel' | 'item' | 'source' | 'field';
+
+/** An element that the reader looks up in a parent: its name, its role, how many of it the parent keeps, and which. */
+type Lookup = Readonly<{ name: Name; role: Role; most: number; accepts?: Accepts }>;
+type Accepts = (element: XmlElement) => boolean;
+
+/**
+ * A kept element: its name, its role, the attributes that the reader looks up, its kept
+ * elements and how many it kept of each lookup, and, for a field, the text of everything
+ * it holds.
+ */
 type XmlElement = Readonly<{
   uri: string;
   local: string;
+  role: Role;
   attributes: readonly SaxesAttributeNS[];
   children: XmlElement[];
+  counts: Map<Lookup, number>;
   text: string[];
 }>;
 
 const UNREADABLE: FeedDocument = { ok: false, error: { kind: 'unreadable' } };
 const NOT_A_FEED: FeedDocument = { ok: false, error: { kind: 'not_a_feed' } };
 
-const hasName = (element: XmlElement, [uri, local]: Name): boolean =>
-  element.uri === uri && element.local === local;
+const hasName = (named: Readonly<{ uri: string; local: string }>, [uri, local]: Name): boolean =>
+  named.uri === uri && named.local === local;
 
 /** The first child of `element` that carries one of `names`, the earlier names first. */
 const childOf = (element: XmlElement | undefined, names: readonly Name[]): XmlElement | undefined =>
@@ -127,9 +143,8 @@ const childOf = (element: XmlElement | undefined, names: readonly Name[]): XmlEl
     .map((name) => element?.children.find((child) => hasName(child, name)))
     .find((child) => child !== undefined);
 
-const attributeOf = (element: XmlElement | undefined, [uri, local]: Name): string | null =>
-  element?.attributes.find((attribute) => attribute.uri === uri && attribute.local === local)
-    ?.value ?? null;
+const attributeOf = (element: XmlElement | undefined, name: Name): string | null =>
+  element?.attributes.find((attribute) => hasName(attribute, name))?.value ?? null;
 
 /** `text` trimmed, or null when nothing is left. */
 function trimmed(text: string | null | undefined): string | null {
@@ -167,10 +182,7 @@ function linkOf(
   around: readonly (XmlElement | undefined)[],
   address: string,
 ): string | null {
-  const alternate = item.children.find(
-    (child) =>
-      hasName(child, ATOM_LINK) && (attributeOf(child, REL) ?? 'alternate') === 'alternate',
-  );
+  const alternate = childOf(item, [ATOM_LINK]);
   const href = textOf(childOf(item, LINK)) ?? attributeOf(alternate, HREF);
   let base = address;
   for (const element of [...around, item, alternate]) {
@@ -193,7 +205,7 @@ function itemOf(
     publishedAt: dateOf(textAt(PUBLISHED)),
     updatedAt: dateOf(textAt(UPDATED)),
     language: languageOf(item),
-    originOutlet: textAt(RSS_SOURCE) ?? textOf(childOf(childOf(item, ATOM_SOURCE), ATOM_TITLE)),
+    originOutlet: textAt(RSS_SOURCE) ?? textOf(childOf(childOf(item, [ATOM_SOURCE]), [ATOM_TITLE])),
     excerpt: textAt(EXCERPT),
   };
 }
@@ -210,36 +222,91 @@ function feedOf(root: XmlElement, format: Format, address: string): Feed {
   };
 }
 
-/** A new element of the outline for `tag`, as yet with no elements and no text. */
-const elementOf = ({ uri, local, attributes }: SaxesTagNS): XmlElement => ({
+/** The first element of a name in a parent, in `role`. */
+const first =
+  (role: Role) =>
+  (name: Name): Lookup => ({ name, role, most: 1 });
+const isAlternate = (link: XmlElement): boolean =>
+  (attributeOf(link, REL) ?? 'alternate') === 'alternate';
+
+/**
+ * What the reader looks up in the kept elements of a document in `format`, by their role:
+ * in the root and the channel, the channel, the items up to the bound (COL-46) and the
+ * language; in an item, the first element of each name of a field, the first alternate
+ * link and the source; in a source, its title. A field keeps no element.
+ */
+function lookupsOf({ channel, item, itemsInChannel }: Format): Partial<Record<Role, Lookup[]>> {
+  const items: Lookup[] = [{ name: item, role: 'item', most: MAX_FEED_ITEMS }];
+  const channels = channel === null ? [] : [first('channel')(channel)];
+  const languages = LANGUAGE.map(first('field'));
+  return {
+    root: [...channels, ...(itemsInChannel ? [] : items), ...languages],
+    channel: [...(itemsInChannel ? items : []), ...languages],
+    item: [
+      ...FIELDS.flat().map(first('field')),
+      { name: ATOM_LINK, role: 'field', most: 1, accepts: isAlternate },
+      first('source')(ATOM_SOURCE),
+    ],
+    source: [first('field')(ATOM_TITLE)],
+  };
+}
+
+/** A new kept element for `tag` in `role`, with the attributes that the reader looks up, as yet with no elements and no text. */
+const elementOf = ({ uri, local, attributes }: SaxesTagNS, role: Role): XmlElement => ({
   uri,
   local,
-  attributes: Object.values(attributes),
+  role,
+  attributes: Object.values(attributes).filter((attribute) =>
+    ATTRIBUTES.some((name) => hasName(attribute, name)),
+  ),
   children: [],
+  counts: new Map(),
   text: [],
 });
 
+/** A document in a syndication format: its root, as far as it is kept, and its format. */
+type KeptFeed = Readonly<{ root: XmlElement; format: Format }>;
+
 /**
- * The elements of a document as the parser meets them, down to the kept depth and
- * without the items of an element past the item bound, and the errors met on the way.
+ * The elements of a document that the reader looks up below a syndication root, kept as
+ * the parser meets them, and the errors met on the way. Once an error is met, the answer
+ * no longer depends on the elements, and the parse ends with the slice.
  */
 class Outline {
   // The kept elements around the parser's position, from the root.
   readonly #open: XmlElement[] = [];
-  readonly #itemCounts = new Map<XmlElement | undefined, number>();
+  #lookups: Partial<Record<Role, Lookup[]>> = {};
   #depth = 0;
   #errors = 0;
-  readonly roots: XmlElement[] = [];
+  // The syndication root of the document and the elements kept below it, if it has one.
+  feed: KeptFeed | undefined;
 
-  /** Whether an element named `uri` and `local` is an item past the bound of `parent`'s items, counting it if not. */
-  #isExtraItem(parent: XmlElement | undefined, uri: string, local: string): boolean {
-    const isItem = ITEMS.some(([itemUri, itemLocal]) => uri === itemUri && local === itemLocal);
-    if (!isItem) {
-      return false;
+  /** The root of a document in a syndication format, whose format says what is kept below it. */
+  #root(tag: SaxesTagNS): XmlElement | undefined {
+    const format = FORMATS.find(({ root }) => hasName(tag, root));
+    if (format === undefined) {
+      return undefined;
     }
-    const count = this.#itemCounts.get(parent) ?? 0;
-    this.#itemCounts.set(parent, count + 1);
-    return count >= MAX_FEED_ITEMS;
+    const root = elementOf(tag, 'root');
+    this.feed = { root, format };
+    this.#lookups = lookupsOf(format);
+    return root;
+  }
+
+  /** An element that the reader looks up in `parent`, unless `parent` keeps it already as often as it may. */
+  #child(parent: XmlElement, tag: SaxesTagNS): XmlElement | undefined {
+    const lookup = this.#lookups[parent.role]?.find(({ name }) => hasName(tag, name));
+    if (lookup === undefined) {
+      return undefined;
+    }
+    const element = elementOf(tag, lookup.role);
+    const count = parent.counts.get(lookup) ?? 0;
+    if (count >= lookup.most || lookup.accepts?.(element) === false) {
+      return undefined;
+    }
+    parent.counts.set(lookup, count + 1);
+    parent.children.push(element);
+    return element;
   }
 
   /** The errors met, each element nested past the depth bound counted as one. */
@@ -251,35 +318,21 @@ class Outline {
     this.#errors += 1;
   }
 
-  /**
-   * Keeps an element when every element around it is kept, down to the kept depth, and
-   * no error came before it, since the first error settles the answer. A first root that
-   * opens after an error is still noted, without its content, so that a feed broken
-   * before its root, by a warning or a byte order mark above it, stays apart from a
-   * document that is no feed (COL-41).
-   */
+  /** Keeps a syndication root, or an element that the reader looks up in a kept one. */
   open(tag: SaxesTagNS): void {
     this.#depth += 1;
     if (this.#depth > MAX_FEED_DEPTH) {
       this.fail();
     }
-    if (this.#errors > 0) {
-      if (this.#depth === 1 && this.roots.length === 0) {
-        this.roots.push(elementOf(tag));
-      }
+    // An element below one that is not kept is not kept either.
+    if (this.#depth !== this.#open.length + 1) {
       return;
     }
     const parent = this.#open.at(-1);
-    if (
-      this.#depth !== this.#open.length + 1 ||
-      this.#depth > KEPT_DEPTH ||
-      this.#isExtraItem(parent, tag.uri, tag.local)
-    ) {
-      return;
+    const element = parent === undefined ? this.#root(tag) : this.#child(parent, tag);
+    if (element !== undefined) {
+      this.#open.push(element);
     }
-    const element = elementOf(tag);
-    (parent?.children ?? this.roots).push(element);
-    this.#open.push(element);
   }
 
   close(): void {
@@ -289,21 +342,23 @@ class Outline {
     this.#depth -= 1;
   }
 
-  /** Gives `chunk` to every kept element around it, each of which gathers the text of everything it holds. */
+  /** Gives `chunk` to the kept field around it, if any, which gathers the text of everything it holds. */
   gather(chunk: string): void {
-    for (const element of this.#open) {
+    const element = this.#open.at(-1);
+    if (element?.role === 'field') {
       element.text.push(chunk);
     }
   }
 }
 
 /**
- * The elements of `text` and the number of errors the parser met, as an outline keeps
- * them. The parser takes `text` a slice at a time and stops after the slice of the first
- * error, which settles the answer. So a document full of errors, or one nested past the
- * depth bound, whose cost would grow with the square of its depth, costs a slice or two.
+ * The outline of `text` (TRV-17): its syndication root and the elements kept below it,
+ * and the number of errors that the parser met. The parser takes `text` a slice at a
+ * time and stops after the slice of the first error, which settles the answer, so that a
+ * document full of errors, or one nested past the depth bound, whose cost would grow with
+ * the square of its depth, costs a slice or two.
  */
-function elementsOf(text: string): Readonly<{ roots: readonly XmlElement[]; errors: number }> {
+export function outlineOf(text: string): Readonly<{ feed: KeptFeed | undefined; errors: number }> {
   const parser = new SaxesParser({ xmlns: true });
   const outline = new Outline();
   const gather = (chunk: string): void => {
@@ -323,10 +378,8 @@ function elementsOf(text: string): Readonly<{ roots: readonly XmlElement[]; erro
   for (let start = 0; start < text.length && outline.errors === 0; start += PARSE_SLICE_CHARS) {
     parser.write(text.slice(start, start + PARSE_SLICE_CHARS));
   }
-  if (outline.errors === 0) {
-    parser.close();
-  }
-  return { roots: outline.roots, errors: outline.errors };
+  parser.close();
+  return { feed: outline.feed, errors: outline.errors };
 }
 
 /** The text of a body in the charset of its answer, else that of its XML declaration, else UTF-8; null when it is none. */
@@ -344,12 +397,16 @@ function decoded(bytes: Uint8Array, contentType: string | null): string | null {
 }
 
 /**
- * The feed that the body of an answer at `address` holds (COL-41, TRV-17): not a feed
- * when its root is no syndication format's, or when none opens by the end of the slice
- * of its first error; unreadable when it is not text in its charset, or when a feed's
- * root comes with XML that is not well-formed, before it (such as a warning or a byte
- * order mark above it) or after it (a reference to an entity other than XML's five
- * included, whether a DTD declares it or not), or nested past the depth bound.
+ * The feed that the body of an answer at `address` holds (COL-41, TRV-17), by one rule:
+ * - a body that is not text in its charset is unreadable;
+ * - a document that the parser reads to its end without an error is judged by its root
+ *   element: the root of a syndication format is read as a feed, any other root is not a
+ *   feed;
+ * - a document with a parse error (XML that is not well-formed, a reference to an entity
+ *   other than XML's five, an element nested past the depth bound) is unreadable when its
+ *   text holds the start tag of a syndication format's root anywhere, and not a feed when
+ *   it holds none. The parse stops at the first error, and what came before that error,
+ *   such as a server's warning or a byte order mark under another charset, does not count.
  */
 export function feedIn(
   bytes: Uint8Array,
@@ -361,11 +418,11 @@ export function feedIn(
     return UNREADABLE;
   }
   // Whitespace before the XML declaration, which some servers write, is not the feed's.
-  const { roots, errors } = elementsOf(text.trimStart());
-  const [root] = roots;
-  const format = FORMATS.find((candidate) => root !== undefined && hasName(root, candidate.root));
-  if (root === undefined || format === undefined) {
-    return NOT_A_FEED;
+  const { feed, errors } = outlineOf(text.trimStart());
+  if (errors > 0) {
+    return SYNDICATION_ROOT_TAG.test(text) ? UNREADABLE : NOT_A_FEED;
   }
-  return errors === 0 ? { ok: true, feed: feedOf(root, format, address) } : UNREADABLE;
+  return feed === undefined
+    ? NOT_A_FEED
+    : { ok: true, feed: feedOf(feed.root, feed.format, address) };
 }
