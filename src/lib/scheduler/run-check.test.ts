@@ -288,6 +288,24 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     expect(await missesOf()).toStrictEqual([{ task: 'statistics-update', dueAt: nov(25, 14) }]);
   });
 
+  it('[CL-TRV-23] takes a manual run for the day of the statistics update only when it succeeded, a failed one leaving the day missed, and a success closing "task not run" at once', async () => {
+    const { checkMissedRuns } = await load();
+    const manual = { taskKey: 'statistics-update', trigger: 'on_demand' } as const;
+    await insertRuns([
+      { taskKey: 'statistics-update', dueAt: nov(23, 14), result: 'succeeded' },
+      { ...manual, dueAt: nov(24, 14, 30), result: 'failed' },
+      { ...manual, dueAt: nov(25, 14, 30), result: 'succeeded' },
+    ]);
+    expect(await checkMissedRuns(db, [statisticsUpdate], nov(25, 16))).toStrictEqual({
+      ok: true,
+      caughtUp: [],
+    });
+    expect(await missesOf()).toStrictEqual([{ task: 'statistics-update', dueAt: nov(24, 14) }]);
+    expect(await incidentsOf()).toStrictEqual([
+      { kind: 'task_not_run', causeKey: 'statistics-update', isClosed: true },
+    ]);
+  });
+
   it('[TRV-31] [CL-TRV-08] [CL-TRV-23] runs each timed task once at the first pass on an empty database, and journals no occurrence before it as missed', async () => {
     const { execute } = await load();
     const late: ChunkOutcome = { kind: 'done', result: 'source_late' };

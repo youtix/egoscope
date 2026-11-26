@@ -602,7 +602,44 @@ const anyScenario = fc.record({
   steps: fc.array(anyStep, { minLength: 4, maxLength: 16 }),
 });
 
+const SUCCEEDS = {
+  purge: 'succeeds',
+  'statistics-update': 'succeeds',
+  backup: 'succeeds',
+} as const;
+const TICK = { kind: 'pass', calls: CALLS[0], outcomes: SUCCEEDS, answer: 'ready' } as const;
+// A sequence that the random ones found wrong, as fast-check shrank it (seed -172198841): a
+// manual run of the statistics update that started at its start time and was cut, resumed
+// once the margin had passed, was taken for the day's run, which had not started (CL-TRV-23).
+const MANUAL_CUT: Scenario = {
+  start: Date.UTC(2026, 2, 27, 22),
+  times: PURGE_TIMES[0],
+  hasHistory: true,
+  steps: [
+    { kind: 'wait', minutes: 795 },
+    { kind: 'wait', minutes: 152 },
+    { kind: 'wait', minutes: 13 },
+    {
+      ...TICK,
+      calls: CALLS[4],
+      outcomes: { ...SUCCEEDS, 'statistics-update': 'cut' },
+      asked: 'statistics-update',
+    },
+    { kind: 'wait', minutes: 111 },
+    { kind: 'wait', minutes: 9 },
+    { ...TICK, asked: 'purge' },
+    { ...TICK, asked: 'purge' },
+  ],
+};
+
 describe('the scheduler, step by step', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
+  it('[CL-TRV-23] [CL-TRV-08] misses the day of the statistics update whose only run in time was a manual one, cut and resumed after the margin', async () => {
+    const env = await envOf();
+    await playScenario(env, MANUAL_CUT);
+    const misses = missesOf(await see(env.db), 'statistics-update').map(({ dueAt }) => dueAt);
+    expect(misses).toStrictEqual([Date.UTC(2026, 2, 27, 14), Date.UTC(2026, 2, 28, 14)]);
+  });
+
   it('[TRV-28] [TRV-30] [TRV-31] [CA-TRV-09] [CA-TRV-10] [CL-TRV-07] [CL-TRV-08] [CL-TRV-23] keeps the invariants of the run check, the catch-up run and the resumptions through any sequence of passes, failures, cuts and schedule changes', async () => {
     // A guard that throws logs its error, which the run's failure already records.
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

@@ -194,11 +194,18 @@ async function occurrencesOf(task: ScheduledTask, floor: EpochMs, check: Check) 
 const isEndedBy = (span: Span, deadline: number) => span.end !== null && span.end <= deadline;
 
 /**
+ * Whether `span` counts as the day's run of a task with a ready guard: a scheduled run, or a
+ * manual one that succeeded, which satisfies the day's occurrence (CL-TRV-23); a manual run
+ * that failed, was cut or still runs does not.
+ */
+const isDaysRun = (span: Span) => span.trigger === 'scheduled' || span.result === 'succeeded';
+
+/**
  * Whether `occurrence` of `task` is missed: no run started at or after it succeeded by
  * the occurrence plus the margin (TRV-31, CL-TRV-08); for a task with a ready guard, the
- * statistics update, no run started by the occurrence plus the margin, or none of those
- * with a result by the cut-off plus the margin, so that a run waiting for the source is
- * running and a late source is never missed (CL-TRV-23).
+ * statistics update, the day's run has not started by the occurrence plus the margin, or
+ * none of those has a result by the cut-off plus the margin, so that a run waiting for the
+ * source is running and a late source is never missed (CL-TRV-23).
  */
 function isMissed(task: ScheduledTask, occurrence: EpochMs, check: Check): boolean {
   const startDeadline = occurrence + check.marginMs;
@@ -207,7 +214,7 @@ function isMissed(task: ScheduledTask, occurrence: EpochMs, check: Check): boole
   if (readyGuard === undefined) {
     return started.every((span) => span.result !== 'succeeded' || !isEndedBy(span, startDeadline));
   }
-  const inTime = started.filter((span) => span.start <= startDeadline);
+  const inTime = started.filter((span) => span.start <= startDeadline && isDaysRun(span));
   const resultDeadline =
     readyGuard.cutoff(occurrence, check.params, check.timeZone) + check.marginMs;
   const hasResult = inTime.some((span) => isEndedBy(span, resultDeadline));
