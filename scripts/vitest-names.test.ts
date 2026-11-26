@@ -295,4 +295,53 @@ describe('vitestNames, contextPart and chains in no-skipped-tests', { timeout: 1
       'egoscope/no-skipped-tests',
     );
   });
+
+  it('lets a test pass an object with a skip key to a call of its own on a binding named test', async () => {
+    const code = [
+      "import { describe, expect, it } from 'vitest';",
+      '',
+      'const test = {',
+      "  run: (name: string, options: Readonly<{ skip: boolean }>): string => (options.skip ? '' : name),",
+      '};',
+      '',
+      "describe('probe', () => {",
+      "  it('runs the rows', () => {",
+      "    expect(test.run('first', { skip: false })).toBe('first');",
+      '  });',
+      '});',
+      '',
+    ].join('\n');
+
+    expect(await ruleIds('src/lib/probe/probe.test.ts', code)).not.toContain(
+      'egoscope/no-skipped-tests',
+    );
+  });
+
+  it('lets a row of a table call skip() on a parameter of its own function', async () => {
+    const code = [
+      "import { describe, expect, it } from 'vitest';",
+      '',
+      'type Reader = Readonly<{ skip: (count: number) => number }>;',
+      'const reader: Reader = { skip: (count) => count + 1 };',
+      '',
+      "describe('probe', () => {",
+      "  it.each([{ name: 'one', run: (cursor: Reader): number => cursor.skip(1) }])(",
+      "    'reads $name',",
+      '    ({ run }) => {',
+      '      expect(run(reader)).toBe(2);',
+      '    },',
+      '  );',
+      "  describe.each([[(cursor: Reader): number => cursor.skip(2)]])('suite', (run) => {",
+      "    it('reads', () => {",
+      '      expect(run(reader)).toBe(3);',
+      '    });',
+      '  });',
+      '});',
+      '',
+    ].join('\n');
+
+    expect(await ruleIds('src/lib/probe/probe.test.ts', code)).not.toContain(
+      'egoscope/no-skipped-tests',
+    );
+  });
 });
