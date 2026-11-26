@@ -1,6 +1,7 @@
 import { LEFT_UNCHECKED, watchAccessibility } from './accessibility';
 import { addressOf, onStream, OTHER, pageWith, PLAIN, servedPage, streamIn } from './probe-pages';
 import { expect, test } from './test';
+import { touchDown, touchUp } from './touches';
 
 import type { Page } from '@playwright/test';
 
@@ -58,8 +59,17 @@ const INPUT_EVENTS: readonly Readonly<{ type: string; input: (page: Page) => Pro
     type: 'auxclick',
     input: async (page) => page.mouse.click(FIELD_POINT.x, FIELD_POINT.y, { button: 'middle' }),
   },
-  { type: 'touchstart', input: async (page) => page.touchscreen.tap(FIELD_POINT.x, FIELD_POINT.y) },
-  { type: 'touchend', input: async (page) => page.touchscreen.tap(FIELD_POINT.x, FIELD_POINT.y) },
+  // A touch one step at a time (touches.ts), never a tap, whose answer Chromium may
+  // never give when the page leaves as it dispatches it. After touchstart the finger
+  // stays down: its lift could wait behind that unanswered touch.
+  { type: 'touchstart', input: async (page) => touchDown(page, FIELD_POINT) },
+  {
+    type: 'touchend',
+    input: async (page) => {
+      await touchDown(page, FIELD_POINT);
+      await touchUp(page);
+    },
+  },
 ];
 
 // A form that the browser submits to the other page, with the button `submitter`
