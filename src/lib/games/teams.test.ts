@@ -376,34 +376,42 @@ describe('the current team and the team history', { timeout: DATABASE_TEST_TIMEO
     });
   });
 
-  it('[JOU-13] [CL-JOU-20] [CL-JOU-25] [CL-STA-31] sets "without team" for a release that the player file reads after a read that gave his team, a release counting as a team like another, and a second read of it being no news', async () => {
+  it('[JOU-13] [CL-JOU-20] [CL-JOU-25] [CL-STA-31] sets "without team" for a release that the player file reads, at its first read or after a read that gave his team, a release counting as a team like another, and a second read of it being no news', async () => {
     const [pineValley, redstone] = [await teamOf('2'), await teamOf('3')];
     const playerId = await follow('p02', '2');
+    await ingest(playerId, 'p02', { lastDay: '2025-11-02' });
     const record = await recordOf('p02');
     const release: PlayerRecord = { ...record, currentTeam: { kind: 'without_team' } };
-    moveTo(noon(11, 3));
-    await read(playerId, record);
+    /** Applies `fileRecord`, read at noon on the November day `day`. */
+    const readOn = async (day: number, fileRecord: PlayerRecord) => {
+      moveTo(noon(11, day));
+      return read(playerId, fileRecord);
+    };
 
-    moveTo(noon(11, 4));
-    const released = await read(playerId, release);
+    const firstRead = await readOn(3, release);
+    const signed = await readOn(4, record);
+    const released = await readOn(5, release);
     const releasedAt = await playerOf(playerId);
-    moveTo(noon(11, 5));
-    const again = await read(playerId, release);
+    const again = await readOn(6, release);
 
-    expect([released, again]).toStrictEqual([
-      { ok: true, value: { ...MOVED.value, birthdayChanged: false } },
+    const moved = { ok: true, value: { ...MOVED.value, birthdayChanged: false } };
+    expect([firstRead, signed, released, again]).toStrictEqual([
+      { ok: true, value: { ...MOVED.value, birthdayChanged: true } },
+      moved,
+      moved,
       NOTHING,
     ]);
-    expect(releasedAt).toMatchObject({ teamId: null, fileTeamId: null, fileReadAt: noon(11, 4) });
-    await expect(historyOf(playerId)).resolves.toStrictEqual([
-      entered(BEFORE_SEASON, [null, pineValley], null),
-      observed(noon(11, 3), [pineValley, redstone], null),
-      observed(noon(11, 4), [redstone, null], null),
+    expect(releasedAt).toMatchObject({ teamId: null, fileTeamId: null, fileReadAt: noon(11, 5) });
+    await expect(historyOf(playerId)).resolves.toMatchObject([
+      { to: pineValley, origin: 'entered' },
+      observed(noon(11, 3), [pineValley, null], null),
+      observed(noon(11, 4), [null, redstone], null),
+      observed(noon(11, 5), [redstone, null], null),
     ]);
     await expect(playerOf(playerId)).resolves.toMatchObject({
       teamId: null,
       fileTeamId: null,
-      fileReadAt: noon(11, 5),
+      fileReadAt: noon(11, 6),
     });
   });
 
