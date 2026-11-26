@@ -1,6 +1,10 @@
+import { Suspense } from 'react';
+
 import { guardScreen, paths } from '@/lib/navigation';
-import { PageHeader } from '@/lib/ui';
+import { PageHeader, Skeleton } from '@/lib/ui';
 import { sentence } from '@/lib/wording';
+
+import { VersionsBlock } from './versions-block';
 
 import type { ReactNode } from 'react';
 
@@ -22,7 +26,9 @@ export default async function TypeSheetPage({
       />
       {/* --- Slot: sheet-block.tsx, which the players-taxonomy area adds --- */}
 
-      {/* --- Slot: versions-block.tsx, which the players-taxonomy area adds --- */}
+      <Suspense fallback={<Skeleton label={sentence('interface.loadingScreen')} />}>
+        <VersionsBlock typeId={typeId} />
+      </Suspense>
 
       {/* --- Slot: trend-block.tsx, which the statistics-sensitivity area adds --- */}
 
