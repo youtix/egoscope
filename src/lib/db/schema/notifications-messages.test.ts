@@ -120,6 +120,14 @@ const CHAT_ID = 2 ** 40 + 7;
 const PASS_ID = '9e3c1a52-7b4d-4f80-a6e1-3d2b8c0f5a47';
 // A message waiting to be sent, then the same message once sent, failed or discarded.
 const MESSAGE = { kind: 'alert', createdAt: at(10) } as const;
+// The kinds that can be urgent (TEL-21, CL-TEL-18).
+const URGENT_KINDS = [
+  'backtest_request_to_do',
+  'deadline_changed',
+  'deadline_reminder',
+  'alert',
+  'alert_update',
+] as const;
 const SENT = {
   ...MESSAGE,
   status: 'sent',
@@ -204,6 +212,7 @@ describe('the messages and what they notify', { timeout: 60_000 }, () => {
       { ...MESSAGE, kind: 'daily_cap_reached', capDay: '2024-12-02' },
       { ...MESSAGE, kind: 'chat_unlinked_notice', status: 'deferred', scheduledSendAt: at(12) },
       { ...SENT, isUrgent: true, playerId: PARENTS.playerId, gameId: PARENTS.gameId },
+      ...URGENT_KINDS.map((kind) => ({ ...MESSAGE, kind, isUrgent: true })),
       { ...SENT, text: 'x'.repeat(4096) },
       FAILED,
       {
@@ -245,17 +254,12 @@ describe('the messages and what they notify', { timeout: 60_000 }, () => {
       groupedIntoMessageId: null,
       capDay: null,
     });
-    await expect(db.$count(notificationMessages)).resolves.toBe(29);
+    await expect(db.$count(notificationMessages)).resolves.toBe(34);
   });
 
   it.each([
     ['a kind outside the list', { ...MESSAGE, kind: OUTSIDE }, 'kind'],
     ['a status outside the list', { ...MESSAGE, status: OUTSIDE }, 'status'],
-    [
-      'an urgent message of a kind that never is',
-      { ...MESSAGE, kind: 'test_message', isUrgent: true },
-      'urgent',
-    ],
     ['a text of 4,097 characters', { ...SENT, text: 'x'.repeat(4097) }, 'text'],
     [
       'a failure kind outside the list',
@@ -317,6 +321,31 @@ describe('the messages and what they notify', { timeout: 60_000 }, () => {
       await expect(insert).rejects.toMatchObject(
         violationOf(`notification_messages_${check}_check`),
       );
+    },
+  );
+
+  it.each([
+    { kind: 'tracked_game_result' },
+    { kind: 'new_type_proposal' },
+    { kind: 'incident_start' },
+    { kind: 'incident_reminder' },
+    { kind: 'incident_end' },
+    { kind: 'export_reminder' },
+    { kind: 'link_confirmation' },
+    { kind: 'test_message' },
+    { kind: 'pass_digest' },
+    { kind: 'quiet_hours_digest' },
+    { kind: 'catch_up' },
+    { kind: 'daily_cap_reached', capDay: '2024-12-02' },
+    { kind: 'chat_unlinked_notice' },
+  ] as const)(
+    '[TEL-21] [CL-TEL-18] refuses an urgent message of kind $kind, which never is urgent',
+    async (fields) => {
+      const insert = db
+        .insert(notificationMessages)
+        .values({ ...MESSAGE, ...fields, isUrgent: true });
+
+      await expect(insert).rejects.toMatchObject(violationOf('notification_messages_urgent_check'));
     },
   );
 

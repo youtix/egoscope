@@ -144,6 +144,8 @@ const VERSION = {
   caseCount: 6,
   profileConfidence: 'medium',
 } as const;
+// A version without a forecast, none of whose fields is set.
+const NO_VERSION = { trackedCaseId: TRACKED_ID, effectiveAt: at(20), source: 'none' } as const;
 const DECISION = {
   trackedCaseId: TRACKED_ID,
   kind: 'event_dismissed',
@@ -297,6 +299,11 @@ describe('the tracked cases and their history', { timeout: 60_000 }, () => {
       'forecast',
     ],
     ['no forecast with a level', { ...NONE, forecastLevel: 'possible' }, 'forecast'],
+    ['no forecast with a direction', { ...NONE, forecastDirection: 'decrease' }, 'forecast'],
+    ['no forecast with an announced gap', { ...NONE, announcedMeanGap: -4.5 }, 'forecast'],
+    ['no forecast with a case count', { ...NONE, forecastCaseCount: 12 }, 'forecast'],
+    ['no forecast with a confidence', { ...NONE, forecastProfileConfidence: 'high' }, 'forecast'],
+    ['a level before any choice', { ...UNFROZEN, forecastLevel: 'possible' }, 'forecast'],
     ['a chosen forecast not yet frozen', { ...FROZEN, forecastFrozenAt: null }, 'forecast_frozen'],
     [
       'a freezing instant before any choice',
@@ -361,11 +368,11 @@ describe('the tracked cases and their history', { timeout: 60_000 }, () => {
     ['a forecast without its announced gap', { ...VERSION, announcedMeanGap: null }, 'forecast'],
     ['a forecast without its case count', { ...VERSION, caseCount: null }, 'forecast'],
     ['a forecast without its confidence', { ...VERSION, profileConfidence: null }, 'forecast'],
-    [
-      'no forecast with a case count',
-      { trackedCaseId: TRACKED_ID, effectiveAt: at(20), source: 'none', caseCount: 3 },
-      'forecast',
-    ],
+    ['no forecast with a level', { ...NO_VERSION, level: 'possible' }, 'forecast'],
+    ['no forecast with a direction', { ...NO_VERSION, direction: 'increase' }, 'forecast'],
+    ['no forecast with an announced gap', { ...NO_VERSION, announcedMeanGap: 2.5 }, 'forecast'],
+    ['no forecast with a case count', { ...NO_VERSION, caseCount: 3 }, 'forecast'],
+    ['no forecast with a confidence', { ...NO_VERSION, profileConfidence: 'medium' }, 'forecast'],
   ] as const)(
     '[SUI-08] [SUI-09] refuses a forecast version with %s',
     async (_case, version, check) => {
