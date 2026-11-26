@@ -86,7 +86,7 @@ const usageSchema = z.object({
   promptTokensDetails: z.object({ cachedTokens: tokenCount }).optional(),
 });
 const answerSchema = z.object({
-  result: z.object({ choices: z.array(choiceSchema).nonempty(), usage: usageSchema }),
+  result: z.object({ choices: z.tuple([choiceSchema], choiceSchema), usage: usageSchema }),
 });
 const errorSchema = z.object({ code: z.number().optional(), message: z.string() });
 const failureSchema = z.object({ errors: z.array(errorSchema) });
@@ -234,10 +234,10 @@ export function createWorkersAiProvider(
   if (model === undefined) {
     return err({ kind: 'unknown_model', model: config.model });
   }
-  async function complete(
+  const complete = async (
     ctx: CallContext,
     request: ClassificationRequest,
-  ): Promise<ProviderOutcome> {
+  ): Promise<ProviderOutcome> => {
     if (ctx.signal.aborted || now() >= ctx.deadline) {
       return { ok: false, error: TIMEOUT, call: NO_COST };
     }
@@ -245,7 +245,7 @@ export function createWorkersAiProvider(
     return reply.ok
       ? outcomeOf(model, reply.value)
       : { ok: false, error: reply.error, call: ONE_REQUEST };
-  }
+  };
   return ok({
     name: 'workersAi',
     model: config.model,
