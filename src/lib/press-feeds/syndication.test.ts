@@ -89,6 +89,17 @@ const broken = (): ReadableStream<Uint8Array> =>
     },
   });
 
+/** A body that never ends, which records under `name` in `cancelled` that the read let go of it. */
+const endlessBody = (cancelled: string[], name: string): ReadableStream<Uint8Array> =>
+  new ReadableStream({
+    pull: (controller) => {
+      controller.enqueue(new Uint8Array(CHUNK_BYTES));
+    },
+    cancel: () => {
+      cancelled.push(name);
+    },
+  });
+
 /** An address of the redirects' world. */
 const moveAt = (name: string): string => `https://moves.example.test/${name}`;
 
@@ -271,12 +282,15 @@ describe('createSyndicationPressFeeds', () => {
     });
     const feeds = createSyndicationPressFeeds();
     const knownVersion = null;
+    // A call stopped before it starts.
+    const stopped = AbortSignal.abort();
     const outcomes = await Promise.all([
       feeds.readFeed(context(), { url: 'file:///etc/hosts', knownVersion }),
       feeds.readFeed(context(-1), { url: COURTSIDE, knownVersion }),
       feeds.readFeed(context(20), { url: hanging, knownVersion }),
       feeds.readFeed(context(), { url: cut, knownVersion }),
       feeds.readFeed(context(DEADLINE_MS, stopper.signal), { url: stopping, knownVersion }),
+      feeds.readFeed(context(DEADLINE_MS, stopped), { url: COURTSIDE, knownVersion }),
     ]);
 
     expect(outcomes).toStrictEqual([
@@ -285,6 +299,7 @@ describe('createSyndicationPressFeeds', () => {
       unreachable(1),
       unreachable(1, '<rss>'.length),
       unreachable(1),
+      unreachable(0),
     ]);
   });
 
@@ -424,5 +439,29 @@ describe('createSyndicationPressFeeds', () => {
     expect(outcome).toMatchObject({ ok: false, error: { kind: 'unreadable' } });
     expect(outcome.call.bytesReceived).toBeGreaterThan(MAX_FEED_BYTES);
     expect(outcome.call.bytesReceived).toBeLessThanOrEqual(MAX_FEED_BYTES + CHUNK_BYTES);
+  });
+
+  it('[TRV-17] lets go of the body of a redirect, of an error status and of an answer past the byte bound', async () => {
+    const cancelled: string[] = [];
+    const moving = 'https://unread.example.test/moving';
+    const failing = 'https://unread.example.test/failing';
+    const endless = 'https://unread.example.test/endless';
+    serve({
+      [moving]: () =>
+        new Response(endlessBody(cancelled, 'redirect'), {
+          status: 301,
+          headers: { location: COURTSIDE },
+        }),
+      [failing]: () => new Response(endlessBody(cancelled, 'error status'), { status: 500 }),
+      [endless]: () => new Response(endlessBody(cancelled, 'past the bound')),
+      [COURTSIDE]: courtsideFeed,
+    });
+    // One read after the other, so that the bodies are let go of in this order.
+    const outcomes = [await read(moving), await read(failing), await read(endless)];
+
+    expect(
+      outcomes.map((outcome) => (outcome.ok ? outcome.value.kind : outcome.error.kind)),
+    ).toStrictEqual(['read', 'http_error', 'unreadable']);
+    expect(cancelled).toStrictEqual(['redirect', 'error status', 'past the bound']);
   });
 });

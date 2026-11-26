@@ -215,7 +215,8 @@ export function createSyndicationPressFeeds(): PressFeeds {
   return {
     readFeed: async (ctx, { url, knownVersion }): Promise<PressFeedsOutcome<FeedRead>> => {
       const address = webAddress(url);
-      if (address === null || ctx.signal.aborted || now() >= ctx.deadline) {
+      // A stopped call fails as unreachable before its first request, as FeedCall checks.
+      if (address === null || now() >= ctx.deadline) {
         return { ok: false, error: UNREACHABLE, call: NO_CALL };
       }
       const call = new FeedCall(ctx);
