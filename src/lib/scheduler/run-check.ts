@@ -14,7 +14,7 @@ import { wakeAt } from '@/lib/wake-plan';
 import { TIME_ZONE_KEY } from './due';
 import { releaseLease, takeLease } from './lease';
 import { HOUR_MS } from './limits';
-import { localTimesOf, occurrencesBetween } from './occurrences';
+import { latestOccurrenceAtOrBefore, localTimesOf, occurrencesBetween } from './occurrences';
 import { epochOf, startRun } from './runs';
 
 import type { LeaseHeld } from './lease';
@@ -222,11 +222,30 @@ async function newMisses(task: ScheduledTask, check: Check): Promise<readonly Ep
 }
 
 /**
+ * The occurrence that the catch-up run of `task` is due for: the last missed one `last`,
+ * or, when later, the latest occurrence of its timed schedules that has come by the check,
+ * still inside its margin, which the catch-up also stands for since it starts after it
+ * (CL-TRV-08), so that the pass neither postpones that occurrence nor runs the task again
+ * for it (TRV-28, CL-TRV-07).
+ */
+function catchUpDueAt(task: ScheduledTask, last: EpochMs, check: Check): EpochMs {
+  const latest = task.schedules.flatMap((schedule) => {
+    if (schedule.kind === 'chained' || schedule.kind === 'computed') {
+      return [];
+    }
+    const local = localTimesOf(schedule, check.params);
+    return latestOccurrenceAtOrBefore(check.at, local, check.timeZone) ?? [];
+  });
+  return toEpochMs(Math.max(last, ...latest));
+}
+
+/**
  * Journals the new missed occurrences of `task`, opens its "task not run" incident, and
- * starts its one catch-up run, recorded as scheduled, unless a run already stands for
- * them: a success started at or after the last of them, which closes the incident at
- * once, or a run of the task that runs, which the index of running runs keeps alone
- * (CL-TRV-08). Returns the task when it started a catch-up run.
+ * starts its one catch-up run, recorded as scheduled and due at the latest occurrence that
+ * has come, unless a run already stands for them: a success started at or after the last
+ * of them, which closes the incident at once, or a run of the task that runs, which the
+ * index of running runs keeps alone (CL-TRV-08). Returns the task when it started a
+ * catch-up run.
  */
 async function catchUp(
   task: ScheduledTask,
@@ -241,7 +260,7 @@ async function catchUp(
   const start = {
     taskKey: task.key,
     trigger: 'scheduled',
-    dueAt: last,
+    dueAt: catchUpDueAt(task, last, check),
     passId: check.passId,
   } as const;
   const started = await check.db.transaction(async (tx) => {
