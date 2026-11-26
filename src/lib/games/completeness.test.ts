@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { boxScores, createTestDatabase, games, incidents, series, teamSourceRefs } from '@/lib/db';
@@ -28,6 +28,7 @@ const WITHOUT_LINES = '2025-26:r04:h4';
 const FIRST_GAME = '2025-26:r01:h1';
 const P01 = leaguePlayerId('p01');
 const P03 = leaguePlayerId('p03');
+const P04 = leaguePlayerId('p04');
 const byNumber = (left: number, right: number): number => left - right;
 
 /** Noon UTC, the same day in Paris, on a day counted from 1 November 2025: day 35 is 5 December. */
@@ -76,6 +77,30 @@ describe('the derivations after each ingestion', { timeout: DATABASE_TEST_TIMEOU
     return db.transaction(async (tx) => consolidate(tx, inParis(toEpochMs(now))));
   }
 
+  async function teamIdOf(sourceTeamRef: string): Promise<number> {
+    const [team] = await db
+      .select({ id: teamSourceRefs.teamId })
+      .from(teamSourceRefs)
+      .where(eq(teamSourceRefs.sourceTeamRef, sourceTeamRef));
+    return team?.id ?? NaN;
+  }
+
+  /** The lines of the followed players, earliest game first. */
+  async function linesInOrder() {
+    return db
+      .select({ id: boxScores.id, playerId: boxScores.playerId, gameId: boxScores.gameId })
+      .from(boxScores)
+      .innerJoin(games, eq(games.id, boxScores.gameId))
+      .orderBy(asc(games.scheduledStartAt), asc(boxScores.id));
+  }
+
+  async function setStatus(lineId: number | undefined, status: 'incomplete' | 'suspect') {
+    await db
+      .update(boxScores)
+      .set({ status })
+      .where(eq(boxScores.id, lineId ?? NaN));
+  }
+
   async function firstGameStart(): Promise<number> {
     const [game] = await db
       .select({ start: games.scheduledStartAt })
@@ -117,6 +142,25 @@ describe('the derivations after each ingestion', { timeout: DATABASE_TEST_TIMEOU
         .where(eq(games.gameDayOn, '2025-10-21'));
       expect(await completeThrough(db, MID_NOVEMBER)).toBeNull();
     });
+
+    it('[STA-35] counts no day complete while one of its games is scheduled or in progress', async () => {
+      const gameOn = async (day: string) => {
+        const [game] = await db
+          .select({ id: games.id })
+          .from(games)
+          .where(eq(games.gameDayOn, day));
+        return game?.id ?? NaN;
+      };
+      const unfinished = await gameOn('2025-11-17');
+      await db.update(games).set({ status: 'in_progress' }).where(eq(games.id, unfinished));
+      expect(await completeThrough(db, inParis(START))).toBe('2025-11-14');
+      const notStarted = await gameOn('2025-11-14');
+      await db
+        .update(games)
+        .set({ status: 'scheduled', homeScore: null, awayScore: null })
+        .where(eq(games.id, notStarted));
+      expect(await completeThrough(db, inParis(START))).toBe('2025-11-11');
+    });
   });
 
   describe('the box scores that become unavailable', () => {
@@ -125,7 +169,7 @@ describe('the derivations after each ingestion', { timeout: DATABASE_TEST_TIMEOU
       await follow('p03');
       await follow('p04');
       expect(await markAt(START)).toStrictEqual({
-        cause: 'baseline_updated',
+        cause: 'new_cases',
         scope: {
           kind: 'statistics_update',
           playerIds: [P01, P03],
@@ -134,8 +178,30 @@ describe('the derivations after each ingestion', { timeout: DATABASE_TEST_TIMEOU
       });
       const placeholder = [{ gameId: idOf(WITHOUT_LINES), status: 'unavailable' }];
       expect(await unavailableSheets(P03)).toStrictEqual(placeholder);
-      expect(await unavailableSheets(leaguePlayerId('p04'))).toStrictEqual([]);
+      expect(await unavailableSheets(P04)).toStrictEqual([]);
       expect(await markAt(START)).toBeNull();
+    });
+
+    it('[CL-STA-04] makes unavailable only the box scores of the team whose lines are missing', async () => {
+      await follow('p03');
+      await follow('p04');
+      const [home, away] = [await teamIdOf('5'), await teamIdOf('4')];
+      const [game] = await db
+        .select({ id: games.id })
+        .from(games)
+        .where(and(eq(games.homeTeamId, home), eq(games.awayTeamId, away)));
+      const gameId = game?.id ?? NaN;
+      await db.delete(boxScores).where(eq(boxScores.gameId, gameId));
+      await db.update(games).set({ awayLinesPublished: false }).where(eq(games.id, gameId));
+      expect(await markAt(START)).toStrictEqual({
+        cause: 'new_cases',
+        scope: {
+          kind: 'statistics_update',
+          playerIds: [P03],
+          gameIds: [idOf(WITHOUT_LINES), gameId].toSorted(byNumber),
+        },
+      });
+      expect(await unavailableSheets(P04)).toStrictEqual([]);
     });
 
     it('[STA-35] [CL-STA-11] waits until more than 30 days have passed since the game’s US date', async () => {
@@ -197,16 +263,26 @@ describe('the derivations after each ingestion', { timeout: DATABASE_TEST_TIMEOU
       expect(await markAt(noonOf(35))).toBeNull();
     });
 
+    it('[CL-STA-11] does not count today when an incident stopped ingestion during it', async () => {
+      await follow('p03');
+      await db.insert(incidents).values({
+        kind: 'stats_source_unavailable',
+        causeKey: 'not_answering',
+        status: 'closed',
+        openedAt: novemberAt(30, 9, 0),
+        closedAt: novemberAt(30, 10, 0),
+      });
+      expect(await markAt(noonOf(30))).toBeNull();
+      expect(await markAt(noonOf(31))).not.toBeNull();
+    });
+
     it('[STA-35] keeps the line that a manual refetch brought in place of the placeholder', async () => {
       await follow('p03');
       await markAt(START);
-      const [team] = await db
-        .select({ id: teamSourceRefs.teamId })
-        .from(teamSourceRefs)
-        .where(eq(teamSourceRefs.sourceTeamRef, '4'));
+      const teamId = await teamIdOf('4');
       await db
         .update(boxScores)
-        .set({ status: 'complete', teamId: team?.id, minutes: 30, seconds: 0, points: 12 })
+        .set({ status: 'complete', teamId, minutes: 30, seconds: 0, points: 12 })
         .where(eq(boxScores.status, 'unavailable'));
       expect(await markAt(START)).toBeNull();
       expect(await unavailableSheets(P03)).toStrictEqual([]);
@@ -234,8 +310,46 @@ describe('the derivations after each ingestion', { timeout: DATABASE_TEST_TIMEOU
       expect(await firstGameConsolidatedAt()).toStrictEqual(new Date(start + WEEK_MS));
     });
 
-    it('[STA-33] [CL-SEN-16] gives the cases of the season whose regular season its last consolidation makes final', async () => {
+    it('[STA-33] [CL-SEN-17] gives as new cases those whose incomplete or suspect line it settles', async () => {
+      await follow('p01');
       await follow('p03');
+      const lines = await linesInOrder();
+      const p01First = lines.find(({ playerId }) => playerId === P01);
+      const p03First = lines.find(({ playerId }) => playerId === P03);
+      await setStatus(p01First?.id, 'suspect');
+      await setStatus(p03First?.id, 'incomplete');
+      // A line of a game still inside its correction window stays pending.
+      await setStatus(lines.findLast(({ playerId }) => playerId === P03)?.id, 'incomplete');
+      const settled = new Set([p01First?.gameId ?? NaN, p03First?.gameId ?? NaN]);
+      const start = await firstGameStart();
+      expect(await consolidateAt(start + WEEK_MS)).toStrictEqual([
+        {
+          cause: 'new_cases',
+          scope: {
+            kind: 'statistics_update',
+            playerIds: [P01, P03],
+            gameIds: [...settled].toSorted(byNumber),
+          },
+        },
+      ]);
+    });
+
+    it('[STA-33] [STA-20] reports no change when it consolidates a game of a phase already final', async () => {
+      await follow('p03');
+      const others = ne(games.id, idOf(FIRST_GAME));
+      await db
+        .update(games)
+        .set({ consolidatedAt: new Date(START) })
+        .where(and(eq(games.season, '2025-26'), others));
+      expect(await consolidateAt(START)).toBeNull();
+      expect(await firstGameConsolidatedAt()).toStrictEqual(new Date(START));
+    });
+
+    it('[STA-33] [CL-SEN-16] [CL-SEN-17] gives the new cases, then the cases of the season whose regular season its last consolidation makes final', async () => {
+      await follow('p03');
+      const lines = await linesInOrder();
+      const last = lines.at(-1);
+      await setStatus(last?.id, 'suspect');
       const season = await db
         .select({ id: games.id, at: games.scheduledStartAt })
         .from(games)
@@ -243,14 +357,20 @@ describe('the derivations after each ingestion', { timeout: DATABASE_TEST_TIMEOU
       const end = Math.max(...season.map((game) => game.at.getTime()));
       const lastIds = season.filter((game) => game.at.getTime() === end).map(({ id }) => id);
       expect(await consolidateAt(end + WEEK_MS - 1)).toBeNull();
-      expect(await consolidateAt(end + WEEK_MS)).toStrictEqual({
-        cause: 'baseline_updated',
-        scope: {
-          kind: 'statistics_update',
-          playerIds: [P03],
-          gameIds: lastIds.toSorted(byNumber),
+      expect(await consolidateAt(end + WEEK_MS)).toStrictEqual([
+        {
+          cause: 'new_cases',
+          scope: { kind: 'statistics_update', playerIds: [P03], gameIds: [last?.gameId] },
         },
-      });
+        {
+          cause: 'baseline_updated',
+          scope: {
+            kind: 'statistics_update',
+            playerIds: [P03],
+            gameIds: lastIds.toSorted(byNumber),
+          },
+        },
+      ]);
     });
 
     it('[STA-33] [CL-SEN-16] gives the cases when it consolidates the game that ends a postseason', async () => {
@@ -302,10 +422,12 @@ describe('the derivations after each ingestion', { timeout: DATABASE_TEST_TIMEOU
           scheduleChangedAt: new Date(START),
         })
         .returning({ id: games.id });
-      expect(await consolidateAt(tipOff + WEEK_MS)).toStrictEqual({
-        cause: 'baseline_updated',
-        scope: { kind: 'statistics_update', playerIds: [P01], gameIds: [game?.id] },
-      });
+      expect(await consolidateAt(tipOff + WEEK_MS)).toStrictEqual([
+        {
+          cause: 'baseline_updated',
+          scope: { kind: 'statistics_update', playerIds: [P01], gameIds: [game?.id] },
+        },
+      ]);
     });
   });
 });

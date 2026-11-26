@@ -105,22 +105,36 @@ describe('the stored indicators of the player page', { timeout: DATABASE_TEST_TI
     });
   });
 
-  it('[STA-46] [CL-STA-04] counts the team games missed since his last game played, an unknown one included', async () => {
+  it('[STA-46] [CL-STA-04] counts the team games missed since his last game played, an unknown one included, and updates the stored row', async () => {
     await followIn('2025-26');
+    await refresh(START, OLDEST_SEASON);
     await db.transaction(async (tx) => markUnavailable(tx, { now: START, timeZone: 'UTC' }));
     const lines = await db
-      .select({ id: boxScores.id, at: games.scheduledStartAt })
+      .select({
+        id: boxScores.id,
+        gameId: boxScores.gameId,
+        minutes: boxScores.minutes,
+        seconds: boxScores.seconds,
+        at: games.scheduledStartAt,
+      })
       .from(boxScores)
       .innerJoin(games, eq(games.id, boxScores.gameId))
       .where(eq(boxScores.status, 'complete'));
     const [first] = lines.toSorted((left, right) => left.at.getTime() - right.at.getTime());
     const later = lines.filter(({ id }) => id !== first?.id).map(({ id }) => id);
     await db.delete(boxScores).where(inArray(boxScores.id, later));
-    await refresh(START, OLDEST_SEASON);
-    expect(await stored()).toMatchObject({
+    await refresh(toEpochMs(START + HOUR_MS), OLDEST_SEASON);
+    const row = await stored();
+    expect(row?.averageMinutesThisSeason).toBeCloseTo(
+      (first?.minutes ?? NaN) + (first?.seconds ?? NaN) / 60,
+      9,
+    );
+    expect(row).toMatchObject({
       gamesPlayedThisSeason: 1,
+      lastGamePlayedId: first?.gameId,
       lastGamePlayedOn: '2025-10-21',
       consecutiveTeamGamesMissed: 9,
+      computedAt: new Date(START + HOUR_MS),
     });
   });
 
