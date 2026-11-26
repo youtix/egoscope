@@ -13,7 +13,7 @@
  * - No trigger of such a workflow is filtered by path, so its final job always
  *   reports a result.
  * - Only the workflows of TEXT_READING_WORKFLOWS list `edited` among the types of
- *   their `pull_request` trigger.
+ *   their `pull_request` or `pull_request_target` trigger.
  * - No job or step of any workflow continues on error.
  *
  * A workflow that is not a check needs an entry in NON_CHECK_WORKFLOWS.
@@ -39,6 +39,9 @@ const NON_CHECK_WORKFLOWS: readonly string[] = ['.github/workflows/remote-test.y
 const TEXT_READING_WORKFLOWS: ReadonlySet<string> = new Set(['.github/workflows/trace.yml']);
 
 const EDITED = 'edited';
+
+/** The triggers of a pull request's events, whose `types` may list `edited`. */
+const PULL_REQUEST_TRIGGERS = ['pull_request', 'pull_request_target'] as const;
 
 type Mapping = Readonly<Record<string, unknown>>;
 
@@ -148,14 +151,17 @@ function pathFilterViolations(triggers: unknown): readonly string[] {
 }
 
 function editedViolations(workflowPath: string, triggers: unknown): readonly string[] {
-  const pullRequest = isMapping(triggers) ? triggers['pull_request'] : undefined;
-  const types = namesOf(isMapping(pullRequest) ? pullRequest['types'] : undefined);
+  if (TEXT_READING_WORKFLOWS.has(workflowPath)) {
+    return [];
+  }
   const file = path.posix.basename(workflowPath);
-  return types.includes(EDITED) && !TEXT_READING_WORKFLOWS.has(workflowPath)
-    ? [
-        `${file} lists \`edited\` among its pull_request types, so an edit of the title or of the description, which changes no file, runs it again: remove \`edited\`, and move the job that reads the title or the description to trace.yml.`,
-      ]
-    : [];
+  return PULL_REQUEST_TRIGGERS.filter((trigger) => {
+    const settings = isMapping(triggers) ? triggers[trigger] : undefined;
+    return namesOf(isMapping(settings) ? settings['types'] : undefined).includes(EDITED);
+  }).map(
+    (trigger) =>
+      `${file} lists \`edited\` among its ${trigger} types, so an edit of the title or of the description, which changes no file, runs it again: remove \`edited\`, and move the job that reads the title or the description to trace.yml.`,
+  );
 }
 
 const isContinuingOnError = (value: unknown): boolean =>

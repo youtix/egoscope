@@ -213,15 +213,18 @@ export function testStep(plan: CheckPlan): Step | undefined {
 }
 
 /**
- * The steps of the fast check, in order: Prettier, ESLint and markdownlint on the
- * present files that they read; then, whatever changed, the structure check; the
+ * The steps of the fast check, in order: first, whatever changed, the route types,
+ * since ESLint and the type checks read the `PageProps` that they generate and a
+ * fresh worktree has none; then Prettier, ESLint and markdownlint on the present
+ * files that they read; then, whatever changed, the structure check; the
  * traceability check, when a file that it reads changed; then, whatever changed,
- * the route types and both type checks; then the unit tests.
+ * both type checks; then the unit tests.
  */
 export function stepsFor(plan: CheckPlan): Step[] {
   const tests = testStep(plan);
   const when = (isNeeded: boolean, step: Step): Step[] => (isNeeded ? [step] : []);
   return [
+    { name: 'Route types', command: ['next', 'typegen'] },
     ...when(plan.files.length > 0, {
       name: 'Prettier',
       command: ['prettier', '--check', '--ignore-unknown', ...plan.files],
@@ -239,7 +242,6 @@ export function stepsFor(plan: CheckPlan): Step[] {
       name: 'Requirement traceability',
       command: ['bun', 'run', 'trace'],
     }),
-    { name: 'Route types', command: ['next', 'typegen'] },
     { name: 'Type check, whole project', command: ['tsc', '--noEmit'] },
     {
       name: 'Type check, pure core',

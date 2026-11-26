@@ -6,7 +6,7 @@ its default: a decision, a hypothesis of the decision journal, or a local hypoth
 confirmed. The owner changes them on the parameters screen; a Lot 2 parameter shows there once
 Lot 2 runs.
 
-This page is generated, so never edit it by hand: `bun run docs:generate` writes it from the
+This page is generated, so never edit it by hand: `bun run docs:parameters` writes it from the
 parameter registry, and a test fails when it no longer matches.
 
 ## [01-joueurs-suivis.md](../01-joueurs-suivis.md)

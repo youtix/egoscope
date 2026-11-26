@@ -1,21 +1,33 @@
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import {
   DEVIATIONS_PATH,
   readDeviations,
+  REPORT_PATH,
   requirementStatus,
+  runRequirementStatus,
   STATUS_PATH,
-  writeRequirementStatus,
 } from './requirement-status';
 import { REGISTER_PATH } from './waiver-register';
 
+const ROOT = path.join(import.meta.dirname, '..');
+const SCRIPT = path.join(import.meta.dirname, 'requirement-status.ts');
+const MANIFEST = z.object({ scripts: z.record(z.string(), z.string()) });
 const SPEC_PATH = 'docs/01-joueurs-suivis.md';
 const TEST_PATH = 'src/lib/players/add.test.ts';
+const UNCITED = 'Criteria that cite';
+const USAGE = 'Usage: bun scripts/requirement-status.ts [--committed]';
 
 // JOU-01 and its criterion are tested; JOU-02 is, but not its criterion, which JOU-03
 // cites too; JOU-04 is waived; only the criterion of JOU-05 is tested; JOU-06 has
 // nothing; JOU-07 is tested, with a limit, and so is its criterion, written in bold.
-// CA-JOU-04 names JOU-01 only inside its text, which cites nothing.
+// CA-JOU-04 names JOU-01 only inside its text, which cites nothing; CA-JOU-06 starts
+// with JOU-99, which is no requirement.
 const SPEC = [
   '# 01 — Joueurs suivis',
   '',
@@ -36,8 +48,26 @@ const SPEC = [
   '- (JOU-05) Étant donné un retrait, alors le joueur est retiré.',
   '- Étant donné un ajout selon JOU-01, alors rien ne change.',
   '- **JOU-07** — Étant donné une réponse, alors elle est lue.',
+  '- (JOU-99) Étant donné un joueur inconnu, alors rien ne change.',
   '',
 ].join('\n');
+
+// A second spec file, whose one criterion cites its one requirement.
+const SECOND_SPEC: readonly [path: string, text: string] = [
+  'docs/02-taxonomie.md',
+  [
+    '# 02 — Taxonomie',
+    '',
+    '## Exigences',
+    '',
+    '- **TAX-01** [Lot 1] — Classer un événement.',
+    '',
+    "## Critères d'acceptation",
+    '',
+    '- (TAX-01) Étant donné un événement, alors il est classé.',
+    '',
+  ].join('\n'),
+];
 
 const TESTS = [
   "it('[JOU-01] [CA-JOU-01] adds a player', () => {});",
@@ -74,25 +104,52 @@ const DEVIATIONS = [
   '',
 ].join('\n');
 
-const FILES: readonly (readonly [path: string, text: string])[] = [
+type Fixture = readonly (readonly [path: string, text: string])[];
+
+const FILES: Fixture = [
   [SPEC_PATH, SPEC],
   [TEST_PATH, TESTS],
   [REGISTER_PATH, WAIVERS],
   [DEVIATIONS_PATH, DEVIATIONS],
   ['README.md', '# Egoscope\n'],
 ];
-const TEXTS: ReadonlyMap<string, string> = new Map(FILES);
 
-const io = {
-  paths: FILES.map(([file]) => file),
-  read: (file: string): string => {
-    const text = TEXTS.get(file);
-    if (text === undefined) {
-      throw new Error(`The fixture has no ${file}.`);
-    }
-    return text;
-  },
-};
+/** A repository that holds the files of `fixture`, and nothing else. */
+function repositoryOf(fixture: Fixture) {
+  const texts: ReadonlyMap<string, string> = new Map(fixture);
+  return {
+    paths: fixture.map(([file]) => file),
+    read: (file: string): string => {
+      const text = texts.get(file);
+      if (text === undefined) {
+        throw new Error(`The fixture has no ${file}.`);
+      }
+      return text;
+    },
+  };
+}
+
+const io = repositoryOf(FILES);
+
+/** Runs the script on the fixture with `args`: its exit code, what it wrote and printed. */
+async function run(args: readonly string[]) {
+  const written = new Map<string, string>();
+  const info: string[] = [];
+  const errors: string[] = [];
+  const code = await runRequirementStatus(args, {
+    ...io,
+    write: (file, text) => {
+      written.set(file, text);
+    },
+    info: (line) => {
+      info.push(line);
+    },
+    error: (line) => {
+      errors.push(line);
+    },
+  });
+  return { code, written, info, errors };
+}
 
 /** The lines of the section of `id` in `page`, from its heading to the next one. */
 function section(page: string, id: string): string {
@@ -206,6 +263,7 @@ describe('requirementStatus', () => {
       '### JOU-05 — Partial',
       '### JOU-06 — Not done',
       '### JOU-07 — Done',
+      '### Criteria that cite no requirement',
     ]);
     expect(page).toContain(
       [
@@ -221,6 +279,57 @@ describe('requirementStatus', () => {
   });
 });
 
+describe('the criteria that cite no requirement', () => {
+  it('[TRV-79] lists under their spec file, after its requirements, the criteria whose text starts with no requirement', async () => {
+    const page = await requirementStatus(io);
+
+    expect(section(page, UNCITED)).toBe(
+      [
+        '### Criteria that cite no requirement',
+        '',
+        '- CA-JOU-04: no test.',
+        '- CA-JOU-06: no test.',
+      ].join('\n'),
+    );
+    expect(page.indexOf('### JOU-07 ')).toBeLessThan(page.indexOf(`### ${UNCITED}`));
+  });
+
+  it('[TRV-79] lists such a criterion with the test that names it', async () => {
+    const keep = "it('[CA-JOU-04] keeps the player', () => {});\n";
+    const page = await requirementStatus(
+      repositoryOf([...FILES, ['src/lib/players/keep.test.ts', keep]]),
+    );
+
+    expect(section(page, UNCITED)).toBe(
+      [
+        '### Criteria that cite no requirement',
+        '',
+        '- CA-JOU-04: `src/lib/players/keep.test.ts:1` \\[CA-JOU-04\\] keeps the player',
+        '- CA-JOU-06: no test.',
+      ].join('\n'),
+    );
+    expect(section(page, 'JOU-01')).toContain('### JOU-01 — Done');
+  });
+
+  it('[TRV-79] gives no such heading to a spec file whose criteria all cite a requirement', async () => {
+    const page = await requirementStatus(repositoryOf([...FILES, SECOND_SPEC]));
+    const second = page.slice(page.indexOf('## [02-taxonomie.md]'));
+
+    expect(page.match(/^### Criteria that cite no requirement$/gmu)).toHaveLength(1);
+    expect(page.indexOf(`### ${UNCITED}`)).toBeLessThan(page.indexOf('## [02-taxonomie.md]'));
+    expect(second.trim()).toBe(
+      [
+        '## [02-taxonomie.md](../02-taxonomie.md)',
+        '',
+        '### TAX-01 — Not done',
+        '',
+        '- TAX-01: no test.',
+        '- CA-TAX-01: no test.',
+      ].join('\n'),
+    );
+  });
+});
+
 describe('readDeviations', () => {
   it('[TRV-79] reads the rows of the register tables, their escaped pipes restored, and nothing else', () => {
     expect(readDeviations(DEVIATIONS)).toStrictEqual([
@@ -231,23 +340,87 @@ describe('readDeviations', () => {
   });
 });
 
-describe('writeRequirementStatus', () => {
-  it('[TRV-79] writes the page to docs/guide/requirement-status.md and says so', async () => {
-    const written = new Map<string, string>();
-    const lines: string[] = [];
+/**
+ * The exit code of `git check-ignore --quiet` for `file` in the repository: 0 when git
+ * ignores it, 1 when it does not. git reads neither the machine's nor the user's settings.
+ */
+function checkIgnore(file: string): number | null {
+  return spawnSync('git', ['check-ignore', '--quiet', file], {
+    cwd: ROOT,
+    env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },
+  }).status;
+}
 
-    await writeRequirementStatus({
-      ...io,
-      write: (file, text) => {
-        written.set(file, text);
-      },
-      info: (line) => {
-        lines.push(line);
-      },
-    });
+describe('runRequirementStatus', () => {
+  it('[TRV-79] writes the page to reports/requirement-status.md without a flag, and nothing under docs/', async () => {
+    const { code, written, info, errors } = await run([]);
 
-    expect(Array.from(written, ([file]) => file)).toStrictEqual([STATUS_PATH]);
-    expect(written.get(STATUS_PATH)).toBe(await requirementStatus(io));
-    expect(lines).toStrictEqual(['Wrote docs/guide/requirement-status.md.']);
+    expect(code).toBe(0);
+    expect(written).toStrictEqual(
+      new Map([['reports/requirement-status.md', await requirementStatus(io)]]),
+    );
+    expect(info).toStrictEqual(['Wrote reports/requirement-status.md.']);
+    expect(errors).toStrictEqual([]);
+  });
+
+  it('[TRV-79] writes the page to docs/guide/requirement-status.md with --committed, with the same text and links, and says so', async () => {
+    const report = await run([]);
+    const { code, written, info } = await run(['--committed']);
+    const page = written.get(STATUS_PATH);
+
+    expect(code).toBe(0);
+    expect(info).toStrictEqual(['Wrote docs/guide/requirement-status.md.']);
+    expect(written).toStrictEqual(
+      new Map([['docs/guide/requirement-status.md', report.written.get(REPORT_PATH)]]),
+    );
+    expect(page).toContain('[waiver register](../engineering/requirement-waivers.md)');
+    expect(page).toContain('## [01-joueurs-suivis.md](../01-joueurs-suivis.md)');
+  });
+
+  it.each([
+    ['a misspelled flag', ['--commited']],
+    ['the flag without its dashes', ['committed']],
+    ['the flag beside another argument', ['--committed', '--strict']],
+  ])(
+    '[TRV-79] refuses %s with exit code 2 and the usage line, and writes nothing',
+    async (_case, args) => {
+      const { code, written, info, errors } = await run(args);
+
+      expect(code).toBe(2);
+      expect(written.size).toBe(0);
+      expect(info).toStrictEqual([]);
+      expect(errors).toStrictEqual([`Unexpected arguments: ${args.join(' ')}\n${USAGE}`]);
+    },
+  );
+
+  // It starts bun, which a busy machine can slow down past the default timeout.
+  it(
+    '[TRV-79] exits with code 2 from the command line on an unknown argument',
+    { timeout: 30_000 },
+    () => {
+      const result = spawnSync('bun', [SCRIPT, '--commited'], {
+        cwd: ROOT,
+        encoding: 'utf8',
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain(`Unexpected arguments: --commited\n${USAGE}`);
+    },
+  );
+
+  it('[TRV-79] has the scripts docs:status and docs:parameters, which docs:generate runs without --committed', () => {
+    const manifest = readFileSync(path.join(ROOT, 'package.json'), 'utf8');
+    const { scripts } = MANIFEST.parse(JSON.parse(manifest));
+
+    expect(Object.entries(scripts).filter(([name]) => name.startsWith('docs:'))).toStrictEqual([
+      ['docs:generate', 'bun run docs:status && bun run docs:parameters'],
+      ['docs:status', 'bun scripts/requirement-status.ts'],
+      ['docs:parameters', 'bun --no-env-file --conditions=react-server scripts/parameters-doc.ts'],
+    ]);
+  });
+
+  it('[TRV-79] writes by default where git ignores the page, so that no run leaves a page to commit under docs/', () => {
+    expect(checkIgnore(REPORT_PATH)).toBe(0);
+    expect(checkIgnore(STATUS_PATH)).toBe(1);
   });
 });

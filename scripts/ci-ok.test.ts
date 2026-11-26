@@ -7,6 +7,9 @@ import { parse } from 'yaml';
 
 const SCRIPT = path.join(import.meta.dirname, 'ci-ok.sh');
 const WORKFLOW = path.join(import.meta.dirname, '../.github/workflows/ci.yml');
+const TRACE = path.join(import.meta.dirname, '../.github/workflows/trace.yml');
+// A sample of job names to hand the script, which judges whatever names it is given:
+// not the list of one workflow's jobs (pr-title is a job of trace.yml, ci.yml has others).
 const JOBS = ['lint', 'actionlint', 'typecheck', 'test', 'build', 'pr-title'] as const;
 
 type Job = (typeof JOBS)[number];
@@ -104,6 +107,26 @@ describe('ci-ok', { timeout: 30_000 }, () => {
             },
           ]) as unknown,
         },
+      },
+    });
+  });
+
+  it('is what trace needs to check the title of a pull request, in its pr-title job', () => {
+    const workflow: unknown = parse(readFileSync(TRACE, 'utf8'));
+
+    expect(workflow).toMatchObject({
+      jobs: {
+        'pr-title': {
+          if: `\${{ github.event_name == 'pull_request' }}`,
+          steps: expect.arrayContaining([
+            {
+              name: expect.any(String) as unknown,
+              env: { PR_TITLE: `\${{ github.event.pull_request.title }}` },
+              run: `printf '%s\\n' "$PR_TITLE" | bun x --no-install commitlint --verbose`,
+            },
+          ]) as unknown,
+        },
+        trace: { needs: expect.arrayContaining(['pr-title']) as unknown },
       },
     });
   });

@@ -151,7 +151,7 @@ describe('parametersPage', () => {
     const page = await parametersPage([MAXIMUM], SPEC_FILES);
 
     expect(page.startsWith('# Parameters\n\n')).toBe(true);
-    expect(page).toContain('`bun run docs:generate` writes it from the');
+    expect(page).toContain('`bun run docs:parameters` writes it from the');
   });
 
   it('refuses a parameter whose spec file the repository does not hold, a bug of the registry', async () => {
@@ -176,7 +176,7 @@ describe('the committed parameter list', { timeout: DATABASE_TEST_TIMEOUT_MS }, 
   it('[TRV-79] docs/guide/parameters.md matches the registry', async () => {
     expect(
       readFileSync(PARAMETERS_PATH, 'utf8'),
-      'docs/guide/parameters.md is stale: run `bun run docs:generate`, then commit it.',
+      'docs/guide/parameters.md is stale: run `bun run docs:parameters`, then commit it.',
     ).toBe(await parametersDoc());
   });
 });

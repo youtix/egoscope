@@ -14,9 +14,9 @@ const TRACE = '.github/workflows/trace.yml';
 const read = (file: string): string =>
   readFileSync(path.join(import.meta.dirname, '..', file), 'utf8');
 
-/** The refusal of `edited` in the check workflow named `file`. */
-const editedRefusal = (file: string): string =>
-  `${file} lists \`edited\` among its pull_request types, so an edit of the title or of the description, which changes no file, runs it again: remove \`edited\`, and move the job that reads the title or the description to trace.yml.`;
+/** The refusal of `edited` under the trigger `trigger` of the check workflow named `file`. */
+const editedRefusal = (file: string, trigger = 'pull_request'): string =>
+  `${file} lists \`edited\` among its ${trigger} types, so an edit of the title or of the description, which changes no file, runs it again: remove \`edited\`, and move the job that reads the title or the description to trace.yml.`;
 
 function problems(violations: readonly { path: string; problem: string }[]): string {
   return violations.map((violation) => `${violation.path}: ${violation.problem}`).join('\n');
@@ -252,7 +252,7 @@ describe('workflowViolations', () => {
     ).toStrictEqual([]);
   });
 
-  it('refuses ci.yml with the trigger it had on main, whose `edited` rerun the whole gate for pr-title', () => {
+  it('refuses ci.yml with the trigger it had on main, whose `edited` reran the whole gate for pr-title', () => {
     const onMain = read(CI).replace(
       'types: [opened, synchronize, reopened]',
       'types: [opened, synchronize, reopened, edited]',
@@ -278,6 +278,35 @@ describe('workflowViolations', () => {
 
     expect(workflowViolations(E2E, rerun)).toStrictEqual([
       { path: E2E, problem: editedRefusal('e2e.yml') },
+    ]);
+  });
+
+  it.each([
+    ['a list', '    types: [opened, synchronize, reopened, edited]\n'],
+    ['a single type', '    types: edited\n'],
+  ])(
+    'refuses `edited` under pull_request_target in a check workflow other than trace.yml, written as %s',
+    (_form, types) => {
+      const rerun = workflow('e2e', '[lint, test]').replace(
+        '  pull_request:\n',
+        () => `  pull_request_target:\n${types}`,
+      );
+
+      expect(workflowViolations(E2E, rerun)).toStrictEqual([
+        { path: E2E, problem: editedRefusal('e2e.yml', 'pull_request_target') },
+      ]);
+    },
+  );
+
+  it('refuses `edited` under each of the two pull request triggers, once for each', () => {
+    const rerun = workflow('e2e', '[lint, test]').replace(
+      '  pull_request:\n',
+      '  pull_request:\n    types: [edited]\n  pull_request_target:\n    types: [edited]\n',
+    );
+
+    expect(workflowViolations(E2E, rerun)).toStrictEqual([
+      { path: E2E, problem: editedRefusal('e2e.yml') },
+      { path: E2E, problem: editedRefusal('e2e.yml', 'pull_request_target') },
     ]);
   });
 
@@ -322,7 +351,7 @@ describe('workflowViolations', () => {
 
   it('passes remote-test.yml only as a workflow that is not a check, still without continue-on-error', () => {
     const file = '.github/workflows/remote-test.yml';
-    const text = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    const text = read(file);
     const careless = text.replace(
       '    timeout-minutes:',
       '    continue-on-error: true\n    timeout-minutes:',
@@ -337,11 +366,8 @@ describe('workflowViolations', () => {
     );
   });
 
-  it('accepts the real ci.yml, whose ci-ok needs the three shards of test, 15 minutes each, and the coverage job', () => {
-    const text = readFileSync(path.join(import.meta.dirname, '..', CI), 'utf8');
-
-    expect(workflowViolations(CI, text)).toStrictEqual([]);
-    expect(parse(text)).toMatchObject({
+  it('gives the real ci.yml three shards of test, 15 minutes each, and the coverage job, which ci-ok needs', () => {
+    expect(parse(read(CI))).toMatchObject({
       jobs: {
         test: {
           'timeout-minutes': 15,

@@ -7,8 +7,10 @@
  *
  * - The local side checks that HEAD is pushed, dispatches .github/workflows/remote-test.yml on
  *   the branch that HEAD was pushed to, which the upstream names (an agent's worktree branch is
- *   pushed under its task's branch name), and follows its run (scripts/remote-test-run.ts): it
- *   prints the output of the tests and exits with 0 when they passed, 1 when they failed and 2
+ *   pushed under its task's branch name), and follows its run (scripts/remote-test-run.ts): the
+ *   one that gh names, or else the newest run of the commit that a listing made before the
+ *   dispatch did not hold. It prints the output of the tests and exits with 0 when they passed,
+ *   1 when they failed and 2
  *   when the run gave no result. `gh` reads the repository from the git remote, so no owner or
  *   repository is written here.
  * - The runner side, `bun scripts/remote-test.ts --runner`, is the workflow's step: it reads the
@@ -21,7 +23,15 @@ import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
-import { findRun, follow, NO_RESULT, refusal, short, WORKFLOW } from './remote-test-run';
+import {
+  findRun,
+  follow,
+  NO_RESULT,
+  refusal,
+  runsBefore,
+  short,
+  WORKFLOW,
+} from './remote-test-run';
 
 import type { Command, Commit, LocalIo, Print, Result, Run, Session } from './remote-test-run';
 
@@ -216,6 +226,25 @@ function dispatch({ io, commit }: Session, request: RemoteRequest): Result<Run |
   };
 }
 
+/**
+ * Dispatches the workflow and finds its run: the one that gh names, or else the newest run of
+ * the commit that a listing before the dispatch did not hold; undefined when none appears
+ * before the deadline. A refused listing dispatches nothing.
+ */
+async function startRun(
+  session: Session,
+  request: RemoteRequest,
+): Promise<Result<Run | undefined>> {
+  const earlier = runsBefore(session);
+  if (!earlier.ok) {
+    return earlier;
+  }
+  const dispatched = dispatch(session, request);
+  return dispatched.ok && dispatched.value === undefined
+    ? findRun(session, earlier.value)
+    : dispatched;
+}
+
 function refuse(io: LocalIo, error: string): number {
   io.printError(error);
   return NO_RESULT;
@@ -240,9 +269,7 @@ export async function runLocally(argv: readonly string[], io: LocalIo): Promise<
     return refuse(io, commit.error);
   }
   const session = { io, commit: commit.value, deadline: io.clock() + WAIT_LIMIT_MS };
-  const dispatched = dispatch(session, checked.value);
-  const found =
-    dispatched.ok && dispatched.value === undefined ? await findRun(session) : dispatched;
+  const found = await startRun(session, checked.value);
   if (!found.ok) {
     return refuse(io, found.error);
   }

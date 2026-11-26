@@ -105,13 +105,28 @@ function listRuns(
   return readJson(LISTED_RUNS, io.gh([...runs, ...fields]));
 }
 
-/** The newest run of the workflow for the commit that has not completed yet, if GitHub lists it. */
-function listedRun(session: Session): Result<Run | undefined> {
-  const listed = listRuns(session, ['--commit', session.commit.head]);
+/** The runs of the workflow dispatched for the commit, newest first. */
+const commitRuns = (session: Session): Result<z.infer<typeof LISTED_RUNS>> =>
+  listRuns(session, ['--commit', session.commit.head]);
+
+/**
+ * The ids of the runs of the workflow for the commit, which a listing before the dispatch holds:
+ * none of them is the run of the dispatch, still queued or running as it may be.
+ */
+export function runsBefore(session: Session): Result<ReadonlySet<string>> {
+  const listed = commitRuns(session);
+  return listed.ok
+    ? { ok: true, value: new Set(listed.value.map((run) => String(run.databaseId))) }
+    : listed;
+}
+
+/** The newest run of the workflow for the commit that `earlier` does not hold, whatever its status. */
+function listedRun(session: Session, earlier: ReadonlySet<string>): Result<Run | undefined> {
+  const listed = commitRuns(session);
   if (!listed.ok) {
     return listed;
   }
-  const run = listed.value.find((candidate) => candidate.status !== 'completed');
+  const run = listed.value.find((candidate) => !earlier.has(String(candidate.databaseId)));
   return { ok: true, value: run && { id: String(run.databaseId), url: run.url } };
 }
 
@@ -130,10 +145,15 @@ async function waitFor<T>(
 
 /**
  * Finds the run of a dispatch that gh did not name, by listing the runs of the workflow for the
- * commit; undefined when none appears before the deadline.
+ * commit: the newest one that the listing before the dispatch, `earlier`, did not hold, so that
+ * an earlier dispatch of the commit is never taken for it, and a run that completed at once is
+ * found too; undefined when none appears before the deadline.
  */
-export async function findRun(session: Session): Promise<Result<Run | undefined>> {
-  return waitFor(session, () => listedRun(session));
+export async function findRun(
+  session: Session,
+  earlier: ReadonlySet<string>,
+): Promise<Result<Run | undefined>> {
+  return waitFor(session, () => listedRun(session, earlier));
 }
 
 /** Asks whether `run` has completed, and says once when it has started. */

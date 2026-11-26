@@ -38,6 +38,7 @@ distributions ship; without it they run unlocked.
 bun install                  # dependencies, and the git hooks
 cp .env.example .env.local   # local settings; every variable is documented there
 bun run dev                  # http://localhost:3000
+bun x playwright install chromium   # once, before `bun run e2e`: the browser it drives
 ```
 
 ## Scripts
@@ -60,6 +61,9 @@ bun run dev                  # http://localhost:3000
 | `bun run knip`               | Unused files, exports and dependencies.                                                 |
 | `bun run trace`              | Requirement traceability: title IDs exist, the waiver register is sound.                |
 | `bun run trace:strict`       | The same, and every requirement and criterion is tested or waived.                      |
+| `bun run docs:generate`      | Both generated pages: `docs:status`, then `docs:parameters`.                            |
+| `bun run docs:status`        | The requirement status, to `reports/`; `--committed` writes it to `docs/guide/`.        |
+| `bun run docs:parameters`    | The parameter page, `docs/guide/parameters.md`, from the parameter registry.            |
 | `bun run check`              | Every static check: formatting, linters, knip, workflows, types, traceability.          |
 | `bun run check:changed`      | The fast local check of what differs from `origin/main`.                                |
 | `bun run gate`               | Everything CI runs, in CI's order, under a single lock.                                 |
