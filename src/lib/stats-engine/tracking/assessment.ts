@@ -46,12 +46,13 @@ export type AssessedCase = Readonly<{
 
 /**
  * What a set of tracked cases with a forecast shows (SUI-24, SUI-26, SUI-27): the mean gap in
- * the forecast direction with its count and range, the announced gap, and the assessment, or
- * the count of cases when they are too few for one.
+ * the forecast direction with its count and range, the announced gap, both null without a
+ * case, and the assessment, or the count of cases when they are too few for one, as the
+ * validation row reads them.
  */
 export type CaseSetAssessment = Readonly<{
-  meanGap: GapSummary;
-  announcedGap: number;
+  meanGapInForecastDirection: GapSummary | null;
+  announcedGap: number | null;
   assessment: RowAssessment | TooFewTrackedCases;
 }>;
 
@@ -99,23 +100,32 @@ function assessmentOf(
  * k = sensitivity.possibleSignalToNoise in force. Below tracking.minTrackedCasesForAssessment
  * cases, no assessment but the count; otherwise `confirmed` if m ≥ k·b and a − m < k·b,
  * `confirmed_weaker_than_announced` if m ≥ k·b and a − m ≥ k·b, `refuted` if m < k·b and
- * a − m ≥ k·b, `undecided` otherwise. The numbers and the range come in every case. Null
- * without a case. The sums run in the order of `cases`, which the caller fixes.
+ * a − m ≥ k·b, `undecided` otherwise. The numbers and the range come in every case, and are
+ * null without a case, whose count is then 0. The sums run in the order of `cases`, which
+ * the caller fixes.
  */
 export function assessCases(
   cases: readonly AssessedCase[],
   params: EngineParams,
-): CaseSetAssessment | null {
-  const meanGap = gapSummary(
+): CaseSetAssessment {
+  const meanGapInForecastDirection = gapSummary(
     cases.map((item) => gapInForecastDirection(item.normalizedGap, item.direction)),
   );
-  if (meanGap === null) {
-    return null;
+  if (meanGapInForecastDirection === null) {
+    return {
+      meanGapInForecastDirection: null,
+      announcedGap: null,
+      assessment: { tooFew: cases.length },
+    };
   }
   const announcedSum = cases.reduce(
     (sum, item) => sum + gapInForecastDirection(item.announcedMeanGap, item.direction),
     0,
   );
   const announcedGap = announcedSum / cases.length;
-  return { meanGap, announcedGap, assessment: assessmentOf(meanGap, announcedGap, params) };
+  return {
+    meanGapInForecastDirection,
+    announcedGap,
+    assessment: assessmentOf(meanGapInForecastDirection, announcedGap, params),
+  };
 }
