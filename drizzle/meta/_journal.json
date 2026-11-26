@@ -71,6 +71,13 @@
       "when": 1795702681835,
       "tag": "0009_profile_value_version_threshold",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795711089618,
+      "tag": "0010_player_file_team_read",
+      "breakpoints": true
     }
   ]
 }

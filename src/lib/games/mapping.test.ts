@@ -287,6 +287,32 @@ describe('the statistics-source mapping', { timeout: DATABASE_TEST_TIMEOUT_MS },
     );
   });
 
+  it('[CL-JOU-25] forgets at a change what the player file gave at its last read, which described the former identity', async () => {
+    await isDirectoryUpdated();
+    const player = await insertPlayer(db, { source: 'p02' });
+    const [team] = await db
+      .select({ id: teamSourceRefs.teamId })
+      .from(teamSourceRefs)
+      .where(eq(teamSourceRefs.sourceTeamRef, '3'));
+    const ofPlayer = eq(statsSourceMappings.playerId, player.id);
+    await db
+      .update(statsSourceMappings)
+      .set({ playerFileTeamId: team?.id ?? null, playerFileReadAt: new Date(now()) })
+      .where(ofPlayer);
+
+    await change(player.id);
+
+    await expect(
+      db
+        .select({
+          teamId: statsSourceMappings.playerFileTeamId,
+          readAt: statsSourceMappings.playerFileReadAt,
+        })
+        .from(statsSourceMappings)
+        .where(ofPlayer),
+    ).resolves.toStrictEqual([{ teamId: null, readAt: null }]);
+  });
+
   it('[JOU-10] carries the preselection of a replacement source over while its candidate is found again (CL-TRV-14)', async () => {
     await isDirectoryUpdated();
     const playerId = await follow('p02');

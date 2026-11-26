@@ -1,0 +1,4 @@
+ALTER TABLE "stats_source_mappings" ADD COLUMN "player_file_team_id" integer;--> statement-breakpoint
+ALTER TABLE "stats_source_mappings" ADD COLUMN "player_file_read_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "stats_source_mappings" ADD CONSTRAINT "stats_source_mappings_player_file_team_id_teams_id_fk" FOREIGN KEY ("player_file_team_id") REFERENCES "public"."teams"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stats_source_mappings" ADD CONSTRAINT "stats_source_mappings_player_file_check" CHECK ("stats_source_mappings"."player_file_read_at" IS NOT NULL OR "stats_source_mappings"."player_file_team_id" IS NULL);

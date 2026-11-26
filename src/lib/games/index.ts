@@ -68,6 +68,11 @@ export { searchCandidates, storeDirectory } from './directory';
 export type { Candidate, FollowedAs, UnknownTeams } from './directory';
 
 // teams.ts: team, teams, teamHistory
+export { team, teamHistory, teams, updateTeamFromGames } from './teams';
+export type { TeamName, TeamUpdate } from './teams';
+// player-records.ts, split from teams.ts: the player file's records
+export { applyPlayerRecord } from './player-records';
+export type { PlayerRecordRead, RecordUpdate } from './player-records';
 
 // ingest.ts: refreshIndicators
 
