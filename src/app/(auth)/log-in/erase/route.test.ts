@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { describe, expect, it, vi } from 'vitest';
 
+import { toEpochMs } from '@/lib/time';
+
 import { GET } from './route';
 
 import type { currentSession, SessionState } from '@/lib/auth';
@@ -15,6 +17,11 @@ vi.mock(import('@/lib/auth'), async (importOriginal) => ({
 
 const SITE = 'https://egoscope.test';
 const EVERYTHING = '"cache", "cookies", "storage"';
+// When the open session of the device began, Monday 23 November 2026, 10:00 Paris time.
+const OPENED_AT = toEpochMs(Date.UTC(2026, 10, 23, 9));
+// The session cookie, expired with the attributes that its `__Host-` name requires.
+const EXPIRED_COOKIE =
+  '__Host-egoscope-session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=lax';
 
 /** The answer to the step, for a device whose session is in `state`, asked for `next`. */
 async function erase(state: SessionState, next: string | null = '/players?tab=cases') {
@@ -23,19 +30,24 @@ async function erase(state: SessionState, next: string | null = '/players?tab=ca
   return GET(new NextRequest(`${SITE}/log-in/erase${query}`));
 }
 
-/** What the answer tells the browser: where to go, what to erase, and not to keep it. */
+/**
+ * What the answer tells the browser: where to go, what to erase, which cookie to set, and
+ * not to keep it. Next.js writes no Expires date from the clock for a Max-Age of 0, so the
+ * cookie is compared whole.
+ */
 function told(response: Response) {
   return {
     status: response.status,
     location: response.headers.get('location'),
     clear: response.headers.get('clear-site-data'),
+    cookie: response.headers.get('set-cookie'),
     cache: response.headers.get('cache-control'),
   };
 }
 
 describe('the step of the login page that tells a device how its session ended', () => {
   it.each(['logged_out', 'password_changed', 'reset', 'restored'] as const)(
-    '[IHM-08] [CL-TRV-05] [CL-IHM-10] has the device erase its data after a session ended by %s, then shows the login page',
+    '[IHM-08] [TRV-62] [CL-TRV-05] [CL-IHM-10] has the device erase its data and its session cookie after a session ended by %s, then shows the login page',
     async (reason) => {
       const response = await erase({ state: 'ended', reason });
 
@@ -43,18 +55,20 @@ describe('the step of the login page that tells a device how its session ended',
         status: 303,
         location: `/log-in?next=%2Fplayers%3Ftab%3Dcases&ended=${reason}`,
         clear: EVERYTHING,
+        cookie: EXPIRED_COOKIE,
         cache: 'no-store',
       });
     },
   );
 
-  it('[IHM-11] keeps the data of a device whose session expired, its drafts included', async () => {
+  it('[IHM-11] [TRV-62] keeps the data and the session cookie of a device whose session expired, its drafts included', async () => {
     const response = await erase({ state: 'ended', reason: 'expired' });
 
     expect(told(response)).toStrictEqual({
       status: 303,
       location: `/log-in?next=%2Fplayers%3Ftab%3Dcases&ended=expired`,
       clear: null,
+      cookie: null,
       cache: 'no-store',
     });
   });
@@ -66,6 +80,27 @@ describe('the step of the login page that tells a device how its session ended',
       status: 303,
       location: `/log-in?next=%2Fplayers%3Ftab%3Dcases`,
       clear: null,
+      cookie: null,
+      cache: 'no-store',
+    });
+  });
+
+  it('[IHM-08] [TRV-62] erases nothing of a device whose session is open, whatever its link says', async () => {
+    const response = await erase({
+      state: 'open',
+      session: {
+        id: 1,
+        device: 'Chrome on Android',
+        openedAt: OPENED_AT,
+        passwordStatus: 'chosen',
+      },
+    });
+
+    expect(told(response)).toStrictEqual({
+      status: 303,
+      location: `/log-in?next=%2Fplayers%3Ftab%3Dcases`,
+      clear: null,
+      cookie: null,
       cache: 'no-store',
     });
   });
@@ -82,6 +117,7 @@ describe('the step of the login page that tells a device how its session ended',
       status: 303,
       location: `/log-in?next=%2F`,
       clear: null,
+      cookie: null,
       cache: 'no-store',
     });
   });

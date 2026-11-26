@@ -23,6 +23,11 @@ const IDLE_LIMIT_MS = 31 * 24 * 3_600_000;
 // A draft that a device keeps between two sessions (IHM-11).
 const DRAFT = 'A pasted research text, not sent yet';
 const PHONE = { ...devices['Pixel 7'], colorScheme: 'dark' } as const;
+// The step of the login page that has a device erase its data (IHM-08), and the addresses of
+// the login page once a device has been told how its session ended, which anyone can write.
+const ERASE_STEP = '/log-in/erase';
+const TOLD_PASSWORD_CHANGED = '/log-in?next=%2F&ended=password_changed';
+const TOLD_EXPIRED = '/log-in?next=%2F%3Fsection%3Dtoday&ended=expired';
 
 /** Sets the server's clock with `command`: `{ at }`, `{ advanceMs }` or `{ release }`. */
 async function clock(request: APIRequestContext, command: Readonly<Record<string, unknown>>) {
@@ -57,6 +62,11 @@ function addressesOf(page: Page): readonly string[] {
   return asked;
 }
 
+/** How many times `asked` holds the step of the login page that erases the device's data. */
+function erasures(asked: readonly string[]): number {
+  return asked.filter((address) => new URL(address).pathname === ERASE_STEP).length;
+}
+
 /** The token of the session cookie that `page`'s browser holds, if any. */
 async function tokenOf(page: Page): Promise<string> {
   const cookies = await page.context().cookies();
@@ -65,7 +75,7 @@ async function tokenOf(page: Page): Promise<string> {
 }
 
 test.describe('the account journeys', () => {
-  test('[TRV-57] [IHM-06] [CA-TRV-30] [CA-IHM-19] [IHM-08] [IHM-10] [IHM-11] opens on the initial password only "Choose your password", then the screen asked for, and has the other device erase its data', async ({
+  test('[TRV-57] [IHM-06] [CA-TRV-30] [CA-IHM-19] [IHM-08] [IHM-10] [IHM-11] [TRV-62] [CL-IHM-10] [CL-TRV-05] opens on the initial password only "Choose your password", then the screen asked for, and has the other devices erase their data, even one that opens the address of the ending', async ({
     page,
     browser,
     baseURL,
@@ -77,7 +87,11 @@ test.describe('the account journeys', () => {
     });
     const phone = await phoneContext.newPage();
     await accessibility.watch(phone);
-    const asked = [addressesOf(page), addressesOf(phone)];
+    const tabletContext = await browser.newContext(baseURL === undefined ? {} : { baseURL });
+    const tablet = await tabletContext.newPage();
+    await accessibility.watch(tablet);
+    const tabletAsked = addressesOf(tablet);
+    const asked = [addressesOf(page), addressesOf(phone), tabletAsked];
 
     await phone.goto('/');
     await expect(phone).toHaveURL('/log-in?next=%2F');
@@ -87,6 +101,13 @@ test.describe('the account journeys', () => {
       localStorage.setItem('draft', draft);
     }, DRAFT);
     const phoneToken = await tokenOf(phone);
+    await tablet.goto('/');
+    await logIn(tablet, TEST_ACCOUNT_INITIAL);
+    await expect(tablet).toHaveURL('/choose-password?next=%2F');
+    await tablet.evaluate((draft) => {
+      localStorage.setItem('draft', draft);
+    }, DRAFT);
+    const tabletToken = await tokenOf(tablet);
 
     await page.goto('/');
     await logIn(page, TEST_ACCOUNT_INITIAL);
@@ -110,8 +131,26 @@ test.describe('the account journeys', () => {
     expect(await phone.evaluate(() => localStorage.length)).toBe(0);
     await phoneContext.close();
 
+    await tablet.goto(TOLD_PASSWORD_CHANGED);
+    await expect(tablet).toHaveURL(TOLD_PASSWORD_CHANGED);
+    await expect(tablet.getByRole('status').filter({ hasText: 'Password changed' })).toBeVisible();
+    expect(await tablet.evaluate(() => localStorage.length)).toBe(0);
+    expect(await tokenOf(tablet)).toBe('');
+    expect(erasures(tabletAsked)).toBe(1);
+    await logIn(tablet, OWNER_CHOICE);
+    await expect(tablet).toHaveURL('/');
+    expect(erasures(tabletAsked)).toBe(1);
+    await tabletContext.close();
+
     const addresses = asked.flat().join('\n');
-    for (const secret of [TEST_ACCOUNT_INITIAL, OWNER_CHOICE, TOO_SHORT, phoneToken, pageToken]) {
+    for (const secret of [
+      TEST_ACCOUNT_INITIAL,
+      OWNER_CHOICE,
+      TOO_SHORT,
+      phoneToken,
+      pageToken,
+      tabletToken,
+    ]) {
       expect(secret).not.toBe('');
       expect(addresses).not.toContain(secret);
     }
@@ -149,7 +188,7 @@ test.describe('the account journeys', () => {
     await expect(page).toHaveURL('/');
   });
 
-  test('[IHM-11] [TRV-62] leads a device whose session expired to the login page, keeps its data, and returns it to the screen it asked for', async ({
+  test('[IHM-11] [TRV-62] [IHM-08] leads a device whose session expired to the login page, keeps its data and its cookie, stays there when it opens that page again, and returns it to the screen it asked for', async ({
     page,
     request,
   }) => {
@@ -160,12 +199,22 @@ test.describe('the account journeys', () => {
     await page.evaluate((draft) => {
       localStorage.setItem('draft', draft);
     }, DRAFT);
+    const token = await tokenOf(page);
 
     await clock(request, { advanceMs: IDLE_LIMIT_MS });
     await page.goto('/log-in?next=%2F%3Fsection%3Dtoday');
 
-    await expect(page).toHaveURL('/log-in?next=%2F%3Fsection%3Dtoday&ended=expired');
+    await expect(page).toHaveURL(TOLD_EXPIRED);
     await expect(page.getByRole('status').filter({ hasText: 'Session expired' })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('draft'))).toBe(DRAFT);
+    expect(token).not.toBe('');
+    expect(await tokenOf(page)).toBe(token);
+
+    const asked = addressesOf(page);
+    await page.reload();
+    await expect(page).toHaveURL(TOLD_EXPIRED);
+    await expect(page.getByLabel('Password')).toBeVisible();
+    expect(erasures(asked)).toBe(0);
     expect(await page.evaluate(() => localStorage.getItem('draft'))).toBe(DRAFT);
     await logIn(page, OWNER_CHOICE);
     await expect(page).toHaveURL('/?section=today');

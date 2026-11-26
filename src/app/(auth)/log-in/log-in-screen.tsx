@@ -27,10 +27,19 @@ export type LogInQuery = Readonly<Record<string, string | string[] | undefined>>
 type Unchecked = Readonly<{ kind: string }>;
 
 /**
+ * Whether the device has already been told that its session expired, the one ending
+ * that erases nothing: only then may the address spare it the step (IHM-08, IHM-11).
+ */
+function wasToldOfExpiry(reason: SessionEndReason, told: SessionEndReason | null): boolean {
+  return reason === 'expired' && told === 'expired';
+}
+
+/**
  * Sends on a device that has no login to make: one whose session is open, to `target`
- * or first to "Choose your password" (TRV-57); one whose session ended, when the address
- * has not `told` it how, through the step that erases its data if the owner ended it
- * (IHM-08, CL-TRV-05). Any other stays, unless the server cannot read its session.
+ * or first to "Choose your password" (TRV-57); one whose session ended, whatever the
+ * address says, through the step that erases its data if the owner ended it (IHM-08,
+ * CL-IHM-10, CL-TRV-05), unless it expired and the address has already `told` it so.
+ * Any other stays, unless the server cannot read its session.
  */
 async function sendOnward(
   target: Route,
@@ -46,7 +55,7 @@ async function sendOnward(
   if (state.state === 'open') {
     redirect(destination(state.session.passwordStatus, target));
   }
-  if (state.state === 'ended' && state.reason !== told) {
+  if (state.state === 'ended' && !wasToldOfExpiry(state.reason, told)) {
     redirect(`/log-in/erase?${new URLSearchParams({ next: target }).toString()}`);
   }
   return ok(undefined);
@@ -76,10 +85,10 @@ function unavailable(cause: string): ReactNode {
 /**
  * The login screen, for the screen that the device asked for, `next` (IHM-05 to IHM-07,
  * IHM-10, IHM-11): a device whose session is open goes on to it, or to "Choose your
- * password" first (TRV-57); a device whose session ended, and has not been told how, goes
- * through the step that erases its data when the owner ended it (IHM-08, CL-TRV-05) and
- * comes back with how it ended; any other sees how its session ended, if it did, the
- * lockout in progress and the form.
+ * password" first (TRV-57); a device whose session ended, whatever its address says, goes
+ * through the step that erases its data when the owner ended it (IHM-08, CL-IHM-10,
+ * CL-TRV-05) and comes back with how it ended, unless it expired and was told so; any
+ * other sees how its session ended, if it did, the lockout in progress and the form.
  */
 export async function LogInScreen({
   query,
