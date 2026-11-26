@@ -8,7 +8,6 @@ import { sql } from 'drizzle-orm';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { z } from 'zod';
 
-import { startPglite } from './pglite';
 import { followedPlayers, installation, sequenceCounters, teams } from './schema';
 import { nextValue } from './sequence';
 import { buildTemplate, createTestDatabase, templateKey, testDatabases } from './test-database';
@@ -434,9 +433,10 @@ async function countedStore(
  * database, in other bytes.
  */
 async function anotherWorkersTemplate(): Promise<Blob> {
-  const pglite = await startPglite({ loadDataDir: await realTemplate() });
+  // Started before it dumps: a dump asked for while PGlite starts never ends.
+  const pglite = await PGlite.create({ loadDataDir: await realTemplate() });
   try {
-    return await pglite.dump();
+    return await pglite.dumpDataDir('none');
   } finally {
     await pglite.close();
   }
