@@ -130,12 +130,6 @@ function clientOf(db: Database): PGlite {
   return client;
 }
 
-/** Waits for `query`, sent at once, then gives `answer`. */
-async function sent(query: PromiseLike<unknown>, answer: string): Promise<string> {
-  await query;
-  return answer;
-}
-
 /** The first identity of `teams` and the first import number that `db` gives. */
 async function firstNumbers(db: Database): Promise<[number | undefined, number]> {
   const [team] = await db
@@ -275,16 +269,18 @@ describe('createTestDatabase', { timeout: 60_000 }, () => {
   it('[TRV-76] waits for the queries sent before it closed, then ends what they left open', async () => {
     const racing = await createTestDatabase();
     const racingStart = await startOf(racing.db);
-    const opening = sent(racing.db.execute(sql`begin`), 'opened');
-    const writing = sent(
-      racing.db.insert(sequenceCounters).values({ name: 'import_sequence', lastValue: 7 }),
-      'written',
-    );
+    const client = clientOf(racing.db);
+    const sentQueries = Promise.all([
+      client.query('begin'),
+      client.query(
+        `insert into sequence_counters (name, last_value) values ('import_sequence', 7)`,
+      ),
+    ]);
     await racing.close();
 
     const next = await openTestDatabase();
 
-    await expect(Promise.all([opening, writing])).resolves.toStrictEqual(['opened', 'written']);
+    await expect(sentQueries).resolves.toMatchObject([{ rows: [] }, { affectedRows: 1 }]);
     expect(await startOf(next.db)).toBe(racingStart);
     expect(await openTransaction(next.db)).toBeNull();
     await expect(next.db.select().from(sequenceCounters)).resolves.toStrictEqual([]);
