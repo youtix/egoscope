@@ -4,7 +4,7 @@ export type { FakeTelegram, FakeTelegramOperation, ReceivedMessage, UpdateBody }
 export { deepLink } from './inbound';
 export { fakeTelegram, telegram } from './port';
 export type { TelegramAccess } from './port';
-export { CHAT_TYPES, MESSAGE_MAX_LENGTH, WEBHOOK_SETTINGS } from './types';
+export { CHAT_TYPES, MESSAGE_MAX_LENGTH, textLength, WEBHOOK_SETTINGS } from './types';
 export type {
   CallContext,
   CallMetadata,
