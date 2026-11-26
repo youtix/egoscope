@@ -15,9 +15,10 @@ type EvidenceBase = Readonly<{
   /**
    * His membership at the entry instant as his box scores give it: the team of his last
    * game played before the latest entry, none if he has played none. Players never reads
-   * box scores, so games passes it, always. A player file that still gives it never takes
-   * the entry back (CL-STA-27), and a first game for it, for the row written at the
-   * addition, which has no previous team of its own, voids that row (CL-JOU-03).
+   * box scores, so games passes it, always. A player file that still gives it, or any team
+   * recorded since, never takes the entry back (CL-STA-27, CL-JOU-25), and a first game for
+   * it, for the row written at the addition, which has no previous team of its own, voids
+   * that row (CL-JOU-03).
    */
   membershipAtEntry: number | null;
 }>;
@@ -96,7 +97,10 @@ async function setCurrentTeam(tx: Transaction, playerId: string, teamId: number 
     .where(eq(followedPlayers.id, playerId));
 }
 
-/** Writes an observed change from his current team to `teamId` and makes it his current team. */
+/**
+ * Writes an observed change from his current team to the evidence's team, makes it his
+ * current team and journals it, at the instant the application learns of it (TRV-41).
+ */
 async function observe(
   tx: Transaction,
   player: FollowedPlayerRow,
@@ -111,6 +115,7 @@ async function observe(
     gameId: evidence.gameId ?? null,
   });
   await setCurrentTeam(tx, player.id, evidence.teamId);
+  await record(tx, { messageKey: 'player_team_change_observed', playerId: player.id });
 }
 
 /** Says whether `row` is an entered change that no game has judged yet and that no later row follows (CL-JOU-03). */
@@ -127,11 +132,47 @@ function isAdditionRow(row: PlayerTeamChangeRow, player: FollowedPlayerRow): boo
 }
 
 /**
+ * The teams he already had since his last game played, which a player file that gives one
+ * of them, after an entered change that no game has judged yet, does not report as news
+ * (CL-JOU-25, CL-STA-27): the team of his last game (`membershipAtEntry`, when he played
+ * one), and the previous and the new team of every row from the latest back to the latest
+ * one that a game wrote or judged, or to the first row. A release, "without team", counts
+ * when a row gives it; the previous team of the row written at the addition is none yet,
+ * not a release, and adds nothing (CL-JOU-20, CL-STA-05). `changes` runs from the latest.
+ */
+function teamsSinceLastGame(
+  player: FollowedPlayerRow,
+  changes: readonly PlayerTeamChangeRow[],
+  membershipAtEntry: number | null,
+): ReadonlySet<number | null> {
+  const lastGame = changes.findIndex((row) => row.gameId !== null);
+  const walked = lastGame === -1 ? changes : changes.slice(0, lastGame + 1);
+  const recorded = walked.flatMap((row) =>
+    isAdditionRow(row, player) ? row.newTeamId : [row.previousTeamId, row.newTeamId],
+  );
+  return new Set(membershipAtEntry === null ? recorded : [membershipAtEntry, ...recorded]);
+}
+
+/** His team history, from the latest change to the first. */
+async function changesFromLatest(
+  tx: Transaction,
+  playerId: string,
+): Promise<readonly PlayerTeamChangeRow[]> {
+  return tx
+    .select()
+    .from(playerTeamChanges)
+    .where(eq(playerTeamChanges.playerId, playerId))
+    .orderBy(desc(playerTeamChanges.changedAt), desc(playerTeamChanges.id));
+}
+
+/**
  * Applies the evidence to the entered change that waits for its first game: a game
- * verifies it, voids it or ends its membership unconfirmed; the player file turns the
- * addition's row observed when it gives the same team, and records nothing when it
- * still gives the team he left (CL-JOU-03, CL-STA-05, CL-STA-27). Gives nothing when
- * the ordinary rule applies.
+ * verifies it, voids it or ends its membership unconfirmed (CL-JOU-03). The player file
+ * turns the addition's row observed when it gives the same team (CL-STA-05); otherwise it
+ * records nothing when the team it gives is one he already had since his last game played,
+ * so that a stale file never takes the entry back and only his first game settles a real
+ * return (CL-JOU-25, CL-STA-27, `teamsSinceLastGame`). Gives nothing when the ordinary
+ * rule applies, a file that gives a team outside that set included.
  */
 async function judge(
   tx: Transaction,
@@ -147,8 +188,12 @@ async function judge(
         .where(eq(playerTeamChanges.id, entered.id));
       return { changed: true, judgment: null };
     }
-    // A file never takes an entry back: it still gives the team of his last game before it.
-    return evidence.teamId === evidence.membershipAtEntry ? UNCHANGED : undefined;
+    const known = teamsSinceLastGame(
+      player,
+      await changesFromLatest(tx, player.id),
+      evidence.membershipAtEntry,
+    );
+    return known.has(evidence.teamId) ? UNCHANGED : undefined;
   }
   if (evidence.teamId === entered.newTeamId) {
     await tx
@@ -165,16 +210,19 @@ async function judge(
 
 /**
  * Records what the statistics ingestion observed of a player's team, in the caller's
- * transaction `tx` (JOU-13, CL-JOU-02, CL-JOU-03, CL-STA-05, CL-STA-27). The current
+ * transaction `tx` (JOU-13, CL-JOU-02, CL-JOU-03, CL-JOU-25, CL-STA-05, CL-STA-27). The current
  * team is set, and an observed change written (date of the first game with the new
  * team or the read instant, previous team, new team), only when the evidence is more
  * recent than the latest recorded change and the team differs, so an older game changes
  * nothing whatever the order seasons are fetched in. The first game after an entered
  * change judges it, as the result says, so that games requests the calendar derivation
- * when it is `void` or `unconfirmed`; a player file that gives
- * `membershipAtEntry` records nothing, and the row written at the addition is judged
- * against it. The module writes player tables only (JOU-14), and the closed
- * list of the journal holds no message for an observed change, so it writes no entry.
+ * when it is `void` or `unconfirmed`; while that entry waits for its game, a player file
+ * that gives a team he already had since his last game played records nothing (`judge`,
+ * CL-JOU-25), and the row written at the addition is judged against `membershipAtEntry`.
+ * Each observed row written, by the ordinary rule or by a game that voids an entry or
+ * ends it unconfirmed, gets one `player_team_change_observed` journal entry in `tx`
+ * (TRV-41); a call that writes no row, a verification and the addition's row turning
+ * observed write none. Besides those entries, the module writes player tables only (JOU-14).
  */
 export async function recordTeamChange(
   tx: Transaction,

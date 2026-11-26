@@ -34,6 +34,10 @@ const SOURCE_MID_MARCH = {
   birthdayOrigin: 'stats_source',
 } as const;
 const OWNER_MID_MARCH = { birthdayMonth: 3, birthdayDay: 14, birthdayOrigin: 'owner' } as const;
+// The source gives no day and month of birth, as after a mapping changed or not.
+const NO_BIRTHDAY = { month: null, day: null } as const;
+const NO_BIRTHDAY_REPLACING = { ...NO_BIRTHDAY, replaceSourceGiven: true } as const;
+const NO_BIRTHDAY_ROW = { birthdayMonth: null, birthdayDay: null, birthdayOrigin: null };
 const IMPOSSIBLE = {
   ok: false,
   error: { kind: 'invalid_fields', fields: { birthday: 'impossible_date' } },
@@ -510,6 +514,52 @@ describe('the edit of a followed player’s identity', { timeout: DATABASE_TEST_
       });
       expect(await birthdayRow(BRISCO)).toStrictEqual({ ...OWNER_MID_MARCH, rowVersion: 1 });
       expect(await journal()).toStrictEqual([entry('birthday_from_source')]);
+    });
+
+    it('[CL-JOU-11] [CL-JOU-16] with replaceSourceGiven, clears a birthday the source gave when the new identity gives none, and journals it', async () => {
+      await follow(ARDEN, 'Arden Vale', SOURCE_MID_MARCH);
+
+      const outcome = await fromSource(ARDEN, NO_BIRTHDAY_REPLACING);
+
+      expect(outcome).toStrictEqual({ ok: true, value: { changed: true } });
+      expect(await birthdayRow(ARDEN)).toStrictEqual({ ...NO_BIRTHDAY_ROW, rowVersion: 2 });
+      expect(await journal()).toStrictEqual([entry('birthday_cleared_after_mapping_change')]);
+    });
+
+    it('[CL-JOU-11] keeps a birthday the owner entered and an empty one when the new identity gives none, journaling nothing', async () => {
+      await follow(ARDEN, 'Arden Vale', OWNER_MID_MARCH);
+      await follow(BRISCO, 'Brisco Hale');
+
+      const outcomes = [
+        await fromSource(ARDEN, NO_BIRTHDAY_REPLACING),
+        await fromSource(BRISCO, NO_BIRTHDAY_REPLACING),
+      ];
+
+      expect(outcomes).toStrictEqual([
+        { ok: true, value: { changed: false } },
+        { ok: true, value: { changed: false } },
+      ]);
+      expect(await birthdayRow(ARDEN)).toStrictEqual({ ...OWNER_MID_MARCH, rowVersion: 1 });
+      expect(await birthdayRow(BRISCO)).toStrictEqual({ ...NO_BIRTHDAY_ROW, rowVersion: 1 });
+      expect(await journal()).toStrictEqual([]);
+    });
+
+    it('[CL-JOU-16] clears nothing without replaceSourceGiven when the source gives none, and refuses an unknown player either way', async () => {
+      await follow(ARDEN, 'Arden Vale', SOURCE_MID_MARCH);
+
+      const outcomes = [
+        await fromSource(ARDEN, NO_BIRTHDAY),
+        await fromSource(NOBODY, NO_BIRTHDAY),
+        await fromSource(NOBODY, NO_BIRTHDAY_REPLACING),
+      ];
+
+      expect(outcomes).toStrictEqual([
+        { ok: true, value: { changed: false } },
+        { ok: false, error: 'player_not_found' },
+        { ok: false, error: 'player_not_found' },
+      ]);
+      expect(await birthdayRow(ARDEN)).toStrictEqual({ ...SOURCE_MID_MARCH, rowVersion: 1 });
+      expect(await journal()).toStrictEqual([]);
     });
 
     it('[JOU-11] refuses an impossible day and an unknown player', async () => {

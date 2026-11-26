@@ -278,6 +278,44 @@ describe('the status of a followed player', { timeout: DATABASE_TEST_TIMEOUT_MS 
     expect(outcome).toStrictEqual({ before: 1, reactivated: FULL_LIST });
   });
 
+  it('[JOU-20] [CL-IHM-18] checks the version again once it holds the lock: a reactivation of his that filled the list meanwhile is a change made elsewhere', async () => {
+    await followFullList();
+    await db
+      .update(followedPlayers)
+      .set({ status: 'paused' })
+      .where(eq(followedPlayers.id, idOf(0)));
+    await follow(ARDEN, 'paused');
+    // The other reactivation of Arden commits between this one's first check and its lock:
+    // a policy plays it at the first read made under the lock, that of the maximum.
+    await db.execute(sql`create role lock_watcher`);
+    await db.execute(sql`grant usage on schema public to lock_watcher`);
+    await db.execute(sql`grant all on all tables in schema public to lock_watcher`);
+    await db.execute(sql`grant all on all sequences in schema public to lock_watcher`);
+    await db.execute(
+      sql.raw(`create function reactivate_arden_elsewhere() returns boolean language plpgsql as $$
+        begin
+          update followed_players set status = 'active', row_version = row_version + 1
+            where id = '${ARDEN}' and status = 'paused';
+          return true;
+        end $$`),
+    );
+    await db.execute(
+      sql`insert into parameter_overrides (parameter_key, value) values ('players.maxActive', ${String(DEFAULT_MAX_ACTIVE)}::jsonb)`,
+    );
+    await db.execute(sql`alter table parameter_overrides enable row level security`);
+    await db.execute(
+      sql`create policy reactivated_elsewhere on parameter_overrides using (reactivate_arden_elsewhere())`,
+    );
+
+    const reactivated = await db.transaction(async (tx) => {
+      await tx.execute(sql`set local role lock_watcher`);
+      return reactivate(tx, ARDEN, { expectedVersion: 1 });
+    });
+
+    expect(reactivated).toMatchObject(current(ARDEN, 'active', 2));
+    expect(await journal()).toStrictEqual([]);
+  });
+
   it('[JOU-20] [JOU-15] creates no backtest request and no derivation request: a reactivation writes its status change and journal entry only', async () => {
     await follow(ARDEN, 'withdrawn');
     const before = await rowCounts();
@@ -391,7 +429,45 @@ describe('the status of a followed player', { timeout: DATABASE_TEST_TIMEOUT_MS 
     expect(await db.select().from(playerStatusChanges)).toStrictEqual([]);
   });
 
+  it('[JOU-22] [CL-JOU-05] refuses to decline the pause suggestion of a paused or a withdrawn player, whose status has none, writing nothing', async () => {
+    await follow(ARDEN, 'paused');
+    await follow(BRAM, 'withdrawn');
+
+    const outcomes = [
+      await db.transaction(async (tx) => declinePauseSuggestion(tx, ARDEN, 1)),
+      await db.transaction(async (tx) => declinePauseSuggestion(tx, BRAM, 1)),
+    ];
+
+    expect(outcomes).toStrictEqual([
+      { ok: false, error: { kind: 'transition_not_allowed', from: 'paused', to: 'paused' } },
+      { ok: false, error: { kind: 'transition_not_allowed', from: 'withdrawn', to: 'paused' } },
+    ]);
+    expect(await get(db, ARDEN)).toMatchObject({ pauseSuggestionDeclinedAt: null, rowVersion: 1 });
+    expect(await get(db, BRAM)).toMatchObject({ pauseSuggestionDeclinedAt: null, rowVersion: 1 });
+    expect(await journal()).toStrictEqual([]);
+  });
+
   describe('the instant of the previous calendar derivation', () => {
+    it('[CL-JOU-05] [CL-TAX-19] notes the run of a paused player and refuses a withdrawn one, whose derivation is off, writing nothing for him', async () => {
+      await follow(ARDEN, 'paused');
+      await follow(BRAM, 'withdrawn');
+
+      const paused = await ranAt(ARDEN, START);
+      const withdrawn = await ranAt(BRAM, START);
+
+      expect(paused).toStrictEqual(DONE);
+      expect(withdrawn).toStrictEqual({
+        ok: false,
+        error: { kind: 'transition_not_allowed', from: 'withdrawn', to: 'withdrawn' },
+      });
+      expect(await ardensDerivation()).toStrictEqual({ at: START, rowVersion: 1 });
+      const [bram] = await db
+        .select({ at: followedPlayers.lastCalendarDerivationAt })
+        .from(followedPlayers)
+        .where(eq(followedPlayers.id, BRAM));
+      expect(bram).toStrictEqual({ at: null });
+    });
+
     it('[CL-TAX-19] [CL-JOU-05] sets the instant of a run, never moves it back, and leaves the row version', async () => {
       await follow(ARDEN, 'active');
       const empty = await ardensDerivation();
