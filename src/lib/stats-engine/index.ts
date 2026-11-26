@@ -320,6 +320,19 @@ export type {
 } from './alerts/state';
 
 // alerts/caveats.ts
+export { sheetCaveats } from './alerts/caveats';
+export type {
+  Caveat,
+  CaveatEvent,
+  CaveatKind,
+  CaveatProfile,
+  CaveatSection,
+  CaveatThresholds,
+  CaveatTrend,
+  DirectionCaveatForm,
+  KnownContextReason,
+  SheetCaveatsInput,
+} from './alerts/caveats';
 
 // --- backtest/ -------------------------------------------------------------------
 
