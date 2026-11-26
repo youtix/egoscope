@@ -26,7 +26,9 @@ export type {
 
 // sources.ts: trialRead, addSource, editSource, setSourceActivation, withdrawSource
 // run.ts: runCollection, requestOnDemand, setArticleStatus, countPrefilterKept, checkFeeds
-// dating.ts: ownerSourceInstant
+// dating.ts
+export { ownerSourceInstant } from './dating';
+export type { OwnerSourceDate, OwnerSourceInstant } from './dating';
 // dedup.ts: the deduplication of the articles a run reads (no operation of its own exposed)
 // health.ts: the health of the sources and the collection indicators (no operation of its own exposed)
 // purge.ts: purgeExpired
