@@ -101,6 +101,28 @@ describe('classificationInstructions', () => {
     );
   });
 
+  it('[DET-44] [CL-DET-11] lets a fact attach to any event of the player that the request sends, a dismissed one of any age included', () => {
+    expect(lineOf('- articles: ')).toContain(
+      'his names (display name first, then spelling variants and nicknames) and his events, each with its player_event_id,',
+    );
+    expect(lineOf('2.5 ')).toContain(
+      "2.5 Novelty. When the fact is one of the player's events, whatever its age, set novelty to known_event and give that event's player_event_id.",
+    );
+    expect(classificationInstructions(DEFAULTS)).not.toContain('recent');
+  });
+
+  it('[SEN-13] [SEN-14] [DET-16] asks for the injury return and the game stakes as SEN-13 and SEN-14 define them', () => {
+    expect(lineOf('2.9 ')).toBe(
+      "2.9 Context. For the player's next game, say whether the article presents it as his return, or as one of his first games, after an absence due to an injury (injury_return: yes, no or unknown), without ever naming the injury, and whether its outcome directly decides a qualification, an elimination, a title or a final ranking (game_stakes: high, normal or unknown), every other game being normal, a playoff game that eliminates nobody included. Answer unknown when the article says nothing about it.",
+    );
+  });
+
+  it('[DSN-12] [DSN-16] [DSN-18] keeps out the funeral of a bereavement and the alleged facts and parties of a legal matter', () => {
+    expect(lineOf('3.5 ')).toBe(
+      "3.5 No health detail and no intimate detail: no diagnosis, nature of an injury or illness, treatment or mental health; for a bereavement, only that a loved one died, with no name, family relationship, cause, circumstances or funeral; for racist remarks, neither the terms used nor the player's origin, skin color, nationality or religion; for a legal matter, only that the player is publicly implicated in a case the press reports, without the alleged facts or the identity of the other parties; nothing about family, love life, sexual orientation, home, private travel, finances, opinions or beliefs.",
+    );
+  });
+
   it('[CL-DET-22] reports no fact of a calendar-handled type but as its calendar entry', () => {
     expect(lineOf('2.7 ')).toBe(
       "2.7 Calendar types. A fact that matches an entry of calendar_types, such as a game on the player's birthday or against a former team, is handled by the calendar and is not to be reported, neither as a validated-type fact, nor as a known entry, nor as a new type: name its entry in calendar_facts at most.",
