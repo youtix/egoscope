@@ -35,10 +35,10 @@ export type CorrectionEntry = Readonly<{
 }>;
 
 /** A team as it was named the season of a game (JOU-08). */
-export type TeamName = Readonly<{ location: string; name: string }>;
+type TeamName = Readonly<{ location: string; name: string }>;
 
 /** The side of the player's team in a game, and the other team (STA-26). */
-export type Opponent = Readonly<{ venue: 'home' | 'away'; team: TeamName }>;
+type Opponent = Readonly<{ venue: 'home' | 'away'; team: TeamName }>;
 
 /**
  * The game of a calendar-derived event (CL-IHM-21, CL-VUE-15): its start, the opponent of
