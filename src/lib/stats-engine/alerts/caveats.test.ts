@@ -65,6 +65,11 @@ const BROAD: CaveatTrend = {
   playerCount: THRESHOLDS.trendMinPlayers,
   profileConfidence: 'medium',
 };
+/** The decided profile at a low confidence, and trends each small on one count of CL-ALE-05. */
+const LOW_PROFILE: CaveatProfile = { ...DECIDED, profileConfidence: 'low' };
+const FEW_CASES: CaveatTrend = { ...BROAD, validCount: TOO_FEW };
+const FEW_PLAYERS: CaveatTrend = { ...BROAD, playerCount: THRESHOLDS.trendMinPlayers - 1 };
+const LOW_TREND: CaveatTrend = { ...BROAD, profileConfidence: 'low' };
 
 /** A detected event of a model's confidence of 100, the highest score, with no mark. */
 function detected(playerEventId: PlayerEventId, change: Partial<CaveatEvent> = {}): CaveatEvent {
@@ -88,6 +93,7 @@ function section(
   return {
     eventTypeId,
     isTypeNotCovered: false,
+    isCalendarDerived: false,
     hasSwitchedOffCriterion: false,
     events,
     profile: DECIDED,
@@ -133,73 +139,57 @@ describe('sheetCaveats', () => {
     expect(caveats).toStrictEqual([OPPOSITE]);
   });
 
-  it('[ALE-16] [CL-ALE-05] marks a small sample for a profile that applies when its confidence is low', () => {
-    const low = caveatsOfSection({ profile: { ...DECIDED, profileConfidence: 'low' } });
+  it('[ALE-16] [CL-ALE-05] marks a small sample for a player below the threshold whatever the general trend, as for player B of the spec, or of low confidence', () => {
+    // docs/09-fiche-d-alerte.md, "Variante pour un joueur sous le seuil": 2 valid cases of the
+    // 5 needed, beside a trend on 48 valid cases of 15 players at a medium confidence.
+    const playerB: CaveatProfile = { ...DECIDED, validCount: 2, verdict: INCONCLUSIVE };
+    const trend: CaveatTrend = { validCount: 48, playerCount: 15, profileConfidence: 'medium' };
+    const below: CaveatProfile = { ...DECIDED, validCount: TOO_FEW, verdict: INCONCLUSIVE };
     const high = caveatsOfSection({ profile: { ...DECIDED, profileConfidence: 'high' } });
 
-    expect(low).toStrictEqual([SMALL_SAMPLE, OPPOSITE]);
+    expect(caveatsOfSection({ profile: playerB, trend })).toStrictEqual([SMALL_SAMPLE, EITHER_WAY]);
+    expect(caveatsOfSection({ profile: below })).toStrictEqual([SMALL_SAMPLE, EITHER_WAY]);
+    expect(caveatsOfSection({ profile: LOW_PROFILE })).toStrictEqual([SMALL_SAMPLE, OPPOSITE]);
     expect(high).toStrictEqual([OPPOSITE]);
   });
 
-  it.each<Readonly<{ label: string; trend: CaveatTrend | null; isSmall: boolean }>>([
-    { label: 'a broad trend', trend: BROAD, isSmall: false },
-    { label: 'too few valid cases', trend: { ...BROAD, validCount: TOO_FEW }, isSmall: true },
-    {
-      label: 'too few players',
-      trend: { ...BROAD, playerCount: THRESHOLDS.trendMinPlayers - 1 },
-      isSmall: true,
-    },
-    { label: 'a low confidence', trend: { ...BROAD, profileConfidence: 'low' }, isSmall: true },
-    { label: 'no trend', trend: null, isSmall: true },
-  ])(
-    '[ALE-16] [CL-ALE-05] judges the general trend, not the player, below the threshold: $label',
-    ({ trend, isSmall }) => {
-      const below: CaveatProfile = {
-        ...DECIDED,
-        validCount: TOO_FEW,
-        verdict: INCONCLUSIVE,
-        profileConfidence: 'low',
-      };
+  it('[ALE-16] [CL-ALE-05] reads no general trend for a covered player who has the cases a verdict needs', () => {
+    expect(caveatsOfSection({ trend: FEW_PLAYERS })).toStrictEqual([OPPOSITE]);
+    expect(caveatsOfSection({ trend: null })).toStrictEqual([OPPOSITE]);
+  });
 
-      expect(caveatsOfSection({ profile: below, trend })).toStrictEqual(
-        isSmall ? [SMALL_SAMPLE, EITHER_WAY] : [EITHER_WAY],
-      );
+  it.each<Readonly<{ label: string; change: Partial<CaveatSection>; isSmall: boolean }>>([
+    { label: 'a broad trend', change: {}, isSmall: false },
+    { label: 'too few valid cases', change: { trend: FEW_CASES }, isSmall: true },
+    { label: 'too few players', change: { trend: FEW_PLAYERS }, isSmall: true },
+    { label: 'a low confidence', change: { trend: LOW_TREND }, isSmall: true },
+    { label: 'no trend', change: { trend: null }, isSmall: true },
+    { label: "the player's low confidence", change: { profile: LOW_PROFILE }, isSmall: true },
+  ])(
+    "[ALE-16] [CL-ALE-05] [ALE-14] judges the general trend of a type not covered, as well as the player's profile: $label",
+    ({ change, isSmall }) => {
+      const kinds = kindsOf(caveatsOfSection({ isTypeNotCovered: true, ...change }));
+      const small = isSmall ? ['small_sample'] : [];
+
+      expect(kinds).toStrictEqual([...small, 'effect_direction', 'type_not_covered']);
     },
   );
 
-  it('[ALE-16] [CL-ALE-05] [ALE-14] judges the general trend for a type not covered, whatever the player has', () => {
-    const narrowTrend = caveatsOfSection({
-      isTypeNotCovered: true,
-      trend: { ...BROAD, playerCount: 1 },
-    });
-    const lowProfile = caveatsOfSection({
-      isTypeNotCovered: true,
-      profile: { ...DECIDED, profileConfidence: 'low' },
-    });
-
-    expect(kindsOf(narrowTrend)).toStrictEqual([
-      'small_sample',
-      'effect_direction',
-      'type_not_covered',
-    ]);
-    expect(kindsOf(lowProfile)).toStrictEqual(['effect_direction', 'type_not_covered']);
-  });
-
   it('[ALE-16] [CL-ALE-03] words the direction caveat as the opposite effect for every possible or probable profile, increase and decrease alike', () => {
-    expect(caveatsOfSection({ profile: { ...DECIDED, verdict: INCREASE } })).toStrictEqual([
-      OPPOSITE,
-    ]);
-    expect(caveatsOfSection({ profile: { ...DECIDED, verdict: DECREASE } })).toStrictEqual([
-      OPPOSITE,
-    ]);
+    const increase = caveatsOfSection({ profile: { ...DECIDED, verdict: INCREASE } });
+    const decrease = caveatsOfSection({ profile: { ...DECIDED, verdict: DECREASE } });
+
+    expect([increase, decrease]).toStrictEqual([[OPPOSITE], [OPPOSITE]]);
   });
 
-  it('[ALE-16] [CL-ALE-03] words it as either way for an inconclusive profile, and below the threshold whatever the verdict frozen', () => {
+  it('[ALE-16] [CL-ALE-03] words it as either way for an inconclusive profile, and follows the verdict frozen, not a case threshold raised since', () => {
     const inconclusive = caveatsOfSection({ profile: { ...DECIDED, verdict: INCONCLUSIVE } });
-    const below = caveatsOfSection({ profile: { ...DECIDED, validCount: TOO_FEW } });
+    const raised = { ...THRESHOLDS, minValidCases: ENOUGH + 1 };
+    const input = { sections: [section(FEUD, [SURE])], expectedGame: PLAIN_GAME };
+    const afterRaise = sheetCaveats({ ...input, isLate: false, hasRelatedSheet: false }, raised);
 
     expect(inconclusive).toStrictEqual([EITHER_WAY]);
-    expect(below).toStrictEqual([EITHER_WAY]);
+    expect(afterRaise.filter(({ kind }) => kind === 'effect_direction')).toStrictEqual([OPPOSITE]);
   });
 
   it('[ALE-16] [ALE-05] gives a section waiting for its values the either-way direction and what its type alone says', () => {
@@ -318,10 +308,19 @@ describe('sheetCaveats', () => {
     expect(caveats).toStrictEqual([OPPOSITE, { kind: 'late_sheet' }]);
   });
 
-  it('[ALE-16] [ALE-14] names a type not covered by the backtest, on a section left with no event too', () => {
-    const caveats = caveatsOf([section(FEUD, [], { isTypeNotCovered: true })]);
+  it('[ALE-16] [ALE-14] [CL-ALE-13] names a type not covered by the backtest, on a section left with no event too, never a calendar-derived type', () => {
+    const narrow: Partial<CaveatSection> = { isTypeNotCovered: true, trend: null };
+    const caveats = caveatsOf([section(FEUD, [], narrow)]);
+    const derived = caveatsOf([section(BIRTHDAY, [], { ...narrow, isCalendarDerived: true })]);
 
-    expect(kindsOf(caveats)).toStrictEqual(['effect_direction', 'type_not_covered']);
+    expect(kindsOf(caveats)).toStrictEqual([
+      'small_sample',
+      'effect_direction',
+      'type_not_covered',
+    ]);
+    expect(derived).toStrictEqual([
+      { kind: 'effect_direction', eventTypeId: BIRTHDAY, form: 'opposite_effect_possible' },
+    ]);
   });
 
   it('[ALE-16] warns of a criterion switched off for the type, whose effect cannot be separated (ADR 0016)', () => {
@@ -341,6 +340,7 @@ describe('sheetCaveats', () => {
     };
     const birthday = section(BIRTHDAY, [derived], {
       isTypeNotCovered: true,
+      isCalendarDerived: true,
       hasSwitchedOffCriterion: true,
       profile: { ...DECIDED, profileConfidence: 'low', isIncomplete: true },
     });
@@ -432,7 +432,6 @@ const contextArbitrary = fc.record({
   gameStakes: fc.constantFrom('high', 'normal', 'unknown'),
 });
 const rawEventArbitrary = fc.record({
-  origin: fc.constantFrom('detected', 'calendar'),
   isDismissed: fc.boolean(),
   context: contextArbitrary,
   detectionConfidence: fc.option(fc.integer({ min: 0, max: 100 }), { nil: null }),
@@ -453,6 +452,7 @@ const trendArbitrary = fc.record({
 const rawSectionArbitrary = fc.record({
   eventTypeId: fc.constantFrom(...TYPES),
   isTypeNotCovered: fc.boolean(),
+  isCalendarDerived: fc.boolean(),
   hasSwitchedOffCriterion: fc.boolean(),
   events: fc.array(rawEventArbitrary, { maxLength: MAX_EVENTS_PER_SECTION, size: 'max' }),
   profile: fc.option(profileArbitrary, { nil: null }),
@@ -461,14 +461,18 @@ const rawSectionArbitrary = fc.record({
 
 type RawSection = typeof rawSectionArbitrary extends fc.Arbitrary<infer Raw> ? Raw : never;
 
-/** The sections of a sheet, one per type, each event numbered from 1 in the sheet's order. */
+/**
+ * The sections of a sheet, one per type, each event numbered from 1 in the sheet's order and
+ * derived from the calendar exactly when its type is.
+ */
 function numbered(raw: readonly RawSection[]): readonly CaveatSection[] {
   let next = 0;
   return raw.map((rawSection) => ({
     ...rawSection,
     events: rawSection.events.map((event) => {
       next += 1;
-      return { ...event, playerEventId: next };
+      const origin = rawSection.isCalendarDerived ? 'calendar' : 'detected';
+      return { ...event, playerEventId: next, origin };
     }),
   }));
 }
@@ -505,18 +509,16 @@ function liveDetectedEventIds({ sections }: SheetCaveatsInput): readonly PlayerE
     .map(({ playerEventId }) => playerEventId);
 }
 
-/** The types of the sections that hold a calendar-derived event. */
+/** The types of the sections that are derived from the calendar, whatever events they hold. */
 function calendarTypesOf({ sections }: SheetCaveatsInput): readonly EventTypeId[] {
   return sections
-    .filter(({ events }) => events.some(({ origin }) => origin === 'calendar'))
+    .filter(({ isCalendarDerived }) => isCalendarDerived)
     .map(({ eventTypeId }) => eventTypeId);
 }
 
-/** The form of the direction caveat that CL-ALE-03 gives a profile. */
+/** The form of the direction caveat that CL-ALE-03 gives a profile, by its frozen verdict level. */
 function formOf(profile: CaveatProfile | null): string {
-  return profile === null ||
-    profile.validCount < THRESHOLDS.minValidCases ||
-    profile.verdict.level === 'inconclusive'
+  return profile === null || profile.verdict.level === 'inconclusive'
     ? 'either_way'
     : 'opposite_effect_possible';
 }
