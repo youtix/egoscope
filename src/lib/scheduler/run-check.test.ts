@@ -198,7 +198,10 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     const registry = [
       task('news-collection', [{ kind: 'daily', times: () => ['22:00'] }]),
       task('detection', [{ kind: 'chained', after: ['news-collection'] }]),
-      task('recalculation', [{ kind: 'computed', nextDueAt: answer(nov(25, 9)) }]),
+      task('recalculation', [
+        { kind: 'computed', nextDueAt: answer(nov(25, 9)) },
+        { kind: 'daily', times: () => [] },
+      ]),
       task('link-check', [{ kind: 'computed', nextDueAt: answer(null) }]),
     ];
     await insertRuns([
@@ -318,5 +321,71 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       { task: 'purge', dueAt: nov(26, 3) },
       { task: 'statistics-update', dueAt: nov(25, 14) },
     ]);
+  });
+
+  it('[TRV-28] [TRV-31] [CL-TRV-07] [CL-TRV-08] runs one catch-up run after an outage, which stands for the occurrence due since within the margin, and journals no postponement', async () => {
+    const { execute } = await load();
+    const calls: string[] = [];
+    const counted = (scheduled: ScheduledTask): ScheduledTask => ({
+      ...scheduled,
+      run: async () => {
+        calls.push(scheduled.key);
+        return answer<ChunkOutcome>({ kind: 'done', result: 'succeeded' })();
+      },
+    });
+    // The detection at 12:00 and 14:00 in Paris, 11:00 and 13:00 UTC in winter.
+    const detection = task('detection', [{ kind: 'daily', times: () => ['12:00', '14:00'] }]);
+    const registry = [counted(purge), counted(detection)];
+    await insertRuns([
+      { taskKey: 'purge', dueAt: nov(23, 3), result: 'succeeded' },
+      { taskKey: 'detection', dueAt: nov(24, 13), result: 'succeeded' },
+    ]);
+    const clock = fixedClock(nov(25, 4));
+    const restore = installFakeClock(clock);
+    try {
+      await execute(db, registry);
+      clock.advance(nov(25, 13, 30) - clock.now());
+      await execute(db, registry);
+    } finally {
+      restore();
+    }
+    expect(calls).toStrictEqual(['purge', 'detection']);
+    const runs = await db.select().from(taskRuns).orderBy(asc(taskRuns.id));
+    expect(
+      runs.slice(2).map(({ taskKey, dueAt, startedAt, result }) => ({
+        taskKey,
+        dueAt,
+        startedAt,
+        result,
+      })),
+    ).toStrictEqual([
+      {
+        taskKey: 'purge',
+        dueAt: new Date(nov(25, 3)),
+        startedAt: new Date(nov(25, 4)),
+        result: 'succeeded',
+      },
+      {
+        taskKey: 'detection',
+        dueAt: new Date(nov(25, 13)),
+        startedAt: new Date(nov(25, 13, 30)),
+        result: 'succeeded',
+      },
+    ]);
+    expect(await missesOf()).toStrictEqual([
+      { task: 'purge', dueAt: nov(24, 3) },
+      { task: 'detection', dueAt: nov(25, 11) },
+    ]);
+    const postponed = await db
+      .select()
+      .from(journalEntries)
+      .where(eq(journalEntries.messageKey, 'task_run_postponed'));
+    expect({ postponed, incidents: await incidentsOf() }).toStrictEqual({
+      postponed: [],
+      incidents: [
+        { kind: 'task_not_run', causeKey: 'purge', isClosed: true },
+        { kind: 'task_not_run', causeKey: 'detection', isClosed: true },
+      ],
+    });
   });
 });
