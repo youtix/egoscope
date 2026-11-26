@@ -99,6 +99,14 @@ export function formatDate(day: IsoDate, form: DisplayForm = 'short'): string {
 }
 
 /**
+ * A day and month without a year, such as a birthday, which never keeps one (JOU-11,
+ * CL-DSN-21, CL-VUE-15): "26 October".
+ */
+export function formatDayAndMonth(dayAndMonth: Readonly<{ month: number; day: number }>): string {
+  return `${String(dayAndMonth.day)} ${nameAt(MONTHS, dayAndMonth.month)}`;
+}
+
+/**
  * An instant in the owner's zone, on the 24-hour clock (TRV-71, ADR 0010):
  * "Wednesday 18 November 2026, 01:30 Paris time" in full, which names the
  * zone as `formatZoneName` does, or "Wed 18 Nov 2026, 01:30" in short, on a
