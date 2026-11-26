@@ -245,7 +245,7 @@ function webhookInfoOf(info: z.infer<typeof WEBHOOK_INFO>): WebhookInfo {
   const at = info[FIELD.errorDate];
   const message = info[FIELD.errorMessage];
   return {
-    url: info.url === '' ? null : info.url,
+    url: info.url === '' ? null : redact(info.url),
     pendingUpdates: info[FIELD.pendingCount],
     lastError:
       at === undefined || message === undefined
@@ -313,7 +313,7 @@ const polling = (offset: number | null): BotRequest<readonly InboundUpdate[]> =>
 });
 
 /**
- * The Telegram port on the Bot API, authenticated by TELEGRAM_BOT_TOKEN (TRV-18, TEL-01,
+ * The Telegram port on the Bot API, authenticated by TELEGRAM_BOT_TOKEN (TRV-18,
  * module map §5): one request per call; `sendMessage` in HTML mode with link previews off,
  * never pacing, since the caller sends one message a second per chat at most
  * (`quotas.telegram.messagesPerSecond`); `deleteMessage` asked once per message whatever

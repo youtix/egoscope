@@ -43,6 +43,7 @@ const FORTY_EIGHT_HOURS_MS = 48 * 3_600_000;
 const FIRST_ID = 900;
 const PARAMS = z.record(z.string(), z.unknown());
 const ONE_REQUEST = { httpRequests: 1, messages: 0 };
+const TIMED_OUT = { ok: false, error: { kind: 'timeout' }, call: ONE_REQUEST };
 const HELLO = { chat: OWNER.id, text: 'Hello' };
 const WEBHOOK_URL = 'https://egoscope.example.test/api/telegram/webhook';
 
@@ -322,7 +323,7 @@ describe('createBotApiTelegram', () => {
     });
   });
 
-  it('[TRV-18] [TEL-01] sends in HTML mode with link previews off, by a POST of JSON to the address of the token, and counts one message', async () => {
+  it('[TRV-18] sends in HTML mode with link previews off, by a POST of JSON to the address of the token, and counts one message', async () => {
     const replay = new Replay();
     const outcome = await create(replay.fetch).sendMessage(open(), {
       chat: OWNER.id,
@@ -338,12 +339,13 @@ describe('createBotApiTelegram', () => {
     expect(requests).toStrictEqual([
       [`${ADDRESS}sendMessage`, 'POST', { 'content-type': 'application/json' }],
     ]);
+    expect(replay.seen.map(({ init }) => init?.redirect)).toStrictEqual(['error']);
     expect(replay.seen.map(({ body }) => body)).toStrictEqual([
       `{"chat_id":${String(OWNER.id)},"text":"<b>Hi</b>","parse_mode":"HTML","link_preview_options":{"is_disabled":true}}`,
     ]);
   });
 
-  it('[TEL-08] throws on a text that is empty once its tags are read, without a request', async () => {
+  it('throws on a text that is empty once its tags are read, without a request', async () => {
     const replay = new Replay();
     const bot = create(replay.fetch);
 
@@ -536,11 +538,14 @@ describe('createBotApiTelegram', () => {
     expect(logged()).not.toContain(TOKEN);
   });
 
-  it('[TRV-64] masks the token in a webhook refusal and in a delivery error that Telegram writes back', async () => {
+  it('[TRV-64] masks the token in a webhook refusal, and in the address and the delivery error of a webhook that Telegram writes back', async () => {
     const replay = new Replay();
     const bot = create(replay.fetch);
     const { result } = answers.webhookInfo.body;
-    const failure = changed(result, [['last_error_message', `Failed ${ADDRESS}`]]);
+    const failure = changed(result, [
+      ['url', `${WEBHOOK_URL}/${TOKEN}`],
+      ['last_error_message', `Failed ${ADDRESS}`],
+    ]);
     replay.answerNext(echoing(errors.badWebhook), withResult(answers.webhookInfo, failure));
     const outcomes = [
       await bot.setWebhook(open(), { url: WEBHOOK_URL, secretToken: 'x' }),
@@ -563,16 +568,21 @@ describe('createBotApiTelegram', () => {
     expect(JSON.stringify(outcomes) + logged()).not.toContain(TOKEN);
   });
 
-  it('[TEL-35] [TRV-64] answers timeout without a request past its deadline, and with one that its deadline stops', async () => {
+  it('[TEL-35] [TRV-64] answers timeout without a request past its deadline, and with one that its deadline or its caller stops', async () => {
     const replay = new Replay();
+    const caller = new AbortController();
+    const stopped = create(stalled).getMe({ ...open(FORTY_EIGHT_HOURS_MS), signal: caller.signal });
+    caller.abort();
     const outcomes = [
       await create(replay.fetch).getMe(open(-1)),
       await create(stalled).getMe(open(SHORT_DEADLINE_MS)),
+      await stopped,
     ];
 
     expect(outcomes).toStrictEqual([
       { ok: false, error: { kind: 'timeout' }, call: { httpRequests: 0, messages: 0 } },
-      { ok: false, error: { kind: 'timeout' }, call: ONE_REQUEST },
+      TIMED_OUT,
+      TIMED_OUT,
     ]);
     expect(replay.seen).toStrictEqual([]);
     expect(JSON.stringify(outcomes) + logged()).not.toContain(TOKEN);

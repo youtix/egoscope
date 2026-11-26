@@ -180,7 +180,7 @@ describe('createFakeTelegram', () => {
     expect(fake.inbox(GROUP.id)).toStrictEqual([]);
   });
 
-  it('[TEL-08] throws on a text that is empty once its tags are read, as Telegram refuses one, and sends nothing', async () => {
+  it('throws on a text that is empty once its tags are read, as Telegram refuses one, and sends nothing', async () => {
     const fake = createFakeTelegram();
     fake.deliver(OWNER, '/start');
 
