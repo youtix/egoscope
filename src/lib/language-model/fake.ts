@@ -171,7 +171,8 @@ const isCancelledWithin = async (ms: number, signal: AbortSignal): Promise<boole
  * counts them, and its refill instants when it reports them; it refuses a call above its
  * requests a minute or a day with the delay to the next window (rate_limited), meets
  * the failures and slow answers injected, and ends a call that its signal cancels at
- * once, as `timeout`, sending nothing when it was cancelled before it began.
+ * once, as `timeout`, sending nothing when it was cancelled before it began or when its
+ * deadline had already come.
  */
 export function createFakeProvider(options: FakeProviderOptions): FakeProvider {
   const state: FakeState = { options, parts: new Map(), answeredAt: [] };
@@ -183,11 +184,11 @@ export function createFakeProvider(options: FakeProviderOptions): FakeProvider {
     ctx: CallContext,
     request: ClassificationRequest,
   ): Promise<ProviderOutcome> {
-    if (ctx.signal.aborted) {
+    const at = now();
+    if (ctx.signal.aborted || at >= ctx.deadline) {
       return { ...TIMEOUT, call: { ...ONE_REQUEST, httpRequests: 0 } };
     }
     received.push(request);
-    const at = now();
     const error = failures.shift() ?? limitHit(state, at);
     if (error !== null) {
       return { ok: false, error, call: ONE_REQUEST };

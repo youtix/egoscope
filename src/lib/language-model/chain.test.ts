@@ -281,6 +281,38 @@ describe('createChain', () => {
     });
   });
 
+  it('[DET-08] [CL-DET-03] keeps a classification unanswered, sending nothing, when the deadline passes while the budget holds the call', async () => {
+    const clock = fixedClock(RESUMES_AT);
+    onTestFinished(installFakeClock(clock));
+    const fakes = createFakeLanguageModel();
+    // The budget's own work, a database round trip say, outlasts the deadline.
+    const slowBudget: Budget = async (_provider, call) => {
+      clock.advance(DEADLINE_MS + 1);
+      return ok(await call());
+    };
+    const result = await createChain(fakes.providers()).classify(context(), REQUEST, {
+      budget: slowBudget,
+      validate: parses,
+      attempts: 2,
+    });
+
+    expect(fakes.primary.received()).toStrictEqual([]);
+    expect(result).toStrictEqual({
+      ok: false,
+      error: {
+        kind: 'unanswered',
+        steps: [
+          {
+            provider: 'workersAi',
+            model: 'fake-workers-ai',
+            kind: 'failed',
+            error: { kind: 'timeout' },
+          },
+        ],
+      },
+    });
+  });
+
   it('[DET-08] [CL-DET-03] keeps a cancelled classification unanswered without asking any budget', async () => {
     const fakes = createFakeLanguageModel();
     const controller = new AbortController();
