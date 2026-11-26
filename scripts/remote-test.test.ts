@@ -18,6 +18,7 @@ import {
   FILTER,
   harness,
   HEAD,
+  LISTING,
   LOCAL,
   OTHER,
   UPSTREAM,
@@ -278,7 +279,8 @@ describe('runLocally', () => {
 
     expect(await runLocally(FILTER, remote.io)).toBe(2);
     expect(remote.err).toStrictEqual([sentence]);
-    expect(remote.asked).toHaveLength(1);
+    expect(remote.asked).toHaveLength(2);
+    expect(remote.asked[0]).toBe(LISTING);
   });
 });
 

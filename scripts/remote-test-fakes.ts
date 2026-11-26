@@ -69,6 +69,8 @@ export const TEST_OUTPUT =
   ' ✓ |node| src/lib/orbit/moon.test.ts (3 tests)\n Test Files  1 passed (1)';
 
 type Script = Readonly<{
+  // The listing of the runs of the commit before the dispatch, which holds none by default.
+  earlier?: Output;
   dispatch?: Output;
   lists?: readonly Output[];
   statuses?: readonly string[];
@@ -82,7 +84,10 @@ const DISPATCHED = answer(
 export const NO_URL = answer('✓ Created workflow_dispatch event for remote-test.yml\n');
 export const LISTING = `run list --workflow remote-test.yml --branch ${BRANCH} --commit ${HEAD} --event workflow_dispatch --json databaseId,status,url`;
 
-/** A fake gh that answers as `script` says, each sequence repeating its last answer once spent. */
+/**
+ * A fake gh that answers as `script` says, each sequence repeating its last answer once spent:
+ * a listing before the dispatch answers `earlier`, and those after it answer `lists`.
+ */
 function fakeGh(script: Script): LocalIo['gh'] {
   const asked = { list: 0, status: 0 };
   const next = (answers: readonly Output[], kind: keyof typeof asked): Output => {
@@ -90,12 +95,18 @@ function fakeGh(script: Script): LocalIo['gh'] {
     return answers[Math.min(asked[kind], answers.length) - 1] ?? GATEWAY;
   };
   const statuses = (script.statuses ?? ['completed']).map((status) => json({ status }));
+  let hasDispatched = false;
+  const listing = (): Output =>
+    hasDispatched
+      ? next(script.lists ?? [listed([RUN_ID, 'completed'])], 'list')
+      : (script.earlier ?? listed());
   return (args) => {
     if (args[0] === 'workflow') {
+      hasDispatched = true;
       return script.dispatch ?? DISPATCHED;
     }
     if (args[1] === 'list') {
-      return next(script.lists ?? [listed([RUN_ID, 'completed'])], 'list');
+      return listing();
     }
     if (args.at(-1) === 'status') {
       return next(statuses, 'status');

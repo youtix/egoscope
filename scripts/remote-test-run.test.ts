@@ -67,9 +67,10 @@ describe('runLocally', () => {
     const remote = harness({ statuses: ['queued', 'in_progress', 'in_progress', 'completed'] });
 
     expect(await runLocally([...FILTER, '--coverage.include=src/lib/orbit/**'], remote.io)).toBe(0);
-    expect(remote.asked[0]).toBe(
+    expect(remote.asked.slice(0, 2)).toStrictEqual([
+      LISTING,
       `workflow run remote-test.yml --ref ${BRANCH} --raw-field filters=src/lib/orbit --raw-field coverage=src/lib/orbit/**`,
-    );
+    ]);
     expect(remote.timesOf(STATUS_QUESTION)).toStrictEqual([10_000, 20_000, 30_000, 40_000]);
     expect(remote.out).toStrictEqual([
       `Dispatched the remote test of a1b2c3d on ${BRANCH}: ${RUN_URL}`,
@@ -83,20 +84,60 @@ describe('runLocally', () => {
   it('finds the run by listing the runs of the commit on the pushed branch when gh prints no URL', async () => {
     const remote = harness({
       dispatch: NO_URL,
+      earlier: listed([4241, 'completed']),
       lists: [listed([4241, 'completed']), listed([4242, 'queued'], [4241, 'completed'])],
     });
 
     expect(await runLocally(FILTER, remote.io)).toBe(0);
-    expect(remote.timesOf(LISTING)).toStrictEqual([10_000, 20_000]);
+    expect(remote.timesOf(LISTING)).toStrictEqual([0, 10_000, 20_000]);
     expect(remote.timesOf(STATUS_QUESTION)).toStrictEqual([30_000]);
     expect(remote.out.at(-1)).toBe(`The tests passed: ${RUN_URL}`);
+  });
+
+  it('never follows an earlier run of the commit, in progress before and after the dispatch, but the new one', async () => {
+    const remote = harness({
+      dispatch: NO_URL,
+      earlier: listed([4241, 'in_progress']),
+      lists: [listed([4241, 'in_progress']), listed([4242, 'queued'], [4241, 'in_progress'])],
+    });
+
+    expect(await runLocally(FILTER, remote.io)).toBe(0);
+    expect(remote.asked.filter((asked) => asked.includes(' 4241 '))).toStrictEqual([]);
+    expect(remote.timesOf(STATUS_QUESTION)).toStrictEqual([30_000]);
+    expect(remote.out).toStrictEqual([
+      `Dispatched the remote test of a1b2c3d on ${BRANCH}: ${RUN_URL}`,
+      TEST_OUTPUT,
+      `The tests passed: ${RUN_URL}`,
+    ]);
+  });
+
+  it('follows a new run that has already completed at the first listing after the dispatch', async () => {
+    const remote = harness({
+      dispatch: NO_URL,
+      earlier: listed([4241, 'completed']),
+      lists: [listed([4242, 'completed'], [4241, 'completed'])],
+    });
+
+    expect(await runLocally(FILTER, remote.io)).toBe(0);
+    expect(remote.timesOf(LISTING)).toStrictEqual([0, 10_000]);
+    expect(remote.timesOf(STATUS_QUESTION)).toStrictEqual([20_000]);
+    expect(remote.out.at(-1)).toBe(`The tests passed: ${RUN_URL}`);
+  });
+
+  it('exits with 2 on a refused listing before the dispatch, passing on the error of gh, and dispatches nothing', async () => {
+    const remote = harness({ earlier: GATEWAY });
+
+    expect(await runLocally(FILTER, remote.io)).toBe(2);
+    expect(remote.err).toStrictEqual(['HTTP 502: Bad Gateway']);
+    expect(remote.asked).toStrictEqual([LISTING]);
+    expect(remote.out).toStrictEqual([]);
   });
 
   it('exits with 2 when no run of the dispatch appears in twenty minutes', async () => {
     const remote = harness({ dispatch: NO_URL, lists: [listed()] });
 
     expect(await runLocally(FILTER, remote.io)).toBe(2);
-    expect(remote.timesOf(LISTING)).toHaveLength(120);
+    expect(remote.timesOf(LISTING)).toHaveLength(121);
     expect(remote.err).toStrictEqual([
       'No run of remote-test.yml appeared for a1b2c3d in twenty minutes.',
     ]);
