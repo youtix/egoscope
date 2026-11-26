@@ -54,6 +54,12 @@ describe('the characters received of the paste area', () => {
       end: '😀\u{DE00}',
     },
     {
+      name: '100 letters',
+      text: 'a'.repeat(100),
+      received: '100 characters received',
+      end: 'a'.repeat(100),
+    },
+    {
       name: '1,000 letters',
       text: 'a'.repeat(1000),
       received: '1,000 characters received',
