@@ -169,6 +169,30 @@ describe('createFakeTelegram', () => {
     expect(fake.inbox(OWNER.id).map(({ text }) => text)).toStrictEqual(['Linked']);
   });
 
+  it('[TEL-37] [DSN-31] keeps a group that removed the bot refused when someone writes there, since only a private chat can be linked', async () => {
+    const fake = createFakeTelegram();
+    fake.deliver(GROUP, '/start');
+    fake.block(GROUP);
+    fake.deliver(GROUP, `/start@egoscope_fake_bot ${CODE}`);
+    const sent = await fake.sendMessage(open(), { chat: GROUP.id, text: 'Hello' });
+
+    expect(kindOf(sent)).toBe('blocked');
+    expect(fake.inbox(GROUP.id)).toStrictEqual([]);
+  });
+
+  it('throws on a text that is empty once its tags are read, as Telegram refuses one, and sends nothing', async () => {
+    const fake = createFakeTelegram();
+    fake.deliver(OWNER, '/start');
+
+    await expect(fake.sendMessage(open(), { chat: OWNER.id, text: '' })).rejects.toThrow(
+      RangeError,
+    );
+    await expect(fake.sendMessage(open(), { chat: OWNER.id, text: '<i></i>' })).rejects.toThrow(
+      'A Telegram message needs a text of at least one character.',
+    );
+    expect(fake.inbox(OWNER.id)).toStrictEqual([]);
+  });
+
   it('[CL-TEL-14] counts the characters of a text once its tags and entities are read', async () => {
     const fake = createFakeTelegram();
     fake.deliver(OWNER, '/start');

@@ -4,7 +4,7 @@
 import { now } from '@/lib/time';
 
 import { isSameSecret, MY_CHAT_MEMBER, parseUpdate, UPDATE_ID } from './inbound';
-import { MESSAGE_MAX_LENGTH, WEBHOOK_SETTINGS } from './types';
+import { MESSAGE_MAX_LENGTH, requireText, textLength, WEBHOOK_SETTINGS } from './types';
 
 import type { TelegramError } from './errors';
 import type {
@@ -67,10 +67,6 @@ const BLOCKED: TelegramError = { kind: 'blocked' };
 const CHAT_NOT_FOUND: TelegramError = { kind: 'chat_not_found' };
 const DELETED: DeleteAnswer = { kind: 'deleted' };
 const NOT_FOUND: DeleteAnswer = { kind: 'not_found' };
-// The markup of a text in HTML mode that Telegram does not count as written: a tag,
-// which it leaves out, or an entity, which it counts as one character.
-const MARKUP = /<[^<>]*>|&(?:lt|gt|amp|quot|#\d+|#x[\da-f]+);/giu;
-const ENTITY_START = '&';
 // The Bot API's names of the fields that the fake's updates carry besides the chat.
 const MESSAGE_ID = 'message_id';
 const NEW_CHAT_MEMBER = 'new_chat_member';
@@ -86,15 +82,6 @@ const refused = <T>(error: TelegramError, call = ONE_REQUEST): TelegramOutcome<T
   error,
   call,
 });
-
-/** The length that Telegram counts of a text in HTML mode, its markup measured, never removed. */
-function lengthOf(html: string): number {
-  let length = html.length;
-  for (const [markup] of html.matchAll(MARKUP)) {
-    length -= markup.startsWith(ENTITY_START) ? markup.length - 1 : markup.length;
-  }
-  return length;
-}
 
 class Fake implements FakeTelegram {
   readonly #inboxes = new Map<number, ReceivedMessage[]>();
@@ -117,8 +104,10 @@ class Fake implements FakeTelegram {
   readonly getMe: Telegram['getMe'] = async (ctx) =>
     this.#call(ctx, 'getMe', () => answered({ username: USERNAME }));
 
-  readonly sendMessage: Telegram['sendMessage'] = async (ctx, { chat, text }) =>
-    this.#call(ctx, 'sendMessage', () => this.#send(chat, text));
+  readonly sendMessage: Telegram['sendMessage'] = async (ctx, { chat, text }) => {
+    requireText(text);
+    return this.#call(ctx, 'sendMessage', () => this.#send(chat, text));
+  };
 
   readonly deleteMessage: Telegram['deleteMessage'] = async (ctx, { chat, messageId }) =>
     this.#call(ctx, 'deleteMessage', () => this.#delete(chat, messageId));
@@ -163,7 +152,10 @@ class Fake implements FakeTelegram {
     });
 
   readonly deliver = (chat: Chat, text: string): UpdateBody => {
-    this.#blocked.delete(chat.id);
+    // A group that removed the bot sends it nothing until someone adds the bot back.
+    if (chat.type === 'private') {
+      this.#blocked.delete(chat.id);
+    }
     return this.#receive(chat, 'message', { [MESSAGE_ID]: this.#takeId(), text });
   };
 
@@ -222,7 +214,7 @@ class Fake implements FakeTelegram {
     if (!Array.isArray(inbox)) {
       return refused(inbox);
     }
-    if (lengthOf(text) > MESSAGE_MAX_LENGTH) {
+    if (textLength(text) > MESSAGE_MAX_LENGTH) {
       return refused({ kind: 'too_long' });
     }
     const messageId = this.#takeId();

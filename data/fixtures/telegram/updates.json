@@ -1,0 +1,65 @@
+{
+  "privateStart": {
+    "update_id": 830000101,
+    "message": {
+      "message_id": 21,
+      "from": { "id": 5550001234, "is_bot": false, "first_name": "Owner", "language_code": "en" },
+      "chat": { "id": 5550001234, "first_name": "Owner", "type": "private" },
+      "date": 1795000000,
+      "text": "/start aW52ZW50ZWQtbGluay1jb2RlLW9mLXRoZS1yZXBsYXk",
+      "entities": [{ "offset": 0, "length": 6, "type": "bot_command" }]
+    }
+  },
+  "groupStart": {
+    "update_id": 830000102,
+    "message": {
+      "message_id": 7,
+      "from": { "id": 5550005678, "is_bot": false, "first_name": "Member" },
+      "chat": {
+        "id": -1005550009,
+        "title": "Sample group",
+        "type": "supergroup"
+      },
+      "date": 1795000060,
+      "text": "/start@egoscope_replay_bot aW52ZW50ZWQtbGluay1jb2RlLW9mLXRoZS1yZXBsYXk",
+      "entities": [{ "offset": 0, "length": 26, "type": "bot_command" }]
+    }
+  },
+  "privateText": {
+    "update_id": 830000103,
+    "message": {
+      "message_id": 22,
+      "from": { "id": 5550001234, "is_bot": false, "first_name": "Owner", "language_code": "en" },
+      "chat": { "id": 5550001234, "first_name": "Owner", "type": "private" },
+      "date": 1795000120,
+      "text": "Hello"
+    }
+  },
+  "botBlocked": {
+    "update_id": 830000104,
+    "my_chat_member": {
+      "chat": { "id": 5550001234, "first_name": "Owner", "type": "private" },
+      "from": { "id": 5550001234, "is_bot": false, "first_name": "Owner", "language_code": "en" },
+      "date": 1795000180,
+      "old_chat_member": {
+        "user": {
+          "id": 6100000001,
+          "is_bot": true,
+          "first_name": "Egoscope",
+          "username": "egoscope_replay_bot"
+        },
+        "status": "member"
+      },
+      "new_chat_member": {
+        "user": {
+          "id": 6100000001,
+          "is_bot": true,
+          "first_name": "Egoscope",
+          "username": "egoscope_replay_bot"
+        },
+        "status": "kicked",
+        "until_date": 0
+      }
+    }
+  }
+}
