@@ -146,7 +146,7 @@ describe('the lists of backtest requests', { timeout: DATABASE_TEST_TIMEOUT_MS }
   describe('the list by status', () => {
     it('[BKT-17] lists the requests to do by default, with their player, trigger, origin, rank and copy state', async () => {
       await request('p02', 8 * DAY);
-      const todo = await request('p01', 3 * DAY);
+      const todo = await request('p01', 3 * DAY, { promptProducedAt: ago(2 * DAY) });
       await imported('p03', 12 * DAY);
       await copy(todo.id, NOW - HOUR);
 
@@ -284,6 +284,17 @@ describe('the lists of backtest requests', { timeout: DATABASE_TEST_TIMEOUT_MS }
       ]);
     });
 
+    it('[BKT-12] [BKT-17] breaks a tie of creation instants by the newest identifier first, in the list and in the requests of a player', async () => {
+      const first = await imported('p01', 5 * DAY);
+      const second = await imported('p01', 5 * DAY);
+
+      const requests = await requestsOfPlayer(db, leaguePlayerId('p01'));
+      const imports = await list(db, NOW, { status: 'imported' });
+
+      expect(idsOf(requests)).toStrictEqual([second.id, first.id]);
+      expect(idsOf(imports.requests)).toStrictEqual([second.id, first.id]);
+    });
+
     it('[BKT-12] gives nothing for a player without a request, for an unknown player and for a malformed identifier', async () => {
       await insertPlayer(db);
 
@@ -299,6 +310,7 @@ describe('the lists of backtest requests', { timeout: DATABASE_TEST_TIMEOUT_MS }
         ['detection', 'supplement', 'from_detection'],
         ['manual_action', 'initial', 'manual'],
         ['manual_action', 'full_redo', 'manual'],
+        ['detection', 'full_redo', 'manual'],
         ['manual_action', 'supplement', 'supplementary'],
         ['type_validated', 'supplement', 'supplementary'],
         ['incomplete_import', 'supplement', 'supplementary'],

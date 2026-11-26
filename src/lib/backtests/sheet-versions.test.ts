@@ -71,10 +71,11 @@ describe('the sheet versions of the prompts', { timeout: DATABASE_TEST_TIMEOUT_M
   it('[TAX-23] [BKT-15] flags each requested type whose sheet is newer than the one the prompt used', async () => {
     await insertEventType(db, { id: FEUD, name: 'Player feud' });
     await insertEventType(db, { id: RUMOR, name: 'Trade rumor' });
+    // Written out of alphabetical order, to be read in it.
     const created = await request('p01', DAY, [
+      { eventTypeId: RUMOR, ...PERIOD },
       { eventTypeId: MEDIA_STORM, ...PERIOD },
       { eventTypeId: FEUD, ...PERIOD },
-      { eventTypeId: RUMOR, ...PERIOD },
     ]);
     await db
       .update(backtestRequestTypes)
@@ -132,8 +133,13 @@ describe('the sheet versions of the prompts', { timeout: DATABASE_TEST_TIMEOUT_M
 
   it('[TAX-23] [BKT-15] lists the requests to do whose prompt rests on an earlier sheet, oldest first, with the types and versions', async () => {
     await insertEventType(db, { id: FEUD, name: 'Player feud' });
+    await insertEventType(db, { id: RUMOR, name: 'Trade rumor' });
     const newer = await request('p01', 2 * DAY);
-    const older = await request('p02', 6 * DAY);
+    // Written out of alphabetical order, to be read in it.
+    const older = await request('p02', 6 * DAY, [
+      { eventTypeId: RUMOR, ...PERIOD },
+      { eventTypeId: MEDIA_STORM, ...PERIOD },
+    ]);
     await request('p03', 4 * DAY, [{ eventTypeId: FEUD, ...PERIOD }]);
     const reduced = await request('p04', 9 * DAY);
     await db
@@ -141,20 +147,20 @@ describe('the sheet versions of the prompts', { timeout: DATABASE_TEST_TIMEOUT_M
       .set({ isRequested: false })
       .where(eq(backtestRequestTypes.backtestRequestId, reduced.id));
     await bumpSheet(MEDIA_STORM);
+    await bumpSheet(RUMOR);
 
     const outdated = await outdatedPrompts(db);
 
-    const outdatedMediaStorm = [
-      {
-        eventTypeId: MEDIA_STORM,
-        name: 'Media storm',
-        usedVersionNumber: 1,
-        currentVersionNumber: 2,
-      },
-    ];
+    const mediaStorm = {
+      eventTypeId: MEDIA_STORM,
+      name: 'Media storm',
+      usedVersionNumber: 1,
+      currentVersionNumber: 2,
+    };
+    const tradeRumor = { ...mediaStorm, eventTypeId: RUMOR, name: 'Trade rumor' };
     expect(outdated.map(({ id, reference, types }) => [id, reference, types])).toStrictEqual([
-      [older.id, older.reference, outdatedMediaStorm],
-      [newer.id, newer.reference, outdatedMediaStorm],
+      [older.id, older.reference, [mediaStorm, tradeRumor]],
+      [newer.id, newer.reference, [mediaStorm]],
     ]);
     expect(outdated.map(({ player }) => player.id)).toStrictEqual([
       leaguePlayerId('p02'),

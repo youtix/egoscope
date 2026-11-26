@@ -285,14 +285,8 @@ describe('a backtest request', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       });
       await insertEventType(db, { id: 'player-feud', name: 'Player feud' });
       await insertEventType(db, { id: 'trade-rumor', name: 'Trade rumor' });
+      // Written out of alphabetical order, to be read in it.
       await db.insert(backtestRequestTypes).values([
-        {
-          backtestRequestId: created.id,
-          eventTypeId: 'player-feud',
-          sheetVersionNumber: 1,
-          periodStartOn: '2022-10-18',
-          periodEndOn: '2026-09-30',
-        },
         {
           backtestRequestId: created.id,
           eventTypeId: 'trade-rumor',
@@ -300,6 +294,13 @@ describe('a backtest request', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
           periodStartOn: '2021-10-19',
           periodEndOn: '2027-06-30',
           isRequested: false,
+        },
+        {
+          backtestRequestId: created.id,
+          eventTypeId: 'player-feud',
+          sheetVersionNumber: 1,
+          periodStartOn: '2022-10-18',
+          periodEndOn: '2026-09-30',
         },
       ]);
       const [owner] = await db
