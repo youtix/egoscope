@@ -32,5 +32,16 @@ export const sensitivitySentences = {
   highConfidence: 'High',
   proportionAsCounts: '{k} of {m}',
 
+  // The general-trend block of the type sheet (IHM-31, IHM-56, SEN-19, SEN-28): the label
+  // of the count of distinct players and of the archived mark, the link to the trend screen,
+  // and the empty state of a type with no case, which says why and leaves the action that
+  // fills it to the screen, "Request a backtest"
+  distinctPlayers: 'Players',
+  archived: 'Archived',
+  openGeneralTrend: 'Open the general trend',
+  noCaseForType: 'No case for this type yet',
+  noCaseForTypeReason:
+    "No event of this type has been found yet, so there is no case and no trend. A backtest looks for a player's past events.",
+
   // An area adds its groups above this line, one commented group per screen or task.
 } as const;
