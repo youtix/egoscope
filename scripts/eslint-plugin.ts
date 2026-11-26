@@ -270,15 +270,19 @@ function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope)
 /**
  * The skipping options that `call` gives a test or a suite, with their names, in the
  * object of options that comes after its name: `skip` in `it('…', { skip: true }, fn)`.
+ * As for a skipping member, a call counts unless TypeScript knows that its callee is none
+ * of Vitest's, as for `test.run('first', { skip: false })` on an object of one's own.
  */
 function skippingOptions(
   call: TSESTree.CallExpression,
   scope: TSESLint.Scope.Scope,
+  services: ParserServicesWithTypeInformation,
 ): readonly (readonly [TSESTree.Property, string])[] {
   const options = call.arguments[1];
   if (
     options?.type !== AST_NODE_TYPES.ObjectExpression ||
-    !hasVitestName(vitestNames(call.callee, scope))
+    !hasVitestName(vitestNames(call.callee, scope)) ||
+    !canBeVitest(services, call.callee)
   ) {
     return [];
   }
@@ -344,7 +348,7 @@ const noSkippedTests = createRule({
         if (isContextSkip(node.callee, scope)) {
           report(node.callee, 'skip');
         }
-        for (const [option, name] of skippingOptions(node, scope)) {
+        for (const [option, name] of skippingOptions(node, scope, services)) {
           report(option, name);
         }
       },

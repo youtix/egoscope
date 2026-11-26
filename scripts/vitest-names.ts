@@ -149,19 +149,54 @@ function argumentPart(
   return (ASTUtils.getPropertyName(parent) ?? name) === 'skip' ? 'skip' : undefined;
 }
 
-/**
- * The node that `callback` is given to: the call it is an argument of, also from inside
- * the object and array literals passed to the call, as a fixture of `it.extend()` is,
- * alone or in a tuple with its options (`it.extend({ seed: [async ({ skip }, use) => …,
- * { auto: true }] })`).
- */
-function receiverOf(callback: TSESTree.Node): TSESTree.Node | undefined {
-  const { parent } = callback;
-  return parent?.type === AST_NODE_TYPES.Property ||
-    parent?.type === AST_NODE_TYPES.ObjectExpression ||
-    parent?.type === AST_NODE_TYPES.ArrayExpression
-    ? receiverOf(parent)
+// The literals that hold a fixture of `it.extend()`: its object, and a tuple with its options.
+const FIXTURE_LITERALS: ReadonlySet<string> = new Set([
+  AST_NODE_TYPES.Property,
+  AST_NODE_TYPES.ObjectExpression,
+  AST_NODE_TYPES.ArrayExpression,
+]);
+
+/** Says whether `node` is `<test>.extend`, which makes a test with fixtures. */
+const isExtend = (node: TSESTree.Node): boolean =>
+  node.type === AST_NODE_TYPES.MemberExpression && ASTUtils.getPropertyName(node) === 'extend';
+
+/** The node outside the object and array literals that hold `node`, or its parent. */
+function outsideLiterals(node: TSESTree.Node): TSESTree.Node | undefined {
+  const { parent } = node;
+  return parent !== undefined && FIXTURE_LITERALS.has(parent.type)
+    ? outsideLiterals(parent)
     : parent;
+}
+
+/**
+ * The call that `callback` is given to, and whether `callback` is a fixture of it: the call
+ * it is an argument of, or, from inside the object and array literals passed to
+ * `<test>.extend()` alone, the call that makes a test with that fixture, alone or in a
+ * tuple with its options (`it.extend({ seed: [async ({ skip }, use) => …, { auto: true }]
+ * })`). The literals of any other call, such as the table rows of `it.each([…])`, hold
+ * values of one's own, never a callback that Vitest gives the test context to.
+ */
+function receiverOf(
+  callback: TSESTree.Node,
+): Readonly<{ call: TSESTree.CallExpression; isFixture: boolean }> | undefined {
+  const { parent } = callback;
+  if (parent?.type === AST_NODE_TYPES.CallExpression) {
+    return { call: parent, isFixture: false };
+  }
+  const outside = outsideLiterals(callback);
+  return outside?.type === AST_NODE_TYPES.CallExpression && isExtend(outside.callee)
+    ? { call: outside, isFixture: true }
+    : undefined;
+}
+
+/**
+ * Says whether the first parameter of the function of `definition` binds its name, default
+ * value and pattern included: `skip` in `async ({ skip }, use) => …`.
+ */
+function isFirstParameter(definition: TSESLint.Scope.Definitions.ParameterDefinition): boolean {
+  const [first] = definition.node.params;
+  const { range } = definition.name;
+  return first !== undefined && first.range[0] <= range[0] && range[1] <= first.range[1];
 }
 
 /**
@@ -177,10 +212,14 @@ export function contextPart(
   owners: ReadonlySet<string>,
 ): ArgumentPart | undefined {
   const definition = ASTUtils.findVariable(scope, node)?.defs[0];
-  const owner = definition === undefined ? undefined : receiverOf(definition.node);
-  return definition?.type === TSESLint.Scope.DefinitionType.Parameter &&
-    owner?.type === AST_NODE_TYPES.CallExpression &&
-    vitestNames(owner.callee, scope).some((name) => owners.has(name))
-    ? argumentPart(definition, node.name)
-    : undefined;
+  if (definition?.type !== TSESLint.Scope.DefinitionType.Parameter) {
+    return undefined;
+  }
+  const receiver = receiverOf(definition.node);
+  // A fixture receives the test context in its first parameter alone, beside `use`.
+  const isContext =
+    receiver !== undefined &&
+    (!receiver.isFixture || isFirstParameter(definition)) &&
+    vitestNames(receiver.call.callee, scope).some((name) => owners.has(name));
+  return isContext ? argumentPart(definition, node.name) : undefined;
 }

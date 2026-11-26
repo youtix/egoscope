@@ -127,11 +127,6 @@ function jsonValue(text: string): unknown {
 }
 
 /**
- * Says why the journal of drizzle/ would make Drizzle's migrator skip a migration:
- * each entry must come after the one before it, by `idx` and by `when`, as when
- * drizzle-kit generates the migrations one after the other.
- */
-/**
  * Why `entry` cannot follow `previous` in the journal, if it cannot: the migrator applies
  * a migration only when its `when` is later than that of the last one applied, and skips
  * any other without a word; drizzle-kit numbers each migration after the one before it,
@@ -147,6 +142,12 @@ function disorderOf(previous: JournalEntry, entry: JournalEntry): string | undef
     : undefined;
 }
 
+/**
+ * Says what is wrong with the journal of drizzle/, if anything: it is not a journal that
+ * drizzle-kit wrote, or an entry does not come after the one before it, by `when`, which
+ * would make Drizzle's migrator skip a migration, or by `idx`, which shows a journal
+ * merged or edited by hand (`disorderOf`).
+ */
 function journalProblem(): string | undefined {
   const journal = JOURNAL_ENTRIES.safeParse(jsonValue(readFileSync(JOURNAL, 'utf8')));
   if (!journal.success) {
