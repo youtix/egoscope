@@ -45,6 +45,7 @@ const SLUMP = 'scoring-slump';
 const PRESS_FEUD = 'press-feud';
 const FIRST_GAME_ON = '2019-10-23';
 const SEASONS = ['2023-10-24', '2025-06-30'] as const;
+const REQUESTED = { startOn: '2023-10-24', endOn: '2026-11-02' } as const;
 // The merge of the public feud into the media storm, at its first version (TAX-27).
 const MERGE = {
   kind: 'merge',
@@ -242,7 +243,7 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
         .update(backtestRequestTypes)
         .set({ sheetVersionNumber: 2 })
         .where(eq(backtestRequestTypes.eventTypeId, MEDIA_STORM));
-      const id = await saveImport(request);
+      const id = await saveImport(request, LATER_AT);
 
       const result = await record(id, [
         retained(MEDIA_STORM, '2023-10-24', '2025-06-30'),
@@ -251,14 +252,14 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
 
       expect(result).toStrictEqual({ ok: true });
       await expect(storedPeriods(MEDIA_STORM)).resolves.toStrictEqual([
-        [player, '2023-10-24', '2025-06-30', 2, 'import', id, IMPORTED_AT],
+        [player, '2023-10-24', '2025-06-30', 2, 'import', id, LATER_AT],
       ]);
       await expect(storedPeriods(FEUD)).resolves.toStrictEqual([
-        [player, '2024-01-01', '2025-06-30', 1, 'import', id, IMPORTED_AT],
+        [player, '2024-01-01', '2025-06-30', 1, 'import', id, LATER_AT],
       ]);
       await expect(requestState(request.id)).resolves.toMatchObject({
         status: 'imported',
-        importedAt: new Date(IMPORTED_AT),
+        importedAt: new Date(LATER_AT),
         canceledAt: null,
         cancellationReasonCode: null,
         cancellationReasonText: null,
@@ -382,6 +383,7 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
     });
 
     it('[BKT-10] throws for an unknown import and for a type its request does not plan', async () => {
+      await insertRequest(db, { playerId: other, types: [{ eventTypeId: FEUD, ...REQUESTED }] });
       const id = await saveImport(await insertRequest(db, { playerId: player }));
 
       await expect(record(id + 1, [])).rejects.toThrow(`recordImport: no import ${String(id + 1)}`);
@@ -494,7 +496,7 @@ describe('the backtest coverage of a player', { timeout: DATABASE_TEST_TIMEOUT_M
       await covered(request, FEUD, ['2024-07-01', '2024-12-31']);
       await covered(request, FEUD, ['2023-01-01', '2024-03-31']);
       await covered(request, FEUD, ['2023-02-01', '2023-03-01']);
-      await covered(request, FEUD, ['2024-02-01', '2024-05-31']);
+      await covered(request, FEUD, ['2024-03-31', '2024-05-31']);
       await covered(request, SLUMP, ['2020-01-01', '2026-06-30']);
       await covered(await insertRequest(db, { playerId: other }), MEDIA_STORM, SEASONS);
       const restore = installFakeClock(fixedClock(MERGED_AT));
