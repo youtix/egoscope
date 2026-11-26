@@ -138,7 +138,8 @@ async function setLeagueBaseline(db: Database): Promise<void> {
  * database already overrides it, the minimum baseline size, `games.minBaselineGames`, is
  * set to 9, a value of its range (STA-19), so that a case of the league can be measured:
  * saved through the registry, so that its history and the journal record the change
- * (TRV-35). A game is consolidated by the correction window in force (STA-33). Gives the identifier of each game of the season by the source's game identifier.
+ * (TRV-35). A game is consolidated by the correction window in force (STA-33). Gives
+ * the identifier of each game of the season by the source's game identifier.
  */
 export async function insertLeagueSeason(
   db: Database,

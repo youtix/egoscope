@@ -209,6 +209,46 @@ describe('the taxonomy factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
     ]);
   });
 
+  it("[TAX-15] takes an override given as undefined for one left out over an edited seeded proposal, none of the proposal's left over", async () => {
+    await seedCandidateTypes(db, STARTED_AT);
+    await db
+      .update(eventTypes)
+      .set({ cautionNotes: 'A note of the owner.', isIntimateSubject: true })
+      .where(eq(eventTypes.id, 'media-storm'));
+
+    await expect(
+      insertEventType(db, { status: undefined, name: undefined, cautionNotes: undefined }),
+    ).resolves.toMatchObject({
+      id: 'media-storm',
+      status: 'validated',
+      name: 'Media storm',
+      cautionNotes: null,
+      isIntimateSubject: false,
+      currentVersionNumber: 1,
+    });
+    await expect(db.select().from(typeSheetVersions)).resolves.toMatchObject([
+      { eventTypeId: 'media-storm', versionNumber: 1, kind: 'validation' },
+    ]);
+  });
+
+  it('[TAX-01] [TAX-20] takes an override given as undefined for one left out when it inserts a type', async () => {
+    await expect(
+      insertEventType(db, { status: undefined, name: undefined, cautionNotes: undefined }),
+    ).resolves.toMatchObject({
+      id: 'media-storm',
+      status: 'validated',
+      name: 'Media storm',
+      cautionNotes: null,
+      currentVersionNumber: 1,
+    });
+  });
+
+  it('[TAX-10] writes the birthday when its identifier is given as undefined', async () => {
+    await expect(insertCalendarType(db, { id: undefined, name: undefined })).resolves.toMatchObject(
+      { id: 'birthday', name: "Player's birthday", calendarDerivation: 'birthday' },
+    );
+  });
+
   it('keeps a proposed type that the reference data does not seed, as before', async () => {
     await insertEventType(db, { id: 'trade-request', status: 'proposed', name: 'Trade request' });
 
