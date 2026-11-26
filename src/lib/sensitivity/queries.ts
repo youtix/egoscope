@@ -2,7 +2,7 @@
 // pair's profile and a type's trend with what is derived from them on read, the filtered
 // profile list with the verdicts chance alone would produce, the verdict history and
 // the historical-only values in force at an instant.
-import { and, countDistinct, eq, sql } from 'drizzle-orm';
+import { and, countDistinct, eq } from 'drizzle-orm';
 
 import {
   cases,
@@ -13,7 +13,6 @@ import {
   generalTrends,
   parameterSnapshots,
   playerIndicators,
-  seasons,
   sensitivityProfiles,
 } from '@/lib/db';
 import { lastCalculationChange } from '@/lib/params';
@@ -26,6 +25,8 @@ import {
   originOfView,
   switchWarnings,
 } from './calculation-values';
+import { calendarWarnings, firstCoveredSeason } from './calendar-warnings';
+import { isProfileRecalculating } from './profile-recalculation';
 import { isRecalculating } from './recalculate';
 
 import type {
@@ -34,6 +35,7 @@ import type {
   ProfileWarning,
   SwitchableCriterion,
 } from './calculation-values';
+import type { CalendarFacts } from './calendar-warnings';
 import type { Database, Transaction } from '@/lib/db';
 import type { CalculationChange } from '@/lib/params';
 import type { CaseId, ProfileView } from '@/lib/stats-engine';
@@ -176,36 +178,6 @@ export async function getTrend(
   };
 }
 
-/** What the calendar-derived warnings of a profile read (CL-STA-24, CL-JOU-16, CL-JOU-18). */
-type CalendarFacts = Readonly<{
-  calendarDerivation: 'birthday' | 'former_team' | null;
-  birthdayMonth: number | null;
-  firstNbaSeason: string | null;
-  firstCoveredSeason: string | null;
-}>;
-
-/**
- * The warnings of a calendar-derived profile (CL-STA-24, CL-JOU-16, CL-JOU-18): on a
- * birthday profile, "birthday not recorded" while the day and month are missing, else the
- * season from which birthday games are counted when his career may start before it, his
- * first NBA game earlier or unknown; on a former-team profile, the season with which its
- * team history starts.
- */
-function calendarWarnings(facts: CalendarFacts): ProfileWarning[] {
-  const { calendarDerivation, firstCoveredSeason: season } = facts;
-  if (calendarDerivation === 'birthday' && facts.birthdayMonth === null) {
-    return [{ kind: 'birthday_not_recorded' }];
-  }
-  if (calendarDerivation === null || season === null) {
-    return [];
-  }
-  if (calendarDerivation === 'former_team') {
-    return [{ kind: 'team_history_from', season }];
-  }
-  const isEarlier = facts.firstNbaSeason === null || facts.firstNbaSeason < season;
-  return isEarlier ? [{ kind: 'birthday_counted_from', season }] : [];
-}
-
 /** The warnings of a profile: the switched-off criterion, all excluded for unusual stakes, and the calendar-derived ones. */
 function profileWarnings(
   values: CalculationValues,
@@ -236,9 +208,6 @@ async function profileRowOf(db: Reader, key: Required<ProfileKey>) {
       playerStatus: followedPlayers.status,
       birthdayMonth: followedPlayers.birthdayMonth,
       firstNbaSeason: games.season,
-      firstCoveredSeason: sql<
-        string | null
-      >`(SELECT min(${seasons.season}) FROM ${seasons} WHERE cardinality(${seasons.phasesWithLines}) > 0)`,
     })
     .from(sensitivityProfiles)
     .innerJoin(
@@ -288,9 +257,12 @@ export async function getProfile(db: Reader, key: ProfileKey): Promise<ProfileDe
     }),
     notices: noticesOf(values, {
       isArchived: found.typeStatus === 'withdrawn' || found.playerStatus === 'withdrawn',
-      isRecalculating: await isRecalculating(db, playerId, eventTypeId),
+      isRecalculating: await isProfileRecalculating(db, subject),
     }),
-    warnings: profileWarnings(values, found),
+    warnings: profileWarnings(values, {
+      ...found,
+      firstCoveredSeason: found.calendarDerivation === null ? null : await firstCoveredSeason(db),
+    }),
     trend: trend?.summary ?? null,
     lastCalculationChange: await lastCalculationChange(db),
   };

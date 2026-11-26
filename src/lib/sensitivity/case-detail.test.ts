@@ -7,7 +7,12 @@ import {
   createTestDatabase,
   eventSources,
 } from '@/lib/db';
-import { DATABASE_TEST_TIMEOUT_MS, playerWithEveryStatus, profiledPlayer } from '@/lib/testing';
+import {
+  DATABASE_TEST_TIMEOUT_MS,
+  insertHistoricalEvent,
+  playerWithEveryStatus,
+  profiledPlayer,
+} from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { getCase } from './case-detail';
@@ -27,6 +32,17 @@ function present<T>(value: T | undefined): T {
     throw new Error('Expected a value.');
   }
   return value;
+}
+
+/** The one source of an event, a report under `path`. */
+function sourceOf(playerEventId: number, path: string) {
+  return {
+    playerEventId,
+    position: 1,
+    url: `https://news.example.com/${path}`,
+    cleanedUrl: `https://news.example.com/${path}`,
+    publicationDateOn: '2024-10-23',
+  };
 }
 
 describe('the detail of a case', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
@@ -213,6 +229,29 @@ describe('the detail of a case', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         gapStatus: 'final',
         cause: 'stats_correction',
       },
+    ]);
+  });
+
+  it('[SEN-05] [IHM-25] gives each event of a case that groups two its own sources', async () => {
+    const { profiled } = world;
+    const caseId = present(profiled.cases[1]).id;
+    const first = present(profiled.events.find((event) => event.caseId === caseId));
+    const second = await insertHistoricalEvent(db, {
+      playerId: profiled.player.id,
+      originImportId: profiled.imported.id,
+      overrides: { referenceDateOn: first.referenceDateOn, caseId },
+    });
+    await db
+      .insert(eventSources)
+      .values([sourceOf(second.id, 'second-report'), sourceOf(first.id, 'first-report')]);
+
+    const detail = await getCase(db, caseId);
+
+    expect(
+      detail?.events.map(({ id, sources }) => ({ id, urls: sources.map(({ url }) => url) })),
+    ).toStrictEqual([
+      { id: first.id, urls: ['https://news.example.com/first-report'] },
+      { id: second.id, urls: ['https://news.example.com/second-report'] },
     ]);
   });
 

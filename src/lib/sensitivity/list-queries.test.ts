@@ -1,7 +1,7 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDatabase, followedPlayers, sensitivityProfiles } from '@/lib/db';
+import { createTestDatabase, eventTypes, followedPlayers, sensitivityProfiles } from '@/lib/db';
 import { setParam } from '@/lib/params';
 import {
   BIRTHDAY,
@@ -273,17 +273,45 @@ describe('the evaluated pairs of the profile list', { timeout: DATABASE_TEST_TIM
       .where(eq(followedPlayers.id, leaguePlayerId('p01')));
 
     const archived = await listProfiles(db);
+    // His media storm's seven valid cases reach a threshold of seven, not one of eight.
     await db.transaction(async (tx) =>
-      setParam(tx, { key: 'sensitivity.minValidCases', value: 8, expectedVersion: 0 }),
+      setParam(tx, { key: 'sensitivity.minValidCases', value: 7, expectedVersion: 0 }),
+    );
+    const atThreshold = await listProfiles(db);
+    await db.transaction(async (tx) =>
+      setParam(tx, { key: 'sensitivity.minValidCases', value: 8, expectedVersion: 1 }),
     );
     const raised = await listProfiles(db);
 
     expect(archived.profiles.map(({ isArchived }) => isArchived)).toStrictEqual([true, true]);
     expect(archived.expectedFalseSignals.evaluatedPairCount).toBe(1);
+    expect(atThreshold.expectedFalseSignals.evaluatedPairCount).toBe(1);
     expect(raised.expectedFalseSignals.evaluatedPairCount).toBe(0);
     expect(raised.lastCalculationChange).toStrictEqual({
       changedAt: AT,
       journalEntryId: ANY_NUMBER,
     });
+  });
+
+  it('[SEN-19] [SEN-36] marks archived the line of a withdrawn type, the player’s other type not', async () => {
+    const { db } = world;
+    await db
+      .update(eventTypes)
+      .set({
+        status: 'withdrawn',
+        withdrawalReasonKind: 'entered',
+        withdrawalReason: 'Not followed any more.',
+      })
+      .where(eq(eventTypes.id, MEDIA_STORM));
+
+    const listing = await listProfiles(db);
+
+    expect(
+      listing.profiles.map(({ eventTypeId, isArchived }) => ({ eventTypeId, isArchived })),
+    ).toStrictEqual([
+      { eventTypeId: MEDIA_STORM, isArchived: true },
+      { eventTypeId: BIRTHDAY, isArchived: false },
+    ]);
+    expect(listing.expectedFalseSignals.evaluatedPairCount).toBe(1);
   });
 });
