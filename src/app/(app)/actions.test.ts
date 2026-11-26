@@ -9,7 +9,7 @@ import { readTodoCount } from './actions';
 
 vi.mock(import('@/lib/auth'), () => ({ requireSession: vi.fn() }));
 const { getDb } = vi.hoisted(() => ({ getDb: vi.fn() }));
-vi.mock(import('@/lib/db'), () => ({ getDb }));
+vi.mock(import('@/lib/db'), async (importOriginal) => ({ ...(await importOriginal()), getDb }));
 vi.mock(import('@/lib/log'), () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
