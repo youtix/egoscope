@@ -1,5 +1,25 @@
+// The tests of a dispatched remote test, which remote-test-run.ts finds and follows: the run
+// found by its URL or by listing, the waits, the verdicts, the cancelled run, the errors of gh
+// while following, and the output of the tests read from the log. remote-test-fakes.ts holds
+// the fakes, which remote-test.test.ts shares.
 import { describe, expect, it } from 'vitest';
 
+import { runLocally } from './remote-test';
+import {
+  BRANCH,
+  FILTER,
+  finishedRun,
+  GATEWAY,
+  harness,
+  listed,
+  LISTING,
+  NO_URL,
+  OTHER,
+  RUN_URL,
+  RUNS,
+  STATUS_QUESTION,
+  TEST_OUTPUT,
+} from './remote-test-fakes';
 import { testOutput } from './remote-test-run';
 
 // The shape of `gh run view --log`: the job, the step and the timestamped text, separated by
@@ -39,5 +59,121 @@ describe('testOutput', () => {
     expect(
       testOutput(LOG.replaceAll('\tRun the tests\t', '\tRun ./.github/actions/setup-project\t')),
     ).toStrictEqual([]);
+  });
+});
+
+describe('runLocally', () => {
+  it('dispatches the branch that HEAD was pushed to, finds the run in the URL gh prints and exits with 0 when the tests pass', async () => {
+    const remote = harness({ statuses: ['queued', 'in_progress', 'in_progress', 'completed'] });
+
+    expect(await runLocally([...FILTER, '--coverage.include=src/lib/orbit/**'], remote.io)).toBe(0);
+    expect(remote.asked[0]).toBe(
+      `workflow run remote-test.yml --ref ${BRANCH} --raw-field filters=src/lib/orbit --raw-field coverage=src/lib/orbit/**`,
+    );
+    expect(remote.timesOf(STATUS_QUESTION)).toStrictEqual([10_000, 20_000, 30_000, 40_000]);
+    expect(remote.out).toStrictEqual([
+      `Dispatched the remote test of a1b2c3d on ${BRANCH}: ${RUN_URL}`,
+      'The run has started on a GitHub runner.',
+      TEST_OUTPUT,
+      `The tests passed: ${RUN_URL}`,
+    ]);
+    expect(remote.err).toStrictEqual([]);
+  });
+
+  it('finds the run by listing the runs of the commit on the pushed branch when gh prints no URL', async () => {
+    const remote = harness({
+      dispatch: NO_URL,
+      lists: [listed([4241, 'completed']), listed([4242, 'queued'], [4241, 'completed'])],
+    });
+
+    expect(await runLocally(FILTER, remote.io)).toBe(0);
+    expect(remote.timesOf(LISTING)).toStrictEqual([10_000, 20_000]);
+    expect(remote.timesOf(STATUS_QUESTION)).toStrictEqual([30_000]);
+    expect(remote.out.at(-1)).toBe(`The tests passed: ${RUN_URL}`);
+  });
+
+  it('exits with 2 when no run of the dispatch appears in twenty minutes', async () => {
+    const remote = harness({ dispatch: NO_URL, lists: [listed()] });
+
+    expect(await runLocally(FILTER, remote.io)).toBe(2);
+    expect(remote.timesOf(LISTING)).toHaveLength(120);
+    expect(remote.err).toStrictEqual([
+      'No run of remote-test.yml appeared for a1b2c3d in twenty minutes.',
+    ]);
+  });
+
+  it('exits with 1 and prints the output of the tests when they fail', async () => {
+    const remote = harness({ finished: finishedRun({ conclusion: 'failure', tests: 'failure' }) });
+
+    expect(await runLocally(FILTER, remote.io)).toBe(1);
+    expect(remote.out.slice(-2)).toStrictEqual([TEST_OUTPUT, `The tests failed: ${RUN_URL}`]);
+  });
+
+  it.each([
+    {
+      name: 'a cancelled run',
+      finished: { conclusion: 'cancelled', tests: 'cancelled' },
+      lists: [listed([4242, 'completed'])],
+      sentence: 'The run was cancelled, so it gave no result',
+    },
+    {
+      name: 'a run that a newer dispatch replaced',
+      finished: { conclusion: 'cancelled', tests: 'cancelled' },
+      lists: [listed([4243, 'in_progress'], [4242, 'completed'])],
+      sentence: `The run was cancelled because a newer dispatch of ${BRANCH} replaced it (${RUNS}/4243), so it gave no result`,
+    },
+    {
+      name: 'a failed set-up step',
+      finished: { conclusion: 'failure', setUp: 'failure', tests: 'skipped' },
+      lists: [],
+      sentence: 'A set-up step failed before the tests ran, so the run gave no result',
+    },
+    {
+      name: 'a run of another commit',
+      finished: { headSha: OTHER },
+      lists: [],
+      sentence:
+        'The run tested commit f0e1d2c instead of HEAD a1b2c3d, so it gave no result; push HEAD and run the command again',
+    },
+  ])(
+    'exits with 2 for $name, without printing a test output',
+    async ({ finished, lists, sentence }) => {
+      const remote = harness({ finished: finishedRun(finished), lists });
+
+      expect(await runLocally(FILTER, remote.io)).toBe(2);
+      expect(remote.out.at(-1)).toBe(`${sentence}: ${RUN_URL}`);
+      expect(remote.asked.filter((asked) => asked.endsWith('--log'))).toStrictEqual([]);
+    },
+  );
+
+  it('gives up after twenty minutes of questions ten seconds apart, and exits with 2', async () => {
+    const remote = harness({ statuses: ['queued'] });
+    const everyTenSeconds = Array.from({ length: 120 }, (_, index) => (index + 1) * 10_000);
+
+    expect(await runLocally(FILTER, remote.io)).toBe(2);
+    expect(remote.timesOf(STATUS_QUESTION)).toStrictEqual(everyTenSeconds);
+    expect(new Set(remote.sleeps)).toStrictEqual(new Set([10_000]));
+    expect(remote.out.at(-1)).toBe(
+      `Gave up waiting after twenty minutes; the run goes on: ${RUN_URL}`,
+    );
+  });
+
+  it.each([
+    ['while it waits', { statuses: [] }, 'Could not follow the run'],
+    ['reading the run', { finished: GATEWAY }, 'Could not read the run'],
+  ])('passes on an error of gh %s, and exits with 2', async (_case, script, verdict) => {
+    const remote = harness(script);
+
+    expect(await runLocally(FILTER, remote.io)).toBe(2);
+    expect(remote.err).toStrictEqual(['HTTP 502: Bad Gateway']);
+    expect(remote.out.at(-1)).toBe(`${verdict}, so it gave no result: ${RUN_URL}`);
+  });
+
+  it('passes on an error of gh reading the log, and still exits with the verdict of the tests', async () => {
+    const remote = harness({ log: GATEWAY });
+
+    expect(await runLocally(FILTER, remote.io)).toBe(0);
+    expect(remote.err).toStrictEqual(['HTTP 502: Bad Gateway']);
+    expect(remote.out.at(-1)).toBe(`The tests passed: ${RUN_URL}`);
   });
 });
