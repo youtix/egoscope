@@ -436,6 +436,32 @@ describe('the modification of a validated sheet', { timeout: DATABASE_TEST_TIMEO
     expect(await typeOf(MEDIA_STORM)).toStrictEqual(before);
     expect(await historyOf(MEDIA_STORM)).toStrictEqual([]);
   });
+
+  it('[TAX-21] refuses a sheet that empties its criteria or its dating rule, field by field', async () => {
+    const before = await typeOf(MEDIA_STORM);
+    const emptiedRest: ModifiedSheet = {
+      ...EDITED,
+      inclusionCriteria: ' ',
+      exclusionCriteria: '',
+      datingRule: '  ',
+    };
+
+    const savedRest = await save(MEDIA_STORM, { sheet: emptiedRest, reason: 'A clearer sheet.' });
+
+    expect(savedRest).toStrictEqual({
+      ok: false,
+      error: {
+        kind: 'invalid_fields',
+        fields: {
+          inclusionCriteria: 'required',
+          exclusionCriteria: 'required',
+          datingRule: 'required',
+        },
+      },
+    });
+    expect(await typeOf(MEDIA_STORM)).toStrictEqual(before);
+    expect(await historyOf(MEDIA_STORM)).toStrictEqual([]);
+  });
 });
 
 describe('defaultQualification', () => {
