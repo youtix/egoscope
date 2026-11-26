@@ -349,7 +349,7 @@ These rulings take into account the stats source chosen on 2026-11-11 (`docs/ser
   6. Invented examples: a search for "Tobias Renwick" finds "Tobias Renwick Jr.", "Tobias Renwik" and "Tobyas Renwick", and finds neither "Toby Renwick" nor "T. Renwick"; a search for "T. Renwick" finds "Tobias Renwick".
   7. As built, `searchNamesOf` (`src/lib/games/mapping.ts`) does not leave the one-word variant out yet: a later games task (`F-followups-games`) changes it, with a test of a first-name-only variant.
 - **Why:** a spelling variant serves the detection in press texts, where a first name alone can designate the player; in a directory of every NBA player over the covered seasons, it designates hundreds of them. Folding and one edit catch accents and typing slips without matching another player's whole name.
-- **Owner review:** yes — the candidate search leaves out a one-word spelling variant of a several-word name, and counts as close a name whose every word starts like, or is one letter away from, a searched word; the owner can still add the candidate's exact spelling as a variant.
+- **Owner review:** yes — the candidate search leaves out a one-word spelling variant of a several-word name, and counts a name as close when each word of the searched name is answered by one of its words, one that starts with it or, from 4 letters, is one letter away from it; the owner can still add the candidate's exact spelling as a variant.
 
 ## Passed to the glossary
 
