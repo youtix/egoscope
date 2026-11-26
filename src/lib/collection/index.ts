@@ -30,5 +30,34 @@ export type {
 // dedup.ts: the deduplication of the articles a run reads (no operation of its own exposed)
 // health.ts: the health of the sources and the collection indicators (no operation of its own exposed)
 // purge.ts: purgeExpired
-// queries.ts: sources, runs, run, articlesOfRun, article, articlesToAnalyze
+// queries.ts, with setArticleStatus and countPrefilterKept, and collection-journal.ts
+export {
+  article,
+  articlesOfRun,
+  articlesToAnalyze,
+  countPrefilterKept,
+  setArticleStatus,
+  sources,
+} from './queries';
+export type {
+  Article,
+  ArticleStatusChange,
+  ArticleStatusRefusal,
+  ArticleWithSightings,
+  NotRelevantReason,
+  PrefilterCountRefusal,
+  SourceIndicators,
+  SourceOverview,
+} from './queries';
+export { run, runs } from './collection-journal';
+export type {
+  CatchUpRead,
+  CollectionCounters,
+  CollectionRun,
+  CollectionRunOrigin,
+  RunFilter,
+  RunIncident,
+  SourceRead,
+  SourceReadResult,
+} from './collection-journal';
 // erase.ts: eraseDetachedArticles, eraseArticlesWithoutRole

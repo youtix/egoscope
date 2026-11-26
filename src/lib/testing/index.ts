@@ -103,6 +103,19 @@ export type {
 
 // --- collection-detection --------------------------------------------------------
 
+// factories/collection.ts
+export {
+  insertArticle,
+  insertCollectionRun,
+  insertDailyCount,
+  insertDeactivation,
+  insertGap,
+  insertPressSource,
+  insertSighting,
+  insertSourceRead,
+} from './factories/collection';
+export type { CollectionFactoryOptions } from './factories/collection';
+
 // --- alerts-tracking-telegram ----------------------------------------------------
 
 // --- interface -------------------------------------------------------------------
