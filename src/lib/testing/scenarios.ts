@@ -19,6 +19,7 @@ import { insertPlayer } from './factories/players';
 import { insertValidCase } from './factories/sensitivity';
 import { insertCalendarType, insertEventType, MEDIA_STORM } from './factories/taxonomy';
 import { firstRow, present } from './rows';
+import { statisticsSensitivityLot1 } from './worlds/statistics-sensitivity-lot1';
 
 import type { ImportRow, RequestRow } from './factories/backtests';
 import type { EventRow } from './factories/events';
@@ -205,7 +206,7 @@ const WORLDS: readonly World[] = [
   // players-taxonomy, Lot 2: worlds/players-taxonomy-lot2.ts
   // backtest-import, Lot 1: worlds/backtest-import-lot1.ts
   // backtest-import, Lot 2: worlds/backtest-import-lot2.ts
-  // statistics-sensitivity, Lot 1: worlds/statistics-sensitivity-lot1.ts
+  statisticsSensitivityLot1({ profiledPlayer }),
   // statistics-sensitivity, Lot 2: worlds/statistics-sensitivity-lot2.ts
   // collection-detection, Lot 2: worlds/collection-detection-lot2.ts
   // alerts-tracking-telegram, Lot 2: worlds/alerts-tracking-telegram-lot2.ts

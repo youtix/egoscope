@@ -5,6 +5,7 @@ export {
   listRegistry,
   snapshotCalculationParams,
   valueAt,
+  valueOf,
 } from './accessors';
 export type { CalculationChange, Executor, RegistryRow, Setting } from './accessors';
 export type { ParameterKey, ParamReader, ParamValue } from './catalog';

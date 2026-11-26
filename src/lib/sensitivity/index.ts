@@ -50,6 +50,56 @@ export type {
 
 // queries.ts: getProfile, listProfiles, getTrend, listCases, getCase, caseOfEvent, verdictHistory,
 //   reviewFlags, isRecalculating, profileValueVersionsUntil, changedSince
+//   spread, for the size of a file, over queries.ts, list-queries.ts, case-queries.ts and
+//   case-detail.ts, with the values they share in calculation-values.ts
+export { getProfile, getTrend } from './queries';
+export type { ProfileDetail, ProfileKey, TrendDetail, TrendSummary } from './queries';
+export {
+  changedSince,
+  listProfiles,
+  profileValueVersionsUntil,
+  verdictHistory,
+} from './list-queries';
+export type {
+  ChangedItem,
+  ChangedSince,
+  HistorySubject,
+  ProfileFilter,
+  ProfileLine,
+  ProfileListing,
+  ProfileValueVersion,
+  VerdictAndConfidence,
+  VerdictChangeEntry,
+} from './list-queries';
+export { caseOfEvent, listCases, reviewFlags } from './case-queries';
+export type {
+  CaseEvent,
+  CaseGroups,
+  CaseLine,
+  CaseStatus,
+  MeasuredGame,
+  ReviewFlagItem,
+} from './case-queries';
+export { getCase } from './case-detail';
+export type {
+  CaseCriterion,
+  CaseDecision,
+  CaseDetail,
+  CaseEventDetail,
+  CaseEventSource,
+  CaseFlag,
+  CaseHistoryItem,
+} from './case-detail';
+export type {
+  CalculationValues,
+  CaseStatusReason,
+  CountsBy,
+  DoubtfulCaseCriterion,
+  ProfileNotice,
+  ProfileWarning,
+  SwitchableCriterion,
+  TallyReasons,
+} from './calculation-values';
 
 // erase.ts: eraseEventData, erasePlayerJobs, purgeValueVersions
 export { eraseEventData, erasePlayerJobs } from './erase';

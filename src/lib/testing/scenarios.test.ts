@@ -44,6 +44,12 @@ const SCENARIO_NAMES = [
   'request-to-do',
   'validated-type-with-calendar-sibling',
 ];
+// The scenarios of the areas' worlds, which their own tests apply.
+const WORLD_SCENARIO_NAMES = [
+  'birthday-on-next-game-day',
+  'player-with-cases-of-every-status',
+  'general-trend-with-history',
+];
 const MEDIA_STORM = 'media-storm';
 // The import's checks as the request of the request-to-do scenario calls them, with the
 // parameters' default values.
@@ -260,8 +266,10 @@ describe('the scenarios', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ]);
   });
 
-  it('registers each scenario of the testing module under its name', () => {
-    expect(new Set(scenarios.keys())).toStrictEqual(new Set(SCENARIO_NAMES));
+  it('registers each scenario of the testing module and of the worlds under its name', () => {
+    expect(new Set(scenarios.keys())).toStrictEqual(
+      new Set([...SCENARIO_NAMES, ...WORLD_SCENARIO_NAMES]),
+    );
   });
 
   it.each([
