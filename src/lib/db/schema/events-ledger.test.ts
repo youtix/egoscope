@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { toEpochMs } from '@/lib/time';
 
+import { DELETION_REASONS, TALLY_EXIT_REASONS } from '..';
 import { describeColumns, describeForeignKeys, describeIndexes } from '../catalog';
 import { createTestDatabase } from '../test-database';
 import { insertParents, PARENTS } from '../test-parents';
@@ -245,5 +246,12 @@ describe('the tally exits and the withdrawal ledger', { timeout: 60_000 }, () =>
     ];
 
     expect(tables.map((table) => isOutsideArchive(table))).toStrictEqual([true, true, true, false]);
+  });
+
+  it('[IMP-33] [SEN-33] [CL-SEN-25] gives the other modules the deletion reasons in the order of IMP-33 and the five exit reasons', () => {
+    expect([DELETION_REASONS, TALLY_EXIT_REASONS]).toStrictEqual([
+      ['inaccurate_fact_or_false_source', 'outside_type_criteria', 'duplicate', 'other'],
+      ['merged', 'deleted', 'replaced_at_import', 'erased', 'no_longer_derived'],
+    ]);
   });
 });

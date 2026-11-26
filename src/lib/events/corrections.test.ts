@@ -8,6 +8,7 @@ import {
   events,
   eventSources,
   eventTypes,
+  followedPlayers,
 } from '@/lib/db';
 import {
   DATABASE_TEST_TIMEOUT_MS,
@@ -402,6 +403,46 @@ describe('applyCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       },
     });
     expect(await correctionsOf(detected.id)).toStrictEqual([]);
+  });
+
+  it('[DET-47] [CA-DET-27] refuses to move a detected event to an unknown, a malformed or a deleted player, writing nothing', async () => {
+    const detected = await insertDetectedEvent(db, { playerId });
+    const { id: deletedId } = await insertPlayer(db, { source: 'p02' });
+    await db.delete(followedPlayers).where(eq(followedPlayers.id, deletedId));
+
+    for (const id of ['6f1d2c3b-4a59-4e8f-9b7a-0c1d2e3f4a5b', 'not-a-player', deletedId]) {
+      await expect(correct(detected, { playerId: id, gameStakes: 'high' })).resolves.toStrictEqual({
+        ok: false,
+        error: { kind: 'player_not_followed' },
+      });
+    }
+    await expect(storedEvent(detected.id)).resolves.toStrictEqual(detected);
+    expect(await correctionsOf(detected.id)).toStrictEqual([]);
+  });
+
+  it('[DET-47] [CA-DET-27] [DET-52] moves a detected event to an active, a paused or a withdrawn player with its correction, and keeps one that names its own player', async () => {
+    const statuses = [
+      ['p02', 'active'],
+      ['p03', 'paused'],
+      ['p04', 'withdrawn'],
+    ] as const;
+    for (const [leaguePlayer, status] of statuses) {
+      const detected = await insertDetectedEvent(db, { playerId });
+      const { id } = await insertPlayer(db, { source: leaguePlayer, overrides: { status } });
+
+      await expect(correct(detected, { playerId: id })).resolves.toMatchObject({
+        ok: true,
+        value: { changed: ['player'], event: { playerId: id, rowVersion: 2 } },
+      });
+      await expect(correctionValues(detected.id)).resolves.toStrictEqual([
+        ['player', playerId, id],
+      ]);
+    }
+    const kept = await insertDetectedEvent(db, { playerId });
+    await expect(correct(kept, { playerId, gameStakes: 'high' })).resolves.toMatchObject({
+      ok: true,
+      value: { changed: ['game_stakes'], event: { playerId } },
+    });
   });
 
   describe('of a calendar-derived event', () => {

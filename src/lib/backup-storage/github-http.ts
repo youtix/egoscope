@@ -4,13 +4,14 @@
 // caller so that each HTTP request is counted, and GitHub's answers mapped to the
 // port's failures. Each answer's `x-ratelimit-reset` gives the instant the hourly
 // window of REST requests resets (CL-TRV-12).
+import { z } from 'zod';
+
 import { now, toEpochMs } from '@/lib/time';
 
 import type { BackupStorageError } from './errors';
 import type { BackupStorageOutcome, CallContext, CallMetadata } from './types';
 import type { Secret } from '@/lib/env';
 import type { EpochMs } from '@/lib/time';
-import type { z } from 'zod';
 
 /** A step of a call: its result, or the failure that ends the call. */
 export type Step<T> =
@@ -52,6 +53,9 @@ const NEXT = 'rel="next"';
 const TOKEN_REJECTED: BackupStorageError = { kind: 'unauthorized', cause: 'token_rejected' };
 const NOT_FOUND: BackupStorageError = { kind: 'not_found' };
 const RATE_LIMITED: BackupStorageError = { kind: 'rate_limited' };
+// The words of the message of a 403 from the primary and the secondary rate limit alike.
+const RATE_LIMIT_MESSAGE = /rate limit/iu;
+const ERROR_BODY = z.object({ message: z.string() });
 
 /** The failure of a service that cannot be reached, fails, or answers in another shape. */
 export const UNAVAILABLE: BackupStorageError = { kind: 'unavailable' };
@@ -72,12 +76,25 @@ export function parsedJson<T>(schema: z.ZodType<T>, text: string): Step<T> {
   }
 }
 
-/** The failure an answer stands for: 403 with no request left or 429 the rate limit, another 401 or 403 a rejected token (TRV-47). */
-export function errorOf(status: number, headers: Headers): BackupStorageError {
+/** Whether the JSON body `text` of an answer has a message that names a rate limit. */
+function isRateLimitMessage(text: string): boolean {
+  const body = parsedJson(ERROR_BODY, text);
+  return body.ok && RATE_LIMIT_MESSAGE.test(body.value.message);
+}
+
+/**
+ * The failure an answer stands for (TRV-47): 429 is the rate limit, and so is a 403 with no
+ * request left, with a `retry-after` header or with a JSON message that says "rate limit" in
+ * any letter case, as the primary and the secondary limit write it; another 401 or 403 is a
+ * rejected token, whatever its body, which is never thrown on.
+ */
+export function errorOf(status: number, headers: Headers, text: string): BackupStorageError {
   const isRateLimit =
     status === TOO_MANY_REQUESTS ||
     (status === FORBIDDEN &&
-      (headers.get('x-ratelimit-remaining') === '0' || headers.has('retry-after')));
+      (headers.get('x-ratelimit-remaining') === '0' ||
+        headers.has('retry-after') ||
+        isRateLimitMessage(text)));
   if (isRateLimit) {
     return RATE_LIMITED;
   }
@@ -169,7 +186,7 @@ export class GithubCall {
     const { status, headers } = response;
     return expected.includes(status)
       ? succeed({ status, headers, text })
-      : fail(errorOf(status, headers));
+      : fail(errorOf(status, headers, text));
   }
 
   /** Every item of the pages from `url` on, each `Link` to the next followed (sheet, step 3). */
@@ -194,7 +211,7 @@ export class GithubCall {
   /** The body of a file's answer, its declared length counted; else the failure that `errorFor` gives. */
   async stream(
     response: Response | undefined,
-    errorFor: (status: number, headers: Headers) => BackupStorageError,
+    errorFor: (status: number, headers: Headers, text: string) => BackupStorageError,
   ): Promise<Step<ReadableStream<Uint8Array>>> {
     if (response === undefined) {
       return fail(UNAVAILABLE);
@@ -204,8 +221,8 @@ export class GithubCall {
       this.#bytesReceived += Number.isSafeInteger(length) ? length : 0;
       return succeed(response.body);
     }
-    await this.#textOf(response);
-    return fail(errorFor(response.status, response.headers));
+    const text = await this.#textOf(response);
+    return fail(errorFor(response.status, response.headers, text ?? ''));
   }
 
   /** The outcome of the call, with what it cost. */

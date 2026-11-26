@@ -3,25 +3,34 @@ import { createHash } from 'node:crypto';
 import { asc } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import { createTestDatabase, incidents, journalEntries, loginFailures, sessions } from '@/lib/db';
+import { incidents, journalEntries, loginFailures, sessions } from '@/lib/db';
 import { setParam } from '@/lib/params';
-import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
+import { toEpochMs } from '@/lib/time';
 
+import {
+  check,
+  CHOSEN,
+  chosenOn,
+  cookieJar,
+  INITIAL,
+  logIn,
+  MINUTE,
+  NEWER,
+  openServer,
+  requestHarness,
+  START,
+  WRONG,
+} from './request-harness';
 import { endAllSessions, purgeExpired } from './sessions';
 
 import type { Database, DatabaseResult } from '@/lib/db';
 import type { FixedClock } from '@/lib/time';
-import type { NextResponse } from 'next/server';
 
-type SentCookie = ReturnType<NextResponse['cookies']['get']>;
+// The session cookie of the requests, which the `next/headers` mock below gives them.
+const jar = cookieJar();
 
-// The database behind `getDb()`, the session cookie the device sends and the one it receives.
-const harness = vi.hoisted(() => ({
-  name: '__Host-egoscope-session',
-  getDb: vi.fn<() => Promise<DatabaseResult>>(),
-  incoming: undefined as string | undefined,
-  sent: undefined as SentCookie,
-}));
+// The database behind `getDb()`.
+const harness = vi.hoisted(() => ({ getDb: vi.fn<() => Promise<DatabaseResult>>() }));
 
 vi.mock(import('@/lib/db'), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -29,80 +38,14 @@ vi.mock(import('@/lib/db'), async (importOriginal) => ({
 }));
 
 // The cookies of one request: those the device sent, and those the response sets.
-vi.mock(import('next/headers'), () => ({
-  cookies: async () => {
-    const server = await import('next/server');
-    const incoming = new server.NextRequest('https://egoscope.test/').cookies;
-    if (harness.incoming !== undefined) {
-      incoming.set(harness.name, harness.incoming);
-    }
-    const outgoing = new server.NextResponse().cookies;
-    const set = (...args: Parameters<typeof outgoing.set>) => {
-      harness.sent = outgoing.set(...args).get(harness.name);
-      return outgoing;
-    };
-    return Object.assign(incoming, { set, delete: outgoing.delete.bind(outgoing) });
-  },
-}));
+vi.mock(import('next/headers'), () => ({ cookies: async () => jar.cookies() }));
 
-const INITIAL = 'initial-harbor-lantern';
-const CHOSEN = 'chosen-meadow-violet-quartz';
-const NEWER = 'newer-copper-falcon-river';
-const WRONG = 'wrong-guess-of-a-stranger';
-// Monday 23 November 2026, 10:00 Paris time, and durations.
-const START = toEpochMs(Date.UTC(2026, 10, 23, 9));
-const MINUTE = 60_000;
+// Durations after the start of each test, and the page that a device is sent to.
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const LOG_IN = '/log-in?next=%2Fplayers';
 
-type Auth = Awaited<ReturnType<typeof instance>>;
-
-/** A new server instance, configured with the initial password `initial`. */
-async function instance(initial = INITIAL) {
-  vi.resetModules();
-  vi.stubEnv('INITIAL_PASSWORD', initial);
-  return import('./requests');
-}
-
-/** The cookie the last request set, read after the request has run. */
-function lastSent(): SentCookie {
-  return harness.sent;
-}
-
-/** A browser: the session cookie it keeps, sent with each request and replaced by the one it gets. */
-function device(name = 'Phone', cookie?: string) {
-  const kept: { cookie: string | undefined } = { cookie };
-  const request = async <T>(call: () => Promise<T>): Promise<T> => {
-    harness.incoming = kept.cookie;
-    harness.sent = undefined;
-    const result = await call();
-    const sent = lastSent();
-    if (sent !== undefined) {
-      kept.cookie = sent.maxAge === 0 ? undefined : sent.value;
-    }
-    return result;
-  };
-  return { name, kept, request };
-}
-
-type Device = ReturnType<typeof device>;
-
-/** Logs `on` in with `password`. */
-async function logIn(auth: Auth, on: Device, password: string) {
-  return on.request(async () => auth.logIn({ password, device: on.name }));
-}
-
-/** The session check of a page that `on` opens. */
-async function check(auth: Auth, on: Device) {
-  return on.request(async () => auth.requireSession('/players'));
-}
-
-/** Logs `on` in with the initial password, then replaces it. */
-async function chosenOn(auth: Auth, on: Device) {
-  await logIn(auth, on, INITIAL);
-  await on.request(async () => auth.choosePassword(CHOSEN));
-}
+const { instance, lastSent, device } = requestHarness(jar, vi);
 
 /** The answer that sends a device to log in, with how its session ended. */
 function ended(reason: string | null) {
@@ -110,16 +53,17 @@ function ended(reason: string | null) {
 }
 
 describe('logging in and the sessions of the devices', { timeout: 60_000 }, () => {
+  type Auth = Awaited<ReturnType<typeof instance>>;
+
   let db: Database;
   let clock: FixedClock;
 
   beforeEach(async () => {
-    const database = await createTestDatabase();
-    db = database.db;
+    const server = await openServer();
+    ({ db, clock } = server);
     harness.getDb.mockReset().mockResolvedValue({ ok: true, db });
-    clock = fixedClock(START);
-    onTestFinished(installFakeClock(clock));
-    return database.close;
+    onTestFinished(server.restoreClock);
+    return server.close;
   }, 60_000);
 
   // Wrong passwords two minutes apart, from a stranger's devices; the last one's answer.

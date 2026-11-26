@@ -1,32 +1,34 @@
 import { asc } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
+import { accounts, incidents, journalEntries, loginFailures, sessions } from '@/lib/db';
+
 import {
-  accounts,
-  createTestDatabase,
-  incidents,
-  journalEntries,
-  loginFailures,
-  sessions,
-} from '@/lib/db';
-import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
+  check,
+  CHOSEN,
+  chosenOn,
+  cookieJar,
+  INITIAL,
+  logIn,
+  MINUTE,
+  NEWER,
+  openServer,
+  requestHarness,
+  START,
+  WRONG,
+} from './request-harness';
 
 import type { Database, DatabaseResult } from '@/lib/db';
 import type { FixedClock } from '@/lib/time';
-import type { NextResponse } from 'next/server';
-
-type SentCookie = ReturnType<NextResponse['cookies']['get']>;
 
 // The lockout of logins (TRV-61) as the requests reach it, for a wrong current password at a
 // password change; the lockout by wrong logins alone is proven in `requests.test.ts`.
 
-// The database behind `getDb()`, the session cookie the device sends and the one it receives.
-const harness = vi.hoisted(() => ({
-  name: '__Host-egoscope-session',
-  getDb: vi.fn<() => Promise<DatabaseResult>>(),
-  incoming: undefined as string | undefined,
-  sent: undefined as SentCookie,
-}));
+// The session cookie of the requests, which the `next/headers` mock below gives them.
+const jar = cookieJar();
+
+// The database behind `getDb()`.
+const harness = vi.hoisted(() => ({ getDb: vi.fn<() => Promise<DatabaseResult>>() }));
 
 vi.mock(import('@/lib/db'), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -34,77 +36,12 @@ vi.mock(import('@/lib/db'), async (importOriginal) => ({
 }));
 
 // The cookies of one request: those the device sent, and those the response sets.
-vi.mock(import('next/headers'), () => ({
-  cookies: async () => {
-    const server = await import('next/server');
-    const incoming = new server.NextRequest('https://egoscope.test/').cookies;
-    if (harness.incoming !== undefined) {
-      incoming.set(harness.name, harness.incoming);
-    }
-    const outgoing = new server.NextResponse().cookies;
-    const set = (...args: Parameters<typeof outgoing.set>) => {
-      harness.sent = outgoing.set(...args).get(harness.name);
-      return outgoing;
-    };
-    return Object.assign(incoming, { set, delete: outgoing.delete.bind(outgoing) });
-  },
-}));
+vi.mock(import('next/headers'), () => ({ cookies: async () => jar.cookies() }));
 
-const INITIAL = 'initial-harbor-lantern';
-const CHOSEN = 'chosen-meadow-violet-quartz';
-const NEWER = 'newer-copper-falcon-river';
-const WRONG = 'wrong-guess-of-a-stranger';
-// Monday 23 November 2026, 10:00 Paris time, and a minute.
-const START = toEpochMs(Date.UTC(2026, 10, 23, 9));
-const MINUTE = 60_000;
-
-/** A new server instance, configured with the initial password. */
-async function instance() {
-  vi.resetModules();
-  vi.stubEnv('INITIAL_PASSWORD', INITIAL);
-  return import('./requests');
-}
+const { instance, device } = requestHarness(jar, vi);
 
 type Auth = Awaited<ReturnType<typeof instance>>;
-
-/** The cookie the last request set, read after the request has run. */
-function lastSent(): SentCookie {
-  return harness.sent;
-}
-
-/** A browser: the session cookie it keeps, sent with each request and replaced by the one it gets. */
-function device(name = 'Phone') {
-  const kept: { cookie: string | undefined } = { cookie: undefined };
-  const request = async <T>(call: () => Promise<T>): Promise<T> => {
-    harness.incoming = kept.cookie;
-    harness.sent = undefined;
-    const result = await call();
-    const sent = lastSent();
-    if (sent !== undefined) {
-      kept.cookie = sent.maxAge === 0 ? undefined : sent.value;
-    }
-    return result;
-  };
-  return { name, request };
-}
-
 type Device = ReturnType<typeof device>;
-
-/** Logs `on` in with `password`. */
-async function logIn(auth: Auth, on: Device, password: string) {
-  return on.request(async () => auth.logIn({ password, device: on.name }));
-}
-
-/** The session check of a page that `on` opens. */
-async function check(auth: Auth, on: Device) {
-  return on.request(async () => auth.requireSession('/players'));
-}
-
-/** Logs `on` in with the initial password, then replaces it with the chosen one. */
-async function chosenOn(auth: Auth, on: Device) {
-  await logIn(auth, on, INITIAL);
-  await on.request(async () => auth.choosePassword(CHOSEN));
-}
 
 /** Asks from `on` to change the password from `currentPassword` to `newPassword`. */
 async function change(
@@ -120,12 +57,11 @@ describe('the lockout of logins at a password change', { timeout: 60_000 }, () =
   let clock: FixedClock;
 
   beforeEach(async () => {
-    const database = await createTestDatabase();
-    db = database.db;
+    const server = await openServer();
+    ({ db, clock } = server);
     harness.getDb.mockReset().mockResolvedValue({ ok: true, db });
-    clock = fixedClock(START);
-    onTestFinished(installFakeClock(clock));
-    return database.close;
+    onTestFinished(server.restoreClock);
+    return server.close;
   }, 60_000);
 
   // Wrong passwords two minutes apart, from a stranger's devices.
@@ -157,7 +93,7 @@ describe('the lockout of logins at a password change', { timeout: 60_000 }, () =
       failures(),
     ]);
 
-  it('[TRV-61] [IHM-09] counts and journals a wrong current password at a change as a wrong login, and locks logins at the fifth', async () => {
+  it('[TRV-61] [CL-TRV-29] [IHM-09] counts and journals a wrong current password at a change as a wrong login, and locks logins at the fifth', async () => {
     const auth = await instance();
     const phone = device();
     await chosenOn(auth, phone);
@@ -186,7 +122,7 @@ describe('the lockout of logins at a password change', { timeout: 60_000 }, () =
     await expect(auth.lockoutStatus()).resolves.toStrictEqual({ ok: true, value: { lockedUntil } });
   });
 
-  it('[TRV-61] [IHM-07] [IHM-09] [CA-TRV-31] refuses a change while logins are locked without examining either password, and allows it once the lock ends', async () => {
+  it('[TRV-61] [CL-TRV-29] [IHM-07] [IHM-09] [CA-TRV-31] refuses a change while logins are locked without examining either password, and allows it once the lock ends', async () => {
     const auth = await instance();
     const [phone, computer] = [device(), device('Computer')];
     await chosenOn(auth, computer);
@@ -236,7 +172,7 @@ describe('the lockout of logins at a password change', { timeout: 60_000 }, () =
     ]);
   });
 
-  it('[TRV-61] [IHM-09] adds up the failures of logins and of changes: three wrong logins and two wrong current passwords lock logins', async () => {
+  it('[TRV-61] [CL-TRV-29] [IHM-09] adds up the failures of logins and of changes: three wrong logins and two wrong current passwords lock logins', async () => {
     const auth = await instance();
     const phone = device();
     await chosenOn(auth, phone);
@@ -264,7 +200,7 @@ describe('the lockout of logins at a password change', { timeout: 60_000 }, () =
     ]);
   });
 
-  it('[TRV-64] [TRV-61] keeps every password out of the journal and the failures of a change', async () => {
+  it('[TRV-64] [TRV-61] [CL-TRV-29] keeps every password out of the journal and the failures of a change', async () => {
     const auth = await instance();
     const phone = device();
     await chosenOn(auth, phone);
@@ -275,5 +211,41 @@ describe('the lockout of logins at a password change', { timeout: 60_000 }, () =
     await expect(change(auth, phone, [CHOSEN, NEWER])).resolves.toMatchObject({ ok: true });
     const written = JSON.stringify([await journal(), await db.select().from(loginFailures)]);
     expect(written).not.toMatch(/harbor|stranger|meadow|copper/u);
+  });
+
+  it('[TRV-57] [TRV-61] [CL-TRV-29] lets the first device choose its password while logins are locked, without counting or journaling a refusal', async () => {
+    const auth = await instance();
+    const phone = device();
+    await logIn(auth, phone, INITIAL);
+    await wrongLogins(auth, 5);
+    clock.advance(MINUTE);
+
+    await expect(phone.request(async () => auth.choosePassword(CHOSEN))).resolves.toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect([
+      await failures(),
+      await keys(),
+      await db.select({ kind: incidents.kind, status: incidents.status }).from(incidents),
+      await auth.lockoutStatus(),
+      await db.select({ passwordStatus: accounts.passwordStatus }).from(accounts),
+      await check(auth, phone),
+    ]).toStrictEqual([
+      [2, 4, 6, 8, 10].map((minutes) => ({ at: new Date(START + minutes * MINUTE) })),
+      [
+        ...Array.from({ length: 5 }, () => 'login_refused'),
+        'login_locked',
+        'incident_opened',
+        'password_changed',
+      ],
+      [{ kind: 'logins_refused', status: 'open' }],
+      { ok: true, value: { lockedUntil: START + 25 * MINUTE } },
+      [{ passwordStatus: 'chosen' }],
+      {
+        ok: true,
+        value: { id: 2, device: 'Phone', openedAt: START + 11 * MINUTE, passwordStatus: 'chosen' },
+      },
+    ]);
   });
 });

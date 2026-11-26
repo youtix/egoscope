@@ -19,4 +19,6 @@ and of its assets.
   `Accept: application/octet-stream` answers.
 - `errors.json`: the failures, by name: a rejected token (`401`), a token without the permission
   (`403`), an unknown resource (`404`), a taken asset name (`422`), the hourly rate limit (`403`
-  with no request left), a secondary rate limit (`429`) and a server error (`502`).
+  with no request left), a secondary rate limit (`429`), a secondary rate limit that answers
+  `403` with its message and neither `retry-after` nor an exhausted window, a `403` with
+  `retry-after` and the message of a missing permission, and a server error (`502`).
