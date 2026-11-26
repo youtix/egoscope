@@ -113,7 +113,14 @@ async function insertGame(db: Database, row: typeof games.$inferInsert): Promise
 /** His line of a game of `teamId`, read from the source now. */
 function lineRow(gameId: number, teamId: number | null) {
   const fetchedAt = new Date(NOW);
-  return { playerId: P01, gameId, statsSource: SOURCE, sourcePlayerRef: 'p01', fetchedAt, teamId };
+  return {
+    playerId: P01,
+    gameId,
+    statsSource: SOURCE,
+    sourcePlayerRef: 'p01',
+    fetchedAt,
+    teamId,
+  } as const;
 }
 
 /**
