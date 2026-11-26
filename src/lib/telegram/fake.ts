@@ -41,13 +41,21 @@ export type FakeTelegram = Telegram &
     deliver: (chat: Chat, text: string) => UpdateBody;
     /** Telegram delivers `body` again, which polling then reads a second time. */
     deliverAgain: (body: unknown) => void;
-    /** The person of `chat` blocks the bot: Telegram reports it in an update, and refuses later sends until the person writes again (TEL-37). */
+    /**
+     * The person of `chat` blocks the bot: Telegram reports it in an update, and refuses later
+     * sends until the person writes again (TEL-37).
+     */
     block: (chat: Chat) => UpdateBody;
     /** The messages that `chat` holds, oldest first, without the deleted ones. */
     inbox: (chat: number) => readonly ReceivedMessage[];
-    /** Makes the next calls of `operation` fail with `errors`, one each, in order (TEL-35, TEL-37). */
+    /**
+     * Makes the next calls of `operation` fail with `errors`, one each, in order (TEL-35, TEL-37).
+     */
     failNext: (operation: FakeTelegramOperation, errors: readonly TelegramError[]) => void;
-    /** Makes Telegram refuse every webhook registration, saying `description`, until called with null. */
+    /**
+     * Makes Telegram refuse every webhook registration, saying `description`, until called with
+     * null.
+     */
     refuseWebhooks: (description: string | null) => void;
     /** Telegram failed to deliver an update to the webhook, which `getWebhookInfo` then reports. */
     failWebhookDelivery: (message: string) => void;
@@ -239,7 +247,10 @@ class Fake implements FakeTelegram {
     return answered(DELETED);
   }
 
-  /** Telegram's update of `kind` from `chat`, which opens the chat's inbox, kept for polling while no webhook is set. */
+  /**
+   * Telegram's update of `kind` from `chat`, which opens the chat's inbox, kept for polling while
+   * no webhook is set.
+   */
   #receive(chat: Chat, kind: string, content: Readonly<Record<string, unknown>>): UpdateBody {
     const body = {
       [UPDATE_ID]: this.#takeId(),

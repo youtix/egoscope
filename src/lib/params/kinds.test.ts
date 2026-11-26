@@ -306,6 +306,20 @@ describe('the kinds of values', () => {
     expect(tool.parse(tooLong)).toBeUndefined();
   });
 
+  it('[IHM-44] counts a newline and a lone surrogate of an address as one character each', () => {
+    const tool = optionalHttpsAddress();
+    const start = 'https://search.example/?q=';
+    const lonePair = '\u{D83D}';
+    const withNewline = `${start}\n${'a'.repeat(ADDRESS_MAX_LENGTH - start.length - 1)}`;
+    const withLone = `${start}${lonePair.repeat(ADDRESS_MAX_LENGTH - start.length)}`;
+
+    expect([tool.parse(withNewline), tool.parse(withLone)]).toStrictEqual([withNewline, withLone]);
+    expect([tool.parse(`${withNewline}a`), tool.parse(`${withLone}${lonePair}`)]).toStrictEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+
   it('[TRV-03] leaves a quota limit unset until the owner enters a whole number of at least 1', () => {
     const limit = quotaLimit(REQUESTS);
 

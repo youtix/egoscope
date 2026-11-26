@@ -36,6 +36,18 @@ describe('the characters received of the paste area', () => {
     },
     { name: 'three emoji', text: '😀😀😀', received: '3 characters received', end: '😀😀😀' },
     {
+      name: 'the first code point of a pair',
+      text: '\u{10000}',
+      received: '1 character received',
+      end: '\u{10000}',
+    },
+    {
+      name: '121 times the first code point of a pair',
+      text: '\u{10000}'.repeat(121),
+      received: '121 characters received',
+      end: '\u{10000}'.repeat(SHOWN_END),
+    },
+    {
       name: 'a lone surrogate',
       text: '\u{D83D}',
       received: '1 character received',

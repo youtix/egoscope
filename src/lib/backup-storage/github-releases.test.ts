@@ -400,6 +400,14 @@ describe('createGithubReleasesStorage', () => {
       recorded: errors.forbidden_html,
       error: TOKEN_REJECTED,
     },
+    {
+      what: 'an HTML page that names a rate limit, no retry-after and requests left',
+      recorded: {
+        ...errors.forbidden_html,
+        text: `${errors.forbidden_html.text}<p>You have exceeded a secondary rate limit.</p>\n`,
+      },
+      error: TOKEN_REJECTED,
+    },
   ])(
     '[TRV-47] reads a 403 with $what the same way at a read and at a download',
     async ({ recorded, error }) => {

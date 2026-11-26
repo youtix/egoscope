@@ -12,7 +12,9 @@ import {
   formatShare,
 } from './numbers';
 
-const MINUS = '\u{2212}'; // What people read: an optional sign, digits grouped by thousands, the decimals.
+// The minus sign, U+2212, that `numbers.ts` writes.
+const MINUS = '\u{2212}';
+// What people read: an optional sign, digits grouped by thousands, the decimals.
 const SHOWN = /^(?<sign>[+\u{2212}]?)(?<whole>\d{1,3}(?:,\d{3})*)(?:\.(?<fraction>\d+))?$/u;
 
 /** The parts of a shown number: its sign and its value, read back. */

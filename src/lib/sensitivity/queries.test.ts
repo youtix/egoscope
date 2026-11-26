@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 
 import {
   boxScores,
@@ -538,11 +538,10 @@ describe(
 
     it('[SEN-37] [CL-IHM-12] gives the last change of a calculation parameter with its journal entry', async () => {
       const { db } = world;
-      const restoreClock = installFakeClock(fixedClock(LATER));
+      onTestFinished(installFakeClock(fixedClock(LATER)));
       await db.transaction(async (tx) =>
         setParam(tx, { key: 'sensitivity.minValidCases', value: 6, expectedVersion: 0 }),
       );
-      restoreClock();
 
       await expect(getProfile(db, key)).resolves.toMatchObject({
         lastCalculationChange: { changedAt: LATER, journalEntryId: ANY_ID },

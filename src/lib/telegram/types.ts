@@ -4,10 +4,16 @@ import type { EpochMs } from '@/lib/time';
 /** The deadline and abort signal of one call, inside the budget of its tick (module map §2.3). */
 export type CallContext = Readonly<{ deadline: EpochMs; signal: AbortSignal }>;
 
-/** What one call cost, which `quotas.withQuota` records for the service `telegram` (TRV-03): its requests and the messages it sent. */
+/**
+ * What one call cost, which `quotas.withQuota` records for the service `telegram` (TRV-03): its
+ * requests and the messages it sent.
+ */
 export type CallMetadata = Readonly<{ httpRequests: number; messages: number }>;
 
-/** The longest text of one message, in characters once its tags are read: Telegram's limit (CL-TEL-14). */
+/**
+ * The longest text of one message, in characters once its tags are read: Telegram's limit
+ * (CL-TEL-14).
+ */
 export const MESSAGE_MAX_LENGTH = 4096;
 
 // The markup of a text in HTML mode that Telegram does not count as written: a tag,
@@ -75,14 +81,20 @@ export type UpdateParse =
   | Readonly<{ ok: true; update: InboundUpdate }>
   | Readonly<{ ok: false; error: Readonly<{ kind: 'not_an_update' }> }>;
 
-/** What a deletion did: deleted the message, or found none, which a withdrawal counts as deleted (CL-TEL-09). */
+/**
+ * What a deletion did: deleted the message, or found none, which a withdrawal counts as deleted
+ * (CL-TEL-09).
+ */
 export type DeleteAnswer = Readonly<{ kind: 'deleted' }> | Readonly<{ kind: 'not_found' }>;
 
 /** What a webhook registration did: registered it, or Telegram refused it, saying why. */
 export type WebhookAnswer =
   Readonly<{ kind: 'registered' }> | Readonly<{ kind: 'refused'; description: string }>;
 
-/** The webhook that Telegram holds, which the installation check shows (TRV-47); `url` null when none is set. */
+/**
+ * The webhook that Telegram holds, which the installation check shows (TRV-47); `url` null when
+ * none is set.
+ */
 export type WebhookInfo = Readonly<{
   url: string | null;
   pendingUpdates: number;

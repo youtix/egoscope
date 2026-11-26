@@ -20,6 +20,14 @@ describe('isUuid', () => {
     ['a uuid with a non-hex letter', '6f1d2c3b-4a59-4e8f-9b7a-0c1d2e3f4a5g', false],
     ['a uuid a character too short', LOWERCASE.slice(0, -1), false],
     ['a uuid a character too long', `${LOWERCASE}0`, false],
+    ['a uuid whose first group is a digit short', '6f1d2c3-4a59-4e8f-9b7a-0c1d2e3f4a5b', false],
+    ['a uuid whose first group is a digit long', '6f1d2c3b0-4a59-4e8f-9b7a-0c1d2e3f4a5b', false],
+    ['a uuid whose second group is a digit short', '6f1d2c3b-4a5-4e8f-9b7a-0c1d2e3f4a5b', false],
+    ['a uuid whose second group is a digit long', '6f1d2c3b-4a590-4e8f-9b7a-0c1d2e3f4a5b', false],
+    ['a uuid whose third group is a digit short', '6f1d2c3b-4a59-4e8-9b7a-0c1d2e3f4a5b', false],
+    ['a uuid whose third group is a digit long', '6f1d2c3b-4a59-4e8f0-9b7a-0c1d2e3f4a5b', false],
+    ['a uuid whose fourth group is a digit short', '6f1d2c3b-4a59-4e8f-9b7-0c1d2e3f4a5b', false],
+    ['a uuid whose fourth group is a digit long', '6f1d2c3b-4a59-4e8f-9b7a0-0c1d2e3f4a5b', false],
     ['a text that names no player', 'not-a-player', false],
   ])('[CL-JOU-09] answers %s: %s', (_what, text, expected) => {
     expect(isUuid(text)).toBe(expected);

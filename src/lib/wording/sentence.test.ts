@@ -210,8 +210,11 @@ function sentencesRead(reading: Reading): readonly string[] {
   return TEMPLATES.filter(([, template]) => read(template) === reading).map(([key]) => key);
 }
 
-/** A glossary text of one table per section that the reading reads, with one English text of section 7. */
-function madeUpGlossary(english: string): string {
+/**
+ * A glossary text of one table per section that the reading reads, with one English text of
+ * section 7 and, when given, more rows of section 4.1.
+ */
+function madeUpGlossary(english: string, extraRows: readonly string[] = []): string {
   return [
     '## 3. Terms by domain',
     '| French | English | Code | UI label | Meaning |',
@@ -223,6 +226,7 @@ function madeUpGlossary(english: string): string {
     '| French | Code value | UI label |',
     '| ------ | ---------- | -------- |',
     '| actif | `active` | Active |',
+    ...extraRows,
     '### 4.2 Near-synonyms',
     '## 7. Fixed sentences and labels',
     '### 7.1 Notices and disclaimers',
@@ -385,6 +389,43 @@ describe('fixed sentences', () => {
           read(template),
         ),
       ).toStrictEqual(['inside', 'inside', 'none']);
+    });
+
+    it('[VUE-08] finds no sentence between a letter or a digit and a template, inside a cell', () => {
+      const read = glossaryReader(madeUpGlossary('impossible, 7increase / decrease9 / possibles'));
+
+      expect(['possible', 'increase', 'decrease'].map((template) => read(template))).toStrictEqual([
+        'none',
+        'none',
+        'none',
+      ]);
+    });
+
+    it('[VUE-08] reads the UI label of a set only when its code value is a lowercase code', () => {
+      const read = glossaryReader(
+        madeUpGlossary('possible', [
+          '| a | not a code | Plain note |',
+          '| b | see `active` | Anchored start |',
+          '| c | `active` here | Anchored end |',
+          '| d | `Active` | Capital code |',
+          '| e | `to_establish` | Underscore label |',
+        ]),
+      );
+      const labels = [
+        'Plain note',
+        'Anchored start',
+        'Anchored end',
+        'Capital code',
+        'Underscore label',
+      ];
+
+      expect(labels.map((label) => read(label))).toStrictEqual([
+        'none',
+        'none',
+        'none',
+        'none',
+        'whole',
+      ]);
     });
 
     it('[VUE-08] finds no sentence that differs from its row by a word, nor one in a header or the Meaning column', () => {
