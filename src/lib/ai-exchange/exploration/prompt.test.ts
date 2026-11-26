@@ -183,7 +183,7 @@ describe('buildExplorationPrompt', () => {
       expect(general('6. ')).toStrictEqual([
         '6. WHAT TO GIVE FOR EACH TYPE',
         'For each type you propose, give its name; its definition; its inclusion criteria; its exclusion criteria, naming the neighboring type that prevails, if any; its dating rule, which says whether its events are known in advance; a generic example that names no real person, written with player A, team X and a national outlet; its documentation difficulty; its possible overlaps with the types of point 5; and its illustration sources, public and dated articles that report real events of the type. Write short sentences, in English, that an AI can apply without interpretation.',
-        'The documentation difficulty, easy, medium or hard, says how easily a search of dated press, archives included, finds every event of the type. Also propose types whose events are harder to document, provided they are clean and datable, and flag them by their difficulty: for such a type, a search mostly finds the events that people remember, often because a striking game followed, which threatens a complete count.',
+        'The documentation difficulty, easy, medium or hard, says how easily a search of dated press, archives included, finds every event of the type. Also propose types whose events are harder to document, provided they are clean and datable, and flag them by their difficulty: for such a type, a search mostly finds the events that people remember, often because a striking game followed, which threatens exhaustive counting.',
       ]);
     });
 
@@ -359,6 +359,17 @@ describe('buildExplorationPrompt', () => {
         'This exploration is targeted: deepen the idea below rather than look for other types.',
         'Idea to deepen: A teammate publicly asks the team to trade him.',
       ]);
+    });
+
+    it('targeted mode trims the idea, as it trims names and definitions', () => {
+      const padded = targeted({
+        kind: 'idea',
+        idea: ' \n\tA teammate publicly asks the team to trade him. \n',
+      });
+
+      expect(goalOf(padded).at(-1)).toBe(
+        'Idea to deepen: A teammate publicly asks the team to trade him.',
+      );
     });
 
     it('targeted mode deepens a proposal with the references of its articles, never their text', () => {

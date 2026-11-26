@@ -1,0 +1,96 @@
+{
+  "sources": {
+    "timed": {
+      "url": " https://www.example.com/news/2026/11/10/forward-a-and-center-b-clash?utm_source=feed ",
+      "outlet": " Hoops Daily Ledger ",
+      "title": "Forward A and center B clash in the locker room",
+      "publication_date": "2026-11-10T21:45-05:00"
+    },
+    "french": {
+      "url": "https://www.example.org/basket/la-dispute-du-vestiaire",
+      "outlet": "Gazette des Paniers",
+      "title": "La dispute du vestiaire éclate au grand jour",
+      "publication_date": "2026-11-11"
+    },
+    "social": {
+      "url": "https://www.reddit.com/r/hoops/comments/abc123/locker_room",
+      "outlet": "A forum",
+      "title": "A thread about the locker room",
+      "publication_date": "2026-11-10"
+    },
+    "homePage": {
+      "url": "https://www.example.com/?utm_source=feed",
+      "outlet": "Hoops Daily Ledger",
+      "title": "Home",
+      "publication_date": "2026-11-10"
+    },
+    "future": {
+      "url": "https://www.example.com/news/later",
+      "outlet": "Hoops Daily Ledger",
+      "title": "Later",
+      "publication_date": "2026-12-01"
+    },
+    "undated": {
+      "url": "https://www.example.com/news/undated",
+      "outlet": "Hoops Daily Ledger",
+      "title": "Undated"
+    },
+    "noOutlet": {
+      "url": "https://www.example.org/story/12345",
+      "title": "A locker room in turmoil",
+      "publication_date": "2026-11-09"
+    },
+    "noTitle": {
+      "url": "https://www.example.org/story/67890",
+      "outlet": "Gazette des Paniers",
+      "publication_date": "2026-11-08"
+    }
+  },
+  "types": {
+    "feud": {
+      "name": "Locker room feud",
+      "definition": "A public dispute between two teammates, reported by the press.",
+      "inclusion_criteria": "At least one national outlet reports the dispute and names both players.",
+      "exclusion_criteria": "An argument during a game, which conflict between players covers.",
+      "dating_rule": "The day of the first report by a national outlet.",
+      "known_in_advance": false,
+      "generic_example": "Player A and player B of team X argue after practice, and a national outlet reports it.",
+      "documentation_difficulty": "medium",
+      "possible_overlaps": ["Conflict between players covers an argument during a game."],
+      "illustration_sources": [
+        {
+          "url": " https://www.example.com/news/2026/11/10/forward-a-and-center-b-clash?utm_source=feed ",
+          "outlet": " Hoops Daily Ledger ",
+          "title": "Forward A and center B clash in the locker room",
+          "publication_date": "2026-11-10T21:45-05:00"
+        },
+        {
+          "url": "https://www.reddit.com/r/hoops/comments/abc123/locker_room",
+          "outlet": "A forum",
+          "title": "A thread about the locker room",
+          "publication_date": "2026-11-10"
+        },
+        {
+          "url": "https://www.example.org/basket/la-dispute-du-vestiaire",
+          "outlet": "Gazette des Paniers",
+          "title": "La dispute du vestiaire éclate au grand jour",
+          "publication_date": "2026-11-11"
+        }
+      ]
+    },
+    "standoff": {
+      "name": "Contract standoff",
+      "definition": "The player refuses in public to report to his team over his contract.",
+      "inclusion_criteria": "The player or his agent states the refusal in public.",
+      "exclusion_criteria": "A negotiation that nobody makes public.",
+      "dating_rule": "The day the refusal is first reported.",
+      "known_in_advance": false,
+      "generic_example": "Player A skips the first practice of team X, and a national outlet reports why.",
+      "documentation_difficulty": "hard"
+    },
+    "benching": {
+      "name": "Public benching",
+      "definition": "The coach removes the player from the starting five and says why in public."
+    }
+  }
+}
