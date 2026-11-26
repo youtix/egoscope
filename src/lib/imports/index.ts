@@ -18,7 +18,17 @@ export type {
 
 // correction-message.ts: correctionMessage
 
-// historical-edit.ts: correctHistorical, deleteHistorical
+// historical-edit.ts: correctHistorical, deleteHistorical, with historical-checks.ts beside it
+// for the size limits
+export { correctHistorical, deleteHistorical } from './historical-edit';
+export type { HistoricalCorrectionRefusal } from './historical-edit';
+export type {
+  CorrectionProblem,
+  FailedChecks,
+  HistoricalCorrection,
+  TypedDate,
+  TypedSource,
+} from './historical-checks';
 
 // link-checks.ts: processLinkChecks, nextDueAt
 
