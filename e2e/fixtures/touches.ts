@@ -1,12 +1,13 @@
 /**
  * Touches of a page that a test makes one step at a time: a finger that goes down
  * on a point, then lifts. Playwright's `touchscreen.tap` sends both steps to
- * Chromium at once and waits for both answers, and Chromium may never answer them
- * when the page leaves as it dispatches the touch, which stalls the test until it
- * times out. Here a step is over once Chromium answered it or once the document that
- * it touched is gone, and a test sends a step only once the one before is over. The
- * watch of accessibility.ts runs each step as raw input of the test, as it runs the
- * keys, clicks and taps of the page.
+ * Chromium at once and waits, with no time limit, for both answers; when a handler
+ * of the touch leaves the page and the next document arrives quickly, Chromium may
+ * never answer the step then in flight, and the test stalls until it times out
+ * (issue #437). Here a step is over once Chromium answered it or once the document
+ * that it touched is gone, whichever comes first, and a test sends a step only once
+ * the one before is over. The watch of accessibility.ts runs each step as raw input
+ * of the test, as it runs the keys, clicks and taps of the page.
  */
 import type { CDPSession, JSHandle, Page } from '@playwright/test';
 
@@ -85,7 +86,11 @@ export async function touchDown(page: Page, { x, y }: Point): Promise<void> {
   );
 }
 
-/** Lifts the finger that `touchDown` put down on `page`, which fires touchend there. */
+/**
+ * Lifts the finger that `touchDown` put down on `page`, which fires touchend there.
+ * Once the document that the finger touched has left, the lift could wait behind an
+ * answer that never comes, so it is for a finger whose document stayed.
+ */
 export async function touchUp(page: Page): Promise<void> {
   await step(page, async (session) => session.send(TOUCH, { type: 'touchEnd', touchPoints: [] }));
 }
