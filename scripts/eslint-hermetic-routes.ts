@@ -135,7 +135,7 @@ export const hermeticTestRoutes = createRule({
           return;
         }
         if (!isGuarded(declaration, context.sourceCode.getScope(declaration))) {
-          context.report({ node: declaration.id, messageId: 'start' });
+          context.report({ node: declaration.id ?? declaration, messageId: 'start' });
         }
       },
       'ExportDefaultDeclaration, ExportAllDeclaration'(

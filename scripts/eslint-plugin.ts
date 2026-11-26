@@ -136,7 +136,7 @@ function canBeVitest(services: ParserServicesWithTypeInformation, node: TSESTree
   const parts = type.isUnionOrIntersection() ? [type, ...type.types] : [type];
   return parts.some(
     (part) =>
-      (part.flags & ts.TypeFlags.AnyOrUnknown) !== 0 ||
+      (part.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0 ||
       isVitestSymbol(part.aliasSymbol) ||
       isVitestSymbol(part.getSymbol()),
   );
