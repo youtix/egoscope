@@ -285,8 +285,19 @@ export type { MeasuredValues } from './profiles/evaluate-game';
 // --- alerts/ ---------------------------------------------------------------------
 
 // alerts/grouping.ts
+export { placeEvent, relatedSheets } from './alerts/grouping';
+export type { GroupingSheet, SheetEvent, SheetPlacement } from './alerts/grouping';
 
 // alerts/state.ts
+export { isLateSheet, sheetState } from './alerts/state';
+export type {
+  AlertSheetCancellationReason,
+  AlertSheetState,
+  CancelingChange,
+  SheetStateEvent,
+  SheetStateInput,
+  SheetTiming,
+} from './alerts/state';
 
 // alerts/caveats.ts
 
