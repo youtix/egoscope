@@ -10,6 +10,7 @@ import {
   index,
   integer,
   pgTable,
+  smallint,
   text,
 } from 'drizzle-orm/pg-core';
 
@@ -30,6 +31,11 @@ import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 /** The condition that a row names a profile or a trend, not both. */
 function oneSubject(profile: AnyPgColumn, trend: AnyPgColumn): SQL {
   return sql`(${profile} IS NULL) <> (${trend} IS NULL)`;
+}
+
+/** The condition that `value` is set exactly when the row names a profile. */
+function profileOnly(profile: AnyPgColumn, value: AnyPgColumn): SQL {
+  return sql`(${profile} IS NULL) = (${value} IS NULL)`;
 }
 
 /**
@@ -103,7 +109,9 @@ export const verdictHistoryEntries = pgTable(
  * updated, which Lot 2 tracking reads: rows the jobs insert, that a withdrawal, a
  * player-data deletion or a restore's re-application replace by one version and that
  * the daily purge prunes, so nothing keeps them from being deleted (SUI-08, SUI-09,
- * CL-SEN-18, CL-SEN-19, CL-SUI-03).
+ * CL-SEN-18, CL-SEN-19, CL-SUI-03). A profile's version also keeps the case threshold of
+ * its calculation, which decides whether the pair's verdict or the type's trend gives the
+ * forecast (SUI-08, SEN-31); a trend's keeps none.
  */
 export const profileValueVersions = pgTable(
   'profile_value_versions',
@@ -119,6 +127,7 @@ export const profileValueVersions = pgTable(
     verdictLevel: text('verdict_level', { enum: VERDICT_LEVELS }).notNull(),
     verdictDirection: text('verdict_direction', { enum: VERDICT_DIRECTIONS }),
     profileConfidence: text('profile_confidence', { enum: PROFILE_CONFIDENCES }).notNull(),
+    validCaseThreshold: smallint('valid_case_threshold'),
   },
   (table) => [
     check('profile_value_versions_verdict_level_check', oneOf(table.verdictLevel, VERDICT_LEVELS)),
@@ -133,6 +142,10 @@ export const profileValueVersions = pgTable(
     check(
       'profile_value_versions_subject_check',
       oneSubject(table.sensitivityProfileId, table.generalTrendId),
+    ),
+    check(
+      'profile_value_versions_threshold_check',
+      profileOnly(table.sensitivityProfileId, table.validCaseThreshold),
     ),
     check(
       'profile_value_versions_verdict_check',

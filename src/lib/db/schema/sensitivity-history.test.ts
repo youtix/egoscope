@@ -26,6 +26,7 @@ const COLUMNS = [
   'profile_value_versions.verdict_level text NOT NULL',
   'profile_value_versions.verdict_direction text',
   'profile_value_versions.profile_confidence text NOT NULL',
+  'profile_value_versions.valid_case_threshold smallint',
   'verdict_history_entries.id integer NOT NULL GENERATED ALWAYS AS IDENTITY',
   'verdict_history_entries.sensitivity_profile_id integer',
   'verdict_history_entries.general_trend_id integer',
@@ -131,6 +132,9 @@ const INCONCLUSIVE = {
   profileConfidence: 'low',
 } as const;
 const SEVEN_AT_040 = { ...INCONCLUSIVE, validCount: 7, meanGap: 0.4 } as const;
+// The case threshold in force at a profile's calculation (SEN-31); a trend's version keeps none.
+const THRESHOLD = 5;
+const NO_THRESHOLD = { validCaseThreshold: null } as const;
 // Ten valid cases at +0.85, up to a ratio of 2.69: a possible increase, medium from
 // eight valid cases.
 const VERSION = {
@@ -141,6 +145,7 @@ const VERSION = {
   verdictLevel: 'possible',
   verdictDirection: 'increase',
   profileConfidence: 'medium',
+  validCaseThreshold: THRESHOLD,
 } as const;
 // A value that no stored set of the model holds.
 const OUTSIDE = sql`'outside'`;
@@ -277,6 +282,7 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
       // high from fifteen valid cases.
       {
         ...OF_HISTORICAL_TREND,
+        ...NO_THRESHOLD,
         effectiveAt: EFFECTIVE_AT,
         validCount: 16,
         meanGap: -1,
@@ -301,7 +307,17 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
 
   it.each([
     ['naming both a profile and a trend', { ...OF_HISTORICAL_TREND }, 'subject'],
-    ['naming neither a profile nor a trend', { sensitivityProfileId: null }, 'subject'],
+    [
+      'naming neither a profile nor a trend',
+      { sensitivityProfileId: null, ...NO_THRESHOLD },
+      'subject',
+    ],
+    ['of a profile without a case threshold', NO_THRESHOLD, 'threshold'],
+    [
+      'of a trend with a case threshold',
+      { sensitivityProfileId: null, ...OF_HISTORICAL_TREND },
+      'threshold',
+    ],
     ['inconclusive with a direction', { verdictLevel: 'inconclusive' }, 'verdict'],
     ['possible without a direction', { verdictDirection: null }, 'verdict'],
     ['of a level the glossary does not list', { verdictLevel: OUTSIDE }, 'verdict_level'],
@@ -326,11 +342,15 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
   it('[CL-SEN-18] lets the daily purge prune the versions, and a withdrawal replace them by one', async () => {
     // The pair has no tracked case waiting for its game: the purge keeps the latest
     // version, and the version that replaces them all takes effect at the job's instant.
-    const version = { ...OF_HISTORICAL_PROFILE, ...INCONCLUSIVE } as const;
+    const version = {
+      ...OF_HISTORICAL_PROFILE,
+      ...INCONCLUSIVE,
+      validCaseThreshold: THRESHOLD,
+    } as const;
     await db.insert(profileValueVersions).values([
       { ...version, effectiveAt: DAY_BEFORE, validCount: 5, meanGap: 0.2 },
       { ...version, ...SEVEN_AT_040, effectiveAt: EFFECTIVE_AT },
-      { ...OF_HISTORICAL_TREND, ...SEVEN_AT_040, effectiveAt: EFFECTIVE_AT },
+      { ...OF_HISTORICAL_TREND, ...NO_THRESHOLD, ...SEVEN_AT_040, effectiveAt: EFFECTIVE_AT },
     ]);
 
     await db.delete(profileValueVersions).where(lt(profileValueVersions.effectiveAt, EFFECTIVE_AT));
@@ -362,7 +382,10 @@ describe('the verdict history and the value versions', { timeout: 60_000 }, () =
       .values([ENTRY, { ...OF_TREND, ...RISE, cause: 'new_cases' }]);
     await db
       .insert(profileValueVersions)
-      .values([VERSION, { ...VERSION, sensitivityProfileId: null, ...OF_HISTORICAL_TREND }]);
+      .values([
+        VERSION,
+        { ...VERSION, sensitivityProfileId: null, ...OF_HISTORICAL_TREND, ...NO_THRESHOLD },
+      ]);
 
     await db
       .delete(sensitivityProfiles)

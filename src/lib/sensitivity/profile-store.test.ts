@@ -31,6 +31,7 @@ import type { PlayerProfilesWrite, ProfilePair } from './profile-store';
 import type { Database } from '@/lib/db';
 import type {
   EngineParams,
+  EvaluatedTrend,
   EventTypeId,
   PlayerEvaluationInput,
   PlayerProfile,
@@ -112,6 +113,12 @@ function evaluated(hasBirthday: boolean): readonly PlayerProfile[] {
   return evaluatePlayer(input, PARAMS).profiles;
 }
 
+/** A profile or trend as a calculation at the case threshold `threshold` gives it (SEN-31). */
+function atThreshold<S extends PlayerProfile | EvaluatedTrend>(subject: S, threshold: number): S {
+  const views = subject.views.map((view) => ({ ...view, validCaseThreshold: threshold }));
+  return { ...subject, views };
+}
+
 /** A row without its identifier, which the database chose. */
 const withoutId = (row: object) =>
   Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'id'));
@@ -168,7 +175,7 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     db.select().from(verdictHistoryEntries).orderBy(asc(verdictHistoryEntries.id));
   const versionRows = async () =>
     db.select().from(profileValueVersions).orderBy(asc(profileValueVersions.id));
-  /** Each value version: the profile or the trend it belongs to, its instant and its mean gap. */
+  /** Each value version: the profile or the trend it belongs to, instant, mean gap and case threshold. */
   async function ownedVersions() {
     const versions = await versionRows();
     return versions.map((row) => [
@@ -176,6 +183,7 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       row.generalTrendId,
       row.effectiveAt.getTime(),
       row.meanGap,
+      row.validCaseThreshold,
     ]);
   }
   const idOf = async (view: ProfileView) => {
@@ -183,13 +191,13 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     return rows.find((row) => row.view === view)?.id;
   };
 
-  /** Each value version of a profile: its profile's type and view, instant and mean gap. */
+  /** Each value version of a profile: its profile's type and view, instant, mean gap and case threshold. */
   async function profileVersions() {
     const rows = await profileRows();
     const versions = await versionRows();
-    return versions.map(({ sensitivityProfileId, effectiveAt, meanGap }) => {
+    return versions.map(({ sensitivityProfileId, effectiveAt, meanGap, validCaseThreshold }) => {
       const row = rows.find(({ id }) => id === sensitivityProfileId);
-      return [row?.eventTypeId, row?.view, effectiveAt.getTime(), meanGap];
+      return [row?.eventTypeId, row?.view, effectiveAt.getTime(), meanGap, validCaseThreshold];
     });
   }
 
@@ -302,27 +310,19 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ]);
   });
 
-  it('[CL-SEN-18] [CL-SEN-19] appends a value version of the historical-only view only when one of its five values changes, and never updates one', async () => {
+  it('[SUI-08] [SEN-31] [CL-SEN-18] [CL-SEN-19] appends a value version of the historical-only view only when one of its values changes, a profile’s case threshold included, and never updates one', async () => {
     await writeProfiles([buildProfile(MEDIA_STORM, { all: { validCount: 3 } })], T1);
     const [first] = await versionRows();
     const sameValues = { validCount: 3, reasons: ['high_dispersion'] } as const;
-    const otherValues = {
-      all: { validCount: 3 },
-      historical: sameValues,
-      tracked: { validCount: 1 },
-    };
-    await writeProfiles([buildProfile(MEDIA_STORM, otherValues)], T2);
+    const others = { all: { validCount: 3 }, historical: sameValues, tracked: { validCount: 1 } };
+    await writeProfiles([buildProfile(MEDIA_STORM, others)], T2);
     const unchanged = await versionRows();
+    const otherGap = { validCount: 3, meanGap: 0.75 };
+    const changed = buildProfile(MEDIA_STORM, { all: { validCount: 3 }, historical: otherGap });
+    await writeProfiles([changed], T3);
 
-    await writeProfiles(
-      [
-        buildProfile(MEDIA_STORM, {
-          all: { validCount: 3 },
-          historical: { validCount: 3, meanGap: 0.75 },
-        }),
-      ],
-      T3,
-    );
+    // The same five values, calculated at the case threshold of 4 after a change of the parameter.
+    await writeProfiles([atThreshold(changed, 4)], at(3));
 
     const versions = await versionRows();
     const historicalId = await idOf('historical_only');
@@ -336,16 +336,18 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       verdictLevel: 'inconclusive',
       verdictDirection: null,
       profileConfidence: 'low',
+      validCaseThreshold: 5,
     });
     expect(await profileVersions()).toStrictEqual([
-      [MEDIA_STORM, 'historical_only', T1, 0.5],
-      [MEDIA_STORM, 'historical_only', T3, 0.75],
+      [MEDIA_STORM, 'historical_only', T1, 0.5, 5],
+      [MEDIA_STORM, 'historical_only', T3, 0.75, 5],
+      [MEDIA_STORM, 'historical_only', at(3), 0.75, 4],
     ]);
   });
 
-  it('[CL-SEN-18] [CL-SUI-03] replaces every version of a changed historical-only profile by one, effective at the creation of the earliest tracked case of the pair whose game has not started, else at the job instant', async () => {
-    const profiles = (meanGap: number) => [
-      buildProfile(MEDIA_STORM, { all: { validCount: 3, meanGap } }),
+  it('[SEN-31] [CL-SEN-18] [CL-SUI-03] replaces every version of a changed historical-only profile by one, effective at the creation of the earliest tracked case of the pair whose game has not started, else at the job instant, with the case threshold of the new calculation', async () => {
+    const profiles = (meanGap: number, threshold = 5) => [
+      atThreshold(buildProfile(MEDIA_STORM, { all: { validCount: 3, meanGap } }), threshold),
       buildProfile(TRADE_RUMOR, { all: { validCount: 3, meanGap } }),
       buildProfile(BIRTHDAY, { all: { validCount: 3 } }),
     ];
@@ -362,13 +364,13 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ];
     const versions: VersionWrite = { kind: 'replace', trackedCases };
 
-    await writeProfiles(profiles(0.25), T3, { versions, causeOf: () => 'recalculation' });
+    await writeProfiles(profiles(0.25, 4), T3, { versions, causeOf: () => 'recalculation' });
 
     expect(before).toHaveLength(5);
     expect(await profileVersions()).toStrictEqual([
-      [BIRTHDAY, 'historical_only', T1, 0.5],
-      [MEDIA_STORM, 'historical_only', at(-10), 0.25],
-      [TRADE_RUMOR, 'historical_only', T3, 0.25],
+      [BIRTHDAY, 'historical_only', T1, 0.5, 5],
+      [MEDIA_STORM, 'historical_only', at(-10), 0.25, 4],
+      [TRADE_RUMOR, 'historical_only', T3, 0.25, 5],
     ]);
   });
 
@@ -387,8 +389,8 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     const rows = await profileRows();
     expect([before, pairs]).toStrictEqual([
       [
-        [MEDIA_STORM, 'historical_only', T1, 0.5],
-        [MEDIA_STORM, 'historical_only', T2, 0.25],
+        [MEDIA_STORM, 'historical_only', T1, 0.5, 5],
+        [MEDIA_STORM, 'historical_only', T2, 0.25, 5],
       ],
       [{ playerId: PLAYER, eventTypeId: MEDIA_STORM }],
     ]);
@@ -397,7 +399,7 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       ['historical_only', 3, 0],
       ['tracked_only', 1, 0],
     ]);
-    expect(await profileVersions()).toStrictEqual([[MEDIA_STORM, 'historical_only', T3, 0.25]]);
+    expect(await profileVersions()).toStrictEqual([[MEDIA_STORM, 'historical_only', T3, 0.25, 5]]);
   });
 
   it('[SEN-37] [CL-SEN-16] writes each profile in a transaction of its own, which a failure after its upsert undoes with its history entry and its version', async () => {
@@ -431,13 +433,13 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       history.map(({ cause, newProfileConfidence }) => [cause, newProfileConfidence]),
     ).toStrictEqual([['new_cases', 'medium']]);
     expect(await profileVersions()).toStrictEqual([
-      [MEDIA_STORM, 'historical_only', T1, 0.5],
-      [TRADE_RUMOR, 'historical_only', T1, 0.5],
-      [MEDIA_STORM, 'historical_only', T2, 1],
+      [MEDIA_STORM, 'historical_only', T1, 0.5, 5],
+      [TRADE_RUMOR, 'historical_only', T1, 0.5, 5],
+      [MEDIA_STORM, 'historical_only', T2, 1, 5],
     ]);
   });
 
-  it('[SEN-28] [SEN-37] [CL-SEN-18] [CL-SEN-19] writes each trend whole with its history and versions, and erases a trend left with no event with them', async () => {
+  it('[SUI-08] [SEN-28] [SEN-37] [CL-SEN-18] [CL-SEN-19] writes each trend whole with its history and versions, which keep no case threshold and take no change of it alone, and erases a trend left with no event with them', async () => {
     const trend = buildTrend({
       all: { validCount: 5, verdict: POSSIBLE_UP, reasons: ['dominant_player'] },
     });
@@ -456,18 +458,20 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       ...job(T2, { causeOf: () => 'parameter_change' }),
     });
 
-    const unchanged = await writeTrends(db, {
-      trends: [{ eventTypeId: MEDIA_STORM, trend }],
-      ...job(T3),
-    });
+    const same = [{ eventTypeId: MEDIA_STORM, trend }];
+    const unchanged = await writeTrends(db, { trends: same, ...job(T3) });
+    // The same values at the case threshold of 4, which a trend's versions do not keep.
+    const atFour = [{ eventTypeId: MEDIA_STORM, trend: atThreshold(trend, 4) }];
+    const thresholdOnly = await writeTrends(db, { trends: atFour, ...job(at(3)) });
 
     const trends = await db.select().from(generalTrends).orderBy(asc(generalTrends.id));
     const history = await historyRows();
     const [defaultId, historicalId] = trends.map(({ id }) => id);
-    expect([first, second, unchanged]).toStrictEqual([
+    expect([first, second, unchanged, thresholdOnly]).toStrictEqual([
       [MEDIA_STORM, TRADE_RUMOR],
       [MEDIA_STORM, TRADE_RUMOR],
       [],
+      [MEDIA_STORM],
     ]);
     expect(
       trends.map((row) => [
@@ -479,16 +483,16 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         row.computedAt.getTime(),
       ]),
     ).toStrictEqual([
-      ['all_cases', 5, 2, 5, ['dominant_player'], T3],
-      ['historical_only', 5, 2, 5, ['dominant_player'], T3],
-      ['tracked_only', 0, 0, 0, [], T3],
+      ['all_cases', 5, 2, 5, ['dominant_player'], at(3)],
+      ['historical_only', 5, 2, 5, ['dominant_player'], at(3)],
+      ['tracked_only', 0, 0, 0, [], at(3)],
     ]);
     expect(
       history.map((entry) => [entry.generalTrendId, entry.sensitivityProfileId, entry.cause]),
     ).toStrictEqual([[defaultId, null, 'parameter_change']]);
     expect(await ownedVersions()).toStrictEqual([
-      [null, historicalId, T1, 0.5],
-      [null, historicalId, T2, 0.5],
+      [null, historicalId, T1, 0.5, null],
+      [null, historicalId, T2, 0.5, null],
     ]);
   });
 
@@ -516,8 +520,8 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     // The trend's historical-only row shares his profile's identifier, which a delete by the
     // profiles' owner column would reach.
     expect(await ownedVersions()).toStrictEqual([
-      [profileId, null, T1, 0.5],
-      [null, profileId, at(-20), 0.25],
+      [profileId, null, T1, 0.5, 5],
+      [null, profileId, at(-20), 0.25, null],
     ]);
   });
 
@@ -558,8 +562,8 @@ describe('the profile store', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     expect(left).toStrictEqual([
       [],
       [
-        [BIRTHDAY, 'historical_only', T3, null],
-        [MEDIA_STORM, 'historical_only', T3, null],
+        [BIRTHDAY, 'historical_only', T3, null, 5],
+        [MEDIA_STORM, 'historical_only', T3, null, 5],
       ],
     ]);
     expect(kept.map(({ eventTypeId }) => eventTypeId)).toStrictEqual([
