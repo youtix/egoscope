@@ -7,7 +7,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { runInNewContext } from 'node:vm';
 
+import ts from 'typescript';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
+import { z } from 'zod';
 
 import nextConfig from './next.config';
 
@@ -21,6 +23,22 @@ const BUILD = [
 ];
 const NEXT_BUILD = ['/_next/static/c8Yr/_buildManifest.js', ...BUILD.slice(1)];
 const SHELL_CACHE = /^egoscope-shell-[\da-f]{16}$/u;
+
+// Where Next.js writes the route types of a build, under the folder of that build.
+const ROUTE_TYPES = /^\.next\//u;
+
+// The part of a TypeScript configuration that says which files it type-checks.
+const withInclude = z.object({ include: z.array(z.string()) });
+
+/** The `include` of a TypeScript configuration of the repository, comments allowed. */
+function includeOf(file: string): readonly string[] {
+  const read: { config?: unknown; error?: ts.Diagnostic } = ts.readConfigFile(
+    path.join(import.meta.dirname, file),
+    (name) => ts.sys.readFile(name),
+  );
+  expect(read.error).toBeUndefined();
+  return withInclude.parse(read.config).include;
+}
 
 /** Runs `call` once the current turn ends, as an answer of the browser does. */
 async function later<T>(call: () => T): Promise<T> {
@@ -174,5 +192,14 @@ describe('next.config.ts', () => {
     expect(await lot2.rewrites?.()).toStrictEqual([
       { source: '/sw.js', destination: '/_next/static/sw.js' },
     ]);
+  });
+
+  it('type-checks the Lot 2 build with every file of tsconfig.json, its route types taken from .next/lot2 instead of .next', () => {
+    const usual = includeOf('tsconfig.json');
+
+    expect(usual).toContain('.next/types/**/*.ts');
+    expect(includeOf('tsconfig.lot2.json')).toStrictEqual(
+      usual.map((pattern) => pattern.replace(ROUTE_TYPES, '.next/lot2/')),
+    );
   });
 });
