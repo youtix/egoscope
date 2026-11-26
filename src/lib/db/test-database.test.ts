@@ -1,15 +1,5 @@
 import assert from 'node:assert/strict';
-import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  stat,
-  truncate,
-  writeFile,
-} from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -460,9 +450,9 @@ describe('the stored template', { timeout: 60_000 }, () => {
     const { store, builds } = await countedStore('first');
     const file = path.join(store.folder, 'first.tar');
     await workerDatabase(store);
-    const { size } = await stat(file);
+    const whole = await readFile(file);
 
-    await truncate(file, Math.floor(size / 2));
+    await writeFile(file, whole.subarray(0, Math.floor(whole.length / 2)));
     await workerDatabase(store);
     const damaged = await readFile(file);
     const middle = Math.floor(damaged.length / 2);
@@ -470,10 +460,10 @@ describe('the stored template', { timeout: 60_000 }, () => {
     await writeFile(file, damaged);
     await workerDatabase(store);
     await workerDatabase(store);
-    const { size: replaced } = await stat(file);
+    const replaced = await readFile(file);
 
     expect(builds()).toBe(3);
-    expect(replaced).toBe(size);
+    expect(replaced.equals(whole)).toBe(true);
   });
 
   it('[TRV-76] builds again a stored template that PGlite refuses, and stores the new one', async () => {
