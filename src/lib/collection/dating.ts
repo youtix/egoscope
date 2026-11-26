@@ -16,7 +16,7 @@ import type { FeedItem } from '@/lib/press-feeds';
 import type { EpochMs, IsoDate, ParsedTimestamp } from '@/lib/time';
 
 /** The precision of a retained instant: exact, approximate or none (`DatePrecision`, COL-20). */
-export type DatePrecision = ArticleRow['retainedPublishedAtPrecision'];
+type DatePrecision = ArticleRow['retainedPublishedAtPrecision'];
 /** A language the collection keeps, `en` or `fr` (`Language`, COL-05, COL-17). */
 export type Language = PressSourceRow['language'];
 
