@@ -43,9 +43,11 @@ const WAIT_LIMIT_MS = 1_200_000; // Twenty minutes.
 // `git symbolic-ref --quiet` exits with 1, silently, when HEAD is detached.
 const DETACHED_STATUS = 1;
 const MAIN = 'main';
-// The remote and the remote branch that a local branch tracks, as for-each-ref prints them.
-const UPSTREAM_FORMAT = '--format=%(upstream:remotename) %(upstream:remoteref)';
+// The remote and the remote branch that a local branch tracks, as for-each-ref prints them,
+// then how far apart they are: `[gone]` when the remote no longer holds that branch.
+const UPSTREAM_FORMAT = '--format=%(upstream:remotename) %(upstream:remoteref) %(upstream:track)';
 const UPSTREAM_FIELDS = 2;
+const GONE = '[gone]';
 // `git rev-parse HEAD @{upstream}` prints one line for each.
 const COMMIT_LINES = 2;
 const BRANCH_REF = /^refs\/heads\//u;
@@ -66,7 +68,7 @@ const REBASE =
   'The branch does not hold the remote-test workflow yet: rebase it onto origin/main, push it, then run the command again.';
 
 type RemoteRequest = Readonly<{ filters: readonly string[]; globs: readonly string[] }>;
-type Upstream = Readonly<{ remote: string; branch: string }>;
+type Upstream = Readonly<{ remote: string; branch: string; isGone: boolean }>;
 
 const notPushed = (name: string): string =>
   `The branch ${name} tracks no branch of a remote: push it under the name of your task's branch with git push -u origin HEAD:<type/short-slug>, then run the command again.`;
@@ -153,10 +155,13 @@ function readBranch(git: Command): Result<string> {
   return changes.value === '' ? { ok: true, value: name } : refusal(UNCOMMITTED);
 }
 
-/** The remote and the remote branch of a line of `UPSTREAM_FORMAT`, both empty without one. */
+/**
+ * The remote and the remote branch of a line of `UPSTREAM_FORMAT`, both empty without one, and
+ * whether the remote no longer holds that branch.
+ */
 function upstreamOf(line: string): Upstream {
   const [remote = '', ref = ''] = line.split(' ', UPSTREAM_FIELDS);
-  return { remote, branch: ref.replace(BRANCH_REF, '') };
+  return { remote, branch: ref.replace(BRANCH_REF, ''), isGone: line.endsWith(GONE) };
 }
 
 /**
@@ -174,6 +179,10 @@ function readPushed(git: Command, name: string): Result<Commit> {
   }
   if (upstream.branch === MAIN) {
     return refusal(tracksMain(name, upstream.remote));
+  }
+  // git cannot read the commit of an upstream that the remote no longer holds.
+  if (upstream.isGone) {
+    return refusal(behind(name, upstream));
   }
   const commits = ask(git, ['rev-parse', 'HEAD', '@{upstream}']);
   if (!commits.ok) {

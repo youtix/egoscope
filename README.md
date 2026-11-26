@@ -51,6 +51,8 @@ bun run dev                  # http://localhost:3000
 | `bun run test:coverage`      | All unit tests, with the coverage thresholds enforced.                                  |
 | `bun run test:mutation`      | Mutation tests of the pure core; a score below 100% fails.                              |
 | `bun run test:remote <path>` | The unit tests under `path` of the pushed branch, on a GitHub runner, without the lock. |
+| `bun run e2e`                | Builds the app and runs the end-to-end specs with Playwright, under the lock.           |
+| `bun run e2e:ui`             | Playwright's UI on the end-to-end specs, without the lock.                              |
 | `bun run lint`               | ESLint, markdownlint and the structure check.                                           |
 | `bun run lint:fix`           | ESLint and markdownlint, fixing what they can.                                          |
 | `bun run format`             | Formats every file with Prettier (`format:check` only checks).                          |
@@ -66,10 +68,11 @@ bun run dev                  # http://localhost:3000
 
 `check:changed` runs Prettier, ESLint, markdownlint and the structure check on the files that
 differ from `origin/main` (committed, staged, unstaged or untracked; deletions and renames count),
-runs `bun run trace` when a specification, a ruling, a test, the waiver register or the criteria
-index differs, type-checks the whole project incrementally, then runs the tests related to the
-changed files, or all of them when tooling changed or a source file was deleted or renamed. It
-refuses a change to a frozen French specification, unless the checksum list
+runs `bun run trace` when a specification, a ruling, a test, the waiver register, the criteria
+index or the check's own code and settings differ (its scripts, and `prettier.config.ts`, which
+formats the criteria index), type-checks the whole project incrementally, then runs the tests
+related to the changed files, or all of them when tooling changed or a source file was deleted or
+renamed. It refuses a change to a frozen French specification, unless the checksum list
 `docs/frozen-specs.sha256` changes in the same diff: that is the coordinator's path, when the owner
 changes a specification. It stops at the first failing step. CI runs the full gate on every push.
 
@@ -78,13 +81,15 @@ changes a specification. It stops at the first failing step. CI runs the full ga
 workflow does the same in CI.
 
 Several agents may share one machine, so the heavy scripts (`build`, `typecheck`, `lint`,
-`lint:fix`, `test`, `test:coverage`, `test:mutation`, `knip`, `check:changed` and `gate`) take turns
-on one lock that every worktree of the clone shares: `egoscope-heavy.lock` in the git directory,
-managed by [`scripts/with-lock.ts`](scripts/with-lock.ts). The command holds the lock itself, so the
-lock lasts as long as the command, even if the script that started it is killed, and SIGINT, SIGTERM
-and SIGHUP reach the command. Watch, UI and dev-server modes are refused under the lock. A waiting
-script says whom it waits for and for how long, and gives up when one run has held the lock for more
-than 30 minutes. CI never locks.
+`lint:fix`, `test`, `test:coverage`, `test:mutation`, `e2e`, `knip`, `check:changed` and `gate`)
+take turns on a lock with two slots that every worktree of the clone shares: `egoscope-heavy.lock`
+in the git directory, managed by [`scripts/with-lock.ts`](scripts/with-lock.ts). A whole-project
+script, every test run included, runs alone on the first slot, and a narrow one, an ESLint run with
+paths (`bun scripts/with-lock.ts node_modules/.bin/eslint <paths>`), on either. The command holds
+the lock itself, so the lock lasts as long as the command, even if the script that started it is
+killed, and SIGINT, SIGTERM and SIGHUP reach the command. Watch, UI and dev-server modes are refused
+under the lock. A waiting script says whom it waits for and for how long, and gives up when one run
+has held the lock for more than 30 minutes. CI never locks.
 
 ## Layout
 
@@ -98,7 +103,8 @@ src/lib/log/             The server logger, the only writer to the console.
 data/                    Seeds, fixtures and raw data. Never code.
 docs/                    French functional specifications, frozen and checksummed in docs/frozen-specs.sha256.
 scripts/                 Tooling: the shared lock, the structure and fast checks, the ci-ok verdict.
-.github/                 CI workflow, its shared setup action, the pull request template.
+e2e/                     End-to-end specs and their fixtures, run by Playwright.
+.github/                 The workflows, their shared setup action, the pull request template.
 ```
 
 ## Entry points
@@ -115,7 +121,7 @@ Every pull request runs the CI workflow, whose ordinary checks (lint, actionlint
 coverage, migrations and build) all feed one final job, `ci-ok`, which passes only when each of them
 succeeded: the unit tests run on three runners, and `coverage` judges the thresholds on their merged
 reports. A concern with its own triggers, permissions or runtime gets its own workflow instead:
-end-to-end tests (planned), mutation testing, requirement traceability and security scanning, with
+end-to-end tests, mutation testing, requirement traceability and security scanning, with
 the final jobs `e2e`, `mutation`, `trace` and `security`. Such a final job always starts and always
 reports a result, even when nothing relevant changed: no path filter ever skips it. `ci-ok` and
 those final jobs are the required checks of `main`. The title of a pull request is checked by the

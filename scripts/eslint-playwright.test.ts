@@ -1,9 +1,11 @@
 // Proves what the Playwright override of eslint.config.ts refuses in the end-to-end
 // specs and their helpers, beside what it lets through: no skipped, focused or
-// failing test in any form, no test without the accessibility check, no event that
-// a test dispatches on a locator, and no empty pattern but the parameter of a
-// fixture that depends on no other. Deliberate violations are linted in the probe
-// project of lint-probes.ts.
+// failing test in any form, no test without the accessibility check, no title without
+// the space after its requirement IDs, no raw locator in a spec, no event that a test
+// dispatches on a locator, and no empty pattern but the parameter of a fixture that
+// depends on no other; and that the specs and their helpers, unlike src/, may import
+// development dependencies. Deliberate violations are linted in the probe project of
+// lint-probes.ts; the other probes of eslint.config.ts are in eslint.config.test.ts.
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { createProbes } from './lint-probes';
@@ -21,6 +23,9 @@ const inTest = (statement: string): string =>
   inSpec(
     `  test('runs', async ({}, testInfo) => {\n    ${statement}\n    await testInfo.attach('x');\n  });`,
   );
+
+/** An end-to-end spec whose one test bears `title`. */
+const titled = (title: string): string => inSpec(`  test('${title}', () => undefined);`);
 
 describe('the Playwright override', { timeout: 120_000 }, () => {
   afterAll(remove);
@@ -123,6 +128,27 @@ describe('the Playwright override', { timeout: 120_000 }, () => {
     expect(await ruleIds(HELPER, code)).not.toContain('no-restricted-syntax');
   });
 
+  it('refuses a title whose requirement IDs the description follows without a space', async () => {
+    expect(await ruleIds(SPEC, titled('[JOU-04]refuses a 31st active player'))).toContain(
+      'playwright/valid-title',
+    );
+    expect(await ruleIds(SPEC, titled('[JOU-04] refuses a 31st active player'))).not.toContain(
+      'playwright/valid-title',
+    );
+  });
+
+  it('refuses a raw locator in a spec, but not in a helper', async () => {
+    const code = [
+      "import type { Locator, Page } from '@playwright/test';",
+      '',
+      "export const rows = (page: Page): Locator => page.locator('.row');",
+      '',
+    ].join('\n');
+
+    expect(await ruleIds(SPEC, code)).toContain('playwright/no-raw-locators');
+    expect(await ruleIds(HELPER, code)).not.toContain('playwright/no-raw-locators');
+  });
+
   it('lets a fixture that depends on no other take the empty object pattern that Playwright requires', async () => {
     const code = [
       "import { test as base } from '@playwright/test';",
@@ -136,5 +162,24 @@ describe('the Playwright override', { timeout: 120_000 }, () => {
     ].join('\n');
 
     expect(await ruleIds(HELPER, code)).not.toContain('no-empty-pattern');
+  });
+
+  describe('end-to-end specs', () => {
+    it.each(['e2e/smoke.spec.ts', 'e2e/fixtures.ts'])(
+      'let %s import a development dependency',
+      async (file) => {
+        const code = "import { expect } from 'vitest';\n\nexport const check = expect;\n";
+
+        expect(await ruleIds(file, code)).not.toContain('import-x/no-extraneous-dependencies');
+      },
+    );
+
+    it('still keeps development dependencies out of src/', async () => {
+      const code = "import { expect } from 'vitest';\n\nexport const check = expect;\n";
+
+      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain(
+        'import-x/no-extraneous-dependencies',
+      );
+    });
   });
 });

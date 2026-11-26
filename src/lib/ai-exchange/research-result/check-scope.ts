@@ -250,11 +250,11 @@ function resolveType(
   }
   const warnings: readonly ScopeWarning[] = [
     ...(type.standing === 'merged'
-      ? [{ kind: 'attached_to_surviving_type', typeId: type.survivorId } as const]
+      ? [{ kind: 'attached_to_surviving_type', typeId: type.survivorId } satisfies ScopeWarning]
       : []),
     ...(facts.coveredTypes.includes(requested.id)
       ? []
-      : [{ kind: 'type_not_declared_covered' } as const]),
+      : [{ kind: 'type_not_declared_covered' } satisfies ScopeWarning]),
   ];
   return { kind: 'taken', type: taken, period: requested.period, warnings };
 }
@@ -302,7 +302,7 @@ function checkPublicDate(reading: DateReading, type: TypeResolution, facts: Scop
   const isUndeclared = isOutside(on, facts.declaredPeriod);
   const warnings: readonly ScopeWarning[] = [
     ...(reading.warning === undefined ? [] : [{ kind: reading.warning }]),
-    ...(isUndeclared ? [{ kind: 'outside_declared_period' } as const] : []),
+    ...(isUndeclared ? [{ kind: 'outside_declared_period' } satisfies ScopeWarning] : []),
   ];
   return { kind: 'dated', date: reading.date, warnings };
 }

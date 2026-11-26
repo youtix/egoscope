@@ -110,8 +110,8 @@ function evidenceOf(
 ): readonly Evidence[] {
   const played = lines.filter((line) => isPlayed(line));
   return [
-    ...played.map(({ gameId, scheduledStartAt, teamId }) => ({
-      kind: 'played' as const,
+    ...played.map(({ gameId, scheduledStartAt, teamId }): Evidence => ({
+      kind: 'played',
       at: scheduledStartAt,
       id: gameId,
       teamId,

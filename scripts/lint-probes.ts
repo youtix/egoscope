@@ -1,9 +1,17 @@
 /**
- * The harness of the lint policy probes, shared by eslint.config.test.ts,
- * scripts/eslint-plugin.test.ts, scripts/eslint-playwright.test.ts,
- * scripts/eslint-test-support.test.ts, scripts/eslint-time-rules.test.ts and
- * scripts/vitest-names.test.ts. Probes are real files in a temporary copy of the
- * project, linted with the full configuration, type-aware rules included.
+ * The harness of the lint policy probes. Probes are real files in a temporary copy of
+ * the project, linted with the full configuration, type-aware rules included. Each kind
+ * lives beside what it probes:
+ *
+ * - eslint.config.test.ts: the module rules and the other guarantees of eslint.config.ts;
+ * - scripts/route-shells.test.ts: the shell rules, beside the list of route shells;
+ * - scripts/eslint-playwright.test.ts: the end-to-end specs and their helpers;
+ * - scripts/eslint-test-support.test.ts: the test support kept out of production code;
+ * - scripts/eslint-plugin.test.ts: the comments and directives that switch a check off,
+ *   and the rules of the `egoscope` plugin that have no file of their own;
+ * - scripts/vitest-names.test.ts, eslint-time-rules.test.ts, eslint-format-rule.test.ts,
+ *   eslint-module-order.test.ts and eslint-hermetic-routes.test.ts: the plugin's rules
+ *   of the files that they test.
  * typescript-estree's automatic single-run mode is off: under CI=true it would
  * reuse an isolated program across the many lints of one probe path.
  */
@@ -66,6 +74,9 @@ const PROBE_FILES: readonly string[] = [
   'src/lib/Bad_Module/probe.ts',
   'src/lib/ai-exchange/probe.test.ts',
   'src/lib/ai-exchange/probe.ts',
+  'src/lib/ai-exchange/research-result/probe.test.ts',
+  // No such file exists yet: a probe stands for the shared types of the module.
+  'src/lib/ai-exchange/types.ts',
   'src/lib/env/index.ts',
   'src/lib/env/probe.ts',
   'src/lib/log/console-sink.ts',
@@ -75,6 +86,8 @@ const PROBE_FILES: readonly string[] = [
   'src/lib/probe/probe.test.ts',
   'src/lib/probe/probe.ts',
   'src/lib/probe/use-probe.ts',
+  'src/lib/stats-engine/performance/probe.test.ts',
+  'src/lib/stats-engine/performance/probe.ts',
   'src/lib/stats-engine/probe.cts',
   'src/lib/stats-engine/probe.mts',
   'src/lib/stats-engine/probe.test.ts',

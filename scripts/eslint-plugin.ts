@@ -9,21 +9,30 @@
  * - `no-local-time`, `no-ambient-time` and `no-default-locale`, in
  *   eslint-time-rules.ts: local time in the pure core, the clock, the machine's
  *   time zone, date parsing and default locales, whose results depend on the
- *   machine.
+ *   machine, and any import of temporal-polyfill outside the time module.
  * - `no-ad-hoc-format`, in eslint-format-rule.ts: numbers and dates written by
  *   anything but the formatters of the wording and time modules (IHM-13).
  * - `module-order` and `lot-boundary`, in eslint-module-order.ts: an import of a module
  *   that comes later in the allowed order of the module map, and an import of Lot 2
  *   from the code below the lot boundary (module map, section 1.2, rules 3 and 9).
+ * - `hermetic-test-routes`, in eslint-hermetic-routes.ts: a route under /api/test/
+ *   whose handler does not start as /api/test/ping does, waiting for the request,
+ *   then answering only in the hermetic mode.
  */
-import { AST_NODE_TYPES, AST_TOKEN_TYPES, ESLintUtils } from '@typescript-eslint/utils';
+import { AST_NODE_TYPES, AST_TOKEN_TYPES, ASTUtils, ESLintUtils } from '@typescript-eslint/utils';
+import ts from 'typescript';
 
 import { noAdHocFormat } from './eslint-format-rule';
+import { hermeticTestRoutes } from './eslint-hermetic-routes';
 import { lotBoundary, moduleOrder } from './eslint-module-order';
 import { noAmbientTime, noDefaultLocale, noLocalTime } from './eslint-time-rules';
 import { contextPart, vitestNames } from './vitest-names';
 
-import type { TSESLint, TSESTree } from '@typescript-eslint/utils';
+import type {
+  ParserServicesWithTypeInformation,
+  TSESLint,
+  TSESTree,
+} from '@typescript-eslint/utils';
 import type { ESLint } from 'eslint';
 
 const createRule = ESLintUtils.RuleCreator<{ requiresTypeChecking?: boolean }>(
@@ -81,17 +90,57 @@ function isEquivalentMutant(comment: TSESTree.Comment): boolean {
 // condition, or turn its failure into a pass, whatever name an object goes by
 // (vitest-names.ts), such as a test made by `it.extend()`. Vitest carries each of
 // them along the rest of a chain, so every member counts, wherever it stands in the
-// chain and whether or not it is called there: `it.fails.each([1])` as much as
-// `it.concurrent.fails`. The Vitest plugin's own rules refuse the skip, only and
+// chain, whether or not it is called there and however it is read (`it['fails']`, a
+// destructured `const { skip } = it`): `it.fails.each([1])` as much as
+// `it.concurrent.fails`. A read counts unless TypeScript knows that its value is none
+// of Vitest's, as for `test.skip` in `rows.filter((test) => !test.skip)` on rows of
+// one's own: a test that a helper function builds keeps Vitest's type, and a value of
+// type `any` may be anything. The Vitest plugin's own rules refuse the skip, only and
 // to-do modifiers too.
 const SKIPPING_MEMBERS: ReadonlySet<string> = new Set(['skip', 'skipIf', 'runIf', 'fails']);
+// The options of a test or a suite that do the same, whatever their value:
+// `it('…', { skip: false }, fn)`. The `allowOnly: false` of vitest.config.ts refuses
+// `only`, as it refuses `.only`.
+const SKIPPING_OPTIONS: ReadonlySet<string> = new Set(['skip', 'todo', 'fails']);
 const VITEST_OBJECTS: ReadonlySet<string> = new Set(['it', 'test', 'describe', 'suite', 'bench']);
-// The calls whose callback receives the test context, whose skip() skips the test.
-const CONTEXT_OWNERS: ReadonlySet<string> = new Set([...VITEST_OBJECTS, 'beforeEach', 'afterEach']);
+// The calls whose callback receives the test context, whose skip() skips the test, as
+// a fixture of `it.extend()` does (vitest-names.ts).
+const CONTEXT_OWNERS: ReadonlySet<string> = new Set([
+  ...VITEST_OBJECTS,
+  'beforeEach',
+  'afterEach',
+  'aroundEach',
+]);
+// Where Vitest's types are declared, whatever folder holds the installed package.
+const VITEST_TYPES = /\/node_modules\/(?:@vitest|vitest)\//u;
 
-/** Says whether `node` is the name `skip`. */
-const isSkipName = (node: TSESTree.Node): boolean =>
-  node.type === AST_NODE_TYPES.Identifier && node.name === 'skip';
+/** Says whether `names` holds the name of one of Vitest's objects. */
+const hasVitestName = (names: readonly string[]): boolean =>
+  names.some((name) => VITEST_OBJECTS.has(name));
+
+/** Says whether one of the declarations of `symbol` is among Vitest's types. */
+const isVitestSymbol = (symbol: ts.Symbol | undefined): boolean =>
+  symbol?.declarations?.some((declaration) =>
+    VITEST_TYPES.test(declaration.getSourceFile().fileName),
+  ) ?? false;
+
+/**
+ * Says whether the value of `node` may be one of Vitest's: unless its type, or the
+ * constraint of its generic type, is neither `any` nor `unknown` and has no part (itself,
+ * a member of its union or intersection) that Vitest's types declare.
+ */
+function canBeVitest(services: ParserServicesWithTypeInformation, node: TSESTree.Node): boolean {
+  const checker = services.program.getTypeChecker();
+  const declared = services.getTypeAtLocation(node);
+  const type = checker.getBaseConstraintOfType(declared) ?? declared;
+  const parts = type.isUnionOrIntersection() ? [type, ...type.types] : [type];
+  return parts.some(
+    (part) =>
+      (part.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0 ||
+      isVitestSymbol(part.aliasSymbol) ||
+      isVitestSymbol(part.getSymbol()),
+  );
+}
 
 /** Reports each comment whose text `isMatch` accepts, and returns the lines they cover. */
 function reportComments(
@@ -203,12 +252,14 @@ const noToolPragmas = createRule<[{ equivalentMutants: boolean }], 'prettier' | 
 );
 
 /**
- * Says whether `callee` is skip() from the test context (vitest-names.ts): `context.skip`,
- * where `context` holds the whole context, or a destructured `skip`, but not `cursor.skip`
- * on a fixture.
+ * Says whether `callee` is skip() from the test context (vitest-names.ts): `context.skip`
+ * or `context['skip']`, where `context` holds the whole context, or a destructured `skip`,
+ * but not `cursor.skip` on a fixture.
  */
 function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope): boolean {
-  const isMember = callee.type === AST_NODE_TYPES.MemberExpression && isSkipName(callee.property);
+  const isMember =
+    callee.type === AST_NODE_TYPES.MemberExpression &&
+    ASTUtils.getPropertyName(callee, scope) === 'skip';
   const holder = isMember ? callee.object : callee;
   return (
     holder.type === AST_NODE_TYPES.Identifier &&
@@ -217,17 +268,43 @@ function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope)
 }
 
 /**
- * The skipping member that `node` reads from a Vitest object, if any: `skipIf` in
- * `it.skipIf`, and `fails` in `it.fails.concurrent` as in `it.concurrent.fails`.
+ * The skipping options that `call` gives a test or a suite, with their names, in the
+ * object of options that comes after its name: `skip` in `it('…', { skip: true }, fn)`.
+ * As for a skipping member, a call counts unless TypeScript knows that its callee is none
+ * of Vitest's, as for `test.run('first', { skip: false })` on an object of one's own.
  */
-function vitestSkippingMember(
-  node: TSESTree.MemberExpression,
+function skippingOptions(
+  call: TSESTree.CallExpression,
   scope: TSESLint.Scope.Scope,
-): string | undefined {
-  return node.property.type === AST_NODE_TYPES.Identifier &&
-    SKIPPING_MEMBERS.has(node.property.name) &&
-    vitestNames(node.object, scope).some((name) => VITEST_OBJECTS.has(name))
-    ? node.property.name
+  services: ParserServicesWithTypeInformation,
+): readonly (readonly [TSESTree.Property, string])[] {
+  const options = call.arguments[1];
+  if (
+    options?.type !== AST_NODE_TYPES.ObjectExpression ||
+    !hasVitestName(vitestNames(call.callee, scope)) ||
+    !canBeVitest(services, call.callee)
+  ) {
+    return [];
+  }
+  return options.properties.flatMap((option) => {
+    if (option.type !== AST_NODE_TYPES.Property) {
+      return [];
+    }
+    const name = ASTUtils.getPropertyName(option, scope);
+    return name !== null && SKIPPING_OPTIONS.has(name) ? [[option, name] as const] : [];
+  });
+}
+
+/** The value that `pattern` destructures: `it` in `const { skip } = it`, if any. */
+function destructured(pattern: TSESTree.Node): TSESTree.Node | undefined {
+  const { parent } = pattern;
+  if (parent?.type === AST_NODE_TYPES.VariableDeclarator && parent.id === pattern) {
+    return parent.init ?? undefined;
+  }
+  return (parent?.type === AST_NODE_TYPES.AssignmentExpression ||
+    parent?.type === AST_NODE_TYPES.AssignmentPattern) &&
+    parent.left === pattern
+    ? parent.right
     : undefined;
 }
 
@@ -235,26 +312,61 @@ const noSkippedTests = createRule({
   name: 'no-skipped-tests',
   meta: {
     type: 'problem',
-    docs: { description: 'Forbid tests that are switched off while the suite runs.' },
+    docs: {
+      description: 'Forbid tests that are switched off while the suite runs.',
+      requiresTypeChecking: true,
+    },
     messages: {
       skip: '`{{name}}` switches a test off, or turns its failure into a pass: a test runs and passes, or it is deleted.',
     },
     schema: [],
   },
   create(context) {
+    const services = ESLintUtils.getParserServices(context);
     // The scope of the whole file: a lookup from it finds each name where it is used.
     const scope = context.sourceCode.getScope(context.sourceCode.ast);
+    const report = (node: TSESTree.Node, name: string): void => {
+      context.report({ node, messageId: 'skip', data: { name } });
+    };
+    // The skipping member that `node` names, read from `holder`, which the member reads
+    // or the pattern destructures, if `holder` may be a Vitest object.
+    const skippingMember = (
+      node: TSESTree.MemberExpression | TSESTree.Property,
+      holder: TSESTree.Node,
+      value: TSESTree.Node,
+    ): string | undefined => {
+      const name = ASTUtils.getPropertyName(node, scope);
+      return name !== null &&
+        SKIPPING_MEMBERS.has(name) &&
+        hasVitestName(vitestNames(holder, scope)) &&
+        canBeVitest(services, value)
+        ? name
+        : undefined;
+    };
     return {
       CallExpression(node): void {
         if (isContextSkip(node.callee, scope)) {
-          context.report({ node: node.callee, messageId: 'skip', data: { name: 'skip' } });
+          report(node.callee, 'skip');
+        }
+        for (const [option, name] of skippingOptions(node, scope, services)) {
+          report(option, name);
         }
       },
       // Each member of a chain is visited on its own, so each is reported once.
       MemberExpression(node): void {
-        const name = vitestSkippingMember(node, scope);
+        const name = skippingMember(node, node.object, node);
         if (name !== undefined) {
-          context.report({ node, messageId: 'skip', data: { name } });
+          report(node, name);
+        }
+      },
+      'ObjectPattern > Property'(node: TSESTree.Property): void {
+        const holder = destructured(node.parent);
+        // The name bound, without its default value: `pending` in `{ skip: pending = noop }`.
+        const bound =
+          node.value.type === AST_NODE_TYPES.AssignmentPattern ? node.value.left : node.value;
+        const name = holder === undefined ? undefined : skippingMember(node, holder, bound);
+        if (name !== undefined) {
+          report(node, name);
         }
       },
     };
@@ -262,6 +374,7 @@ const noSkippedTests = createRule({
 });
 
 const rules = {
+  'hermetic-test-routes': hermeticTestRoutes,
   'lot-boundary': lotBoundary,
   'module-order': moduleOrder,
   'no-ad-hoc-format': noAdHocFormat,

@@ -280,6 +280,14 @@ describe('stepsFor', () => {
     ['an end-to-end spec', present('e2e/home.spec.ts')],
     ['the waiver register', present('docs/engineering/requirement-waivers.md')],
     ['the acceptance criteria index', present('docs/engineering/acceptance-criteria-index.md')],
+    ['the check itself', present('scripts/trace-requirements.ts')],
+    ['its report', present('scripts/trace-report.ts')],
+    ['its rules', present('scripts/trace-rules.ts')],
+    ['its reader of the specifications', present('scripts/spec-ids.ts')],
+    ['its reader of the test titles', present('scripts/test-titles.ts')],
+    ['its reader of the waiver register', present('scripts/waiver-register.ts')],
+    ['its reader of the criteria index', present('scripts/criteria-index.ts')],
+    ['the Prettier settings, which format the criteria index', present('prettier.config.ts')],
   ])('runs `bun run trace` when %s changed', (_change, changes) => {
     const steps = stepsFor(planCheck(changes));
 
@@ -312,9 +320,21 @@ describe('stepsFor', () => {
 
     expect(stepsFor(plan).map((step) => step.name)).not.toContain('Requirement traceability');
   });
+
+  it.each([
+    'scripts/ci-ok.sh',
+    'scripts/content-rules.ts',
+    'scripts/traced.ts',
+    'eslint.config.ts',
+  ])('leaves the traceability check out when only %s, which it does not run, changed', (file) => {
+    const steps = stepsFor(planCheck(present(file)));
+
+    expect(steps.map((step) => step.name)).not.toContain('Requirement traceability');
+  });
 });
 
-describe('listChanges', () => {
+// Each test starts git, which a busy machine can slow down past the default timeout.
+describe('listChanges', { timeout: 30_000 }, () => {
   beforeEach(() => {
     // git reads neither the machine's nor the user's configuration, and commits under
     // a neutral identity.

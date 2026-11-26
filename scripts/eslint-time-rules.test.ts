@@ -80,6 +80,16 @@ describe('no-ambient-time: Temporal, the timer and server modules', { timeout: 1
       expect(await refusals(PROBE, code)).toStrictEqual(['temporal']);
     });
 
+    it('says that only @/lib/time imports temporal-polyfill, and what to do instead', async () => {
+      const messages = await lint(PROBE, "import 'temporal-polyfill/global';\n");
+
+      expect(
+        messages.filter((message) => message.ruleId === RULE).map(({ message }) => message),
+      ).toStrictEqual([
+        '`temporal-polyfill` is imported only by `@/lib/time`, which reads, parses and converts dates and times for every other module: call its functions, or add the one you need there (CLAUDE.md, "Time").',
+      ]);
+    });
+
     it.each([
       'src/app/probe/helper.ts',
       'src/lib/probe/probe.test.ts',

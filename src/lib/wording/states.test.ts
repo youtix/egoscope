@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { label, STATUS_LABELS } from './states';
+import { fill } from './template';
 
 const GLOSSARY_FILE = path.join(import.meta.dirname, '../../../docs/engineering/glossary.md');
 
@@ -11,6 +12,20 @@ const GLOSSARY_FILE = path.join(import.meta.dirname, '../../../docs/engineering/
 const SET_HEADING = /^`(?<name>\w+)` — /u;
 // The code value of a row of a set's table: "`active`" of "| actif | `active` | Active |".
 const CODE_VALUE = /^`(?<code>[a-z_]+)`$/u;
+// The name that opens a placeholder, well formed or not: `k` of `{k|case}` too.
+const PLACEHOLDER_NAME = /\{(?<name>[A-Za-z]+)/gu;
+// A written count that takes the plural, given to every placeholder.
+const WRITTEN_VALUE = '2';
+const BRACE = /[{}]/u;
+
+/** `template` filled with a value for each placeholder that it names. */
+function filled(template: string): string {
+  const names = Array.from(
+    template.matchAll(PLACEHOLDER_NAME),
+    (match) => match.groups?.['name'] ?? '',
+  );
+  return fill(template, [Object.fromEntries(names.map((name) => [name, WRITTEN_VALUE]))]);
+}
 
 /**
  * The state that a row of a set's table shows, with its UI label, if it shows one: a
@@ -111,6 +126,13 @@ describe('state labels', () => {
     expect(label('PauseSuggestionStatus', 'suggested', { player: 'Player A' })).toBe(
       'Suggest pausing Player A',
     );
+  });
+
+  it('[VUE-08] fills every placeholder of every label, and leaves no brace to reach a screen', () => {
+    const sets: Readonly<Record<string, readonly (readonly [string, string])[]>> = STATUS_LABELS;
+    const labels = Object.values(sets).flatMap((states) => states.map(([, text]) => text));
+
+    expect(labels.map((text) => filled(text)).filter((text) => BRACE.test(text))).toStrictEqual([]);
   });
 
   it('[VUE-08] refuses a placeholder left without its value', () => {

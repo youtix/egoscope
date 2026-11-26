@@ -1,12 +1,12 @@
 // The types every part of the statistics core shares (module map, section 2.2). The
 // core imports nothing and receives plain values: these aliases name what a number or
-// a string stands for, which sonarjs/redundant-type-aliases cannot know.
+// a string stands for, which sonarjs/redundant-type-aliases cannot know, so the lint
+// configuration allows such aliases in this file.
 
 /**
  * An absolute instant (TRV-68): whole milliseconds since 1970-01-01T00:00:00Z. The
  * time module's branded `EpochMs`, received as the plain number it is at run time.
  */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type EpochMs = number;
 
 /**
@@ -14,39 +14,30 @@ export type EpochMs = number;
  * a game's US Eastern date, the owner's day or a date as written. The time module's
  * branded `IsoDate`, received as the plain string it is at run time.
  */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type IsoDate = string;
 
 /** A followed player's identifier, a random UUID (CL-JOU-09). */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type PlayerId = string;
 
 /** An event type's identifier, its kebab-case slug, which never changes (TAX-02). */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type EventTypeId = string;
 
 /** An event's identifier, whatever its origin. */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type PlayerEventId = number;
 
 /** A case's identifier. */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type CaseId = number;
 
 /** A game's identifier. */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type GameId = number;
 
 /** A team's identifier, the application's own, kept across a relocation. */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type TeamId = number;
 
 /** A play-in or playoff series' identifier. */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type SeriesId = number;
 
 /** A backtest request's identifier. */
-// eslint-disable-next-line sonarjs/redundant-type-aliases -- names a plain value the core receives
 export type BacktestRequestId = number;
 
 /**

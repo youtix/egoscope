@@ -156,5 +156,5 @@ export const interfaceSentences = {
   passwordTooShort: 'This password is too short: use at least {k} {k|character|characters}.',
   passwordNotStored: 'The app cannot save your password right now: try again in a few minutes.',
 
-  // An area adds its groups below, one commented group per screen or task.
+  // An area adds its groups above this line, one commented group per screen or task.
 } as const;

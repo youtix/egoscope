@@ -259,7 +259,7 @@ function checkEventSources(event: ResearchEvent, context: EventCheckContext): So
       )
     : [];
   const refusals: readonly ImportRefusal[] = [
-    ...when(kept.length === 0, { reason: 'no_valid_source' } as const),
+    ...when(kept.length === 0, { reason: 'no_valid_source' } satisfies ImportRefusal),
     ...tooEarly.map(({ position }): ImportRefusal => ({
       reason: 'source_before_public_date',
       sourcePosition: position,
@@ -300,7 +300,7 @@ function checkEvent(
     ...description.warnings,
     ...sources.warnings,
     ...eventContext.warnings,
-    ...when(isConfidenceMissing, { kind: 'confidence_defaulted' } as const),
+    ...when(isConfidenceMissing, { kind: 'confidence_defaulted' } satisfies ImportWarning),
     ...note.warnings,
   ];
   if (scope.kind === 'valid' && description.ok && sources.refusals.length === 0) {

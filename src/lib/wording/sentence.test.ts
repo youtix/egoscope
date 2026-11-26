@@ -4,6 +4,22 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { sentence } from './sentence';
+import { alertsSentences } from './sentences/alerts';
+import { backtestsSentences } from './sentences/backtests';
+import { collectionSentences } from './sentences/collection';
+import { crossCuttingSentences } from './sentences/cross-cutting';
+import { detectionSentences } from './sentences/detection';
+import { importsSentences } from './sentences/imports';
+import { interfaceSentences } from './sentences/interface';
+import { notificationsSentences } from './sentences/notifications';
+import { overviewSentences } from './sentences/overview';
+import { playersSentences } from './sentences/players';
+import { sensitiveDataSentences } from './sentences/sensitive-data';
+import { sensitivitySentences } from './sentences/sensitivity';
+import { statisticsSentences } from './sentences/statistics';
+import { taxonomySentences } from './sentences/taxonomy';
+import { trackingSentences } from './sentences/tracking';
+import { fill } from './template';
 
 const SENTENCES_FOLDER = path.join(import.meta.dirname, 'sentences');
 // The names of the module map, section 2.1: one file per spec file, 00 to 14.
@@ -24,9 +40,41 @@ const SPEC_FILES = [
   'taxonomy.ts',
   'tracking.ts',
 ];
-// The slot that ends every file, under which an area adds its own groups.
+// The slot that ends every file, above which an area adds its own groups.
 const AREA_SLOT =
-  '\n  // An area adds its groups below, one commented group per screen or task.\n} as const;\n';
+  '\n  // An area adds its groups above this line, one commented group per screen or task.\n} as const;\n';
+// Every fixed sentence, in the order of the spec files.
+const SENTENCE_FILES: readonly Readonly<Record<string, string>>[] = [
+  overviewSentences,
+  playersSentences,
+  taxonomySentences,
+  collectionSentences,
+  detectionSentences,
+  backtestsSentences,
+  importsSentences,
+  statisticsSentences,
+  sensitivitySentences,
+  alertsSentences,
+  trackingSentences,
+  notificationsSentences,
+  interfaceSentences,
+  sensitiveDataSentences,
+  crossCuttingSentences,
+];
+// The name that opens a placeholder, well formed or not: `k` of `{k|case}` too.
+const PLACEHOLDER_NAME = /\{(?<name>[A-Za-z]+)/gu;
+// A written count that takes the plural, given to every placeholder.
+const WRITTEN_VALUE = '2';
+const BRACE = /[{}]/u;
+
+/** `template` filled with a value for each placeholder that it names. */
+function filled(template: string): string {
+  const names = Array.from(
+    template.matchAll(PLACEHOLDER_NAME),
+    (match) => match.groups?.['name'] ?? '',
+  );
+  return fill(template, [Object.fromEntries(names.map((name) => [name, WRITTEN_VALUE]))]);
+}
 
 describe('fixed sentences', () => {
   it('keeps one sentences file per spec file, each ending with the slot of the areas', () => {
@@ -39,6 +87,14 @@ describe('fixed sentences', () => {
 
     expect(files).toStrictEqual(SPEC_FILES);
     expect(withoutSlot).toStrictEqual([]);
+  });
+
+  it('[VUE-08] fills every placeholder of every fixed sentence, and leaves no brace to reach a screen', () => {
+    const withBraces = SENTENCE_FILES.flatMap((sentences) =>
+      Object.values(sentences).map((text) => filled(text)),
+    );
+
+    expect(withBraces.filter((text) => BRACE.test(text))).toStrictEqual([]);
   });
 
   it('[SEN-30] gives the reminder that accompanies every general trend', () => {

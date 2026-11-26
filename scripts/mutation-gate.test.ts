@@ -1,15 +1,18 @@
 // Proves that the mutation gate runs the mutation tests only when their scope
 // changed, and then from scratch, in CI as outside it: it runs the gate in a
 // throwaway repository, against its one commit, where a `test:mutation` script that
-// prints the arguments it receives stands in for Stryker.
+// prints the arguments it receives stands in for Stryker. And that the `stryker` job
+// of the mutation workflow runs the gate so, with no result of an earlier run.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { parse } from 'yaml';
 
 const GATE = path.join(import.meta.dirname, 'mutation-gate.ts');
+const WORKFLOW = path.join(import.meta.dirname, '../.github/workflows/mutation.yml');
 // The base that the gate compares with: the one commit of the throwaway repository.
 const BASE = 'HEAD';
 const PACKAGE = JSON.stringify({ scripts: { 'test:mutation': 'echo test:mutation' } });
@@ -100,5 +103,32 @@ describe('the mutation gate', { timeout: TIMEOUT_MS }, () => {
     expect(gate(repositoryWith(['src/app/page.tsx', 'README.md']))).toStrictEqual([
       `Mutation tests: nothing in their scope differs from ${BASE}, so they do not run.`,
     ]);
+  });
+});
+
+describe('the stryker job of the mutation workflow', () => {
+  it('runs the gate against the first parent, with no step that brings back an earlier result', () => {
+    const workflow: unknown = parse(readFileSync(WORKFLOW, 'utf8'));
+
+    // Every step, in order: any other, such as a cache that restores reports/, fails this.
+    // Actions are compared by name, so that an update of their pinned version passes.
+    expect(workflow).toMatchObject({
+      jobs: {
+        stryker: {
+          steps: [
+            {
+              uses: expect.stringMatching(/^actions\/checkout@/u) as unknown,
+              with: { 'fetch-depth': 2 },
+            },
+            { uses: './.github/actions/setup-project' },
+            { run: 'bun scripts/mutation-gate.ts HEAD^1' },
+            {
+              uses: expect.stringMatching(/^actions\/upload-artifact@/u) as unknown,
+              with: { path: 'reports/mutation/' },
+            },
+          ],
+        },
+      },
+    });
   });
 });

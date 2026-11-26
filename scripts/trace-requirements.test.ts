@@ -224,13 +224,19 @@ describe('runTrace', () => {
     const contributor = await run(['--require-claimed', '--author=contributor'], {}, description);
     const unnamed = await run(['--require-claimed'], {}, description);
     const bot = await run(['--require-claimed', '--author=dependabot[bot]'], {}, description);
+    const otherBot = await run(
+      ['--require-claimed', '--author=github-actions[bot]'],
+      {},
+      description,
+    );
 
     expect(contributor.errors).toStrictEqual([
       'Pull request: The description has no "Requirements covered" heading outside comments, so it claims nothing: add `## Requirements covered`, then list below it the requirements and criteria that the pull request covers, or write "None" for tooling only.',
       '\nRequirement traceability failed: 1 problem(s).',
     ]);
     expect(unnamed.errors).toStrictEqual(contributor.errors);
-    expect([contributor.code, unnamed.code, bot.code]).toStrictEqual([1, 1, 0]);
+    expect(otherBot.errors).toStrictEqual(contributor.errors);
+    expect([contributor.code, unnamed.code, otherBot.code, bot.code]).toStrictEqual([1, 1, 1, 0]);
     expect(bot.errors).toStrictEqual([]);
   });
 
@@ -351,6 +357,15 @@ describe('runTrace', () => {
 
     expect(result.code).toBe(2);
     expect(result.errors[0]).toMatch(/--relaxed[\s\S]*Usage: bun scripts\/trace-requirements\.ts/u);
+  });
+
+  it('refuses --author without --require-claimed with exit code 2 and the usage', async () => {
+    const result = await run(['--author=contributor'], {}, body('None.'));
+
+    expect(result.code).toBe(2);
+    expect(result.errors).toStrictEqual([
+      "Option '--author' needs --require-claimed: it names the author of the pull request whose description that option reads.\nUsage: bun scripts/trace-requirements.ts [--strict] [--require <ids>] [--require-claimed [--author <login>]] [--write-index]",
+    ]);
   });
 });
 
