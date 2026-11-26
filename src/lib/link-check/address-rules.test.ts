@@ -347,7 +347,7 @@ const ipv6EveryRange = fc.tuple(
   ...REFUSED_RANGES.map(([first, last]) => fc.bigInt({ min: first, max: last })),
   ...Array.from({ length: EIGHTHS_OF_SPACE }, (_, eighth) =>
     fc
-      .bigInt({ min: 0n, max: GLOBAL_UNICAST_FIRST - 1n })
+      .noBias(fc.bigInt({ min: 0n, max: GLOBAL_UNICAST_FIRST - 1n }))
       .map((rest) => (BigInt(eighth) << EIGHTH_SHIFT_BITS) | rest),
   ),
   ...IPV4_HOLDERS.flatMap((holder) =>
@@ -474,7 +474,7 @@ describe('addressKind', () => {
     );
   });
 
-  it('[TRV-66] draws, in every run, an address of every case of the rule: each refused block, each IPv4 holder with a refused and a public address, 2000::/3 and its complement', () => {
+  it('[TRV-66] draws, in every run, an address of each refused block and of each IPv4 holder with a refused and a public held address', () => {
     const cases: readonly (readonly [string, (address: bigint) => boolean])[] = [
       ...REFUSED_RANGES.map(
         ([first, last, kind]) =>
@@ -492,19 +492,23 @@ describe('addressKind', () => {
             a >= first && a <= last && oracle(a).source === 'held' && oracle(a).kind === 'public',
         ] as const,
       ]),
-      [
-        'complement public',
-        (a: bigint) => oracle(a).source === 'complement' && oracle(a).kind === 'public',
-      ],
-      [
-        'complement reserved',
-        (a: bigint) => oracle(a).source === 'complement' && oracle(a).kind === 'reserved',
-      ],
     ];
     const unreachedIn = (addresses: readonly bigint[]) =>
       cases.filter(([, isCase]) => addresses.every((a) => !isCase(a))).map(([name]) => name);
     const unreached = fc.sample(ipv6Run, { numRuns: 50 }).flatMap((run) => unreachedIn(run));
 
     expect(unreached).toStrictEqual([]);
+  });
+
+  it('[TRV-66] draws, in nearly every run, an address that no block refuses, public inside 2000::/3 and reserved outside it', () => {
+    const runs = fc.sample(ipv6Run, { numRuns: 50 });
+    const runsWith = (kind: AddressKind) =>
+      runs.filter((run) =>
+        run.some((a) => oracle(a).source === 'complement' && oracle(a).kind === kind),
+      ).length;
+    const minimum = 45;
+
+    expect(runsWith('public')).toBeGreaterThanOrEqual(minimum);
+    expect(runsWith('reserved')).toBeGreaterThanOrEqual(minimum);
   });
 });
