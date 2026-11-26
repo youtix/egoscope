@@ -128,8 +128,8 @@ describe('the lists of backtest requests', { timeout: DATABASE_TEST_TIMEOUT_MS }
 
       const reads = [
         await requestsToDo(db, NOW),
-        await requestsToDo(db, NOW + LONG_AGO),
-        await requestsToDo(db, NOW + VERY_LONG_AGO),
+        await requestsToDo(db, toEpochMs(NOW + LONG_AGO)),
+        await requestsToDo(db, toEpochMs(NOW + VERY_LONG_AGO)),
       ];
 
       expect(await db.select().from(backtestRequests)).toStrictEqual(stored);
