@@ -281,15 +281,13 @@ application's interface and both current ones are plain HTTPS. In order of prefe
 No Cloudflare account or token existed before the hand-over, so the recorded answers of
 `data/fixtures/language-model/workers-ai/` come from the provider's documentation, not from real
 calls ([their README](../../data/fixtures/language-model/workers-ai/README.md)). The owner checks
-these five behaviors first, with a real account:
+what the documentation does not say, and these files therefore invent, at the first real call:
 
-- the chat-completion layout of the answer of `glm-4.7-flash`, its content as a string in
-  `choices`;
-- the refusal "JSON Mode couldn't be met", which the adapter recognizes by its message;
-- the `429` with code 3036 for the daily allowance used up, and the one-minute wait on the other
-  `429`s when they come without a `retry-after` header;
-- whether the model's reasoning counts in `max_completion_tokens`;
-- the neurons, counted on every prompt token, cached ones included.
+- the status of the JSON-mode refusal, written `400`, without a code;
+- whether a minute limit comes with a `retry-after` header: none in the fixtures, and the adapter
+  then waits a minute;
+- that a `glm-4.7-flash` answer gives its content as a string in `choices`, not in a `response`
+  field as older models do.
 
 ## Date checked
 
