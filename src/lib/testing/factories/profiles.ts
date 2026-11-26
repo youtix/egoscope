@@ -328,8 +328,8 @@ export async function insertVerdictChange(
 
 /**
  * Writes a version of a stored historical-only profile's or trend's values, effective at
- * `effectiveAt`, as the engine computes them from its cases, or those of `caseIds`
- * (SUI-08, SUI-09, CL-SEN-19).
+ * `effectiveAt`, as the engine computes them from its cases, or those of `caseIds`, with the
+ * case threshold of the calculation for a profile (SUI-08, SUI-09, SEN-31, CL-SEN-19).
  */
 export async function insertValueVersion(
   db: Database,
@@ -354,6 +354,8 @@ export async function insertValueVersion(
       verdictLevel: values.verdict.level,
       verdictDirection: values.verdict.direction,
       profileConfidence: values.profileConfidence,
+      // A profile's version keeps the case threshold of its calculation, a trend's none.
+      validCaseThreshold: 'validCaseThreshold' in values ? values.validCaseThreshold : null,
     })
     .returning();
   return firstRow(rows, 'the value version written');
