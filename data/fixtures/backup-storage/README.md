@@ -21,4 +21,10 @@ and of its assets.
   (`403`), an unknown resource (`404`), a taken asset name (`422`), the hourly rate limit (`403`
   with no request left), a secondary rate limit (`429`), a secondary rate limit that answers
   `403` with its message and neither `retry-after` nor an exhausted window, a `403` with
-  `retry-after` and the message of a missing permission, and a server error (`502`).
+  `retry-after` and the message of a missing permission, a `403` with an HTML page, with and without
+  `retry-after`, as an intermediary in front of the API answers, and a server error (`502`).
+
+An answer is `{ "status": number, "headers": { name: value }, "body": <any JSON value> }`, the body
+served as its JSON text, with no `body` for an empty answer. An answer with `"text": "<string>"`
+instead is served as that string, byte for byte, with the headers it states: it records a body that
+is no JSON, such as an HTML page (`content-type: text/html; charset=utf-8`).

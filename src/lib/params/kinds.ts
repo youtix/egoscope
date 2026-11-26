@@ -26,6 +26,8 @@ export type ValueKind<V> = Readonly<{
 const STEP_TOLERANCE = 1e-9;
 const DECIMAL_BASE = 10;
 const URL_MAX_LENGTH = 2000;
+// Any one code point, a lone surrogate included, newlines too.
+const CODE_POINT = /./gsu;
 // A lowercase domain name of at least two labels, without scheme, port or path: the
 // engineering reading of CL-TRV-16's "domain names, lowercase, without scheme or path".
 const DOMAIN_NAME = /^(?=.{1,253}$)(?:[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?\.)+[a-z][a-z\d-]{0,62}$/u;
@@ -232,11 +234,16 @@ export function domainList(max: number): ValueKind<readonly string[]> {
   };
 }
 
+/** The length of `text` in Unicode code points, as a person counts characters; it trims nothing. */
+function codePointCount(text: string): number {
+  return (text.match(CODE_POINT) ?? []).length;
+}
+
 /** A model identifier of a language-model provider: no space, at most `maxLength` characters. */
 export function modelId(maxLength: number): ValueKind<string> {
   return {
     parse: (value) =>
-      typeof value === 'string' && /^\S+$/u.test(value) && value.length <= maxLength
+      typeof value === 'string' && /^\S+$/u.test(value) && codePointCount(value) <= maxLength
         ? value
         : undefined,
     write: (value) => value,
@@ -260,7 +267,7 @@ export function timeZone(): ValueKind<string> {
 export function optionalHttpsAddress(): ValueKind<string> {
   return {
     parse: (value) => {
-      if (typeof value !== 'string' || value.length > URL_MAX_LENGTH) {
+      if (typeof value !== 'string' || codePointCount(value) > URL_MAX_LENGTH) {
         return;
       }
       return value === '' || URL.parse(value)?.protocol === 'https:' ? value : undefined;

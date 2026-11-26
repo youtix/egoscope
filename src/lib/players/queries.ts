@@ -4,6 +4,7 @@ import { and, asc, count, eq, inArray, ne, or, sql } from 'drizzle-orm';
 
 import {
   followedPlayers,
+  isUuid,
   playerNameVariants,
   playerStatusChanges,
   playerTeamChanges,
@@ -33,8 +34,6 @@ export type NameVariantKind = PlayerNameVariantRow['kind'];
 // The status that the list shows when it is given none (JOU-28).
 const DEFAULT_LIST_STATUS: PlayerStatus = 'active';
 const FIRST_PAGE = 1;
-// A player identifier as Postgres writes a uuid: a malformed one names no player.
-const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu;
 
 /**
  * A name or variant as two of them are compared (CL-JOU-13, JOU-09): Unicode NFC,
@@ -44,11 +43,6 @@ const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/
  */
 export function normalizeName(name: string): string {
   return name.normalize('NFC').trim().replaceAll(/\s+/gu, ' ').toLowerCase();
-}
-
-/** Whether `playerId` can name a player at all: a malformed one would make Postgres throw. */
-function isPlayerId(playerId: string): boolean {
-  return UUID_PATTERN.test(playerId);
 }
 
 /** The instant of a `timestamptz` read back, in epoch milliseconds. */
@@ -268,7 +262,8 @@ function birthdayOf(row: FollowedPlayerRow): PlayerDetail['birthday'] {
  * CL-JOU-16, CL-IHM-18); null when no player has that identifier. Two queries.
  */
 export async function get(db: Reader, playerId: string): Promise<PlayerDetail | null> {
-  if (!isPlayerId(playerId)) {
+  // A malformed identifier names no player, and would make Postgres throw.
+  if (!isUuid(playerId)) {
     return null;
   }
   const [row] = await db.select().from(followedPlayers).where(eq(followedPlayers.id, playerId));
@@ -331,7 +326,8 @@ export async function history(
   db: Reader,
   playerId: string,
 ): Promise<readonly PlayerHistoryEntry[]> {
-  if (!isPlayerId(playerId)) {
+  // A malformed identifier names no player, and would make Postgres throw.
+  if (!isUuid(playerId)) {
     return [];
   }
   const statuses = await db

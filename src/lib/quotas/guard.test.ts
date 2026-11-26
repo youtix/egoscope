@@ -21,6 +21,7 @@ const START = toEpochMs(Date.UTC(2026, 10, 24, 14));
 const NEXT_UTC_DAY = toEpochMs(Date.UTC(2026, 10, 25));
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
+const TEN_MINUTES_MS = 10 * 60_000;
 const TODAY = Date.UTC(2026, 10, 24);
 const REQUESTS_PER_DAY = 'quotas.statsSource.requestsPerDay';
 
@@ -515,6 +516,26 @@ describe('the quota guard', { timeout: 60_000 }, () => {
       { limitKey: REQUESTS_PER_DAY, amount: 10, at: START - HOLD_STALE_AFTER_MS },
       { limitKey: 'quotas.telegram.messagesPerSecond', amount: 3, at: START - DAY },
     ]);
+  });
+
+  it('[TRV-04] [CL-TRV-07] sweeps a hold after ten minutes, twice the host function limit: kept at ten minutes, released one millisecond later', async () => {
+    await enter(REQUESTS_PER_DAY, 10);
+    await enter('games.quotaReserveShare', 0);
+    expect(HOLD_STALE_AFTER_MS).toBe(TEN_MINUTES_MS);
+    await leftBehind(REQUESTS_PER_DAY, 10, START - TEN_MINUTES_MS);
+
+    const kept = await guarded('statsSource', statsCall(1));
+
+    expect(kept.called).toBe(false);
+    expect(await holdsLeft()).toStrictEqual([
+      { limitKey: REQUESTS_PER_DAY, amount: 10, at: START - TEN_MINUTES_MS },
+    ]);
+
+    clock.advance(1);
+    const released = await guarded('statsSource', statsCall(1));
+
+    expect(released.called).toBe(true);
+    expect([await usage(), await holdsLeft()]).toMatchObject([[{ used: 1 }], []]);
   });
 
   it('[TRV-04] takes back once the hold that the sweep already released, when its late call records', async () => {

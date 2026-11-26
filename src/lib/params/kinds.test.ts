@@ -26,6 +26,11 @@ import type { ValueKind } from './kinds';
 const parsed = <V>(kind: ValueKind<V>, values: readonly unknown[]) =>
   values.map((value) => kind.parse(value));
 
+// One code point, two UTF-16 units.
+const EMOJI = '😀';
+const EMOJI_MODEL_LENGTH = 4;
+const ADDRESS_MAX_LENGTH = 2000;
+
 /** As many refusals as `values`. */
 const refused = (values: readonly unknown[]) => values.map(() => undefined);
 
@@ -248,6 +253,15 @@ describe('the kinds of values', () => {
     ]);
   });
 
+  it('[CL-TRV-16] counts the characters of a model identifier as code points, not UTF-16 units', () => {
+    const model = modelId(EMOJI_MODEL_LENGTH);
+    const full = EMOJI.repeat(EMOJI_MODEL_LENGTH);
+    const outside = [EMOJI.repeat(EMOJI_MODEL_LENGTH + 1), `${EMOJI} ${EMOJI}`, ''];
+
+    expect(model.parse(full)).toBe(full);
+    expect(parsed(model, outside)).toStrictEqual(refused(outside));
+  });
+
   it('[IHM-14] [CL-IHM-05] stores a zone of the IANA database in its own spelling, written as its city time', () => {
     const zone = timeZone();
 
@@ -279,6 +293,17 @@ describe('the kinds of values', () => {
       address,
       'empty, or an https address of at most 2,000 characters',
     ]);
+  });
+
+  it('[IHM-44] counts the characters of an address as code points, not UTF-16 units', () => {
+    const tool = optionalHttpsAddress();
+    const start = 'https://search.example/?q=';
+    const full = `${start}${EMOJI.repeat(ADDRESS_MAX_LENGTH - start.length)}`;
+    const tooLong = `${full}${EMOJI}`;
+
+    expect(full.length).toBeGreaterThan(ADDRESS_MAX_LENGTH);
+    expect(tool.parse(full)).toBe(full);
+    expect(tool.parse(tooLong)).toBeUndefined();
   });
 
   it('[TRV-03] leaves a quota limit unset until the owner enters a whole number of at least 1', () => {
