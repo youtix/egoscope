@@ -83,6 +83,19 @@ describe('the current team from his games', { timeout: DATABASE_TEST_TIMEOUT_MS 
     return keepLinesThrough(playerId, season, lastDay);
   }
 
+  /** Stores for the game `gameId` the placeholder of an unavailable sheet, which gives no team (CL-STA-11). */
+  async function insertPlaceholder(playerId: string, gameId: number): Promise<void> {
+    await db.insert(boxScores).values({
+      playerId,
+      gameId,
+      statsSource: 'sportsdataverse_espn',
+      sourcePlayerRef: 'p02',
+      status: 'unavailable',
+      hasRoundedMinutes: false,
+      fetchedAt: new Date(now()),
+    });
+  }
+
   /** An imported media storm of the player, public the day before his game `gameId`, and its case measured at that game. */
   async function importedCase(playerId: string, gameId: number, eventOn: string): Promise<void> {
     await insertEventType(db);
@@ -167,7 +180,35 @@ describe('the current team from his games', { timeout: DATABASE_TEST_TIMEOUT_MS 
     ]);
   });
 
-  it('[JOU-13] [CL-JOU-03] takes as his membership at his latest entered change the team of his last game played at or before it, none before his first game, whatever his later rows, other players and older seasons stored later say', async () => {
+  it('[STA-25] [JOU-13] hands again the team he comes back to, so that his game for another team, fetched after his later game for his own, leaves him with the team of his most recent game', async () => {
+    const [pineValley, redstone] = [await teamOf('2'), await teamOf('3')];
+    const playerId = await follow('p02', '2');
+    await insertBoxScores(db, { playerId, source: 'p02', season: SEASON });
+    const [first, traded, back] = [
+      await gameOf(playerId, '2025-10-21'),
+      await gameOf(playerId, '2025-11-05'),
+      await gameOf(playerId, '2025-11-08'),
+    ];
+    /** His line of the game `gameId`. */
+    const lineOf = (gameId: number) =>
+      and(eq(boxScores.playerId, playerId), eq(boxScores.gameId, gameId));
+    // He is back with Pine Valley for his game of 11-08, whose line is stored before that of 11-05.
+    await db.update(boxScores).set({ teamId: pineValley }).where(lineOf(back.id));
+    await db.delete(boxScores).where(lineOf(traded.id));
+    const early = await keepLinesThrough(playerId, SEASON, '2025-11-08');
+
+    const late = await ingest(playerId, 'p02', { lastDay: '2025-11-08' });
+
+    expect([early, late]).toStrictEqual([MOVED, MOVED]);
+    await expect(historyOf(playerId)).resolves.toStrictEqual([
+      entered(BEFORE_SEASON, [null, pineValley], first.id),
+      observed(traded.start, [pineValley, redstone], traded.id),
+      observed(back.start, [redstone, pineValley], back.id),
+    ]);
+    await expect(playerOf(playerId)).resolves.toMatchObject({ teamId: pineValley });
+  });
+
+  it('[JOU-13] [CL-JOU-03] [CL-STA-11] takes as his membership at his latest entered change the team of his last game played at or before it, none before his first game, whatever his later rows, other players and their lines, an unavailable sheet and older seasons stored later say', async () => {
     await insertLeagueSeason(db, PREVIOUS_SEASON);
     const redstone = await teamOf('3');
     const playerId = await follow('p02', '2');
@@ -179,11 +220,15 @@ describe('the current team from his games', { timeout: DATABASE_TEST_TIMEOUT_MS 
     // His games observe his trade after the addition, which no game came before.
     await ingest(playerId, 'p02', { lastDay: '2025-11-06' });
     const afterGames = await membership();
-    // Another player is added later, by an entered row of his own.
+    // Another player is added later, by an entered row of his own, with his lines of the season before.
     moveTo(noon(11, 4));
-    await follow('p04', '5');
+    const other = await follow('p04', '5');
+    await insertBoxScores(db, { playerId: other, source: 'p04', season: PREVIOUS_SEASON });
     const besideAnother = await membership();
-    moveTo(noon(11, 7));
+    // The sheet of his game of 11-08 is unavailable, and the owner enters a change the next day.
+    const unavailable = await scheduledGame(redstone, '2025-11-08');
+    await insertPlaceholder(playerId, unavailable.id);
+    moveTo(noon(11, 9));
     await enter(playerId, '5');
     // The lines of an older season are stored after the entry.
     await insertBoxScores(db, { playerId, source: 'p02', season: PREVIOUS_SEASON });
@@ -203,15 +248,7 @@ describe('the current team from his games', { timeout: DATABASE_TEST_TIMEOUT_MS 
     await ingest(playerId, 'p02', { lastDay: '2025-11-02' });
     const first = await gameOf(playerId, '2025-10-21');
     const unavailable = await scheduledGame(redstone, '2025-11-05');
-    await db.insert(boxScores).values({
-      playerId,
-      gameId: unavailable.id,
-      statsSource: 'sportsdataverse_espn',
-      sourcePlayerRef: 'p02',
-      status: 'unavailable',
-      hasRoundedMinutes: false,
-      fetchedAt: new Date(now()),
-    });
+    await insertPlaceholder(playerId, unavailable.id);
 
     const updated = await update(playerId);
 

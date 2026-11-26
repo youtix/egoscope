@@ -203,21 +203,40 @@ describe('the records of the player file', { timeout: DATABASE_TEST_TIMEOUT_MS }
     });
   });
 
-  it('[CL-JOU-25] [CL-STA-27] takes a record that the player file does not list as no read, leaving his team and the last read as they are', async () => {
-    const redstone = await teamOf('3');
+  it('[CL-JOU-25] [CL-STA-27] [CL-JOU-16] takes a record that the player file does not list as no read, leaving his team and the last read as they are, yet fills an empty birthday from it', async () => {
+    const [pineValley, redstone] = [await teamOf('2'), await teamOf('3')];
     const playerId = await follow('p02', '2');
     const record = await recordOf('p02');
+    const unlisted: PlayerRecord = { ...record, currentTeam: { kind: 'not_listed' } };
     moveTo(noon(11, 3));
-    await read(playerId, record);
+    const beforeAnyRead = await read(playerId, unlisted);
+    const birthdayOnly = await playerOf(playerId);
     moveTo(noon(11, 4));
+    await read(playerId, record);
+    moveTo(noon(11, 5));
 
-    const unlisted = await read(playerId, { ...record, currentTeam: { kind: 'not_listed' } });
+    const afterARead = await read(playerId, unlisted);
 
-    expect(unlisted).toStrictEqual(NOTHING);
+    expect([beforeAnyRead, afterARead]).toStrictEqual([
+      { ok: true, value: { ...UNCHANGED, birthdayChanged: true } },
+      NOTHING,
+    ]);
+    expect(birthdayOnly).toStrictEqual({
+      teamId: pineValley,
+      month: 3,
+      day: 14,
+      origin: 'stats_source',
+      fileTeamId: null,
+      fileReadAt: null,
+    });
+    await expect(historyOf(playerId)).resolves.toMatchObject([
+      { to: pineValley, origin: 'entered' },
+      observed(noon(11, 4), [pineValley, redstone], null),
+    ]);
     await expect(playerOf(playerId)).resolves.toMatchObject({
       teamId: redstone,
       fileTeamId: redstone,
-      fileReadAt: noon(11, 3),
+      fileReadAt: noon(11, 4),
     });
   });
 
@@ -301,7 +320,7 @@ describe('the records of the player file', { timeout: DATABASE_TEST_TIMEOUT_MS }
     });
   });
 
-  it("[STA-03] applies nothing of a record of an identity that is no longer his established mapping, even when it is another player's now, and writes no read of that player on his mapping", async () => {
+  it("[STA-03] applies nothing of a record of an identity that is no longer his established mapping, even when it is another player's now or a mapping to establish names it, and writes no read of that player on his mapping", async () => {
     const pineValley = await teamOf('2');
     const playerId = await follow('p02', '2');
     const record = await recordOf('p02');
@@ -312,8 +331,11 @@ describe('the records of the player file', { timeout: DATABASE_TEST_TIMEOUT_MS }
 
     const reopened = await read(playerId, record);
     await read(other, record);
+    // A mapping to establish that names an identity, which its row check allows.
+    await confirmNamesake(playerId);
+    const unconfirmed = await read(playerId, await recordOf('p03'));
 
-    expect([formerIdentity, reopened]).toStrictEqual([NOTHING, NOTHING]);
+    expect([formerIdentity, reopened, unconfirmed]).toStrictEqual([NOTHING, NOTHING, NOTHING]);
     await expect(playerOf(playerId)).resolves.toStrictEqual({
       teamId: pineValley,
       ...NO_BIRTHDAY,
