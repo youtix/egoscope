@@ -358,7 +358,9 @@ const HELD_ADDRESSES = IPV4_HOLDERS.flatMap((holder) =>
             fc.bigInt({ min: 0n, max: (1n << IPV4_LOW_BITS) - 1n }),
             fc.bigInt({ min: 0n, max: (1n << HOLDER_FILLER_BITS) - 1n }),
           )
-          .map(([octet, rest, filler]) => holder.place((octet << IPV4_LOW_BITS) | rest, filler)),
+          .map(([octet, rest, filler]) => holder.place((octet << IPV4_LOW_BITS) | rest, filler))
+          // ::/96 holds :: and ::1, which are refused blocks of their own and hold nothing.
+          .filter((address) => oracle(address).source === 'held'),
       ] as const,
   ),
 );
@@ -491,8 +493,15 @@ describe('addressKind', () => {
     );
   });
 
-  it.each(HELD_ADDRESSES.map(([holder, isPublic, draw]) => ({ holder, isPublic, draw })))(
-    '[TRV-66] draws only addresses of the block from $holder.first that hold an IPv4 address, public: $isPublic',
+  it.each(
+    HELD_ADDRESSES.map(([holder, isPublic, draw]) => ({
+      holder,
+      isPublic,
+      draw,
+      block: ipv6Text(holder.first),
+    })),
+  )(
+    '[TRV-66] draws only addresses of the block from $block that hold an IPv4 address, public: $isPublic',
     ({ holder, isPublic, draw }) => {
       // Many runs, since the draw leans on small values and a block may hold a few refused ones.
       fc.assert(
