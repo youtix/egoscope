@@ -61,18 +61,39 @@ export type ProfilePair = Readonly<{ playerId: PlayerId; eventTypeId: EventTypeI
 const DEFAULT_VIEW = 'all_cases';
 const HISTORICAL_VIEW = 'historical_only';
 
-/** The row a history entry or a value version belongs to, and the versions' column that names it. */
+/** The values of a historical-only row that its value version keeps. */
+type VersionValues = Pick<
+  CalculationRow,
+  'validCount' | 'meanGap' | 'verdictLevel' | 'verdictDirection' | 'profileConfidence'
+> &
+  Partial<Pick<CalculationRow, 'validCaseThreshold'>>;
+
+/** The five values that every version keeps, a trend's and a profile's (SUI-08, SUI-09). */
+function sharedValues(row: CalculationRow): VersionValues {
+  const { validCount, meanGap, verdictLevel, verdictDirection, profileConfidence } = row;
+  return { validCount, meanGap, verdictLevel, verdictDirection, profileConfidence };
+}
+
+/**
+ * The row a history entry or a value version belongs to, the versions' column that names it,
+ * and the values of its historical-only row that its versions keep.
+ */
 type Owner = Readonly<{
   key: (id: number) => Readonly<{ sensitivityProfileId: number } | { generalTrendId: number }>;
   versionColumn: AnyPgColumn;
+  versionValues: (row: CalculationRow) => VersionValues;
 }>;
+// A profile's version keeps the case threshold of its calculation as a sixth value, which
+// decides whether the pair's verdict or the type's trend gives the forecast (SUI-08, SEN-31).
 const PROFILE_OWNER: Owner = {
   key: (id) => ({ sensitivityProfileId: id }),
   versionColumn: profileValueVersions.sensitivityProfileId,
+  versionValues: (row) => ({ ...sharedValues(row), validCaseThreshold: row.validCaseThreshold }),
 };
 const TREND_OWNER: Owner = {
   key: (id) => ({ generalTrendId: id }),
   versionColumn: profileValueVersions.generalTrendId,
+  versionValues: sharedValues,
 };
 
 /**
@@ -100,17 +121,18 @@ const storedView = (written: Written, view: ProfileView): StoredRow | undefined 
   written.stored.find((row) => row.view === view);
 
 /**
- * Records the value version of the historical-only view (SUI-08, CL-SEN-18, CL-SEN-19). A job
- * appends one at its instant when one of the five values differs from the stored row, which
- * its latest version holds, since the daily purge keeps the version in force. The full job
+ * Records the value version of the historical-only view (SUI-08, SEN-31, CL-SEN-18, CL-SEN-19).
+ * A job appends one at its instant when one of the values its owner's versions keep differs
+ * from the stored row, which its latest version holds, since the daily purge keeps the
+ * version in force: the five values of a trend, and of a profile the case threshold too,
+ * so that a change of the threshold alone shows in the pair's versions. The full job
  * after a withdrawal, a player-data deletion or a restore's re-application replaces every
  * version by one when it changes any value of the row, a tally count alone included, so
  * that no count or mean gap from before the withdrawal stays beside the new one.
  */
 async function recordVersion(tx: Transaction, written: Written, write: JobWrite): Promise<void> {
   const row = viewOf(written.rows, HISTORICAL_VIEW);
-  const { validCount, meanGap, verdictLevel, verdictDirection, profileConfidence } = row;
-  const values = { validCount, meanGap, verdictLevel, verdictDirection, profileConfidence };
+  const values = written.owner.versionValues(row);
   const isReplace = write.versions.kind === 'replace';
   const before = storedView(written, HISTORICAL_VIEW);
   if (before !== undefined && hasSameValues(before, isReplace ? row : values)) {

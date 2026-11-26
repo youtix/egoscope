@@ -1,0 +1,2 @@
+ALTER TABLE "profile_value_versions" ADD COLUMN "valid_case_threshold" smallint;--> statement-breakpoint
+ALTER TABLE "profile_value_versions" ADD CONSTRAINT "profile_value_versions_threshold_check" CHECK (("profile_value_versions"."sensitivity_profile_id" IS NULL) = ("profile_value_versions"."valid_case_threshold" IS NULL));
