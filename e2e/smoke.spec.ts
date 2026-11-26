@@ -9,12 +9,16 @@ test.describe('the hermetic server', () => {
     expect(response.status()).toBe(401);
   });
 
-  test('sends the root address to the login page without a session, through pages that pass the accessibility check', async ({
-    page,
-  }) => {
-    await page.goto('/');
+  test.describe('without a session', () => {
+    test.use({ signedIn: false });
 
-    await expect(page).toHaveURL('/log-in?next=%2F');
+    test('sends the root address to the login page without a session, through pages that pass the accessibility check', async ({
+      page,
+    }) => {
+      await page.goto('/');
+
+      await expect(page).toHaveURL('/log-in?next=%2F');
+    });
   });
 
   test('runs in the hermetic mode', async ({ request }) => {

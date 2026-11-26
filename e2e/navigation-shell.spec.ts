@@ -77,15 +77,19 @@ const isPrefetch = (request: Request): boolean => {
 };
 
 test.describe('the navigation shell', () => {
-  for (const path of LOT_1_SCREENS) {
-    test(`[IHM-16] [IHM-10] sends ${path} to the login page without a session, to come back to it`, async ({
-      page,
-    }) => {
-      await page.goto(path);
+  test.describe('without a session', () => {
+    test.use({ signedIn: false });
 
-      await expect(page).toHaveURL(`/log-in?${new URLSearchParams({ next: path }).toString()}`);
-    });
-  }
+    for (const path of LOT_1_SCREENS) {
+      test(`[IHM-16] [IHM-10] sends ${path} to the login page without a session, to come back to it`, async ({
+        page,
+      }) => {
+        await page.goto(path);
+
+        await expect(page).toHaveURL(`/log-in?${new URLSearchParams({ next: path }).toString()}`);
+      });
+    }
+  });
 
   test('[IHM-16] answers not found for a Lot 2 screen while the lot is 1, inside the Lot 1 navigation', async ({
     page,

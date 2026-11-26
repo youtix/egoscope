@@ -211,12 +211,14 @@ describe('the login action', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
 
   it('[IHM-10] writes neither the password nor the session token in the address it sends the device to', async () => {
     const actions = await instance();
-    const first = await submit(actions, INITIAL, `/players?seen=${INITIAL}`);
+    const first = await submit(actions, INITIAL, '/players?seen=8');
     const token = first.cookie?.split('.', 1)[0] ?? '';
+    const address = decodeURIComponent(first.to ?? '');
 
-    expect(first.to).toBe(`/choose-password?next=%2Fplayers%3Fseen%3D${INITIAL}`);
+    expect(first.to).toBe('/choose-password?next=%2Fplayers%3Fseen%3D8');
     expect(token).toHaveLength(43);
-    expect(decodeURIComponent(first.to ?? '')).not.toContain(token);
+    expect(address).not.toContain(token);
+    expect(address).not.toContain(INITIAL);
   });
 
   it('[IHM-06] [H-IHM-06] keeps the browser and the system of the device in its session', async () => {

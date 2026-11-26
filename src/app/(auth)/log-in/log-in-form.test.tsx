@@ -83,12 +83,12 @@ describe('the login form', () => {
     });
     const action = vi.fn<Action>().mockResolvedValue({ lockout: null });
     render(<LogInForm action={action} initial={{ lockout: LOCKOUT }} />);
-    const button = screen.getByRole('button', { name: 'Log in' });
 
     act(() => {
       vi.advanceTimersByTime(15 * MINUTE - 1);
     });
-    expect(button).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Log in' })).toBeDisabled();
+    expect(screen.getByText(LOCKOUT.notice)).toBeVisible();
     act(() => {
       vi.advanceTimersByTime(1);
     });
