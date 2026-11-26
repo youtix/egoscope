@@ -83,6 +83,48 @@ jobs:
           echo "$found"
       - name: Scan bun.lock for known vulnerabilities
         run: '"$RUNNER_TEMP/osv-scanner" scan source --lockfile=bun.lock'
+      - name: Refuse an exception of osv-scanner.toml that matches no vulnerability of bun.lock
+        env:
+          # An advisory of lodash 4.17.20, a package that bun.lock does not hold.
+          EXTRA_ADVISORY: GHSA-35jh-r3h4-6jhm
+        run: |
+          # OSV-Scanner only warns about an [[IgnoredVulns]] entry that matches no
+          # vulnerability of the lockfile, and still exits with 0: its log says
+          # "<path of the file> has unused ignores:", then " - <advisory>" for each such
+          # entry. unused prints those advisories for the bun.lock of the folder $1, scanned
+          # with the osv-scanner.toml found next to it, and keeps the scan's log in $2.
+          unused() {
+            "$RUNNER_TEMP/osv-scanner" scan source --lockfile="$1/bun.lock" > "$2" 2>&1 || true
+            awk '/has unused ignores:/ { listing = 1; next }
+              listing && /^ *- / { print $NF; next }
+              { listing = 0 }' "$2"
+          }
+          # The proof: osv-scanner.toml with one more entry, for an advisory that bun.lock
+          # does not hold, must be refused, naming that advisory.
+          mkdir "$RUNNER_TEMP/osv-unused"
+          cp bun.lock "$RUNNER_TEMP/osv-unused/"
+          {
+            cat osv-scanner.toml
+            printf '\n[[IgnoredVulns]]\nid = "%s"\nreason = "The proof of this step."\n' "$EXTRA_ADVISORY"
+          } > "$RUNNER_TEMP/osv-unused/osv-scanner.toml"
+          proof="$(unused "$RUNNER_TEMP/osv-unused" "$RUNNER_TEMP/osv-unused.log")"
+          if ! printf '%s\n' "$proof" | grep --line-regexp --fixed-strings "$EXTRA_ADVISORY"; then
+            cat "$RUNNER_TEMP/osv-unused.log"
+            echo "::error::The check did not refuse an exception for $EXTRA_ADVISORY, which matches nothing in bun.lock."
+            exit 1
+          fi
+          echo "The check refuses an exception for $EXTRA_ADVISORY, which matches nothing in bun.lock. OSV-Scanner said:"
+          grep --after-context=1 'has unused ignores:' "$RUNNER_TEMP/osv-unused.log"
+          # The real file: every exception must still match a vulnerability of bun.lock.
+          stale="$(unused . "$RUNNER_TEMP/osv-real.log")"
+          if [ -n "$stale" ]; then
+            cat "$RUNNER_TEMP/osv-real.log"
+            printf '%s\n' "$stale" | while read -r advisory; do
+              echo "::error file=osv-scanner.toml::The exception for $advisory matches no vulnerability of bun.lock any more: remove its [[IgnoredVulns]] entry from osv-scanner.toml."
+            done
+            exit 1
+          fi
+          echo "Every exception of osv-scanner.toml matches a vulnerability of bun.lock."
 
   gitleaks:
     name: gitleaks
