@@ -7,5 +7,5 @@ export const notificationsSentences = {
   // The closing line of every alert message (TEL-05, TEL-11)
   closingLine: 'A measure of the past, not a forecast.',
 
-  // An area adds its groups below, one commented group per screen or task.
+  // An area adds its groups above this line, one commented group per screen or task.
 } as const;

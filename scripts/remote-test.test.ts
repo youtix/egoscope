@@ -13,7 +13,7 @@ const OTHER = 'f0e1d2c3b4a5968778695a4b3c2d1e0f12345678';
 // As in an agent's worktree, the local branch is pushed under another name, its task's branch.
 const LOCAL = 'worktree-wf_probe-1';
 const BRANCH = 'chore/probe';
-const UPSTREAM = `for-each-ref --format=%(upstream:remotename) %(upstream:remoteref) refs/heads/${LOCAL}`;
+const UPSTREAM = `for-each-ref --format=%(upstream:remotename) %(upstream:remoteref) %(upstream:track) refs/heads/${LOCAL}`;
 const COMMITS = 'rev-parse HEAD @{upstream}';
 const RUNS = 'https://github.com/example/repository/actions/runs';
 const RUN_URL = `${RUNS}/4242`;
@@ -457,6 +457,12 @@ describe('runLocally', () => {
       name: 'an upstream that is not at HEAD',
       argv: FILTER,
       git: { [COMMITS]: answer(`${HEAD}\n${OTHER}\n`) },
+      sentence: `The upstream of ${LOCAL}, origin/${BRANCH}, is not at HEAD: commit and push first (git push origin HEAD:${BRANCH}), so that the run tests HEAD.`,
+    },
+    {
+      name: 'an upstream that the remote no longer holds',
+      argv: FILTER,
+      git: { [UPSTREAM]: answer(`origin refs/heads/${BRANCH} [gone]\n`) },
       sentence: `The upstream of ${LOCAL}, origin/${BRANCH}, is not at HEAD: commit and push first (git push origin HEAD:${BRANCH}), so that the run tests HEAD.`,
     },
     {

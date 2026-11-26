@@ -51,5 +51,5 @@ export const importsSentences = {
   discardFailedTitle: 'The draft was not discarded',
   loadingDraft: 'Loading the draft',
 
-  // An area adds its groups below, one commented group per screen or task.
+  // An area adds its groups above this line, one commented group per screen or task.
 } as const;

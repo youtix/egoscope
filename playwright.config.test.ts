@@ -16,16 +16,30 @@ import type { PlaywrightTestConfig } from '@playwright/test';
 
 // Where Next.js says it listens, as `next start --hostname 127.0.0.1 --port 0` prints it.
 const LISTENING = '- Local:         http://127.0.0.1:43123';
-// The environment of every hermetic server: all the fakes, the account's dummy initial
-// password, and no credential.
+// The schema of the server's environment, which a test outside src/ reads as text: the
+// schema is server-only, and a tool imports a module only through its barrel.
+const SCHEMA_FILE = path.join(import.meta.dirname, 'src/lib/env/server-env.ts');
+const SHAPE_START = 'const serverEnvShape = {\n';
+const SHAPE_END = '\n};\n';
+// A variable of the schema, at the indent of its shape: "  LOG_LEVEL: z.enum(…)".
+const DECLARED = /^ {2}(?<name>[A-Z][A-Z\d_]*):/gmu;
+// The one variable that the servers set beside those of the schema.
+const TELEMETRY = 'NEXT_TELEMETRY_DISABLED';
+
+/** The variables that the schema of src/lib/env/server-env.ts declares, in its order. */
+function schemaVariables(): readonly string[] {
+  const source = readFileSync(SCHEMA_FILE, 'utf8');
+  const start = source.indexOf(SHAPE_START);
+  const shape = source.slice(start, source.indexOf(SHAPE_END, start));
+  return Array.from(shape.matchAll(DECLARED), (match) => match.groups?.['name'] ?? '');
+}
+// The environment of every hermetic server: every variable of the schema pinned empty, all
+// the fakes, the account's dummy initial password, and no credential.
 const HERMETIC_ENV = {
+  ...Object.fromEntries(schemaVariables().map((name) => [name, ''])),
   EGOSCOPE_FAKES: 'all',
   EGOSCOPE_LOT: '1',
   INITIAL_PASSWORD: TEST_ACCOUNT_INITIAL,
-  DATABASE_URL: '',
-  DATABASE_URL_UNPOOLED: '',
-  VERCEL_ENV: '',
-  LOG_LEVEL: '',
   NODE_ENV: 'production',
   NEXT_TELEMETRY_DISABLED: '1',
 };
@@ -72,6 +86,16 @@ describe('playwright.config.ts', () => {
         timeout: 60_000,
       },
     ]);
+  });
+
+  it('[TRV-64] pins every variable of the schema, so that no value of the shell or of .env.local reaches a hermetic server', async () => {
+    const { webServer } = await loadConfig();
+    const servers = Array.isArray(webServer) ? webServer : [];
+    const pinned = servers.map(({ env = {} }) =>
+      Object.keys(env).filter((name) => name !== TELEMETRY),
+    );
+
+    expect(pinned).toStrictEqual([schemaVariables(), schemaVariables()]);
   });
 
   it('reads the port that the system picked for each server from what Next.js prints, into the variable that the projects read', async () => {

@@ -4,5 +4,5 @@
  * requirements it serves.
  */
 export const backtestsSentences = {
-  // An area adds its groups below, one commented group per screen or task.
+  // An area adds its groups above this line, one commented group per screen or task.
 } as const;

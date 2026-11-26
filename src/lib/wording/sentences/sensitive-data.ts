@@ -14,5 +14,5 @@ export const sensitiveDataSentences = {
   offlineDraftsDiscarded:
     'Drafts typed offline were discarded because events were withdrawn or declined for sensitivity meanwhile.',
 
-  // An area adds its groups below, one commented group per screen or task.
+  // An area adds its groups above this line, one commented group per screen or task.
 } as const;

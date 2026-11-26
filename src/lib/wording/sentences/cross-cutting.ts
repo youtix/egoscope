@@ -29,5 +29,5 @@ export const crossCuttingSentences = {
   quotaServiceTelegram: 'Telegram',
   quotaServiceDatabase: 'Database',
 
-  // An area adds its groups below, one commented group per screen or task.
+  // An area adds its groups above this line, one commented group per screen or task.
 } as const;

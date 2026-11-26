@@ -7,5 +7,5 @@ export const alertsSentences = {
   standingNotice:
     'This sheet describes past games. It does not predict the next game and is not a betting recommendation.',
 
-  // An area adds its groups below, one commented group per screen or task.
+  // An area adds its groups above this line, one commented group per screen or task.
 } as const;

@@ -25,6 +25,33 @@ const listening = (variable: string): RegExp =>
  */
 export const TEST_ACCOUNT_INITIAL = 'hermetic-initial-of-the-test-account';
 
+// Every variable of the schema of src/lib/env/server-env.ts, in its order, which an e2e
+// helper cannot import: the schema is server-only. playwright.config.test.ts fails when
+// the schema declares a variable that this list lacks.
+const SCHEMA_VARIABLES = [
+  'LOG_LEVEL',
+  'NODE_ENV',
+  'VERCEL_ENV',
+  'VERCEL_DEPLOYMENT_ID',
+  'APP_BASE_URL',
+  'DATABASE_URL',
+  'DATABASE_URL_UNPOOLED',
+  'CRON_SECRET',
+  'INITIAL_PASSWORD',
+  'FINGERPRINT_KEY',
+  'BACKUP_GITHUB_REPOSITORY',
+  'BACKUP_GITHUB_TOKEN',
+  'BACKUP_ENCRYPTION_KEY',
+  'STATS_SOURCE_BASE_URL',
+  'CLOUDFLARE_ACCOUNT_ID',
+  'CLOUDFLARE_AI_API_TOKEN',
+  'GROQ_API_KEY',
+  'TELEGRAM_BOT_TOKEN',
+  'TELEGRAM_WEBHOOK_SECRET',
+  'EGOSCOPE_LOT',
+  'EGOSCOPE_FAKES',
+];
+
 /** The variable that holds the port of the server of `lot`, once it listens. */
 const portVariable = (lot: Lot): string => `EGOSCOPE_E2E_LOT${String(lot)}_PORT`;
 // The variable that holds the port of the server of the account journeys.
@@ -32,11 +59,15 @@ const ACCOUNT_PORT = 'EGOSCOPE_E2E_ACCOUNT_PORT';
 
 /**
  * The environment of the hermetic server of `lot`, whatever the shell exports
- * or an env file says: Next.js loads no env file over a variable that is set,
- * and the server reads an empty value as unset.
+ * or an env file says: every variable of the schema is set, since Next.js loads
+ * no env file over a variable that is set, and the server reads an empty value
+ * as unset. So no credential, no address and no key of a developer's .env.local
+ * reaches it, and the fakes switch stands beside no real credential (TRV-64).
  */
 export function hermeticEnvironment(lot: Lot): Readonly<Record<string, string>> {
   return {
+    // No real credential, no Vercel deployment, the default log level.
+    ...Object.fromEntries(SCHEMA_VARIABLES.map((name) => [name, ''])),
     // Every outside service is a fake, and without a database URL the database
     // is PGlite in memory: each start of the server is a fresh database.
     EGOSCOPE_FAKES: 'all',
@@ -44,11 +75,6 @@ export function hermeticEnvironment(lot: Lot): Readonly<Record<string, string>> 
     EGOSCOPE_LOT: String(lot),
     // The account starts from it, as a deployment's does from its own (TRV-57).
     INITIAL_PASSWORD: TEST_ACCOUNT_INITIAL,
-    // No real credential, no Vercel deployment, the default log level.
-    DATABASE_URL: '',
-    DATABASE_URL_UNPOOLED: '',
-    VERCEL_ENV: '',
-    LOG_LEVEL: '',
     NODE_ENV: 'production',
     // Next.js reports its use to an outside service too, unless told not to.
     NEXT_TELEMETRY_DISABLED: '1',
