@@ -99,8 +99,9 @@ test.describe('the navigation shell', () => {
     expect(response?.status()).toBe(NOT_FOUND);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('This item no longer exists');
     await expect(page.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', '/');
+    // Signed in, the Home entry also carries the number of items to do (IHM-20).
     await expect(page.getByRole('navigation').getByRole('link')).toHaveText([
-      'Home',
+      /^Home\b/,
       'Players',
       'Types',
       'More',
