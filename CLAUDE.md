@@ -342,8 +342,11 @@ touches it and its prefix, its letters before the first hyphen, is that of an ID
   (`git restore --source=origin/main --staged --worktree drizzle/meta`), delete only the `.sql`
   files of your own migrations, then run `bun run db:generate`.
 - A test gets a database of its own from `createTestDatabase()`: in memory, every migration
-  applied. Close it when the test ends, `onTestFinished(database.close)`, since an open one holds
-  about 200 MB. A database test uses the named timeout `DATABASE_TEST_TIMEOUT_MS` of
+  applied, and nothing left in it by another test. Close it when the test ends,
+  `onTestFinished(database.close)`: closing puts its PGlite back in the state of the template, so
+  that the next test of the file takes it in milliseconds, while a database left open holds about
+  200 MB and costs the next test a full start. A database test uses the named timeout
+  `DATABASE_TEST_TIMEOUT_MS` of
   `@/lib/testing`, for its suite and for the hook that builds its database.
 - `next dev` migrates the PGlite of `.pglite/` at its first query, then keeps it through every
   reload until it stops: restart `next dev` after `bun run db:generate` to apply a new migration.

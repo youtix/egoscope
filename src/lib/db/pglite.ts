@@ -3,8 +3,15 @@ import 'server-only';
 import { migrationConfig } from './migrations';
 import * as schema from './schema';
 
-import type { OpenDatabase } from './types';
-import type { PGliteOptions } from '@electric-sql/pglite';
+import type { Database, OpenDatabase } from './types';
+import type { PGlite, PGliteOptions } from '@electric-sql/pglite';
+
+/** A Drizzle client of a PGlite that is lent, and the way to end the loan. */
+export type PgliteLoan = Readonly<{
+  db: Database;
+  /** Refuses every later call of the client, then waits for the calls made before to end. */
+  revoke: () => Promise<void>;
+}>;
 
 /** A database on PGlite, with the way to copy its files and to stop it. */
 export type PgliteDatabase = OpenDatabase &
@@ -12,7 +19,62 @@ export type PgliteDatabase = OpenDatabase &
     /** The data directory as one uncompressed archive, which `loadDataDir` reads back. */
     dump: () => Promise<Blob>;
     close: () => Promise<void>;
+    /** Whether a transaction block is open, such as one that a `BEGIN` left. */
+    isInTransaction: () => boolean;
+    /**
+     * Another Drizzle client of the same database: once revoked, every call of its
+     * client, a query, a transaction or a close, is refused as a closed PGlite refuses
+     * it, while the database itself stays open.
+     */
+    lend: () => PgliteLoan;
   }>;
+
+// What a revoked client answers, as PGlite answers once closed.
+const CLOSED = 'PGlite is closed';
+
+function refuseClosed(): never {
+  throw new Error(CLOSED);
+}
+
+/**
+ * A promise of the caller's own for `result`, so that a failure that the caller ignores is
+ * still reported as unhandled, which the revocation's wait for `result` would otherwise hide.
+ */
+async function callersOwn(result: Promise<unknown>): Promise<unknown> {
+  return result;
+}
+
+/**
+ * A client that forwards every call to `pglite` until it is revoked, and keeps the
+ * calls that it forwarded, so that the revocation can wait for them.
+ */
+function lendClient(pglite: PGlite): Readonly<{ client: PGlite; revoke: () => Promise<void> }> {
+  let isRevoked = false;
+  const forwarded: unknown[] = [];
+  const client = new Proxy(pglite, {
+    get(target, property): unknown {
+      const value: unknown = Reflect.get(target, property);
+      if (typeof value !== 'function') {
+        return value;
+      }
+      if (isRevoked) {
+        return refuseClosed;
+      }
+      return (...parameters: unknown[]): unknown => {
+        const result: unknown = Reflect.apply(value, target, parameters);
+        forwarded.push(result);
+        return result instanceof Promise ? callersOwn(result) : result;
+      };
+    },
+  });
+  return {
+    client,
+    revoke: async () => {
+      isRevoked = true;
+      await Promise.allSettled(forwarded);
+    },
+  };
+}
 
 /**
  * Starts PGlite, Postgres compiled to WebAssembly, in this process, for tests
@@ -33,5 +95,10 @@ export async function startPglite(options: PGliteOptions): Promise<PgliteDatabas
     migrate: async () => migrator.migrate(db, migrationConfig()),
     dump: async () => pglite.dumpDataDir('none'),
     close: async () => pglite.close(),
+    isInTransaction: () => pglite.isInTransaction(),
+    lend: () => {
+      const { client, revoke } = lendClient(pglite);
+      return { db: driver.drizzle({ client, schema }), revoke };
+    },
   };
 }
