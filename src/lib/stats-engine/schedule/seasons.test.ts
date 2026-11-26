@@ -401,11 +401,12 @@ describe('firstYearOf', () => {
   });
 
   it('[STA-48] [CL-STA-28] gives back the first year of every season it is written from', () => {
-    fc.assert(
-      fc.property(fc.integer({ min: FIRST_SEASON_YEAR, max: LAST_SEASON_YEAR }), (year) => {
-        expect(firstYearOf(nameOf(year))).toBe(year);
-      }),
+    const years = Array.from(
+      { length: LAST_SEASON_YEAR - FIRST_SEASON_YEAR + 1 },
+      (_, index) => FIRST_SEASON_YEAR + index,
     );
+
+    expect(years.map((year) => firstYearOf(nameOf(year)))).toStrictEqual(years);
   });
 });
 
