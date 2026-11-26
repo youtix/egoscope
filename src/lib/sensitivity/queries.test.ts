@@ -96,9 +96,10 @@ async function giveWorkedExampleGaps(world: World): Promise<readonly number[]> {
   return valid.map(({ id }) => id);
 }
 
-// The second player's one media storm: a tracked case of a gap far below the profiled
-// player's, measured at his first game of 2024-25, its detected event marked to requalify.
-const SECOND_PLAYER_GAP = -5;
+// The second player's one media storm: a tracked case of a gap above every gap of the
+// worked example, measured at his first game of 2024-25, its detected event marked to
+// requalify.
+const SECOND_PLAYER_GAP = 2;
 const MEASURED_SEASON = '2024-25';
 
 /** Writes the second invented player and his one media storm, and gives his id. */
@@ -357,14 +358,14 @@ describe(
       await insertSecondPlayerCase(db);
       await markFragile(world, key.playerId);
 
-      // Beside the eight cases of the worked example, the trend holds the second player's
-      // gap of -5: set aside, the worked example's possible increase is left; any other
-      // case set aside leaves a mean gap below 0.25, an inconclusive verdict.
+      // The robustness test of an increase sets aside the highest gap: C7 for his profile,
+      // and for the trend the second player's gap of 2, which leaves the worked example's
+      // eight cases and their possible increase.
       await expect(getProfile(db, key)).resolves.toMatchObject({
         casesWithoutWhichVerdictChanges: [valid[WORKED_EXAMPLE_C7]],
       });
       await expect(getTrend(db, { eventTypeId: MEDIA_STORM })).resolves.toMatchObject({
-        casesWithoutWhichVerdictChanges: valid,
+        casesWithoutWhichVerdictChanges: [],
       });
     });
 
