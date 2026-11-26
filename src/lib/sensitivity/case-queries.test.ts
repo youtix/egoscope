@@ -139,6 +139,7 @@ describe('the case lists', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         id: game.id,
         gameDay: game.gameDayOn,
         scheduledStartAt: game.scheduledStartAt.getTime(),
+        isStartTimeTbd: false,
         season: '2024-25',
         opponent: { location: 'Seaport', name: 'Gulls', abbreviation: 'SPG' },
       },

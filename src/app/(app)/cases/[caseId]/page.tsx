@@ -2,11 +2,13 @@ import { guardScreen, paths } from '@/lib/navigation';
 import { PageHeader } from '@/lib/ui';
 import { sentence } from '@/lib/wording';
 
+import { CaseBlock, caseZoneStatement } from './case-block';
+
 import type { ReactNode } from 'react';
 
 /**
- * The placeholder of a screen of module map section 3.3, until its task replaces it:
- * /cases/[caseId].
+ * The case detail, /cases/[caseId] (module map section 3.3, IHM-25): the statement of the
+ * zone its times are written in (CL-IHM-04), then its blocks.
  */
 export default async function CaseDetailPage({
   params,
@@ -17,10 +19,9 @@ export default async function CaseDetailPage({
     <div className="flex flex-col gap-6">
       <PageHeader
         title={sentence('interface.caseDetail')}
-        // --- Slot: the statement of the zone in use, "Times in Paris time" (CL-IHM-04),
-        // a description that this page's area writes
+        description={await caseZoneStatement()}
       />
-      {/* --- Slot: case-block.tsx, which the statistics-sensitivity area adds --- */}
+      <CaseBlock caseId={caseId} />
 
       {/* --- Slot: tracking-block.tsx (Lot 2), which the alerts-tracking-telegram area adds --- */}
     </div>

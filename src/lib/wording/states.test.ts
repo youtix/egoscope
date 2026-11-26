@@ -27,6 +27,10 @@ function filled(template: string): string {
   return fill(template, [Object.fromEntries(names.map((name) => [name, WRITTEN_VALUE]))]);
 }
 
+/** Whether this module must carry the set `name` of section 4.1: a state set, or another set it carries. */
+const isCarried = (name: string): boolean =>
+  name.endsWith('Status') || Object.hasOwn(STATUS_LABELS, name);
+
 /**
  * The state that a row of a set's table shows, with its UI label, if it shows one: a
  * UI label of "—", or a note in parentheses, is none.
@@ -40,8 +44,9 @@ function shownState(line: string): readonly [string, string] | undefined {
 }
 
 /**
- * The state sets of glossary section 4.1, the sets named `…Status`, each with the UI
- * label of every state it shows; a set that shows none is left out.
+ * The sets of glossary section 4.1 that this module must carry, each with the UI label
+ * of every state it shows: every set named `…Status`, and every other set that the
+ * module carries, which a screen shows; a set that shows none is left out.
  */
 function glossaryStateSets(): ReadonlyMap<string, ReadonlyMap<string, string>> {
   const text = readFileSync(GLOSSARY_FILE, 'utf8');
@@ -51,7 +56,7 @@ function glossaryStateSets(): ReadonlyMap<string, ReadonlyMap<string, string>> {
   for (const line of section.split('\n')) {
     const name = SET_HEADING.exec(line)?.groups?.['name'];
     if (name !== undefined) {
-      current = name.endsWith('Status') ? new Map<string, string>() : undefined;
+      current = isCarried(name) ? new Map<string, string>() : undefined;
       sets.set(name, current ?? new Map<string, string>());
     }
     const state = shownState(line);
@@ -59,7 +64,7 @@ function glossaryStateSets(): ReadonlyMap<string, ReadonlyMap<string, string>> {
       current.set(...state);
     }
   }
-  return new Map([...sets].filter(([name, states]) => name.endsWith('Status') && states.size > 0));
+  return new Map([...sets].filter(([name, states]) => isCarried(name) && states.size > 0));
 }
 
 /** The labels of this module, in the same shape. */
@@ -104,7 +109,7 @@ describe('state labels', () => {
     ]);
   });
 
-  it('[VUE-08] gives every state that glossary section 4.1 shows its UI label, and no other state one', () => {
+  it('[VUE-08] gives every state of a status set or of a set it carries the UI label of glossary section 4.1, and no other state one', () => {
     expect(moduleStateSets()).toStrictEqual(glossaryStateSets());
   });
 

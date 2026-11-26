@@ -36,11 +36,12 @@ export type CaseEvent = Readonly<{
   description: string;
 }>;
 
-/** The game at which a case is measured: its day, its start, its season and its opponent under its name that season (STA-26, JOU-08). */
+/** The game at which a case is measured: its day, its start, whether its time is to be determined, its season and its opponent under its name that season (STA-26, STA-31, JOU-08). */
 export type MeasuredGame = Readonly<{
   id: number;
   gameDay: IsoDate;
   scheduledStartAt: EpochMs;
+  isStartTimeTbd: boolean;
   season: string;
   opponent: Readonly<{ location: string; name: string; abbreviation: string }> | null;
 }>;
@@ -132,6 +133,7 @@ function measuredGameOf({ game, opponent }: CaseRowWithGame): MeasuredGame | nul
         id: game.id,
         gameDay: toIsoDate(game.gameDayOn),
         scheduledStartAt: toEpochMs(game.scheduledStartAt.getTime()),
+        isStartTimeTbd: game.isStartTimeTbd,
         season: game.season,
         opponent,
       };
