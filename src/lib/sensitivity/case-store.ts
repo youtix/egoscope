@@ -131,7 +131,9 @@ function linksOf(written: readonly Written[], results: PlayerCaseResults): reado
  * Deletes the player's cases left without an event, each with its child rows (CL-VUE-03):
  * before a case that the write emptied goes, the reactions run, in list order, with the
  * case that its earliest-recorded event joined, while its row is as it was; the first
- * failure stops the write (module map, section 1.10, CL-SUI-16).
+ * failure stops the write (module map, section 1.10, CL-SUI-16). The emptied cases are
+ * visited in ascending id, so that the result does not depend on the physical order of
+ * their rows (SEN-36).
  */
 async function deleteEmptied<E>(
   tx: Transaction,
@@ -146,7 +148,11 @@ async function deleteEmptied<E>(
     tx.select({ id: events.id }).from(events).where(eq(events.caseId, cases.id)),
   );
   const eventless = and(eq(cases.playerId, context.results.playerId), holdsNoEvent);
-  const emptied = await tx.select({ id: cases.id }).from(cases).where(eventless);
+  const emptied = await tx
+    .select({ id: cases.id })
+    .from(cases)
+    .where(eventless)
+    .orderBy(asc(cases.id));
   const regroupings = emptied.flatMap(({ id: emptiedCaseId }) => {
     const moved = context.state.events.find(({ caseId }) => caseId === emptiedCaseId);
     const into = context.written.find(
