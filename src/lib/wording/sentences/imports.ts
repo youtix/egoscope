@@ -41,6 +41,11 @@ export const importsSentences = {
   discardDraftDescription:
     'The pasted text is deleted from this device and from the app. This cannot be undone.',
   keepDraft: 'Keep the draft',
+  discardDraftContinue: 'Continue discarding',
+  discardDraftSecondTitle: 'Discard the draft for good?',
+  discardDraftSecondDescription:
+    'Once discarded, the pasted text is gone: only pasting it again brings it back.',
+  discardDraftForGood: 'Discard the draft for good',
   discardNeedsNetwork:
     'The draft can only be discarded while you are online. Connect, then try again.',
   discardFailedTitle: 'The draft was not discarded',

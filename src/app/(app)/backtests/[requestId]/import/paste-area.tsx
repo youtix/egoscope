@@ -70,7 +70,7 @@ function TextReceived({ text }: Readonly<{ text: string }>): ReactNode {
   );
 }
 
-/** The discard of both copies of the draft, after a confirmation (IHM-28, IHM-42, IHM-58). */
+/** The discard of both copies of the draft, after two confirmations, since the text cannot be recovered (IHM-28, IHM-42, IHM-58). */
 function DiscardDraft({ draft }: Readonly<{ draft: PasteDraft }>): ReactNode {
   const [message, setMessage] = useState<string | undefined>(undefined);
   const discard = async (): Promise<void> => {
@@ -88,8 +88,13 @@ function DiscardDraft({ draft }: Readonly<{ draft: PasteDraft }>): ReactNode {
         triggerLabel={sentence('imports.discardDraftButton')}
         title={sentence('imports.discardDraftTitle')}
         description={sentence('imports.discardDraftDescription')}
-        confirmLabel={sentence('imports.discardDraftButton')}
+        confirmLabel={sentence('imports.discardDraftContinue')}
         cancelLabel={sentence('imports.keepDraft')}
+        secondStep={{
+          title: sentence('imports.discardDraftSecondTitle'),
+          description: sentence('imports.discardDraftSecondDescription'),
+          confirmLabel: sentence('imports.discardDraftForGood'),
+        }}
       />
     </Form>
   );

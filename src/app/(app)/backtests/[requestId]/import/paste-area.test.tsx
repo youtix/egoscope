@@ -104,6 +104,21 @@ async function paste(user: ReturnType<typeof userEvent.setup>, text: string): Pr
   await user.paste(text);
 }
 
+/** Goes through both questions of the discard, to the button that discards for good. */
+async function confirmDiscard(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('button', { name: 'Discard draft' }));
+  await user.click(
+    within(await screen.findByRole('alertdialog')).getByRole('button', {
+      name: 'Continue discarding',
+    }),
+  );
+  await user.click(
+    within(
+      await screen.findByRole('alertdialog', { name: 'Discard the draft for good?' }),
+    ).getByRole('button', { name: 'Discard the draft for good' }),
+  );
+}
+
 describe('the research-result paste area', () => {
   let setup: Setup;
   let isOnline: boolean;
@@ -333,27 +348,71 @@ describe('the research-result paste area', () => {
     });
   });
 
-  it('[IHM-42] discards both copies of the draft after a confirmation, and not before', async () => {
+  it('[IHM-42] keeps the draft when the first question is declined', async () => {
     const user = userEvent.setup();
     await open(setup);
     await paste(user, RESULT);
     await screen.findByText(SAVED_AT_TEXT);
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }));
 
-    await user.click(screen.getByRole('button', { name: 'Discard draft' }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Discard this draft?' });
-    expect(setup.discard).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole('button', { name: 'Keep the draft' }));
-    expect(setup.discard).not.toHaveBeenCalled();
-    expect(field()).toHaveValue(RESULT);
-    await user.click(screen.getByRole('button', { name: 'Discard draft' }));
     await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Discard draft' }),
+      within(await screen.findByRole('alertdialog', { name: 'Discard this draft?' })).getByRole(
+        'button',
+        { name: 'Keep the draft' },
+      ),
     );
 
+    expect(setup.discard).not.toHaveBeenCalled();
+    expect(field()).toHaveValue(RESULT);
+  });
+
+  it('[IHM-42] discards nothing at the first question, and both copies of the draft at the second', async () => {
+    const user = userEvent.setup();
+    await open(setup);
+    await paste(user, RESULT);
+    await screen.findByText(SAVED_AT_TEXT);
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }));
+
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Continue discarding',
+      }),
+    );
+    const second = await screen.findByRole('alertdialog', { name: 'Discard the draft for good?' });
+
+    expect(second).toHaveTextContent(
+      'Once discarded, the pasted text is gone: only pasting it again brings it back.',
+    );
+    expect(setup.discard).not.toHaveBeenCalled();
+    expect(setup.held.size).toBe(1);
+    await user.click(within(second).getByRole('button', { name: 'Discard the draft for good' }));
     await waitFor(() => {
       expect(field()).toHaveValue('');
     });
     expect(setup.held.size).toBe(0);
+  });
+
+  it('[IHM-42] keeps the draft when the second question is declined', async () => {
+    const user = userEvent.setup();
+    await open(setup);
+    await paste(user, RESULT);
+    await screen.findByText(SAVED_AT_TEXT);
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Continue discarding',
+      }),
+    );
+
+    await user.click(
+      within(
+        await screen.findByRole('alertdialog', { name: 'Discard the draft for good?' }),
+      ).getByRole('button', { name: 'Keep the draft' }),
+    );
+
+    expect(setup.discard).not.toHaveBeenCalled();
+    expect(setup.held.size).toBe(1);
+    expect(field()).toHaveValue(RESULT);
   });
 
   it('[IHM-42] finds no text after a reload once the draft is discarded', async () => {
@@ -361,10 +420,7 @@ describe('the research-result paste area', () => {
     await open(setup);
     await paste(user, RESULT);
     await screen.findByText(SAVED_AT_TEXT);
-    await user.click(screen.getByRole('button', { name: 'Discard draft' }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Discard draft' }),
-    );
+    await confirmDiscard(user);
     await waitFor(() => {
       expect(field()).toHaveValue('');
     });
@@ -383,10 +439,7 @@ describe('the research-result paste area', () => {
     await screen.findByText(SAVED_AT_TEXT);
     isOnline = false;
 
-    await user.click(screen.getByRole('button', { name: 'Discard draft' }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Discard draft' }),
-    );
+    await confirmDiscard(user);
 
     expect(
       await screen.findByText(
@@ -397,7 +450,7 @@ describe('the research-result paste area', () => {
     expect(setup.discard).not.toHaveBeenCalled();
   });
 
-  it('[IMP-02] [IHM-42] is accessible with a text, over the limit and confirming', async () => {
+  it('[IMP-02] [IHM-42] is accessible with a text, over the limit and on both questions of the discard', async () => {
     const user = userEvent.setup();
     await open(setup);
     await paste(user, RESULT);
@@ -410,7 +463,12 @@ describe('the research-result paste area', () => {
     await screen.findByText(OVER_MESSAGE);
     await expect(axe.run(document.body, WCAG_22_AA)).resolves.toHaveProperty('violations', []);
     await user.click(screen.getByRole('button', { name: 'Discard draft' }));
-    await screen.findByRole('alertdialog');
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Continue discarding',
+      }),
+    );
+    await screen.findByRole('alertdialog', { name: 'Discard the draft for good?' });
 
     await expect(axe.run(document.body, WCAG_22_AA)).resolves.toHaveProperty('violations', []);
   });
