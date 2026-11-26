@@ -17,10 +17,12 @@ import type { NoLongerExists, Transaction } from '@/lib/db';
 import type { ChangedElsewhere, Result } from '@/lib/result';
 
 /** A reason of the closed exclusion list of SEN-17 (`ManualExclusionReason`). */
-export type ExclusionReason = NonNullable<NewCaseManualDecisionRow['exclusionReason']>;
+export type ManualExclusionReason = NonNullable<NewCaseManualDecisionRow['exclusionReason']>;
 
 /** A reason of the closed reinstatement list of SEN-17 (`ManualReinstatementReason`). */
-export type ReinstatementReason = NonNullable<NewCaseManualDecisionRow['reinstatementReason']>;
+export type ManualReinstatementReason = NonNullable<
+  NewCaseManualDecisionRow['reinstatementReason']
+>;
 
 /** The owner's exclusion or reinstatement of a case, as the case page sends it (SEN-17, CL-IHM-18). */
 export type CaseDecision = Readonly<{
@@ -55,16 +57,16 @@ const EXCLUSION_REASONS: readonly string[] = [
   'unusual_stakes',
   'opponent_strength',
   'other_confounding_factor',
-] satisfies readonly ExclusionReason[];
+] satisfies readonly ManualExclusionReason[];
 const REINSTATEMENT_REASONS: readonly string[] = [
   'incorrect_context_indication',
   'criterion_unsuited_to_case',
-] satisfies readonly ReinstatementReason[];
+] satisfies readonly ManualReinstatementReason[];
 // The two reasons that SEN-17 makes the owner explain.
 const COMMENTED_REASONS: ReadonlySet<string> = new Set([
   'other_confounding_factor',
   'criterion_unsuited_to_case',
-] satisfies readonly (ExclusionReason | ReinstatementReason)[]);
+] satisfies readonly (ManualExclusionReason | ManualReinstatementReason)[]);
 // The state each decision applies to, the one it leaves, and the journal entry it writes.
 const DECISIONS = {
   exclude: { from: 'measured', to: 'excluded', messageKey: 'case_excluded' },
@@ -72,11 +74,11 @@ const DECISIONS = {
 } as const satisfies Readonly<Record<DecisionKind, unknown>>;
 const NO_LONGER_EXISTS: NoLongerExists = { kind: 'no_longer_exists' };
 
-function isExclusionReason(reason: string): reason is ExclusionReason {
+function isExclusionReason(reason: string): reason is ManualExclusionReason {
   return EXCLUSION_REASONS.includes(reason);
 }
 
-function isReinstatementReason(reason: string): reason is ReinstatementReason {
+function isReinstatementReason(reason: string): reason is ManualReinstatementReason {
   return REINSTATEMENT_REASONS.includes(reason);
 }
 
@@ -129,7 +131,9 @@ function decidedGameOf(row: CaseRow): number | null {
 /**
  * The state that the latest decision on case `caseId` at game `gameId` gives it, which
  * prevails over the automatic criteria, even before the recalculation it recorded has run;
- * none when no decision was made on that game (SEN-17, CL-SEN-12).
+ * none when no decision was made on that game (SEN-17, CL-SEN-12). The decisions are
+ * appended under the case's row lock, so their identity orders them, whatever the clock
+ * read when each was made.
  */
 async function stateOfLatestDecision(
   tx: Transaction,
@@ -142,7 +146,7 @@ async function stateOfLatestDecision(
     .where(
       and(eq(caseManualDecisions.caseId, caseId), eq(caseManualDecisions.measuredGameId, gameId)),
     )
-    .orderBy(desc(caseManualDecisions.decidedAt), desc(caseManualDecisions.id))
+    .orderBy(desc(caseManualDecisions.id))
     .limit(1);
   return latest === undefined ? null : DECISIONS[latest.kind].to;
 }

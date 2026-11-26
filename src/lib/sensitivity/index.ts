@@ -44,8 +44,8 @@ export { acknowledgeReviewFlag, excludeCase, reinstateCase } from './manual-deci
 export type {
   CaseDecision,
   DecisionRefusal,
-  ExclusionReason,
-  ReinstatementReason,
+  ManualExclusionReason,
+  ManualReinstatementReason,
 } from './manual-decisions';
 
 // queries.ts: getProfile, listProfiles, getTrend, listCases, getCase, caseOfEvent, verdictHistory,

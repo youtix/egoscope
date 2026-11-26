@@ -10,7 +10,12 @@ import {
   journalEntries,
   recalculationJobs,
 } from '@/lib/db';
-import { DATABASE_TEST_TIMEOUT_MS, profiledPlayer } from '@/lib/testing';
+import {
+  DATABASE_TEST_TIMEOUT_MS,
+  insertEventType,
+  insertValidCase,
+  profiledPlayer,
+} from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { acknowledgeReviewFlag, excludeCase, reinstateCase } from './manual-decisions';
@@ -26,6 +31,8 @@ const LATER = toEpochMs(Date.UTC(2026, 10, 25, 10));
 const MAX_LENGTH = 200;
 const TOO_LONG_COMMENT = 'x'.repeat(MAX_LENGTH + 1);
 const BLANK_COMMENT = ' '.repeat(3);
+// A second research type, whose case of the profiled player shares his measured game.
+const OTHER_TYPE = 'transfer-rumor';
 const EXCLUSION_REASONS = [
   'playing_time',
   'injury_return',
@@ -308,6 +315,80 @@ describe('the manual decisions on a case', { timeout: DATABASE_TEST_TIMEOUT_MS }
       measuredGameId: other?.id ?? 0,
     });
     await expect(exclude(decision('unusual_stakes'))).resolves.toStrictEqual(DONE);
+  });
+
+  it.each([
+    ['not_measurable', 'box_score_incomplete'],
+    ['awaiting_game', 'statistics_pending'],
+  ] as const)(
+    '[SEN-17] [CL-SEN-12] keeps the state of a case %s at the game of an earlier decision',
+    async (status, statusReason) => {
+      await exclude(decision('playing_time'));
+      await caseWith(measured.id, { status, statusReason });
+      await expect(
+        reinstate(decision('incorrect_context_indication', null, 2)),
+      ).resolves.toStrictEqual(notAllowed(status));
+      await expect(exclude(decision('unusual_stakes', null, 2))).resolves.toStrictEqual(
+        notAllowed(status),
+      );
+      const after = await written();
+      expect({
+        decisions: after.decisions.map(({ kind, measuredGameId }) => [kind, measuredGameId]),
+        journal: after.journal.length,
+        jobs: after.jobs.length,
+        rowVersion: after.rowVersion,
+      }).toStrictEqual({
+        decisions: [['exclude', measured.measuredGameId]],
+        journal: 1,
+        jobs: 1,
+        rowVersion: 2,
+      });
+    },
+  );
+
+  it('[SEN-17] [CL-SEN-12] reads the state of a case from its own decisions, not from those of another case of its game', async () => {
+    await insertEventType(db, { id: OTHER_TYPE, name: 'Transfer rumor' });
+    const sibling = await insertValidCase(db, {
+      playerId: measured.playerId,
+      measuredGameId: measured.measuredGameId ?? 0,
+      overrides: { eventTypeId: OTHER_TYPE },
+    });
+    await expect(exclude(decision('playing_time'), sibling.id)).resolves.toStrictEqual(DONE);
+    await expect(exclude(decision('unusual_stakes'))).resolves.toStrictEqual(DONE);
+    const recorded = await decisions();
+    expect(
+      recorded.map(({ caseId, exclusionReason, measuredGameId }) => [
+        caseId,
+        exclusionReason,
+        measuredGameId,
+      ]),
+    ).toStrictEqual([
+      [sibling.id, 'playing_time', measured.measuredGameId],
+      [measured.id, 'unusual_stakes', measured.measuredGameId],
+    ]);
+  });
+
+  it('[SEN-17] orders the decisions of a case as they were made, even when the clock stepped back', async () => {
+    const restore = installFakeClock(fixedClock(LATER));
+    await exclude(decision('injury_return'));
+    restore();
+    await expect(
+      reinstate(decision('incorrect_context_indication', null, 2)),
+    ).resolves.toStrictEqual(DONE);
+    await expect(exclude(decision('opponent_strength', null, 3))).resolves.toStrictEqual(DONE);
+    const recorded = await decisions();
+    expect(recorded.map(({ kind, decidedAt }) => [kind, decidedAt])).toStrictEqual([
+      ['exclude', new Date(LATER)],
+      ['reinstate', new Date(START)],
+      ['exclude', new Date(START)],
+    ]);
+  });
+
+  it('[SEN-17] stores no comment for a blank one on a reason that needs none', async () => {
+    await expect(exclude(decision('playing_time', BLANK_COMMENT))).resolves.toStrictEqual(DONE);
+    await expect(decisions()).resolves.toStrictEqual([
+      expect.objectContaining({ exclusionReason: 'playing_time', comment: null }),
+    ]);
   });
 
   it('[SEN-17] [CL-IHM-18] refuses a decision sent with another version, or on a case that is gone', async () => {
