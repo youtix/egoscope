@@ -4,7 +4,7 @@
 
 import { SECONDS_PER_MINUTE } from './box-score';
 
-import type { EngineParams, EpochMs, GameId } from '../types';
+import type { EngineParams, EpochMs, GameId, GamePhase } from '../types';
 import type { BoxScoreCheck } from './box-score';
 
 // games.minutesAverageShare is a percentage.
@@ -18,7 +18,7 @@ const PERCENT = 100;
 export type PlayerGame = Readonly<{
   gameId: GameId;
   scheduledStartAt: EpochMs;
-  phase: 'regular_season' | 'play_in' | 'playoffs';
+  phase: GamePhase;
   boxScore: BoxScoreCheck | null;
 }>;
 

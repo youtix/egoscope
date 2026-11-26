@@ -11,9 +11,9 @@ import { participationOf } from '../performance/participation';
 import { seasonOfDate } from './seasons';
 import { teamGames } from './team-membership';
 
-import type { GameId, IsoDate } from '../types';
+import type { GameId, IsoDate, LinesGame } from '../types';
 import type { SeasonNotRead, SeasonOfDateResult, SeasonSpan } from './seasons';
-import type { LinesGame, PlayerLine, TeamStint } from './team-membership';
+import type { PlayerLine, TeamStint } from './team-membership';
 
 /**
  * One of his box-score lines as the indicators read it (STA-08, STA-46): with its game's

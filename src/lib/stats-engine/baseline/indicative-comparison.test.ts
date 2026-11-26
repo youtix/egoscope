@@ -6,8 +6,7 @@ import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 import { indicativeComparison } from './indicative-comparison';
 
 import type { PhaseState } from '../schedule/phase-state';
-import type { GamePhase } from '../schedule/team-record';
-import type { EngineParams } from '../types';
+import type { EngineParams, GamePhase } from '../types';
 import type { IndicativeComparisonInput, IndicativeSeason } from './indicative-comparison';
 import type { BaselineGame, SeasonBaselineStatus } from './season-baseline';
 

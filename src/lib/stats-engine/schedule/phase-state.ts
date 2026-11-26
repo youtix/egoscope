@@ -6,9 +6,8 @@
 import { byScheduledStart, isCounted, playInLoserEliminated } from './series';
 import { hasTeam, winnerOf } from './team-record';
 
-import type { EpochMs, TeamId } from '../types';
+import type { EpochMs, ScheduleGame, TeamId } from '../types';
 import type { RebuiltSeries } from './series';
-import type { ScheduleGame } from './team-record';
 
 /**
  * A game of the stored schedule with its scheduled start and the instant it was

@@ -11,8 +11,8 @@ import { firstYearOf, seasonOfDate } from '../schedule/seasons';
 import { teamGames } from '../schedule/team-membership';
 
 import type { SeasonNotRead, SeasonSpan } from '../schedule/seasons';
-import type { LinesGame, PlayerLine, TeamGame, TeamStint } from '../schedule/team-membership';
-import type { EpochMs, GameId, IsoDate, TeamId } from '../types';
+import type { PlayerLine, TeamGame, TeamStint } from '../schedule/team-membership';
+import type { EpochMs, GameId, IsoDate, LinesGame, TeamId } from '../types';
 
 /** His day and month of birth, never a year (CL-JOU-16): a month from 1 to 12, a day of it. */
 export type Birthday = Readonly<{ month: number; day: number }>;

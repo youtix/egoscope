@@ -4,45 +4,13 @@
 // marks. Whether the game's stakes are high and whether its opponent makes a case doubtful
 // come from the cases/ and schedule/ rules, which the caller applies (SEN-14, SEN-15);
 // freezing the caveats at the game's scheduled start is the alerts module's (CL-ALE-07).
-// Every threshold is received as data.
+// Every threshold is received as data, and compared with in caveat-thresholds.ts.
+
+import { isBelowThreshold, isConfidenceNearThreshold, isSmallTrend } from './caveat-thresholds';
 
 import type { ContextIndications } from '../cases/doubtful-criteria';
-import type { ProfileConfidence } from '../profiles/confidence';
-import type { Verdict } from '../profiles/verdict';
-import type { EventTypeId, PlayerEventId } from '../types';
-
-/** The thresholds the caveats compare with (CL-ALE-05, ALE-16), each a registry parameter. */
-export type CaveatThresholds = Readonly<{
-  /** Valid cases a verdict needs, `sensitivity.minValidCases` (SEN-23). */
-  minValidCases: number;
-  /** Distinct players a general trend needs, `sensitivity.trendMinPlayers` (SEN-29). */
-  trendMinPlayers: number;
-  /** Points a detection needs, `detection.threshold` (DET-24). */
-  detectionThreshold: number;
-  /** Points above the detection threshold within which a confidence is near it (H-ALE-06). */
-  confidenceVigilanceMargin: number;
-}>;
-
-/**
- * The frozen values of a section's profile that its caveats read (ALE-09, SEN-25, SEN-46),
- * its verdict with its direction, which no caveat tells apart (H-04).
- */
-export type CaveatProfile = Readonly<{
-  validCount: number;
-  verdict: Verdict;
-  profileConfidence: ProfileConfidence;
-  /** « profil incomplet »: the type's coverage has gaps, or a widening change awaits its supplement. */
-  isIncomplete: boolean;
-  /** Its cases that rest on an earlier version of the type sheet (TAX-25). */
-  earlierVersionCaseCount: number;
-}>;
-
-/** The frozen values of the type's general trend that the caveats read (ALE-12, SEN-29). */
-export type CaveatTrend = Readonly<{
-  validCount: number;
-  playerCount: number;
-  profileConfidence: ProfileConfidence;
-}>;
+import type { EventOrigin, EventTypeId, PlayerEventId } from '../types';
+import type { CaveatProfile, CaveatThresholds, CaveatTrend } from './caveat-thresholds';
 
 /**
  * An event of a section (ALE-08, CL-ALE-13): detected, the owner's classifications and
@@ -53,7 +21,7 @@ export type CaveatTrend = Readonly<{
  */
 export type CaveatEvent = Readonly<{
   playerEventId: PlayerEventId;
-  origin: 'detected' | 'calendar';
+  origin: Exclude<EventOrigin, 'historical'>;
   isDismissed: boolean;
   context: ContextIndications;
   detectionConfidence: number | null;
@@ -136,11 +104,6 @@ function caveatIf(isApplicable: boolean, caveat: Caveat): readonly Caveat[] {
   return isApplicable ? [caveat] : [];
 }
 
-/** Whether the player has fewer valid cases than a verdict needs (ALE-12, SEN-31). */
-function isBelowThreshold(profile: CaveatProfile, thresholds: CaveatThresholds): boolean {
-  return profile.validCount < thresholds.minValidCases;
-}
-
 /**
  * Whether the section's type is outside the player's coverage (ALE-14), which a type
  * derived from the calendar never is, since it leaves the backtest coverage (CL-ALE-13),
@@ -148,16 +111,6 @@ function isBelowThreshold(profile: CaveatProfile, thresholds: CaveatThresholds):
  */
 function isTypeNotCovered(section: CaveatSection): boolean {
   return section.isTypeNotCovered && !section.isCalendarDerived;
-}
-
-/** Whether the general trend rests on a small sample (CL-ALE-05), no trend resting on no case. */
-function isSmallTrend(trend: CaveatTrend | null, thresholds: CaveatThresholds): boolean {
-  return (
-    trend === null ||
-    trend.validCount < thresholds.minValidCases ||
-    trend.playerCount < thresholds.trendMinPlayers ||
-    trend.profileConfidence === 'low'
-  );
 }
 
 /**
@@ -197,17 +150,6 @@ function directionCaveat(section: CaveatSection): Caveat {
 /** Whether the profile is incomplete or rests in part on an earlier type sheet version (SEN-46). */
 function isIncompleteOrEarlierVersion({ profile }: CaveatSection): boolean {
   return profile !== null && (profile.isIncomplete || profile.earlierVersionCaseCount > 0);
-}
-
-/** Whether a model's detection confidence is below the threshold plus the vigilance margin (H-ALE-06). */
-function isConfidenceNearThreshold(
-  { detectionConfidence }: CaveatEvent,
-  thresholds: CaveatThresholds,
-): boolean {
-  return (
-    detectionConfidence !== null &&
-    detectionConfidence < thresholds.detectionThreshold + thresholds.confidenceVigilanceMargin
-  );
 }
 
 /** The caveats of one kind that the sections bring, in their order. */
@@ -284,8 +226,8 @@ export function sheetCaveats(
     ...sections.map((section) => directionCaveat(section)),
     ...caveatIf(reasons.length > 0, { kind: 'known_context', knownContextReasons: reasons }),
     ...caveatIf(events.length > 1 || input.hasRelatedSheet, { kind: 'several_events' }),
-    ...eventCaveats(events, 'confidence_near_threshold', (event) =>
-      isConfidenceNearThreshold(event, thresholds),
+    ...eventCaveats(events, 'confidence_near_threshold', ({ detectionConfidence }) =>
+      isConfidenceNearThreshold(detectionConfidence, thresholds),
     ),
     ...eventCaveats(events, 'dating_to_verify', ({ isDatingToVerify }) => isDatingToVerify),
     ...sectionCaveats(sections, 'incomplete_or_earlier_version', isIncompleteOrEarlierVersion),

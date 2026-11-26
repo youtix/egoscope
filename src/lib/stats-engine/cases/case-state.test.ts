@@ -15,7 +15,7 @@ import type { PrecedenceSource } from '../measured-game/precedence';
 import type { Participation } from '../performance/participation';
 import type { TrendCase } from '../profiles/general-trend';
 import type { SeasonSpan } from '../schedule/seasons';
-import type { EngineParams, GameId } from '../types';
+import type { EngineParams, EventOrigin, GameId } from '../types';
 import type { CaseSeasons, CaseState, CaseStateInput, MeasuredGameStatistics } from './case-state';
 
 // The registry's defaults, a window of 10 days among them (SEN-04). JSON gives the
@@ -404,7 +404,7 @@ type WorldGame = Readonly<{
 type SeasonState = 'read' | 'toRead' | 'unpublished' | 'notCovered' | 'beforeSource';
 /** A situation: the event, the seasons, the mapping, his games, the evaluation's instant. */
 type World = Readonly<{
-  origin: 'calendar' | 'historical' | 'detected';
+  origin: EventOrigin;
   source: 'early' | 'late' | 'sameDay';
   season: SeasonState;
   isDatingToVerify: boolean;

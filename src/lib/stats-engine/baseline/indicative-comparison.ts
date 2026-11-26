@@ -9,8 +9,7 @@ import { firstYearOf } from '../schedule/seasons';
 import { seasonBaseline } from './season-baseline';
 
 import type { PhaseState } from '../schedule/phase-state';
-import type { GamePhase } from '../schedule/team-record';
-import type { EngineParams, GameId } from '../types';
+import type { EngineParams, GameId, GamePhase } from '../types';
 import type { BaselineGame, SeasonBaselineStatus } from './season-baseline';
 
 /** One of the player's regular seasons that a measured game may be compared with (CL-STA-13). */

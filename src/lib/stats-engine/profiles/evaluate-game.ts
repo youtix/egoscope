@@ -25,7 +25,7 @@ import type { ManualDecision } from '../cases/manual-decisions';
 import type { ReviewFlag } from '../cases/review-flags';
 import type { BoxScoreCheck, CheckedBoxScore } from '../performance/box-score';
 import type { PhaseGame, PhaseState, SeasonSchedule } from '../schedule/phase-state';
-import type { LinesGame, TeamGame } from '../schedule/team-membership';
+import type { TeamGame } from '../schedule/team-membership';
 import type {
   BaselinePhase,
   EngineParams,
@@ -33,6 +33,7 @@ import type {
   EventTypeId,
   GameId,
   IsoDate,
+  LinesGame,
   TeamId,
 } from '../types';
 

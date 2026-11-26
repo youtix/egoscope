@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import { classify, duplicatesInResult } from './match';
 
-import type { ComparedEvent, DuplicateKind, EventOrigin, ReferenceDate } from './match';
+import type { EventOrigin } from '../types';
+import type { ComparedEvent, DuplicateKind, ReferenceDate } from './match';
 
 // The correspondence window by default, imports.duplicateMaxDateGapDays (H-IMP-02).
 const WINDOW = 2;

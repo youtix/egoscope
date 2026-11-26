@@ -10,8 +10,16 @@ import { byScheduledStart } from '../schedule/series';
 import { teamRecord } from '../schedule/team-record';
 
 import type { Participation } from '../performance/participation';
-import type { GamePhase, ScheduleGame, TeamWinLossRecord } from '../schedule/team-record';
-import type { EngineParams, EpochMs, EventTypeId, GameId, TeamId } from '../types';
+import type { TeamWinLossRecord } from '../schedule/team-record';
+import type {
+  EngineParams,
+  EpochMs,
+  EventTypeId,
+  GameId,
+  GamePhase,
+  ScheduleGame,
+  TeamId,
+} from '../types';
 
 // sensitivity.opponentWinShareLow and sensitivity.opponentWinShareHigh are percentages.
 const PERCENT = 100;

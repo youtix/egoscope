@@ -9,16 +9,8 @@ import { sheetCaveats } from './caveats';
 import type { ContextIndications } from '../cases/doubtful-criteria';
 import type { Verdict } from '../profiles/verdict';
 import type { EventTypeId, PlayerEventId } from '../types';
-import type {
-  Caveat,
-  CaveatEvent,
-  CaveatKind,
-  CaveatProfile,
-  CaveatSection,
-  CaveatThresholds,
-  CaveatTrend,
-  SheetCaveatsInput,
-} from './caveats';
+import type { CaveatProfile, CaveatThresholds, CaveatTrend } from './caveat-thresholds';
+import type { Caveat, CaveatEvent, CaveatKind, CaveatSection, SheetCaveatsInput } from './caveats';
 
 /** The registry's default of a parameter that is no calculation parameter. */
 function registryDefault(key: string): number {
@@ -258,17 +250,23 @@ describe('sheetCaveats', () => {
     expect(caveatsOf([section(FEUD, [dismissed, SURE])])).toStrictEqual([OPPOSITE]);
   });
 
-  it('[ALE-16] [ALE-20] [H-ALE-02] warns of several events when more than one non-dismissed event, or a related sheet, shares the game', () => {
+  it('[ALE-16] [ALE-20] [H-ALE-02] [CL-ALE-13] warns of several events when more than one non-dismissed event, or a related sheet, shares the game', () => {
     const several: Caveat = { kind: 'several_events' };
     const twoSections = caveatsOf([section(FEUD, [SURE]), section(SNUB, [detected(2)])]);
     const oneSection = caveatsOf([section(FEUD, [SURE, detected(2)])]);
     const oneDismissed = caveatsOf([section(FEUD, [SURE, detected(2, { isDismissed: true })])]);
     const related = caveatsOf([section(FEUD, [SURE])], { hasRelatedSheet: true });
+    const calendar = detected(2, { origin: 'calendar', detectionConfidence: null });
+    const withCalendar = caveatsOf([
+      section(FEUD, [SURE]),
+      section(BIRTHDAY, [calendar], { isCalendarDerived: true }),
+    ]);
 
     expect(twoSections).toContainEqual(several);
     expect(oneSection).toContainEqual(several);
     expect(oneDismissed).not.toContainEqual(several);
     expect(related).toStrictEqual([OPPOSITE, several]);
+    expect(withCalendar).toContainEqual(several);
   });
 
   it('[ALE-16] [H-ALE-06] [CL-DET-07] flags a model confidence below the detection threshold plus the vigilance margin, never an owner classification, which has none', () => {

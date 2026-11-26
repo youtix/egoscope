@@ -11,8 +11,7 @@ import type { Attachment, AttachmentEvent } from '../measured-game/attachment';
 import type { Participation } from '../performance/participation';
 import type { SeriesGame } from '../schedule/series';
 import type { TeamGame } from '../schedule/team-membership';
-import type { GamePhase, ScheduleGame } from '../schedule/team-record';
-import type { EngineParams } from '../types';
+import type { EngineParams, GamePhase, ScheduleGame } from '../types';
 import type { ContextIndications, DoubtfulCaseCriteriaInput as Input } from './doubtful-criteria';
 
 // The registry's defaults. For a return from injury, a run of 4 team games missed, then the

@@ -8,8 +8,7 @@
 
 import { winnerOf } from './team-record';
 
-import type { EpochMs, GameId, TeamId } from '../types';
-import type { GamePhase, ScheduleGame } from './team-record';
+import type { EpochMs, GameId, GamePhase, ScheduleGame, TeamId } from '../types';
 
 /**
  * The round of a series, as the source labels it or as the order of the season's
