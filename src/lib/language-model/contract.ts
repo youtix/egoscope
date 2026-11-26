@@ -118,6 +118,14 @@ async function endsWhenCancelled({ provider, inject }: ProviderHarness): Promise
   };
 }
 
+async function endsAfterDeadline({ provider }: ProviderHarness): Promise<ContractCheck> {
+  const outcome = await provider.complete(context(-1), REQUEST);
+  return {
+    observed: [kindOf(outcome), outcome.call.httpRequests],
+    promised: ['timeout', 0],
+  };
+}
+
 /** The ceiling of one request is a positive whole number of tokens. */
 async function declaresCeiling({ provider }: ProviderHarness): Promise<ContractCheck> {
   await Promise.resolve();
@@ -130,8 +138,9 @@ async function declaresCeiling({ provider }: ProviderHarness): Promise<ContractC
  * one answer that names each article of the request (DET-12); its request and tokens
  * reported; a refusal for quota reported as such, before the declared limit
  * included (TRV-06); a minute limit with the delay to wait; a timeout at the deadline,
- * and at once when the call's signal cancels it; and the ceiling of one request in
- * tokens, by which callers size their batches.
+ * at once when the call's signal cancels it, and without sending the request when the
+ * deadline has come before the call; and the ceiling of one request in tokens, by which
+ * callers size their batches.
  */
 export const LANGUAGE_MODEL_CONTRACT: Readonly<Record<string, ContractCase>> = {
   '[DET-12] answers a request of several articles with JSON that names each one': namesEachArticle,
@@ -141,5 +150,6 @@ export const LANGUAGE_MODEL_CONTRACT: Readonly<Record<string, ContractCase>> = {
   'answers timeout when its answer outlasts the deadline, without waiting past it': timesOut,
   'answers timeout at once when its signal cancels the call, without waiting for the answer':
     endsWhenCancelled,
+  'sends nothing and answers timeout once the deadline has come': endsAfterDeadline,
   'declares the ceiling in tokens of one request': declaresCeiling,
 };

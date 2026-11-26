@@ -196,6 +196,22 @@ describe('createFakeProvider', () => {
     });
     expect(provider.received()).toHaveLength(1);
   });
+
+  it('answers timeout and sends nothing for a call that begins at its deadline or after it', async () => {
+    onTestFinished(installFakeClock(fixedClock(AT)));
+    const provider = createFakeProvider(OPTIONS);
+    provider.slowNext(SLOW_MS);
+    const atDeadline = await provider.complete(context(0), REQUEST);
+    const afterDeadline = await provider.complete(context(-1), REQUEST);
+
+    const notSent: ProviderOutcome = {
+      ok: false,
+      error: { kind: 'timeout' },
+      call: { httpRequests: 0, tokens: 0, neurons: 0, requestsResetAt: null, tokensResetAt: null },
+    };
+    expect([atDeadline, afterDeadline]).toStrictEqual([notSent, notSent]);
+    expect(provider.received()).toStrictEqual([]);
+  });
 });
 
 describe('createFakeLanguageModel', () => {

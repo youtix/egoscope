@@ -273,20 +273,28 @@ describe('createWorkersAiProvider', () => {
     expect(sent).toHaveLength(1);
   });
 
-  it('[TRV-64] writes the token in the authorization header alone, never in the address, the body or an outcome', async () => {
-    const { provider, turns, sent } = replay();
-    const recorded = [answer, ...Object.values(failures)];
-    turns.push(...recorded);
-    const outcomes = await Promise.all(
-      recorded.map(async () => provider.complete(context(), REQUEST)),
+  it('[TRV-64] writes the token in the authorization header alone, never in another header, the address, the body or an outcome', async () => {
+    const played: readonly Turn[] = [answer, ...Object.values(failures), 'connection_lost', 'hang'];
+    const calls = await Promise.all(
+      played.map(async (turn) => {
+        const { provider, turns, sent } = replay();
+        turns.push(turn);
+        const deadlineMs = turn === 'hang' ? SHORT_DEADLINE_MS : DEADLINE_MS;
+        const outcome = await provider.complete(context(deadlineMs), REQUEST);
+        return { sent, outcome };
+      }),
     );
+    const sent = calls.flatMap((call) => call.sent);
 
-    expect(sent.map(({ headers }) => headers.get('authorization'))).toStrictEqual(
-      recorded.map(() => `Bearer ${TOKEN}`),
+    expect(sent.map(({ headers }) => Object.fromEntries(headers))).toStrictEqual(
+      played.map(() => ({ authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' })),
     );
-    expect(JSON.stringify([sent.map(({ url, body }) => [url, body]), outcomes])).not.toContain(
-      TOKEN,
-    );
+    expect(
+      JSON.stringify([
+        sent.map(({ url, body }) => [url, body]),
+        calls.map(({ outcome }) => outcome),
+      ]),
+    ).not.toContain(TOKEN);
   });
 
   it('refuses at configuration a model whose neuron rates it does not know', () => {
