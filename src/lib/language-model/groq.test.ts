@@ -365,6 +365,23 @@ describe('the answers of the Groq provider', () => {
     await expect(cancelled).resolves.toStrictEqual({ kind: 'timeout' });
   });
 
+  it('answers timeout and sends nothing for a call that begins once its deadline has come or its signal has cancelled it', async () => {
+    atFixedTime();
+    const { http, provider } = setUp();
+    const cancelled = new AbortController();
+    cancelled.abort();
+    const atDeadline = await provider.complete(context(0), REQUEST);
+    const afterCancel = await provider.complete(context(DEADLINE_MS, cancelled.signal), REQUEST);
+
+    const notSent = {
+      ok: false,
+      error: { kind: 'timeout' },
+      call: { httpRequests: 0, tokens: 0, neurons: 0, requestsResetAt: null, tokensResetAt: null },
+    };
+    expect([atDeadline, afterCancel]).toStrictEqual([notSent, notSent]);
+    expect(http.seen).toStrictEqual([]);
+  });
+
   it('[TRV-64] sends the key in the Authorization header alone, and into no outcome', async () => {
     const { http, provider } = setUp();
     const answers: readonly Next[] = [completion, ...Object.values(errors), 'lost'];

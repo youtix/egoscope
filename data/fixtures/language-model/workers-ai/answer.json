@@ -1,0 +1,38 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": {
+    "result": {
+      "id": "chatcmpl-fixture-answer",
+      "object": "chat.completion",
+      "created": 1795683600,
+      "model": "@cf/zai-org/glm-4.7-flash",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "{\"articles\":[{\"article\":\"article-1\",\"facts\":[{\"player\":\"Tobias Quillfeather\",\"type\":\"public_dispute\",\"confidence\":82,\"description\":\"He argued with his coach on the bench during the third quarter.\",\"justification\":\"The article quotes the exchange and two teammates confirm it.\",\"event\":null}],\"proposals\":[]},{\"article\":\"article-2\",\"facts\":[],\"proposals\":[]}]}",
+            "refusal": null
+          },
+          "finish_reason": "stop",
+          "logprobs": null
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 5412,
+        "completion_tokens": 588,
+        "total_tokens": 6000,
+        "prompt_tokens_details": {
+          "cached_tokens": 4096
+        }
+      },
+      "system_fingerprint": null
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

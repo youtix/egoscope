@@ -150,17 +150,29 @@ function answer(state: FakeState, request: ClassificationRequest, at: EpochMs): 
   return { ok: true, value: raw, call: callOf(state, at, { input, output: tokensOf(raw) }) };
 }
 
-const delay = async (ms: number): Promise<void> =>
+const TIMEOUT: ProviderOutcome = { ok: false, error: { kind: 'timeout' }, call: ONE_REQUEST };
+
+// Waits `ms`, or until `signal` cancels the wait, whichever comes first, and says
+// whether it was cancelled.
+const isCancelledWithin = async (ms: number, signal: AbortSignal): Promise<boolean> =>
   new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    AbortSignal.any([signal, AbortSignal.timeout(ms)]).addEventListener(
+      'abort',
+      () => {
+        resolve(signal.aborted);
+      },
+      { once: true },
+    );
   });
 
 /**
  * A fake provider of the chain (module map §5, DET-12): it answers every article of a
  * request by its identifier, as scripted, and reports its tokens, its neurons when it
  * counts them, and its refill instants when it reports them; it refuses a call above its
- * requests a minute or a day with the delay to the next window (rate_limited), and meets
- * the failures and slow answers injected.
+ * requests a minute or a day with the delay to the next window (rate_limited), meets
+ * the failures and slow answers injected, and ends a call that its signal cancels at
+ * once, as `timeout`, sending nothing when it was cancelled before it began or when its
+ * deadline had already come.
  */
 export function createFakeProvider(options: FakeProviderOptions): FakeProvider {
   const state: FakeState = { options, parts: new Map(), answeredAt: [] };
@@ -172,18 +184,19 @@ export function createFakeProvider(options: FakeProviderOptions): FakeProvider {
     ctx: CallContext,
     request: ClassificationRequest,
   ): Promise<ProviderOutcome> {
-    received.push(request);
     const at = now();
+    if (ctx.signal.aborted || at >= ctx.deadline) {
+      return { ...TIMEOUT, call: { ...ONE_REQUEST, httpRequests: 0 } };
+    }
+    received.push(request);
     const error = failures.shift() ?? limitHit(state, at);
     if (error !== null) {
       return { ok: false, error, call: ONE_REQUEST };
     }
     const late = delays.shift() ?? 0;
     const left = ctx.deadline - at;
-    await delay(Math.min(late, left));
-    return late >= left
-      ? { ok: false, error: { kind: 'timeout' }, call: ONE_REQUEST }
-      : answer(state, request, at);
+    const isCancelled = await isCancelledWithin(Math.min(late, left), ctx.signal);
+    return isCancelled || late >= left ? TIMEOUT : answer(state, request, at);
   }
 
   return {

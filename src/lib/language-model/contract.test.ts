@@ -7,8 +7,10 @@ import type { ContractFault, ProviderHarness } from './contract';
 import type { FakeProvider } from './fake';
 import type { CallMetadata, LanguageModelProvider, ProviderOutcome } from './types';
 
-// Longer than any deadline of the contract.
-const SLOW_MS = 1000;
+// Longer than the short deadline of the contract and than the wait that its cancellation
+// case allows (20 ms, then 1,000 ms of lateness), so that a fake that ignores its call's
+// signal fails that case.
+const SLOW_MS = 2000;
 const MINUTE_DELAY_MS = 30_000;
 const CALL: CallMetadata = {
   httpRequests: 1,

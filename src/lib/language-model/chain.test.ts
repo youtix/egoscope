@@ -1,8 +1,8 @@
 import fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 
 import { err, ok } from '@/lib/result';
-import { now, toEpochMs } from '@/lib/time';
+import { fixedClock, installFakeClock, now, toEpochMs } from '@/lib/time';
 
 import { createChain } from './chain';
 import { createFakeLanguageModel } from './fake';
@@ -241,5 +241,94 @@ describe('createChain', () => {
         ],
       },
     });
+  });
+
+  it('[DET-08] [CL-DET-03] calls no further provider, nor asks its budget, once the primary has timed out at the deadline', async () => {
+    const clock = fixedClock(RESUMES_AT);
+    onTestFinished(installFakeClock(clock));
+    const fakes = createFakeLanguageModel();
+    fakes.setFallback(true);
+    fakes.primary.failNext({ kind: 'timeout' });
+    const asked: ProviderName[] = [];
+    // The primary's call ends as its deadline comes.
+    const counted: Budget = async (provider, call) => {
+      asked.push(provider);
+      const outcome = await call();
+      clock.advance(DEADLINE_MS);
+      return ok(outcome);
+    };
+    const result = await createChain(fakes.providers()).classify(context(), REQUEST, {
+      budget: counted,
+      validate: parses,
+      attempts: 2,
+    });
+
+    expect(asked).toStrictEqual(['workersAi']);
+    expect(fakes.fallback.received()).toStrictEqual([]);
+    expect(result).toStrictEqual({
+      ok: false,
+      error: {
+        kind: 'unanswered',
+        steps: [
+          {
+            provider: 'workersAi',
+            model: 'fake-workers-ai',
+            kind: 'failed',
+            error: { kind: 'timeout' },
+          },
+        ],
+      },
+    });
+  });
+
+  it('[DET-08] [CL-DET-03] keeps a classification unanswered, sending nothing, when the deadline passes while the budget holds the call', async () => {
+    const clock = fixedClock(RESUMES_AT);
+    onTestFinished(installFakeClock(clock));
+    const fakes = createFakeLanguageModel();
+    // The budget's own work, a database round trip say, outlasts the deadline.
+    const slowBudget: Budget = async (_provider, call) => {
+      clock.advance(DEADLINE_MS + 1);
+      return ok(await call());
+    };
+    const result = await createChain(fakes.providers()).classify(context(), REQUEST, {
+      budget: slowBudget,
+      validate: parses,
+      attempts: 2,
+    });
+
+    expect(fakes.primary.received()).toStrictEqual([]);
+    expect(result).toStrictEqual({
+      ok: false,
+      error: {
+        kind: 'unanswered',
+        steps: [
+          {
+            provider: 'workersAi',
+            model: 'fake-workers-ai',
+            kind: 'failed',
+            error: { kind: 'timeout' },
+          },
+        ],
+      },
+    });
+  });
+
+  it('[DET-08] [CL-DET-03] keeps a cancelled classification unanswered without asking any budget', async () => {
+    const fakes = createFakeLanguageModel();
+    const controller = new AbortController();
+    controller.abort();
+    const asked: ProviderName[] = [];
+    const counted: Budget = async (provider, call) => {
+      asked.push(provider);
+      return ok(await call());
+    };
+    const result = await createChain(fakes.providers()).classify(
+      { ...context(), signal: controller.signal },
+      REQUEST,
+      { budget: counted, validate: parses, attempts: 2 },
+    );
+
+    expect(asked).toStrictEqual([]);
+    expect(result).toStrictEqual({ ok: false, error: { kind: 'unanswered', steps: [] } });
   });
 });
