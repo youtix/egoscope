@@ -1,0 +1,72 @@
+{
+  "getMe": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "result": {
+        "id": 6100000001,
+        "is_bot": true,
+        "first_name": "Egoscope",
+        "username": "egoscope_replay_bot",
+        "can_join_groups": false,
+        "can_read_all_group_messages": false,
+        "supports_inline_queries": false,
+        "can_connect_to_business": false,
+        "has_main_web_app": false
+      }
+    }
+  },
+  "sendMessage": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "result": {
+        "message_id": 31,
+        "from": {
+          "id": 6100000001,
+          "is_bot": true,
+          "first_name": "Egoscope",
+          "username": "egoscope_replay_bot"
+        },
+        "chat": { "id": 5550001234, "first_name": "Owner", "type": "private" },
+        "date": 1795000240,
+        "text": "Egoscope & you",
+        "entities": [{ "offset": 0, "length": 8, "type": "bold" }],
+        "link_preview_options": { "is_disabled": true }
+      }
+    }
+  },
+  "done": { "status": 200, "body": { "ok": true, "result": true } },
+  "webhookSet": {
+    "status": 200,
+    "body": { "ok": true, "result": true, "description": "Webhook was set" }
+  },
+  "webhookDeleted": {
+    "status": 200,
+    "body": { "ok": true, "result": true, "description": "Webhook was deleted" }
+  },
+  "webhookInfo": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "result": {
+        "url": "https://egoscope.example.test/api/telegram/webhook",
+        "has_custom_certificate": false,
+        "pending_update_count": 2,
+        "ip_address": "192.0.2.10",
+        "last_error_date": 1795000300,
+        "last_error_message": "Wrong response from the webhook: 502 Bad Gateway",
+        "max_connections": 1,
+        "allowed_updates": ["message", "my_chat_member"]
+      }
+    }
+  },
+  "noWebhookInfo": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "result": { "url": "", "has_custom_certificate": false, "pending_update_count": 0 }
+    }
+  },
+  "updates": { "status": 200, "body": { "ok": true, "result": [] } }
+}

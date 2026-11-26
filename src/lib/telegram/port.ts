@@ -1,7 +1,8 @@
 import 'server-only';
 
-import { adapterFor } from '@/lib/env';
+import { adapterFor, readServerEnv } from '@/lib/env';
 
+import { createBotApiTelegram } from './bot-api';
 import { createFakeTelegram } from './fake';
 
 import type { FakeTelegram } from './fake';
@@ -39,9 +40,19 @@ export function fakeTelegram(): FakeTelegram {
 
 /**
  * The Telegram bot that `env.adapterFor` names (module map §5): the process's one fake
- * under EGOSCOPE_FAKES; otherwise the Bot API adapter, which this build does not hold
- * yet, and in its place "not configured", which sends nothing (TEL-28).
+ * under EGOSCOPE_FAKES; otherwise the Bot API adapter with TELEGRAM_BOT_TOKEN and
+ * TELEGRAM_WEBHOOK_SECRET (TRV-18), or "not configured", which sends nothing, while the
+ * configuration lacks the token or is invalid (TEL-28).
  */
 export function telegram(): TelegramAccess {
-  return adapterFor('telegram') === 'fake' ? { ok: true, bot: fakeTelegram() } : NOT_CONFIGURED;
+  if (adapterFor('telegram') === 'fake') {
+    return { ok: true, bot: fakeTelegram() };
+  }
+  const env = readServerEnv();
+  const token = env.ok ? env.env.TELEGRAM_BOT_TOKEN : undefined;
+  if (token === undefined || !env.ok) {
+    return NOT_CONFIGURED;
+  }
+  const webhookSecret = env.env.TELEGRAM_WEBHOOK_SECRET;
+  return { ok: true, bot: createBotApiTelegram({ token, webhookSecret, fetch }) };
 }

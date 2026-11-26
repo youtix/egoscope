@@ -10,6 +10,34 @@ export type CallMetadata = Readonly<{ httpRequests: number; messages: number }>;
 /** The longest text of one message, in characters once its tags are read: Telegram's limit (CL-TEL-14). */
 export const MESSAGE_MAX_LENGTH = 4096;
 
+// The markup of a text in HTML mode that Telegram does not count as written: a tag,
+// which it leaves out, or an entity, which it counts as one character.
+const MARKUP = /<[^<>]*>|&(?:lt|gt|amp|quot|#\d+|#x[\da-f]+);/giu;
+const ENTITY_START = '&';
+
+/**
+ * The length that Telegram counts of a text in HTML mode, its markup measured, never
+ * removed (CL-TEL-14): 1 to MESSAGE_MAX_LENGTH characters for a text it sends.
+ */
+export function textLength(html: string): number {
+  let length = html.length;
+  for (const [markup] of html.matchAll(MARKUP)) {
+    length -= markup.startsWith(ENTITY_START) ? markup.length - 1 : markup.length;
+  }
+  return length;
+}
+
+/**
+ * Throws a RangeError on a text that Telegram would refuse as empty, no character once
+ * its tags are read: a bug of the caller, which composes every message from at least
+ * one line (TEL-08), and which no adapter sends.
+ */
+export function requireText(html: string): void {
+  if (textLength(html) === 0) {
+    throw new RangeError('A Telegram message needs a text of at least one character.');
+  }
+}
+
 /**
  * The settings of every webhook registration (telegram sheet): the updates the app
  * reads, one connection so that updates arrive one at a time and in order, and the
@@ -73,9 +101,12 @@ type Query<T> = (ctx: CallContext) => Promise<TelegramOutcome<T>>;
 type Operation<Request, T> = (ctx: CallContext, request: Request) => Promise<TelegramOutcome<T>>;
 
 /**
- * The Telegram Bot API (module map §5, telegram sheet). `sendMessage` sends in HTML mode
- * with link previews off a text of 1 to MESSAGE_MAX_LENGTH characters, never an empty
- * one, which Telegram refuses and which no error kind and no fake model; `deleteMessage` deletes one sent message, one call per message
+ * The Telegram Bot API (module map §5, telegram sheet). `sendMessage` sends in HTML mode,
+ * with link previews off, a text of 1 to MESSAGE_MAX_LENGTH characters once its tags are
+ * read: a longer one is `too_long`, and an empty one, which Telegram refuses, is a bug of
+ * the caller, on which every adapter throws a RangeError before any request; pacing the
+ * sends, one a second per chat, is the caller's (`quotas.telegram.messagesPerSecond`);
+ * `deleteMessage` deletes one sent message, one call per message
  * whatever its age (TEL-38, CL-TEL-09); `getMe` gives the bot's username, for the deep
  * link; `setWebhook` registers with WEBHOOK_SETTINGS and a secret token, and
  * `getWebhookInfo` reports the last delivery error; `getUpdates` reads the updates of
