@@ -45,6 +45,14 @@ export const RESEARCH_MESSAGES = [
     whatToDo: 'nothing.',
   },
   {
+    key: 'type_modified_formally',
+    category: 'user_action',
+    subject: 'eventType',
+    happened: 'You changed the wording of the sheet of {subject}.',
+    consequence: 'Its sheet keeps its version, since the change is formal.',
+    whatToDo: 'nothing.',
+  },
+  {
     key: 'type_withdrawn',
     category: 'user_action',
     subject: 'eventType',

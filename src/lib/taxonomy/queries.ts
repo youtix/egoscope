@@ -274,17 +274,30 @@ export type TypeResolution =
 /** The validated types an event of a type can still go to, and whether a split led there. */
 type Receivers = Readonly<{ split: boolean; types: readonly EventTypeRow[] }>;
 
-/** The type at the end of the chain of merges that `type` starts: itself when not merged. */
+/** The bug of links that lead back to `typeId`, which no writer of merges and splits can make. */
+function cycleThrough(typeId: string): Error {
+  return new Error(`The merge and split links of the event types lead back to ${typeId}.`);
+}
+
+/**
+ * The type at the end of the chain of merges that `type` starts: itself when not merged.
+ * A chain that leads back to one of its types is a bug, thrown rather than followed forever.
+ */
 function lastSurvivor(type: EventTypeRow, types: readonly EventTypeRow[]): EventTypeRow {
   const byId = new Map<string | null, EventTypeRow>(
     types.map((candidate) => [candidate.id, candidate]),
   );
+  const chain = new Set([type.id]);
   let survivor = type;
   for (
     let next = byId.get(type.mergedIntoTypeId);
     next !== undefined;
     next = byId.get(next.mergedIntoTypeId)
   ) {
+    if (chain.has(next.id)) {
+      throw cycleThrough(next.id);
+    }
+    chain.add(next.id);
     survivor = next;
   }
   return survivor;
@@ -295,17 +308,26 @@ function lastSurvivor(type: EventTypeRow, types: readonly EventTypeRow[]): Event
  * later merges and splits added: the type itself when validated; its survivor's when it was
  * merged; the union of its split types' when it was split, each type once; none when it is
  * proposed, rejected or withdrawn outside merge and split (TAX-28, TAX-30, TAX-31). The
- * calendar-derived types take part in no merge or split (CL-TAX-20).
+ * calendar-derived types take part in no merge or split (CL-TAX-20). `path` holds the split
+ * types already on the way: links that lead back to one of them are a bug, thrown.
  */
-function receiversOf(type: EventTypeRow, types: readonly EventTypeRow[]): Receivers {
+function receiversOf(
+  type: EventTypeRow,
+  types: readonly EventTypeRow[],
+  path: ReadonlySet<string> = new Set(),
+): Receivers {
   const survivor = lastSurvivor(type, types);
+  if (path.has(survivor.id)) {
+    throw cycleThrough(survivor.id);
+  }
   if (survivor.status === 'validated') {
     return { split: false, types: [survivor] };
   }
   if (survivor.withdrawalReasonKind === 'split_into') {
+    const within = new Set([...path, survivor.id]);
     const reached = types
       .filter((candidate) => candidate.splitFromTypeId === survivor.id)
-      .flatMap((candidate) => receiversOf(candidate, types).types);
+      .flatMap((candidate) => receiversOf(candidate, types, within).types);
     return { split: true, types: [...new Set(reached)] };
   }
   return { split: false, types: [] };

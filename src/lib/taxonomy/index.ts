@@ -38,6 +38,18 @@ export type {
 // validate.ts: validate, checklistFor
 
 // modify.ts: modify, defaultQualification, recordProposedSupplements
+export { defaultQualification, modify } from './modify';
+export type {
+  ModificationFieldErrors,
+  ModificationKind,
+  ModificationRefusal,
+  Modified,
+  ModifiedSheet,
+  Qualification,
+  SheetChange,
+  SheetModification,
+  SubstantiveChangeScope,
+} from './modify';
 
 // criterion-switch.ts: setSwitchedOffCriterion
 
