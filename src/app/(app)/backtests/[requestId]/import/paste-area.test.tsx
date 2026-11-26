@@ -28,11 +28,54 @@ const AT_THE_LIMIT = TWO_BYTES.repeat(1_000_000);
 const OVER_THE_LIMIT = `${AT_THE_LIMIT}x`;
 const OVER_MESSAGE = 'The pasted text is 2.01 MB, over the 2 MB limit.';
 
-/** A call to the server takes a turn of the event loop, as one over the network does. */
-async function overTheNetwork(): Promise<void> {
+// The work that a test started and that has not ended: the IndexedDB connections open and
+// the calls over the network. The paste area saves without waiting, and the store opens the
+// global `indexedDB` at each call, so a save still running when its test ends would write
+// into the next test's database, whose paste area would then show its text.
+const underWay = { count: 0 };
+
+async function nextTurn(): Promise<void> {
   await new Promise((resolve) => {
     setTimeout(resolve, 0);
   });
+}
+
+/** A call to the server takes a turn of the event loop, as one over the network does. */
+async function overTheNetwork(): Promise<void> {
+  underWay.count += 1;
+  await nextTurn();
+  underWay.count -= 1;
+}
+
+/** A new IndexedDB for one test, which counts each connection from its opening to its closing. */
+function countedIndexedDb(): IDBFactory {
+  const factory = new IDBFactory();
+  const openDatabase = factory.open.bind(factory);
+  factory.open = (name, version) => {
+    underWay.count += 1;
+    const request = openDatabase(name, version);
+    request.addEventListener('success', () => {
+      const database = request.result;
+      const closeDatabase = database.close.bind(database);
+      database.close = () => {
+        underWay.count -= 1;
+        closeDatabase();
+      };
+    });
+    return request;
+  };
+  return factory;
+}
+
+/**
+ * Waits until the work that the test started has ended. It looks between two turns of the
+ * event loop, when every save, restore and contact still running waits for a connection or
+ * a call that `underWay` counts.
+ */
+async function workEnded(): Promise<void> {
+  do {
+    await nextTurn();
+  } while (underWay.count > 0);
 }
 
 /** The Server Actions of the route's drafts, over a map: what the server holds, and what it was asked. */
@@ -124,12 +167,14 @@ describe('the research-result paste area', () => {
   let isOnline: boolean;
 
   beforeEach(() => {
-    vi.stubGlobal('indexedDB', new IDBFactory());
+    vi.stubGlobal('indexedDB', countedIndexedDb());
     isOnline = true;
     vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => isOnline);
     onTestFinished(installFakeClock(fixedClock(SAVED_AT)));
     setup = { ...fakeServer(), check: vi.fn<(text: unknown) => void>() };
-    return () => {
+    // The paste area is gone by now (vitest.dom-setup.ts): its work ends in this test's database.
+    return async () => {
+      await workEnded();
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
     };
