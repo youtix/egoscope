@@ -62,6 +62,7 @@ export type {
 export { createFromExploration } from './exploration-creation';
 export type {
   CopiedElement,
+  DiscardExplorationDraft,
   ElementPick,
   ExplorationChoice,
   ExplorationCreation,

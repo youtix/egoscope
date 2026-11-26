@@ -8,7 +8,6 @@ import 'server-only';
 import { eq, max } from 'drizzle-orm';
 
 import { eventTypes, typeIllustrationSources } from '@/lib/db';
-import { discardDraft } from '@/lib/drafts';
 import { err, ok } from '@/lib/result';
 
 import { readCheckedResponse } from './exploration';
@@ -59,6 +58,18 @@ export type ExplorationChoice = Readonly<{
   ticked: readonly number[];
   target: ExplorationTargetPicks | null;
 }>;
+
+/**
+ * Deletes the server copy of the exploration draft of a screen in the caller's
+ * transaction: `discardDraft` of `@/lib/drafts`, which the route passes in. `taxonomy`
+ * does not import `drafts`, whose server half loads the hooks of `device-drafts`: the
+ * scripts that seed the reference data load `taxonomy` under the `react-server`
+ * condition, where those hooks cannot load.
+ */
+export type DiscardExplorationDraft = (
+  tx: Transaction,
+  target: Readonly<{ kind: 'exploration_response'; eventTypeId: string | null }>,
+) => Promise<void>;
 
 /** What a confirmation saved: the proposals created, and the targeted proposal once edited, if it was. */
 export type ExplorationCreation = Readonly<{
@@ -288,7 +299,8 @@ async function copyPicks(
  * `editProposal`. The illustration sources that pass the checks of IMP-14 are stored
  * with their proposal only, never in a sheet (TAX-03, CL-TAX-16). The exploration draft
  * of the screen, general or of the targeted proposal, is discarded in the same
- * transaction, so the pasted text is not kept (DSN-32, CL-DSN-17, CA-TAX-08). Refused as
+ * transaction with `discard`, so the pasted text is not kept (DSN-32, CL-DSN-17,
+ * CA-TAX-08). Refused as
  * `ExplorationCreationRefusal` says, nothing being created for a refused response
  * (CA-TAX-17); a refusal met once a proposal is written leaves its rollback to the
  * caller's transaction, as `transaction()` of `@/lib/db` does for a failure.
@@ -296,6 +308,7 @@ async function copyPicks(
 export async function createFromExploration(
   tx: Transaction,
   choice: ExplorationChoice,
+  discard: DiscardExplorationDraft,
 ): Promise<Result<ExplorationCreation, ExplorationCreationRefusal>> {
   const read = await readCheckedResponse(tx, choice.pastedText);
   if (!read.ok) {
@@ -310,6 +323,6 @@ export async function createFromExploration(
   if (!edited.ok) {
     return edited;
   }
-  await discardDraft(tx, { kind: 'exploration_response', eventTypeId: target?.typeId ?? null });
+  await discard(tx, { kind: 'exploration_response', eventTypeId: target?.typeId ?? null });
   return ok({ created: created.value, target: edited.value });
 }

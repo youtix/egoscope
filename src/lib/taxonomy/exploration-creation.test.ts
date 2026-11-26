@@ -9,6 +9,7 @@ import {
   journalEntries,
   typeIllustrationSources,
 } from '@/lib/db';
+import { discardDraft } from '@/lib/drafts';
 import { DATABASE_TEST_TIMEOUT_MS, insertEventType } from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 import fixture from '@data/fixtures/taxonomy/exploration-types.json';
@@ -68,7 +69,7 @@ describe('createFromExploration', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   }, DATABASE_TEST_TIMEOUT_MS);
 
   const create = async (choice: ExplorationChoice) =>
-    db.transaction(async (tx) => createFromExploration(tx, choice));
+    db.transaction(async (tx) => createFromExploration(tx, choice, discardDraft));
   const pick = async (typeId: string, picks: readonly ElementPick[], expectedVersion = 1) =>
     create({ pastedText: THREE_TYPES, ticked: [], target: { typeId, expectedVersion, picks } });
   const tick = async (pastedText: string, position: number) =>
@@ -133,7 +134,8 @@ describe('createFromExploration', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     await saveDraft(other.id);
 
     const rolledBack = db.transaction(async (tx) => {
-      await createFromExploration(tx, { pastedText: THREE_TYPES, ticked: [1, 3], target: null });
+      const choice = { pastedText: THREE_TYPES, ticked: [1, 3], target: null };
+      await createFromExploration(tx, choice, discardDraft);
       tx.rollback();
     });
 
@@ -187,7 +189,8 @@ describe('createFromExploration', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     });
 
     const held = await db.transaction(async (tx) => {
-      await createFromExploration(tx, { pastedText: THREE_TYPES, ticked: [2], target: null });
+      const choice = { pastedText: THREE_TYPES, ticked: [2], target: null };
+      await createFromExploration(tx, choice, discardDraft);
       return advisoryLocks(tx);
     });
 
