@@ -336,6 +336,7 @@ const ipv6Values = fc.oneof(
 const FULLY_REFUSED_IPV4_OCTETS = [0n, 10n, 127n, 224n, 240n, 255n];
 const FULLY_PUBLIC_IPV4_OCTETS = [8n, 9n, 11n, 12n];
 
+const HELD_DRAW_RUNS = 2000;
 const HELD_OCTETS: readonly (readonly [readonly bigint[], boolean])[] = [
   [FULLY_REFUSED_IPV4_OCTETS, false],
   [FULLY_PUBLIC_IPV4_OCTETS, true],
@@ -490,22 +491,20 @@ describe('addressKind', () => {
     );
   });
 
-  it('[TRV-66] draws, for each IPv4-holding block, only addresses that hold an IPv4 address, refused or public as named', () => {
-    fc.assert(
-      fc.property(
-        fc
-          .constantFrom(...HELD_ADDRESSES)
-          .chain(([holder, isPublic, address]) =>
-            address.map((a) => ({ a, first: holder.first, last: holder.last, isPublic })),
-          ),
-        ({ a, first, last, isPublic }) => {
-          expect(a >= first && a <= last).toBe(true);
-          expect(oracle(a).source).toBe('held');
-          expect(oracle(a).kind === 'public').toBe(isPublic);
-        },
-      ),
-    );
-  });
+  it.each(HELD_ADDRESSES.map(([holder, isPublic, draw]) => ({ holder, isPublic, draw })))(
+    '[TRV-66] draws only addresses of the block from $holder.first that hold an IPv4 address, public: $isPublic',
+    ({ holder, isPublic, draw }) => {
+      // Many runs, since the draw leans on small values and a block may hold a few refused ones.
+      fc.assert(
+        fc.property(draw, (address) => {
+          expect(address >= holder.first && address <= holder.last).toBe(true);
+          expect(oracle(address).source).toBe('held');
+          expect(oracle(address).kind === 'public').toBe(isPublic);
+        }),
+        { numRuns: HELD_DRAW_RUNS },
+      );
+    },
+  );
 
   it('[TRV-66] draws, in every run, an address of each refused block and of each IPv4 holder with a refused and a public held address', () => {
     const cases: readonly (readonly [string, (address: bigint) => boolean])[] = [
