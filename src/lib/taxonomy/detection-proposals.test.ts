@@ -438,7 +438,7 @@ describe(
           storedOccurrence('travel-refusal', SECOND_FACT, true),
         ]);
         expect(await occurrenceCount(REJECTED_TYPE)).toBe(1);
-        expect(await occurrenceCount('travel-refusal')).toBe(0);
+        expect({ ok: true, value: await typeOf('travel-refusal') }).toStrictEqual(detached);
         expect(await journaled('type_proposal_saved')).toStrictEqual([
           { eventTypeId: 'travel-refusal' },
         ]);

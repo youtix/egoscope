@@ -117,21 +117,17 @@ function occurrenceColumns(typeId: string, fact: DetectedFact, isOriginatingFact
   };
 }
 
-/** Sets the reason why no validated type fits on the new detection proposal `typeId` (CL-DET-19). */
-async function setNoFitReason(
+/**
+ * The detection proposal `proposal`, just created, with `reason` as the reason why no
+ * validated type fits (CL-DET-19): a column of its creation, which no version counts.
+ */
+async function withNoFitReason(
   tx: Transaction,
-  typeId: string,
+  proposal: EventTypeRow,
   reason: string | null,
 ): Promise<EventTypeRow> {
-  const [proposal] = await tx
-    .update(eventTypes)
-    .set({ noFitReason: reason })
-    .where(eq(eventTypes.id, typeId))
-    .returning();
-  if (proposal === undefined) {
-    throw new Error(`The proposal ${typeId} created in this transaction is gone.`);
-  }
-  return proposal;
+  await tx.update(eventTypes).set({ noFitReason: reason }).where(eq(eventTypes.id, proposal.id));
+  return { ...proposal, noFitReason: reason };
 }
 
 /**
@@ -157,7 +153,7 @@ export async function receiveDetectionProposal(
     return created;
   }
   const typeId = created.value.id;
-  await setNoFitReason(tx, typeId, proposal.fact.justification);
+  await withNoFitReason(tx, created.value, proposal.fact.justification);
   await tx.insert(typeOccurrences).values(occurrenceColumns(typeId, proposal.fact, true));
   return ok({ typeId, created: true });
 }
@@ -280,7 +276,7 @@ export async function detachOccurrence(
   if (!created.ok) {
     return created;
   }
-  const proposal = await setNoFitReason(tx, created.value.id, occurrence.justification);
+  const proposal = await withNoFitReason(tx, created.value, occurrence.justification);
   await tx
     .update(typeOccurrences)
     .set({ eventTypeId: proposal.id, isOriginatingFact: true })
