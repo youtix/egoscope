@@ -3398,6 +3398,7 @@ The specs require these texts but do not quote them; the English below is the pr
 | Quota limit not entered yet                                                                                                                  | {limit}: not entered yet                                                                                                          | TRV-03, CL-TRV-12            |
 | Quota reference value on the status screen                                                                                                   | {limit}: {value}, a reference value that the app does not enforce                                                                 | TRV-03, TRV-46, CL-TRV-28    |
 | Services named in the quota use                                                                                                              | Stats source / Workers AI / Groq / Backup storage / Telegram / Database                                                           | TRV-46                       |
+| Message of the offline page, shown when nothing is cached on the device yet                                                                  | This screen has not been loaded on this device yet: connect to the internet to open it.                                           | TRV-22                       |
 
 ### 7.7 One-sentence definitions shown in the application (IHM-15)
 

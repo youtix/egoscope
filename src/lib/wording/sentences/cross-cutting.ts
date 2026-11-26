@@ -29,5 +29,13 @@ export const crossCuttingSentences = {
   quotaServiceTelegram: 'Telegram',
   quotaServiceDatabase: 'Database',
 
+  // The installable app: its name under the icon on the phone's home screen, and the
+  // offline page that the service worker shows when nothing is cached on the device yet
+  // (TRV-21, TRV-22, IHM-02)
+  appName: 'Egoscope',
+  offlinePageHeading: 'Offline',
+  offlinePageMessage:
+    'This screen has not been loaded on this device yet: connect to the internet to open it.',
+
   // An area adds its groups above this line, one commented group per screen or task.
 } as const;
