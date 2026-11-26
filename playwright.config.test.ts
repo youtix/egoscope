@@ -23,8 +23,12 @@ const SHAPE_START = 'const serverEnvShape = {\n';
 const SHAPE_END = '\n};\n';
 // A variable of the schema, at the indent of its shape: "  LOG_LEVEL: z.enum(…)".
 const DECLARED = /^ {2}(?<name>[A-Z][A-Z\d_]*):/gmu;
-// The one variable that the servers set beside those of the schema.
-const TELEMETRY = 'NEXT_TELEMETRY_DISABLED';
+// The two variables that the servers set beside those of the schema: Next.js's own, and
+// the harness's, which gives the Lot 2 build its folder.
+const BESIDE_THE_SCHEMA: ReadonlySet<string> = new Set([
+  'NEXT_TELEMETRY_DISABLED',
+  'EGOSCOPE_E2E_LOT2_BUILD',
+]);
 
 /** The variables that the schema of src/lib/env/server-env.ts declares, in its order. */
 function schemaVariables(): readonly string[] {
@@ -103,10 +107,10 @@ describe('playwright.config.ts', () => {
     const { webServer } = await loadConfig();
     const servers = Array.isArray(webServer) ? webServer : [];
     const pinned = servers.map(({ env = {} }) =>
-      Object.keys(env).filter((name) => name !== TELEMETRY),
+      Object.keys(env).filter((name) => !BESIDE_THE_SCHEMA.has(name)),
     );
 
-    expect(pinned).toStrictEqual([schemaVariables(), schemaVariables()]);
+    expect(pinned).toStrictEqual([schemaVariables(), schemaVariables(), schemaVariables()]);
   });
 
   it('reads the port that the system picked for each server from what Next.js prints, into the variable that the projects read', async () => {
