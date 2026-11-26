@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import axe from 'axe-core';
 import { describe, expect, it } from 'vitest';
@@ -37,7 +37,9 @@ describe('Tabs', () => {
 
     await user.tab();
     await user.keyboard('{ArrowRight}');
-    expect(screen.getByRole('tab', { name: 'Queue' })).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Queue' })).toHaveFocus();
+    });
     await user.keyboard('{Enter}');
 
     expect(screen.getByRole('tab', { name: 'Queue' })).toHaveAttribute('aria-selected', 'true');

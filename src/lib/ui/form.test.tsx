@@ -84,7 +84,9 @@ describe('Form', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     const summary = await screen.findByRole('alert', { name: 'The source was not saved' });
-    expect(summary).toHaveFocus();
+    await waitFor(() => {
+      expect(summary).toHaveFocus();
+    });
     await user.click(
       screen.getByRole('link', { name: 'Enter an address that starts with https://.' }),
     );

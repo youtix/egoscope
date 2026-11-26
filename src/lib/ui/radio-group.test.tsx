@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import axe from 'axe-core';
 import { useActionState } from 'react';
@@ -70,7 +70,11 @@ describe('RadioGroup', () => {
     render(<Exclusion />);
 
     await user.click(screen.getByRole('button', { name: 'Exclude' }));
-    await user.click(await screen.findByRole('link', { name: 'Choose why the case is excluded.' }));
+    const summary = await screen.findByRole('alert', { name: 'The case was not excluded' });
+    await waitFor(() => {
+      expect(summary).toHaveFocus();
+    });
+    await user.click(screen.getByRole('link', { name: 'Choose why the case is excluded.' }));
 
     const group = screen.getByRole('radiogroup', { name: 'Reason' });
     expect(group).toBeInvalid();

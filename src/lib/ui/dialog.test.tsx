@@ -34,7 +34,9 @@ describe('Dialog', () => {
       "Add Egoscope to the home screen from the browser's menu.",
     );
     expect(screen.getByText('The app then opens full screen.')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
+    });
   });
 
   it('closes on Escape and gives the focus back to its button', async () => {
@@ -48,7 +50,9 @@ describe('Dialog', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: 'How to install' })).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'How to install' })).toHaveFocus();
+    });
   });
 
   it('closes from its close button', async () => {
