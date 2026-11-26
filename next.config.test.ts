@@ -1,11 +1,17 @@
+// Proves the Next.js configuration: the service worker that each production build bundles
+// and serves, and the build folders: every build goes to .next/ and is type-checked with
+// tsconfig.json, but the one that the end-to-end harness makes for the Lot 2 hermetic
+// server, which goes to a folder of its own with its own route types.
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { runInNewContext } from 'node:vm';
 
-import { describe, expect, it, onTestFinished } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import nextConfig from './next.config';
+
+import type { NextConfig } from 'next';
 
 // The static files of a production build, under .next/static/.
 const BUILD = [
@@ -38,9 +44,9 @@ async function buildOutput(files: readonly string[]): Promise<string> {
  * Builds the worker after a build of `files`, runs its script as the browser does, and
  * installs it: returns the events it answers, the cache it opened and the files it added.
  */
-async function buildAndInstall(files: readonly string[]) {
+async function buildAndInstall(files: readonly string[], config: NextConfig = nextConfig) {
   const distDir = await buildOutput(files);
-  await nextConfig.compiler?.runAfterProductionCompile?.({
+  await config.compiler?.runAfterProductionCompile?.({
     projectDir: import.meta.dirname,
     distDir,
   });
@@ -81,6 +87,24 @@ async function buildAndInstall(files: readonly string[]) {
   return { events: Array.from(listeners, ([type]) => type), opened, added };
 }
 
+/** The configuration, as Next.js loads it in a process whose environment is stubbed. */
+async function loadConfig(): Promise<NextConfig> {
+  vi.resetModules();
+  const { default: config } = await import('./next.config');
+  return config;
+}
+
+/**
+ * The configuration without its hooks, which each load makes anew, so that they are
+ * compared by what they do, in the tests of the service worker.
+ */
+function withoutHooks(config: NextConfig): NextConfig {
+  const { compiler, rewrites, ...rest } = config;
+  expect(Object.keys(compiler ?? {})).toStrictEqual(['runAfterProductionCompile']);
+  expect(rewrites).toBeTypeOf('function');
+  return rest;
+}
+
 describe('the service worker build', () => {
   it('[TRV-21] [TRV-22] serves the worker that the production build bundles at /sw.js', async () => {
     expect(await nextConfig.rewrites?.()).toStrictEqual([
@@ -105,5 +129,50 @@ describe('the service worker build', () => {
     expect(same.opened).toStrictEqual(first.opened);
     expect(next.opened).not.toStrictEqual(first.opened);
     expect(next.opened[0]).toMatch(SHELL_CACHE);
+  });
+});
+
+describe('next.config.ts', () => {
+  it.each(['', 'false', 'TRUE', '1'])(
+    'builds into .next/, type-checked with tsconfig.json, when EGOSCOPE_E2E_LOT2_BUILD is %j',
+    async (value) => {
+      vi.stubEnv('EGOSCOPE_E2E_LOT2_BUILD', value);
+      const { distDir, typescript } = await loadConfig();
+
+      expect({ distDir, typescript }).toStrictEqual({ distDir: undefined, typescript: undefined });
+    },
+  );
+
+  it('builds the Lot 2 hermetic server into .next/lot2, type-checked with tsconfig.lot2.json, when the harness sets EGOSCOPE_E2E_LOT2_BUILD=true', async () => {
+    vi.stubEnv('EGOSCOPE_E2E_LOT2_BUILD', 'true');
+    const { distDir, typescript } = await loadConfig();
+
+    expect({ distDir, typescript }).toStrictEqual({
+      distDir: '.next/lot2',
+      typescript: { tsconfigPath: 'tsconfig.lot2.json' },
+    });
+  });
+
+  it('changes nothing else of the configuration for the Lot 2 build', async () => {
+    vi.stubEnv('EGOSCOPE_E2E_LOT2_BUILD', '');
+    const usual = await loadConfig();
+    vi.stubEnv('EGOSCOPE_E2E_LOT2_BUILD', 'true');
+
+    expect(withoutHooks(await loadConfig())).toStrictEqual({
+      ...withoutHooks(usual),
+      distDir: '.next/lot2',
+      typescript: { tsconfigPath: 'tsconfig.lot2.json' },
+    });
+  });
+
+  it('bundles the worker of the Lot 2 build into the build folder that Next.js passes it and serves it at /sw.js, as for every build', async () => {
+    vi.stubEnv('EGOSCOPE_E2E_LOT2_BUILD', 'true');
+    const lot2 = await loadConfig();
+    const worker = await buildAndInstall(BUILD, lot2);
+
+    expect(worker.added).toStrictEqual(BUILD);
+    expect(await lot2.rewrites?.()).toStrictEqual([
+      { source: '/sw.js', destination: '/_next/static/sw.js' },
+    ]);
   });
 });
