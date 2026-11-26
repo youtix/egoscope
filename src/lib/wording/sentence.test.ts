@@ -350,6 +350,10 @@ describe('fixed sentences', () => {
         'sensitivity.levelAndDirection',
         'sensitivity.proportionAsCounts',
         'interface.deviceDescription',
+        'interface.teamName',
+        'interface.correctionEntry',
+        'interface.correctionWithValues',
+        'interface.datedValue',
       ]);
     });
 
