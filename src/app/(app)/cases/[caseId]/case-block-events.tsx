@@ -54,12 +54,15 @@ function origins(event: CaseEventDetail): readonly Fact[] {
     : [{ key: 'sources', term, details: <ul className="flex flex-col gap-3">{sources}</ul> }];
 }
 
-/** The day, or for a detected event the instant, at which the event became public, in full (CL-IHM-04). */
-function referenceDateOf(event: CaseEventDetail, zone: string): string | null {
-  if (event.referenceDateOn !== null) {
-    return formatDate(event.referenceDateOn, 'full');
-  }
-  return event.referenceAt === null ? null : formatInstant(event.referenceAt, zone, 'full');
+/**
+ * When the event became public, in full: its instant when it is known, as a detected
+ * event's always is, and its day otherwise (SEN-01, CL-IHM-04).
+ */
+function referenceDateOf(event: CaseEventDetail, zone: string): readonly Fact[] {
+  const head = { key: 'date', term: sentence('sensitivity.referenceDate') };
+  return event.referenceAt === null
+    ? factOf(head, event.referenceDateOn, (day) => formatDate(day, 'full'))
+    : [{ ...head, details: formatInstant(event.referenceAt, zone, 'full') }];
 }
 
 /** The facts of one event: its reference date, its sources or derived game, and its context indications with their origin (IHM-25, SEN-18). */
@@ -67,11 +70,7 @@ function eventFacts(event: CaseEventDetail, zone: string): readonly Fact[] {
   const originOf = (origin: CaseEventDetail['injuryReturnOrigin']) =>
     origin === null ? null : label('ContextIndicationOrigin', origin);
   return [
-    ...factOf(
-      { key: 'date', term: sentence('sensitivity.referenceDate') },
-      referenceDateOf(event, zone),
-      (day) => day,
-    ),
+    ...referenceDateOf(event, zone),
     ...origins(event),
     ...factOf(
       { key: 'injury', term: sentence('sensitivity.returnFromInjury') },

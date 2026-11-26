@@ -19,6 +19,7 @@ import { resetParam, setParam } from '@/lib/params';
 import {
   BIRTHDAY,
   DATABASE_TEST_TIMEOUT_MS,
+  insertDetectedEvent,
   playerWithEveryStatus,
   profiledPlayer,
 } from '@/lib/testing';
@@ -277,6 +278,12 @@ describe('the case block', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       .where(eq(cases.id, present(fourth)));
   }
 
+  /** A detected event of the case shifted for an uncertain precedence, dated by its instant, now (SEN-44). */
+  async function writeDetectedEvent(): Promise<void> {
+    const { id, playerId, eventTypeId } = present(world.profiled.cases[3]);
+    await insertDetectedEvent(db, { playerId, overrides: { caseId: id, eventTypeId } });
+  }
+
   beforeAll(async () => {
     const database = await createTestDatabase();
     const restoreClock = installFakeClock(fixedClock(AT));
@@ -285,6 +292,7 @@ describe('the case block', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     world = await playerWithEveryStatus(db, await profiledPlayer(db));
     measured = await writeMeasuredCase();
     await writeCriteria();
+    await writeDetectedEvent();
     await db.update(games).set({ isStartTimeTbd: true }).where(eq(games.id, world.birthday.gameId));
     close = async () => {
       restoreClock();
@@ -352,6 +360,14 @@ describe('the case block', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       'href',
       `/events/${String(id)}`,
     );
+  });
+
+  it('[IHM-25] [CL-IHM-04] dates a detected event by the instant it became public, beside an event dated to the day', async () => {
+    const event = partOf(await openCase(present(world.profiled.cases[3]).id), 'Event');
+    const dates = factsNamed(event, ['Reference date']);
+
+    expect(dates).toHaveLength(2);
+    expect(dates[1]).toStrictEqual(['Reference date', 'Friday 20 November 2026, 09:15 Paris time']);
   });
 
   it('[IHM-46] [CL-VUE-15] [STA-31] shows a tracked calendar-derived case with its derived game in place of sources, known in advance, its game to be timed', async () => {

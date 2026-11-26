@@ -16,26 +16,30 @@ function Labeled({ name, text }: Readonly<{ name: string; text: string }>): Reac
   );
 }
 
-/** The reason of a decision, from the closed list of its kind (SEN-17). */
-function reasonOf(decision: CaseDecisionItem): string | null {
-  if (decision.exclusionReason !== null) {
-    return label('ManualExclusionReason', decision.exclusionReason);
-  }
-  return decision.reinstatementReason === null
-    ? null
-    : label('ManualReinstatementReason', decision.reinstatementReason);
+/**
+ * The reason of a decision, from the closed list of its kind (SEN-17): an exclusion has
+ * an exclusion reason and a reinstatement a reinstatement reason, never both.
+ */
+function reasonsOf({ exclusionReason, reinstatementReason }: CaseDecisionItem): readonly string[] {
+  return [
+    ...(exclusionReason === null ? [] : [label('ManualExclusionReason', exclusionReason)]),
+    ...(reinstatementReason === null
+      ? []
+      : [label('ManualReinstatementReason', reinstatementReason)]),
+  ];
 }
 
 /** A manual decision: when, what, why, its comment and the status it found (SEN-17). */
 function decisionFact(decision: CaseDecisionItem, zone: string): Fact {
-  const reason = reasonOf(decision);
   return {
     key: `${String(decision.decidedAt)}-${decision.kind}`,
     term: formatInstant(decision.decidedAt, zone, 'short'),
     details: (
       <>
         <span className="font-medium">{label('ManualDecisionKind', decision.kind)}</span>
-        {reason !== null && <span>{reason}</span>}
+        {reasonsOf(decision).map((reason) => (
+          <span key={reason}>{reason}</span>
+        ))}
         {decision.comment !== null && (
           <Labeled name={sentence('sensitivity.comment')} text={decision.comment} />
         )}
