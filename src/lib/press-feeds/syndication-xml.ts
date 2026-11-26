@@ -243,8 +243,8 @@ function elementsOf(text: string): Readonly<{ roots: readonly XmlElement[]; erro
 function decoded(bytes: Uint8Array, contentType: string | null): string | null {
   const head = new TextDecoder('latin1').decode(bytes.subarray(0, DECLARATION_BYTES));
   const label =
-    CHARSET.exec(contentType ?? '')?.groups?.label ??
-    XML_ENCODING.exec(head.trimStart())?.groups?.label;
+    CHARSET.exec(contentType ?? '')?.groups?.['label'] ??
+    XML_ENCODING.exec(head.trimStart())?.groups?.['label'];
   try {
     // Without a label, the decoder reads UTF-8, the encoding of an XML document that names none.
     return new TextDecoder(label, { fatal: true }).decode(bytes);
