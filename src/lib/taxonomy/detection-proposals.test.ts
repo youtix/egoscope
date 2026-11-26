@@ -229,7 +229,7 @@ describe(
           ok: false,
           error: { kind: 'invalid_fields', fields: { name: 'required' } },
         });
-        expect(await typeCount()).toBe(before);
+        expect(await typeCount()).toStrictEqual(before);
         expect(await occurrences()).toStrictEqual([]);
       });
     });
@@ -242,7 +242,7 @@ describe(
           ok: true,
           value: { typeId: CONTRACT_DISPUTE, created: false },
         });
-        expect(await typeCount()).toBe(before);
+        expect(await typeCount()).toStrictEqual(before);
         expect(await occurrences()).toMatchObject([
           storedOccurrence(CONTRACT_DISPUTE, FIRST_FACT, true),
           storedOccurrence(CONTRACT_DISPUTE, SECOND_FACT, false),
@@ -265,7 +265,7 @@ describe(
             ok: true,
             value: { typeId, created: false },
           });
-          expect(await typeCount()).toBe(before);
+          expect(await typeCount()).toStrictEqual(before);
           expect(await occurrences()).toMatchObject([storedOccurrence(typeId, SECOND_FACT, false)]);
           expect(await occurrenceCount(typeId)).toBe(1);
         },
