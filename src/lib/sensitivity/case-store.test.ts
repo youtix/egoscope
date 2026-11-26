@@ -480,8 +480,9 @@ describe('the writer of a player’s evaluated cases', { timeout: DATABASE_TEST_
   it('[SEN-36] [CL-SUI-16] runs the reactions over the cases that one write empties in ascending id, whatever the order of their rows', async () => {
     const [kept, lower, higher] = [profiled(0), profiled(1), profiled(2)];
     expect([kept.row.id < lower.row.id, lower.row.id < higher.row.id]).toStrictEqual([true, true]);
-    // A new version of the lower id's row, written after the other row: a scan meets it last.
-    await db.update(cases).set({ status: lower.row.status }).where(eq(cases.id, lower.row.id));
+    // A later baseline season puts the lower id's row after the other, in the index of the
+    // player's seasons and, as a new row version, in the table: either scan meets it last.
+    await db.update(cases).set({ baselineSeason: '2030-31' }).where(eq(cases.id, lower.row.id));
     const calls: unknown[] = [];
 
     await write([measured(kept.gameId, [kept.event.id, lower.event.id, higher.event.id])], {
