@@ -40,9 +40,7 @@ describe('OriginBreakdown', () => {
 
     for (const { historical, tracked } of states) {
       const { container, unmount } = render(
-        <p>
-          <OriginBreakdown historical={historical} tracked={tracked} />
-        </p>,
+        <OriginBreakdown historical={historical} tracked={tracked} />,
       );
 
       const results = await axe.run(container, WCAG_22_AA);

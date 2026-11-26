@@ -26,7 +26,7 @@ import { eraseEventData, erasePlayerJobs } from './erase';
 
 import type { ErasureCause } from './erase';
 import type { CaseRow, NewRecalculationJobRow } from './types';
-import type { Database } from '@/lib/db';
+import type { Database, Transaction } from '@/lib/db';
 import type { EventRow, ProfiledPlayer } from '@/lib/testing';
 
 const START = toEpochMs(Date.UTC(2026, 10, 25, 9));
@@ -40,6 +40,24 @@ const THIRD = '00000000-0000-4000-8000-000000000203';
 
 /** The instant `minutes` after the recording day's noon. */
 const at = (minutes: number): Date => new Date(toEpochMs(RECORDING_DAY + minutes * MINUTE_MS));
+
+/** The statement that locks the case `caseId`, with its parameters. */
+const lockOf = (caseId: number): string =>
+  `select "id" from "cases" where "cases"."id" = $1 for update [${String(caseId)}]`;
+
+/**
+ * Notes in `statements`, in order, the text and parameters of every statement that `tx`
+ * sends from now on, as the query logger of its session receives them.
+ */
+function recordStatements(tx: Transaction, statements: string[]): void {
+  Object.assign(tx._.session, {
+    logger: {
+      logQuery: (query: string, params: readonly unknown[]) => {
+        statements.push(`${query} ${JSON.stringify(params)}`);
+      },
+    },
+  });
+}
 
 describe(
   'the sensitivity step of an event’s erasure',
@@ -321,6 +339,48 @@ describe(
       await erase(loose, 'withdrawal');
 
       expect(await db.select().from(cases).orderBy(asc(cases.id))).toStrictEqual(before);
+    });
+
+    it('[CL-SUI-17] locks the case row before it reads the case’s remaining events', async () => {
+      const { row, event } = await profiledCase(0);
+      await detectedIn(row.id, at(1));
+      const statements: string[] = [];
+
+      await db.transaction(async (tx) => {
+        await tx.delete(events).where(eq(events.id, event.id));
+        recordStatements(tx, statements);
+        await eraseEventData(tx, row.id, 'withdrawal');
+      });
+
+      expect(statements[0]).toBe(lockOf(row.id));
+      expect(statements[1]).toMatch(/^select .+ from "events" left join "games" /);
+    });
+
+    it('[DSN-27] returns after the lock, deleting nothing, for a case that no longer exists', async () => {
+      const gone = Math.max(...world.cases.map((row) => row.id)) + 1;
+      const before = await db.select().from(cases).orderBy(asc(cases.id));
+      const eventsBefore = await db.select().from(events).orderBy(asc(events.id));
+      const statements: string[] = [];
+
+      await db.transaction(async (tx) => {
+        recordStatements(tx, statements);
+        await eraseEventData(tx, gone, 'withdrawal');
+      });
+
+      expect(statements).toStrictEqual([lockOf(gone)]);
+      expect(await db.select().from(cases).orderBy(asc(cases.id))).toStrictEqual(before);
+      expect(await db.select().from(events).orderBy(asc(events.id))).toStrictEqual(eventsBefore);
+    });
+
+    it('[DSN-27] issues no statement for an event that had no case', async () => {
+      const statements: string[] = [];
+
+      await db.transaction(async (tx) => {
+        recordStatements(tx, statements);
+        await eraseEventData(tx, null, 'withdrawal');
+      });
+
+      expect(statements).toStrictEqual([]);
     });
   },
 );

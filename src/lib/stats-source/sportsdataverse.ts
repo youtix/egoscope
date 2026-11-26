@@ -56,6 +56,10 @@ const ABORTED: StatsSourceError = { kind: 'aborted' };
 const NOT_PUBLISHED: StatsSourceError = { kind: 'not_published' };
 const SCHEMA_CHANGED: StatsSourceError = { kind: 'schema_changed' };
 const NOT_LISTED = { kind: 'not_listed' } as const;
+
+// TEMPORARY MUTANT, removed in the next commit: keeps an earlier without_team record.
+const earlierTeamOf = (team: PlayerRecord['currentTeam']): PlayerRecord['currentTeam'] =>
+  team.kind === 'without_team' ? team : NOT_LISTED;
 const NO_CALL = { httpRequests: 0, bytesReceived: 0, fileRequests: 0 };
 
 /** The year that ends `season`, which names its files: `2025` for 2024-25. */
@@ -299,7 +303,7 @@ class SportsDataverse implements StatsSource {
       }
       const records = read.ok ? read.value.values() : [];
       for (const record of records) {
-        found.set(record.player, { ...record, currentTeam: NOT_LISTED });
+        found.set(record.player, { ...record, currentTeam: earlierTeamOf(record.currentTeam) });
       }
     }
     return succeed(found);

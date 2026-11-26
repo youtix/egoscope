@@ -30,7 +30,7 @@ const ALL_ONES = new Uint8Array([0xff, 0xff, 0xff, 0xff]);
 /** The error that ends an archive whose field of `width` bytes would hold `value`. */
 function tooLarge(width: number, maximum: number, value: number): Error {
   return new Error(
-    `A ZIP field of ${String(width)} bytes holds at most ${String(maximum)}, not ${String(value)}: the archive has no ZIP64 records, so it stays under 4 GiB and 65535 entries.`,
+    `A ZIP field of ${String(width)} bytes holds at most ${String(maximum)}, not ${String(value)}: the archive has no ZIP64 records, so its sizes and offsets stay below 4 GiB, and its counts and name lengths below 65535.`,
   );
 }
 
@@ -90,6 +90,8 @@ describe('the ZIP writer', () => {
   });
 
   it('[TRV-52] ends the archive with an error when a two-byte field reaches 0xFFFF, and still writes 0xFFFE', async () => {
+    // The name length stands for the entry count: both are two-byte fields that the same
+    // `bytes()` writes, and no test builds 65535 entries.
     await expect(archiveOf(named(TWO_BYTE_MARKER))).rejects.toThrow(
       tooLarge(2, TWO_BYTE_MARKER - 1, TWO_BYTE_MARKER),
     );
