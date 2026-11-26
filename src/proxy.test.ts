@@ -165,7 +165,9 @@ describe('the request proxy', () => {
     const response = ask(proxy, '/players', { cookie: TOKEN });
 
     expect(isLetThrough(response)).toBe(true);
-    expect(response.headers.get('set-cookie')).toBe(
+    // Next.js also writes the end of the 400 days as an Expires date, from the machine's clock.
+    const renewed = response.headers.get('set-cookie')?.replace(/ Expires=[^;]*;/u, '');
+    expect(renewed).toBe(
       `${COOKIE}=${TOKEN}; Path=/; Max-Age=34560000; Secure; HttpOnly; SameSite=lax`,
     );
   });

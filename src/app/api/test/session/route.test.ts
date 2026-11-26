@@ -26,6 +26,9 @@ vi.mock(import('next/server'), async (importOriginal) => ({
   connection: vi.fn(),
 }));
 
+// The cookies of one request: those the device sent, then those its answer sets, which
+// Next.js reads back during the same request, as the control does between a login and the
+// choice of the password.
 vi.mock(import('next/headers'), async (importOriginal) => ({
   ...(await importOriginal()),
   cookies: async () => {
@@ -37,6 +40,7 @@ vi.mock(import('next/headers'), async (importOriginal) => ({
     const outgoing = new server.NextResponse().cookies;
     const set = (...args: Parameters<typeof outgoing.set>) => {
       harness.sent = outgoing.set(...args).get(harness.name)?.value;
+      harness.incoming = harness.sent;
       return outgoing;
     };
     return Object.assign(incoming, { set, delete: outgoing.delete.bind(outgoing) });

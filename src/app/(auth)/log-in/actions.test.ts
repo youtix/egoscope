@@ -201,7 +201,7 @@ describe('the login action', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ['the address of another site', 'https://other.example/players'],
     ['an address without a scheme', '//other.example/players'],
     ['the login page', '/log-in'],
-    ['no screen', undefined],
+    ['no screen', null],
   ])('[IHM-10] [IHM-11] sends a login whose next is %s to Home', async (_case, next) => {
     const actions = await instance();
     await chooseOn(actions);

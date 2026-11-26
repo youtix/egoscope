@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import axe from 'axe-core';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import { toEpochMs } from '@/lib/time';
+import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { LogInScreen } from './log-in-screen';
 
@@ -50,7 +50,9 @@ vi.mock(import('./actions'), () => ({ logInAction: harness.logInAction }));
 
 // The WCAG 2.2 A and AA rules, as the end-to-end watch runs them (CL-IHM-08).
 const WCAG_22_AA = { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] };
-// Monday 23 November 2026, 10:25 Paris time: the end of a lockout.
+// Monday 23 November 2026, 10:00 Paris time, the time of the device; and 10:25, the end
+// of a lockout.
+const START = toEpochMs(Date.UTC(2026, 10, 23, 9));
 const UNTIL = toEpochMs(Date.UTC(2026, 10, 23, 9, 25));
 const NOTICE = 'Login locked until Monday 23 November 2026, 10:25 Paris time';
 const MEANWHILE = 'Logins are refused after repeated wrong passwords, until the time shown above.';
@@ -87,6 +89,7 @@ async function redirectOf(query: LogInQuery, state: SessionState): Promise<strin
 
 describe('the login screen', () => {
   beforeEach(() => {
+    onTestFinished(installFakeClock(fixedClock(START)));
     harness.lockoutStatus.mockResolvedValue({ ok: true, value: { lockedUntil: null } });
     harness.lockoutUntil.mockResolvedValue({ ok: true, value: { until: UNTIL, notice: NOTICE } });
     harness.logInAction.mockResolvedValue({ lockout: null });
