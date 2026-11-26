@@ -49,7 +49,7 @@ const CHARACTERS = `${String(MAX_TOKEN_LENGTH)} letters, digits and / . _ - ( ) 
 const FILTER_RULE = `use 1 to ${CHARACTERS}, do not start with - or /, and do not write two dots in a row`;
 const GLOB_RULE = `start it with src/, use at most ${CHARACTERS} *, and do not write two dots in a row`;
 
-const WAIT_LIMIT_MS = 1_200_000; // Twenty minutes.
+const WAIT_LIMIT_MS = 2_700_000; // Forty-five minutes.
 // `git symbolic-ref --quiet` exits with 1, silently, when HEAD is detached.
 const DETACHED_STATUS = 1;
 const MAIN = 'main';
@@ -276,7 +276,7 @@ export async function runLocally(argv: readonly string[], io: LocalIo): Promise<
   return found.value === undefined
     ? refuse(
         io,
-        `No run of ${WORKFLOW} appeared for ${short(commit.value.head)} in twenty minutes.`,
+        `No run of ${WORKFLOW} appeared for ${short(commit.value.head)} in forty-five minutes.`,
       )
     : follow(session, found.value);
 }
