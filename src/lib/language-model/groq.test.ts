@@ -28,11 +28,12 @@ import type {
 } from './types';
 import type { Secret } from '@/lib/env';
 
-/** A recorded answer: its status, its headers and its body. */
+/** A recorded answer: its status, its headers and its JSON body, or its text when it is not JSON. */
 type Recorded = Readonly<{
   status: number;
   headers: Readonly<Record<string, string>>;
   body: unknown;
+  text?: string;
 }>;
 
 /** What the next request meets: a recorded answer, an answer that never comes, or a lost connection. */
@@ -99,7 +100,7 @@ function replay() {
     const url = input instanceof Request ? input.url : input.toString();
     const text = typeof init?.body === 'string' ? init.body : '';
     seen.push({ url, headers: new Headers(init?.headers), text });
-    const next = queued.shift() ?? completion;
+    const next: Next = queued.shift() ?? completion;
     if (next === 'lost') {
       throw new TypeError('fetch failed');
     }
@@ -111,7 +112,10 @@ function replay() {
       });
     }
     await Promise.resolve();
-    return Response.json(next.body, { status: next.status, headers: next.headers });
+    const answer = { status: next.status, headers: next.headers };
+    return next.text === undefined
+      ? Response.json(next.body, answer)
+      : new Response(next.text, answer);
   };
   const queue = (next: Next): void => {
     queued.push(next);
@@ -313,6 +317,12 @@ describe('the answers of the Groq provider', () => {
       'unavailable',
     ],
     ['a rejected key', errors.invalid_api_key, 'unavailable'],
+    [
+      'a gateway page',
+      { ...errors.service_unavailable, status: 502, text: '<html>Bad gateway</html>' },
+      'unavailable',
+    ],
+    ['an answer that is not JSON', { ...completion, text: 'Thinking...' }, 'malformed'],
     ['a server error', errors.service_unavailable, 'unavailable'],
     ['a lost connection', 'lost', 'unavailable'],
     ['an answer without a message', { ...completion, body: { choices: [] } }, 'malformed'],
