@@ -340,10 +340,10 @@ export async function insertValueVersion(
     params?: EngineParams;
   }>,
 ): Promise<ProfileValueVersionRow> {
-  const { reference, values } = await subjectValues(db, version.subject, {
-    ...version,
-    params: version.params ?? DEFAULT_PARAMS,
-  });
+  const params = version.params ?? DEFAULT_PARAMS;
+  const { reference, values } = await subjectValues(db, version.subject, { ...version, params });
+  // A profile's version keeps the case threshold of its calculation, a trend's none.
+  const threshold = 'profileId' in version.subject ? params.sensitivity.minValidCases : null;
   const rows = await db
     .insert(profileValueVersions)
     .values({
@@ -354,8 +354,7 @@ export async function insertValueVersion(
       verdictLevel: values.verdict.level,
       verdictDirection: values.verdict.direction,
       profileConfidence: values.profileConfidence,
-      // A profile's version keeps the case threshold of its calculation, a trend's none.
-      validCaseThreshold: 'validCaseThreshold' in values ? values.validCaseThreshold : null,
+      validCaseThreshold: threshold,
     })
     .returning();
   return firstRow(rows, 'the value version written');
