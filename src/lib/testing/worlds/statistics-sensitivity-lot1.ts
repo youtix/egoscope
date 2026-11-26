@@ -109,7 +109,9 @@ async function birthdayGameId(db: Database): Promise<number> {
  * birthday type validated, and the event derived from the calendar for his team's game
  * of 26 October 2026, recorded on the 24th, with its tracked case awaiting that game,
  * known in advance; his next game day once the clock stands between his games of the 23rd
- * and the 26th. Once applied, it is left as it is and gives the rows it wrote.
+ * and the 26th, which a journey sets through `/api/test/clock`, since every game of the
+ * fake league's 2026-27 is final. Once applied, it is left as it is and gives the rows it
+ * wrote.
  */
 export async function birthdayOnNextGameDay(db: Database): Promise<BirthdayGame> {
   const type = await insertCalendarType(db);
