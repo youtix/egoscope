@@ -59,15 +59,15 @@ function givenColumns(
 /**
  * Writes an event type (TAX-01, TAX-20): a validated research type, the media storm, by
  * default; `overrides` replaces any column, and one given as `undefined` counts as left
- * out. A validated or withdrawn type gets the first
- * version of its sheet, which its validation produced; a proposed or rejected one, never
- * validated, has no version and no version number. A candidate type that the reference
- * data seeded and that is still proposed gives way to the type asked for, written whole
- * over its row as a new one, every column the type leaves out at its default, so that the
- * rows that refer to it stay (TAX-15). Such a proposal is replaced even when the owner
- * edited it, whenever a scenario asks for its identifier. Any other type of that
- * identifier that exists already is left as it is, overrides ignored, so that scenarios
- * that need the same type combine. Gives the type as the database holds it.
+ * out. A validated or withdrawn type gets the first version of its sheet, which its
+ * validation produced; a proposed or rejected one, never validated, has no version and no
+ * version number. A candidate type that the reference data seeded and that is still
+ * proposed gives way to the type asked for, written whole over its row as a new one, every
+ * column the type leaves out at its default, so that the rows that refer to it stay
+ * (TAX-15). Such a proposal is replaced even when the owner edited it, whenever a scenario
+ * asks for its identifier. Any other type of that identifier that exists already is left
+ * as it is, overrides ignored, so that scenarios that need the same type combine. Gives
+ * the type as the database holds it.
  */
 export async function insertEventType(
   db: Database,

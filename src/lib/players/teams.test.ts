@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, ne } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -26,6 +26,12 @@ const CHANGE_RECORDED = { ok: true, value: { changed: true, judgment: null } };
 const VERIFIED = { ok: true, value: { changed: true, judgment: 'verified' } };
 // The review's story: his last game is for X; the file reports Y on day 1; the owner enters Z on day 2.
 const REVIEW_STORY = '0 ->X observed, 1 X>Y observed, 2 Y>Z entered';
+// The journal entries but the one of the league's minimum baseline, which the league
+// factory saves through the parameter registry.
+const OTHER_THAN_THE_LEAGUE = ne(journalEntries.category, 'parameter_change');
+/** The journal entries, oldest first, but the one of the league's minimum baseline. */
+const journal = async (db: Database) =>
+  db.select().from(journalEntries).where(OTHER_THAN_THE_LEAGUE).orderBy(asc(journalEntries.id));
 
 describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
@@ -341,7 +347,7 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
     it('[JOU-13] writes one journal entry that names the player, at the entry instant', async () => {
       await enter(2, y);
 
-      const entries = await db.select().from(journalEntries);
+      const entries = await journal(db);
       expect(entries).toHaveLength(1);
       expect(entries[0]).toMatchObject({
         messageKey: 'player_team_change_entered',
@@ -365,7 +371,7 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
       expect(same).toStrictEqual({ ok: false, error: 'team_unchanged' });
       expect(unknown).toStrictEqual({ ok: false, error: 'player_not_found' });
       expect(await history()).toHaveLength(1);
-      expect(await db.select().from(journalEntries)).toHaveLength(0);
+      expect(await journal(db)).toHaveLength(0);
     });
 
     it('[JOU-13] moves the row version on, so that an open edit screen sees the change', async () => {
@@ -604,9 +610,7 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
       await record({ teamId: y, at: day(6) });
 
       expect(await story()).toBe('0 ->X observed, 2 X>Y entered g1, now Y');
-      expect(
-        await db.select({ key: journalEntries.messageKey }).from(journalEntries),
-      ).toStrictEqual([{ key: 'player_team_change_entered' }]);
+      expect(await journal(db)).toMatchObject([{ messageKey: 'player_team_change_entered' }]);
     });
   });
 
@@ -630,7 +634,7 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
     expect(await story()).toBe(
       '0 ->X observed, 1 X>Y observed, 2 Y>Z observed g1, 3 Z>W entered, 4 W>Z observed g2, 5 Z>- observed, now -',
     );
-    expect(await db.select().from(journalEntries).orderBy(asc(journalEntries.id))).toMatchObject([
+    expect(await journal(db)).toMatchObject([
       observed(0),
       observed(0),
       { messageKey: 'player_team_change_entered', playerId },

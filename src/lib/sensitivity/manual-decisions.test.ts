@@ -33,6 +33,9 @@ const TOO_LONG_COMMENT = 'x'.repeat(MAX_LENGTH + 1);
 const BLANK_COMMENT = ' '.repeat(3);
 // A second research type, whose case of the profiled player shares his measured game.
 const OTHER_TYPE = 'transfer-rumor';
+// The journal entries but the one of the league's minimum baseline, which the league
+// factory of the profiled player saves through the parameter registry.
+const OTHER_THAN_THE_LEAGUE = ne(journalEntries.category, 'parameter_change');
 const EXCLUSION_REASONS = [
   'playing_time',
   'injury_return',
@@ -127,6 +130,7 @@ describe('the manual decisions on a case', { timeout: DATABASE_TEST_TIMEOUT_MS }
           eventTypeId: journalEntries.eventTypeId,
         })
         .from(journalEntries)
+        .where(OTHER_THAN_THE_LEAGUE)
         .orderBy(asc(journalEntries.id)),
       jobs: await db
         .select({
