@@ -45,7 +45,16 @@ export type {
 
 // split.ts: split
 
-// review-events.ts: requalifyEvent, distributeEvent, eventsToReview
+// review-events.ts (eventsToReview sits in type-detail.ts)
+export { distributeEvent, requalifyEvent } from './review-events';
+export type {
+  DistributionChoice,
+  EventSettled,
+  EventToErase,
+  RequalificationChoice,
+  ReviewOutcome,
+  ReviewRefusal,
+} from './review-events';
 
 // lifecycle.ts: reject, reopen, withdrawType, reactivate
 
