@@ -52,15 +52,17 @@ type Check = Readonly<{
 }>;
 
 /**
- * Where each task's check starts: just before the occurrence of its last finished
- * scheduled run, which an on-demand run never moves (TRV-33), or else of its first run,
+ * Where each task's check starts: just before the occurrence of its last scheduled run
+ * that succeeded, which an on-demand run never moves (TRV-33), or else of its first run,
  * and never before its first run started, so that the occurrences that came before the
  * task first ran, which its first run, due at once, stands for, are never missed
- * (CL-TRV-08); a task that never ran has none, since it is due at once.
+ * (CL-TRV-08); a task that never ran has none, since it is due at once. A run that
+ * finished without success never moves it, so that the earlier occurrences that such a
+ * run stood for are still judged, each journaled once (CL-TRV-08).
  */
 async function floorsOf(db: Database): Promise<ReadonlyMap<TaskKey, EpochMs>> {
-  const finishedScheduled = sql`${taskRuns.result} is not null and ${taskRuns.trigger} = 'scheduled'`;
-  const lastOccurrence = sql`coalesce(max(${taskRuns.dueAt}) filter (where ${finishedScheduled}), min(${taskRuns.dueAt}))`;
+  const succeededScheduled = sql`${taskRuns.result} = 'succeeded' and ${taskRuns.trigger} = 'scheduled'`;
+  const lastOccurrence = sql`coalesce(max(${taskRuns.dueAt}) filter (where ${succeededScheduled}), min(${taskRuns.dueAt}))`;
   const rows = await db
     .select({
       taskKey: taskRuns.taskKey,
@@ -285,7 +287,7 @@ async function catchUp(
  * The run check at `moment` (TRV-31, CL-TRV-08), at the start and the end of each pass and
  * at each opening of the app, run by the pass `moment.passId` that holds the lease, so that
  * two checks never journal the same occurrence: each occurrence missed since the task's
- * last finished scheduled run is journaled once, opens the task's "task not run" incident,
+ * last scheduled run that succeeded is journaled once, opens the task's "task not run" incident,
  * closed by its next success, and makes the task due at once through one catch-up run,
  * recorded as scheduled, which runs in that pass if its budget allows and otherwise at the
  * next one. A statistics update that waits for the source is running, and a late source is
