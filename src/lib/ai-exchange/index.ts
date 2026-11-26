@@ -147,8 +147,29 @@ export type {
 // --- classification/ -------------------------------------------------------------
 
 // classification/instructions.ts
+export { classificationInstructions, INSTRUCTIONS_VERSION } from './classification/instructions';
+export type { InstructionsParameters } from './classification/instructions';
 
 // classification/request.ts
+export {
+  buildClassificationRequest,
+  classificationRequestText,
+  estimateRequestTokens,
+} from './classification/request';
+export type {
+  ClassificationArticleInput,
+  ClassificationEventInput,
+  ClassificationEventReference,
+  ClassificationListEntry,
+  ClassificationPlayerInput,
+  ClassificationRequest,
+  ClassificationRequestArticle,
+  ClassificationRequestEvent,
+  ClassificationRequestInput,
+  ClassificationRequestPlayer,
+  ClassificationRequestTypeSheet,
+  ClassificationTypeSheet,
+} from './classification/request';
 
 // classification/schema.ts
 
