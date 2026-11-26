@@ -8,6 +8,15 @@ import { finalJobOf, workflowViolations } from './workflow-rules';
 
 const CI = '.github/workflows/ci.yml';
 const E2E = '.github/workflows/e2e.yml';
+const TRACE = '.github/workflows/trace.yml';
+
+/** The text of the repository's own file `file`. */
+const read = (file: string): string =>
+  readFileSync(path.join(import.meta.dirname, '..', file), 'utf8');
+
+/** The refusal of `edited` in the check workflow named `file`. */
+const editedRefusal = (file: string): string =>
+  `${file} lists \`edited\` among its pull_request types, so an edit of the title or of the description, which changes no file, runs it again: remove \`edited\`, and move the job that reads the title or the description to trace.yml.`;
 
 function problems(violations: readonly { path: string; problem: string }[]): string {
   return violations.map((violation) => `${violation.path}: ${violation.problem}`).join('\n');
@@ -241,6 +250,63 @@ describe('workflowViolations', () => {
         listed.replace('on:\n  push:\n    branches: [main]\n', 'on: [push, pull_request]\n'),
       ),
     ).toStrictEqual([]);
+  });
+
+  it('refuses ci.yml with the trigger it had on main, whose `edited` rerun the whole gate for pr-title', () => {
+    const onMain = read(CI).replace(
+      'types: [opened, synchronize, reopened]',
+      'types: [opened, synchronize, reopened, edited]',
+    );
+
+    expect(workflowViolations(CI, onMain)).toStrictEqual([
+      { path: CI, problem: editedRefusal('ci.yml') },
+    ]);
+  });
+
+  it.each([CI, TRACE])('accepts the real %s, which passes every rule', (file) => {
+    expect(workflowViolations(file, read(file))).toStrictEqual([]);
+  });
+
+  it.each([
+    ['a list', '    types: [opened, synchronize, reopened, edited]\n'],
+    ['a single type', '    types: edited\n'],
+  ])('refuses `edited` in a check workflow other than trace.yml, written as %s', (_form, types) => {
+    const rerun = workflow('e2e', '[lint, test]').replace(
+      '  pull_request:\n',
+      () => `  pull_request:\n${types}`,
+    );
+
+    expect(workflowViolations(E2E, rerun)).toStrictEqual([
+      { path: E2E, problem: editedRefusal('e2e.yml') },
+    ]);
+  });
+
+  it('accepts `edited` in trace.yml, which reads the title and the description', () => {
+    const rerun = workflow('trace', '[lint, test]').replace(
+      '  pull_request:\n',
+      '  pull_request:\n    types: [opened, synchronize, reopened, edited]\n',
+    );
+
+    expect(workflowViolations(TRACE, rerun)).toStrictEqual([]);
+  });
+
+  it.each([
+    ['no settings', '  pull_request:\n'],
+    ['branches only', '  pull_request:\n    branches: [main]\n'],
+    ['types without edited', '  pull_request:\n    types: [opened, synchronize, reopened]\n'],
+  ])('accepts a pull_request trigger with %s in any check workflow', (_settings, trigger) => {
+    const plain = workflow('ci-ok', '[lint, test]').replace('  pull_request:\n', () => trigger);
+
+    expect(workflowViolations(CI, plain)).toStrictEqual([]);
+  });
+
+  it('exempts a workflow listed as not a check from the `edited` rule', () => {
+    const file = '.github/workflows/labels.yml';
+    const labels =
+      'on:\n  pull_request:\n    types: [edited]\njobs:\n  label:\n    runs-on: ubuntu-24.04\n';
+
+    expect(workflowViolations(file, labels, [file])).toStrictEqual([]);
+    expect(problems(workflowViolations(file, labels))).toContain(editedRefusal('labels.yml'));
   });
 
   it('exempts a workflow listed as not a check from the final job, never from continue-on-error', () => {
