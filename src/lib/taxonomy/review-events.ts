@@ -159,12 +159,17 @@ async function moveTo(
   return settle(tx, event, [event.eventTypeId, target]);
 }
 
-/** Counts the erasure of `event` on its type's current version and hands it to the screen. */
+/**
+ * Consumes the choice by clearing the mark, which moves `row_version`, so that a second
+ * choice is refused and the erasure counts once; counts it on the type's current version
+ * and hands it to the screen, whose erasure removes the event in the same transaction.
+ */
 async function toErase(
   tx: Transaction,
   event: EventRow,
   cause: EventToErase['cause'],
 ): Promise<Result<ReviewOutcome, ReviewRefusal>> {
+  await clearTypeLink(tx, [event.id]);
   await countOnCurrentVersion(tx, event.eventTypeId, 'erased');
   return ok({ kind: 'erasure', eventId: event.id, cause });
 }
@@ -177,11 +182,12 @@ async function toErase(
  * CL-TAX-22). Both clear the mark, add one to the conforming or reassigned count of the
  * type's current version, and record the recalculation of the player's types touched,
  * cause "event corrected or removed" (CL-SEN-16, CL-SEN-17); a reassignment is journaled
- * by the event's reference alone (CL-TRV-10). Does not conform: one is added to the erased
- * count of that version, and the event comes back as the erasure that the caller performs
- * with a withdrawal's scope, which records its own recalculation (CL-TAX-09). Until its
- * choice the event keeps its type, version and case, and so keeps counting. Refused for an
- * event without the mark.
+ * by the event's reference alone (CL-TRV-10). Does not conform: the mark is cleared, one is
+ * added to the erased count of that version, and the event comes back as the erasure that
+ * the caller performs with a withdrawal's scope, which records its own recalculation
+ * (CL-TAX-09). Until its choice the event keeps its type, version and case, and so keeps
+ * counting. Every choice moves `row_version`, so a second one is refused (CL-IHM-18), as
+ * is an event without the mark.
  */
 export async function requalifyEvent(
   tx: Transaction,
@@ -228,10 +234,11 @@ async function isAmongSplitTypes(
  * validated types, followed through the merges and splits made since, at that type's
  * version in force (CL-TAX-22); the mark is cleared, the recalculation of the player's two
  * types recorded, cause "event corrected or removed" (CL-SEN-17), and the distribution
- * journaled by the event's reference alone (CL-TRV-10). Fits none: one is added to the
- * erased count of the split type's last version, and the event comes back as the erasure
- * that the caller performs with a withdrawal's scope (TAX-26, CL-TAX-09). Refused for an
- * event without the mark, or for a type that is not among the split's.
+ * journaled by the event's reference alone (CL-TRV-10). Fits none: the mark is cleared,
+ * one is added to the erased count of the split type's last version, and the event comes
+ * back as the erasure that the caller performs with a withdrawal's scope (TAX-26,
+ * CL-TAX-09). Every choice moves `row_version`, so a second one is refused (CL-IHM-18), as
+ * is an event without the mark, or a type that is not among the split's.
  */
 export async function distributeEvent(
   tx: Transaction,
