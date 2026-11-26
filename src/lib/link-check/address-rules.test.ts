@@ -336,6 +336,32 @@ const ipv6Values = fc.oneof(
 const FULLY_REFUSED_IPV4_OCTETS = [0n, 10n, 127n, 224n, 240n, 255n];
 const FULLY_PUBLIC_IPV4_OCTETS = [8n, 9n, 11n, 12n];
 
+const HELD_OCTETS: readonly (readonly [readonly bigint[], boolean])[] = [
+  [FULLY_REFUSED_IPV4_OCTETS, false],
+  [FULLY_PUBLIC_IPV4_OCTETS, true],
+];
+
+/**
+ * An address of each IPv4-holding block that holds an IPv4 address of a block of which every
+ * address is refused, and one that holds a public one, each with its block and its verdict.
+ */
+const HELD_ADDRESSES = IPV4_HOLDERS.flatMap((holder) =>
+  HELD_OCTETS.map(
+    ([octets, isPublic]) =>
+      [
+        holder,
+        isPublic,
+        fc
+          .tuple(
+            fc.constantFrom(...octets),
+            fc.bigInt({ min: 0n, max: (1n << IPV4_LOW_BITS) - 1n }),
+            fc.bigInt({ min: 0n, max: (1n << HOLDER_FILLER_BITS) - 1n }),
+          )
+          .map(([octet, rest, filler]) => holder.place((octet << IPV4_LOW_BITS) | rest, filler)),
+      ] as const,
+  ),
+);
+
 /**
  * One address inside every range of the rule, drawn afresh in each run: each of the refused
  * blocks, each eighth of the 128-bit space (the three top bits, which tell 2000::/3 from its
@@ -350,17 +376,7 @@ const ipv6EveryRange = fc.tuple(
       .noBias(fc.bigInt({ min: 0n, max: GLOBAL_UNICAST_FIRST - 1n }))
       .map((rest) => (BigInt(eighth) << EIGHTH_SHIFT_BITS) | rest),
   ),
-  ...IPV4_HOLDERS.flatMap((holder) =>
-    [FULLY_REFUSED_IPV4_OCTETS, FULLY_PUBLIC_IPV4_OCTETS].map((octets) =>
-      fc
-        .tuple(
-          fc.constantFrom(...octets),
-          fc.bigInt({ min: 0n, max: (1n << IPV4_LOW_BITS) - 1n }),
-          fc.bigInt({ min: 0n, max: (1n << HOLDER_FILLER_BITS) - 1n }),
-        )
-        .map(([octet, rest, filler]) => holder.place((octet << IPV4_LOW_BITS) | rest, filler)),
-    ),
-  ),
+  ...HELD_ADDRESSES.map((held) => held[2]),
 );
 
 /** The addresses of one run: one of `ipv6Values` and one in every range. */
@@ -471,6 +487,23 @@ describe('addressKind', () => {
           })),
         );
       }),
+    );
+  });
+
+  it('[TRV-66] draws, for each IPv4-holding block, only addresses that hold an IPv4 address, refused or public as named', () => {
+    fc.assert(
+      fc.property(
+        fc
+          .constantFrom(...HELD_ADDRESSES)
+          .chain(([holder, isPublic, address]) =>
+            address.map((a) => ({ a, first: holder.first, last: holder.last, isPublic })),
+          ),
+        ({ a, first, last, isPublic }) => {
+          expect(a >= first && a <= last).toBe(true);
+          expect(oracle(a).source).toBe('held');
+          expect(oracle(a).kind === 'public').toBe(isPublic);
+        },
+      ),
     );
   });
 
