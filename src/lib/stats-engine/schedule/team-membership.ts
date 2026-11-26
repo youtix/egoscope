@@ -13,8 +13,7 @@ import { hasTeam } from './team-record';
 
 import type { BoxScoreLine } from '../performance/box-score';
 import type { Participation } from '../performance/participation';
-import type { EpochMs, GameId, TeamId } from '../types';
-import type { ScheduleGame } from './team-record';
+import type { EpochMs, GameId, LinesGame, TeamId } from '../types';
 
 /**
  * One of his box-score lines (STA-08): its game, that game's scheduled start, and the
@@ -45,13 +44,6 @@ export type PlayerTeamChange = Readonly<{
  * until another, excluded, or null while it lasts.
  */
 export type TeamStint = Readonly<{ teamId: TeamId; from: EpochMs; until: EpochMs | null }>;
-
-/**
- * A game of the stored schedule, with its scheduled start and, for each of its teams,
- * whether the source has published that team's player lines (CL-STA-04).
- */
-export type LinesGame = ScheduleGame &
-  Readonly<{ scheduledStartAt: EpochMs; homeLinesPublished: boolean; awayLinesPublished: boolean }>;
 
 /**
  * One of his team games (STA-27): the game, as the caller gave it, of the game type `G`;

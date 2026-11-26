@@ -1,7 +1,9 @@
-// The types every part of the statistics core shares (module map, section 2.2). The
-// core imports nothing and receives plain values: these aliases name what a number or
-// a string stands for, which sonarjs/redundant-type-aliases cannot know, so the lint
-// configuration allows such aliases in this file.
+// The types that several parts of the statistics core share (module map, section 2.2):
+// the identifiers and plain values, the game of the stored schedule and an event's
+// origin, and the calculation parameters. The core imports nothing and receives plain
+// values: the aliases of this file name what a number or a string stands for, which
+// sonarjs/redundant-type-aliases cannot know, so the lint configuration allows such
+// aliases in this file.
 
 /**
  * An absolute instant (TRV-68): whole milliseconds since 1970-01-01T00:00:00Z. The
@@ -45,6 +47,38 @@ export type BacktestRequestId = number;
  * games together (STA-16, STA-18).
  */
 export type BaselinePhase = 'postseason' | 'regular_season';
+
+/** The phase of a game: regular season, play-in or playoffs (STA-05, CL-STA-02). */
+export type GamePhase = 'play_in' | 'playoffs' | 'regular_season';
+
+/**
+ * The status of a game (STA-05). A canceled game is ignored by every rule, and a
+ * postponed one that no make-up was linked to is counted by none (CL-STA-17).
+ */
+export type GameStatus = 'canceled' | 'final' | 'in_progress' | 'postponed' | 'scheduled';
+
+/**
+ * A game of the stored schedule (STA-05): its teams, null while a placeholder's teams
+ * are still to be determined (CL-STA-14), and its final score, null until it is final.
+ */
+export type ScheduleGame = Readonly<{
+  id: GameId;
+  phase: GamePhase;
+  status: GameStatus;
+  homeTeamId: TeamId | null;
+  awayTeamId: TeamId | null;
+  finalScore: Readonly<{ home: number; away: number }> | null;
+}>;
+
+/**
+ * A game of the stored schedule, with its scheduled start and, for each of its teams,
+ * whether the source has published that team's player lines (CL-STA-04).
+ */
+export type LinesGame = ScheduleGame &
+  Readonly<{ scheduledStartAt: EpochMs; homeLinesPublished: boolean; awayLinesPublished: boolean }>;
+
+/** The origin of an event, the glossary's `EventOrigin`, fixed at creation (DSN-06, CL-VUE-12). */
+export type EventOrigin = 'calendar' | 'detected' | 'historical';
 
 /**
  * The calculation parameters (TRV-35): every parameter of files 07, 08 and 10, which

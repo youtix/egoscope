@@ -171,7 +171,7 @@ describe('isSameVerdict', () => {
 });
 
 describe('runRobustnessTest', () => {
-  it('[CA-SEN-11] [SEN-26] [CL-SEN-24] finds the worked example fragile: without C7 (+1.81), 7 cases give a mean gap of 0.656 and a ratio of about 1.7', () => {
+  it('[CA-SEN-11] [SEN-20] [SEN-22] [SEN-23] [SEN-26] [CL-SEN-24] finds the worked example fragile: without C7 (+1.81), 7 cases give a mean gap of 0.656 and a ratio of about 1.7', () => {
     const test = runRobustnessTest(WORKED_EXAMPLE_CASES, POSSIBLE_INCREASE, DEFAULTS);
     const [trial] = test.trials;
 
@@ -182,7 +182,7 @@ describe('runRobustnessTest', () => {
     expect(trial?.quantities?.signalToNoise).toBeCloseTo(1.7, ABOUT);
   });
 
-  it('[CA-SEN-11] [SEN-26] [SEN-22] [CL-SEN-14] retains the dispersion of 0.72 left without C7 at 1, for a noise of 0.378', () => {
+  it('[CA-SEN-11] [SEN-20] [SEN-22] [SEN-26] [CL-SEN-14] retains the dispersion of 0.72 left without C7 at 1, for a noise of 0.378', () => {
     const [trial] = runRobustnessTest(WORKED_EXAMPLE_CASES, POSSIBLE_INCREASE, DEFAULTS).trials;
 
     expect(trial?.quantities?.gapDispersion).toBeCloseTo(0.72, 2);

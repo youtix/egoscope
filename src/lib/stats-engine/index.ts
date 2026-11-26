@@ -11,11 +11,16 @@ export type {
   CaseId,
   EngineParams,
   EpochMs,
+  EventOrigin,
   EventTypeId,
   GameId,
+  GamePhase,
+  GameStatus,
   IsoDate,
+  LinesGame,
   PlayerEventId,
   PlayerId,
+  ScheduleGame,
   SeriesId,
   TeamId,
 } from './types';
@@ -67,12 +72,7 @@ export type { IndicativeSeason } from './baseline/indicative-comparison';
 
 // schedule/team-record.ts
 export { teamRecord } from './schedule/team-record';
-export type {
-  GamePhase,
-  GameStatus,
-  ScheduleGame,
-  TeamWinLossRecord,
-} from './schedule/team-record';
+export type { TeamWinLossRecord } from './schedule/team-record';
 
 // schedule/series.ts
 export { rebuildSeries } from './schedule/series';
@@ -99,7 +99,6 @@ export type { SeasonSpanInput } from './schedule/seasons';
 // schedule/team-membership.ts
 export { teamGames } from './schedule/team-membership';
 export { teamMembership } from './schedule/team-membership';
-export type { LinesGame } from './schedule/team-membership';
 export type { PlayerLine } from './schedule/team-membership';
 export type { PlayerTeamChange } from './schedule/team-membership';
 export type { TeamGame } from './schedule/team-membership';
@@ -337,14 +336,14 @@ export type {
   Caveat,
   CaveatEvent,
   CaveatKind,
-  CaveatProfile,
   CaveatSection,
-  CaveatThresholds,
-  CaveatTrend,
   DirectionCaveatForm,
   KnownContextReason,
   SheetCaveatsInput,
 } from './alerts/caveats';
+
+// alerts/caveat-thresholds.ts
+export type { CaveatProfile, CaveatThresholds, CaveatTrend } from './alerts/caveat-thresholds';
 
 // --- backtest/ -------------------------------------------------------------------
 
@@ -398,12 +397,7 @@ export { cleanLink, isSameLink } from './correspondence/links';
 
 // correspondence/match.ts
 export { classify, duplicatesInResult } from './correspondence/match';
-export type {
-  ComparedEvent,
-  DuplicateKind,
-  EventOrigin,
-  ReferenceDate,
-} from './correspondence/match';
+export type { ComparedEvent, DuplicateKind, ReferenceDate } from './correspondence/match';
 
 // --- calendar/ -------------------------------------------------------------------
 

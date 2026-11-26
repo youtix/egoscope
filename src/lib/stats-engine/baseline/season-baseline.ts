@@ -5,8 +5,7 @@
 // the phase from the schedule part (phaseState).
 
 import type { PhaseState } from '../schedule/phase-state';
-import type { GamePhase } from '../schedule/team-record';
-import type { BaselinePhase, EngineParams, EpochMs, GameId } from '../types';
+import type { BaselinePhase, EngineParams, EpochMs, GameId, GamePhase } from '../types';
 
 // games.partialBaselineShare is a percentage.
 const PERCENT = 100;

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import { rebuildSeries } from './series';
 
+import type { GameStatus } from '../types';
 import type { RebuiltSeries, SeriesGame, SeriesGamePosition, SeriesRound } from './series';
-import type { GameStatus } from './team-record';
 
 const DAY = 86_400_000;
 // 2023-04-15T00:00:00Z: day 0 of the games below.

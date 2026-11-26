@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { teamRecord } from './team-record';
 
-import type { GamePhase, GameStatus, ScheduleGame } from './team-record';
+import type { GamePhase, GameStatus, ScheduleGame } from '../types';
 
 // Team 1's record is counted; teams 2 and 3 are its opponents.
 const TEAM = 1;

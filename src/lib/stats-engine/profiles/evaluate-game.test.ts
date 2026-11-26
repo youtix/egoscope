@@ -10,8 +10,15 @@ import { gameFactsOf, NOT_JUDGED, statisticsOf, teamGameOf } from './evaluate-ga
 
 import type { BoxScoreLine } from '../performance/box-score';
 import type { Participation } from '../performance/participation';
-import type { GamePhase, GameStatus } from '../schedule/team-record';
-import type { EngineParams, EpochMs, GameId, IsoDate, TeamId } from '../types';
+import type {
+  EngineParams,
+  EpochMs,
+  GameId,
+  GamePhase,
+  GameStatus,
+  IsoDate,
+  TeamId,
+} from '../types';
 import type { EvaluationTeamGame } from './evaluate-game';
 
 // The registry's defaults. JSON gives the baseline phase as a string, which the comparison

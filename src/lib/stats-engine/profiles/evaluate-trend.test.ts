@@ -261,7 +261,7 @@ describe('evaluateTrend', () => {
     });
   });
 
-  it('[CA-JOU-13] [H-JOU-07] [SEN-29] counts the valid cases of a withdrawn player in the trend of the type', () => {
+  it('[CA-JOU-13] [JOU-19] [H-JOU-07] [SEN-29] counts the valid cases of a withdrawn player in the trend of the type', () => {
     const withoutHim: TrendEvaluationInput = {
       ...INPUT,
       cases: INPUT.cases.filter(({ playerId }) => playerId !== WITHDRAWN),

@@ -12,8 +12,7 @@ import type { ManualDecision } from '../cases/manual-decisions';
 import type { AttachmentEvent } from '../measured-game/attachment';
 import type { BoxScoreLine } from '../performance/box-score';
 import type { Participation } from '../performance/participation';
-import type { GameStatus } from '../schedule/team-record';
-import type { EngineParams, EpochMs, GameId, IsoDate, TeamId } from '../types';
+import type { EngineParams, EpochMs, GameId, GameStatus, IsoDate, TeamId } from '../types';
 import type {
   EvaluatedCase,
   EvaluationEvent,
@@ -488,7 +487,7 @@ describe('evaluatePlayer', () => {
     ]);
   });
 
-  it('[CA-JOU-13] [SEN-19] [H-JOU-07] still computes a withdrawn player’s cases and profile in full, the profile archived', () => {
+  it('[CA-JOU-13] [JOU-19] [SEN-19] [H-JOU-07] still computes a withdrawn player’s cases and profile in full, the profile archived', () => {
     const withdrawn = evaluatePlayer(
       { ...inputOf(), player: { ...PLAYER, isWithdrawn: true } },
       DEFAULTS,

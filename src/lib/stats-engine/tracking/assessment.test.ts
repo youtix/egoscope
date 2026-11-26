@@ -24,7 +24,9 @@ const MINIMUM = DEFAULTS.tracking.minTrackedCasesForAssessment;
 // the default 'possible' signal-to-noise threshold of 2, the margin k·b is exactly 0.5.
 const EQUAL_GAP_CASES = 16;
 const DIGITS = 9;
-// Enough digits to tell a value from its rounding to any number of decimals up to 11.
+// Enough digits to refuse a rounding: toBeCloseTo at 12 digits accepts a difference below 5e-13,
+// which tells 5/21 and the mean of 0.123456789 and 2/3 from their roundings to 11 decimals or
+// fewer, and a value a billionth below a bound from its roundings to 8 decimals or fewer.
 const UNROUNDED_DIGITS = 12;
 // A billionth below a bound, which a rounding to 8 decimals or fewer would carry onto it.
 const JUST_BELOW = 1e-9;

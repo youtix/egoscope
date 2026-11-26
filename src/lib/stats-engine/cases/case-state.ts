@@ -12,7 +12,7 @@ import { normalizedGap } from './normalized-gap';
 import type { SeasonBaseline } from '../baseline/season-baseline';
 import type { Attachment } from '../measured-game/attachment';
 import type { SeasonSpan } from '../schedule/seasons';
-import type { GameId, IsoDate } from '../types';
+import type { EventOrigin, GameId, IsoDate } from '../types';
 import type { GapStatus } from './normalized-gap';
 
 /** The state of a case (SEN-07), as it is stored. */
@@ -74,7 +74,7 @@ export type CaseStatusReason = AwaitingGameReason | NotMeasurableReason;
  */
 export type CaseStateEvent =
   | Readonly<{ origin: 'calendar' }>
-  | Readonly<{ origin: 'historical' | 'detected'; referenceDayOn: IsoDate }>;
+  | Readonly<{ origin: Exclude<EventOrigin, 'calendar'>; referenceDayOn: IsoDate }>;
 
 /**
  * What the state of a case reads of the seasons (STA-45, STA-48, CL-STA-22, CL-STA-30).

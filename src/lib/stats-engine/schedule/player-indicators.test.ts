@@ -5,6 +5,7 @@ import { firstNbaGameOf, indicatorsOf } from './player-indicators';
 import { teamMembership } from './team-membership';
 
 import type { BoxScoreLine } from '../performance/box-score';
+import type { LinesGame } from '../types';
 import type {
   CareerSeasons,
   IndicatorLine,
@@ -12,7 +13,7 @@ import type {
   PlayerIndicators,
 } from './player-indicators';
 import type { SeasonNotRead, SeasonSpan } from './seasons';
-import type { LinesGame, PlayerTeamChange } from './team-membership';
+import type { PlayerTeamChange } from './team-membership';
 
 const HOUR = 3_600_000;
 // Every game tips off at 23:30 UTC, in the evening of its US date.

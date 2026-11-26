@@ -9,10 +9,7 @@
 
 import { dayCount, MS_PER_DAY } from '../calendar-days';
 
-import type { EpochMs, EventTypeId, IsoDate, PlayerId } from '../types';
-
-/** The origin of an event, the glossary's `EventOrigin`, fixed at creation (DSN-06, CL-VUE-12). */
-export type EventOrigin = 'calendar' | 'detected' | 'historical';
+import type { EpochMs, EventOrigin, EventTypeId, IsoDate, PlayerId } from '../types';
 
 /**
  * The reference date of an event as the correspondence reads it (IMP-25, CL-IMP-12):

@@ -6,8 +6,7 @@ import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 import { baselinePhaseOf, seasonBaseline } from './season-baseline';
 
 import type { PhaseState } from '../schedule/phase-state';
-import type { GamePhase } from '../schedule/team-record';
-import type { BaselinePhase, EngineParams } from '../types';
+import type { BaselinePhase, EngineParams, GamePhase } from '../types';
 import type { BaselineGame, SeasonBaseline, SeasonBaselineInput } from './season-baseline';
 
 // The registry's defaults: 10 games at least, play-in and playoff games compared with the

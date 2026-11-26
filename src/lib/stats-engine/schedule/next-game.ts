@@ -15,10 +15,9 @@ import { teamGames } from './team-membership';
 import { hasTeam } from './team-record';
 
 import type { DeadlineGame, NoGameScheduled, NoNextGameReason } from '../backtest/deadline';
-import type { EpochMs, GameId, IsoDate, TeamId } from '../types';
+import type { EpochMs, GameId, GamePhase, IsoDate, LinesGame, TeamId } from '../types';
 import type { PhaseGame, SeasonSchedule } from './phase-state';
-import type { LinesGame, PlayerLine, TeamGame, TeamStint } from './team-membership';
-import type { GamePhase } from './team-record';
+import type { PlayerLine, TeamGame, TeamStint } from './team-membership';
 
 /** Where his team plays a game: at home or away (STA-26). */
 export type GameVenue = 'home' | 'away';
