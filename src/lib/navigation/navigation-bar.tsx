@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Suspense } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 
 import { Badge } from '@/lib/ui';
 import { formatCount, sentence } from '@/lib/wording';
@@ -10,14 +10,31 @@ import { formatCount, sentence } from '@/lib/wording';
 import type { NavigationEntry, NavigationLink } from './entries';
 import type { ReactNode } from 'react';
 
+/**
+ * The number of items to do that one render of the server gives, null while unknown. Each
+ * render gives an object of its own, even for an equal number, so that the bar tells a new
+ * render, after an action that revalidates the layout, from the one that it already shows.
+ */
+type CountOfRender = Readonly<{ count: number | null }>;
+
 export type NavigationBarProps = Readonly<{
   /** The entries that the active lot serves, from `navigationEntries()`. */
   entries: readonly NavigationLink<NavigationEntry>[];
-  /** The number of items to do, which the Home entry carries; null while unknown. */
-  todoCount: number | null;
+  /** The number of items to do that the server rendered, which the Home entry carries. */
+  todoCount: CountOfRender;
+  /**
+   * The Server Action that gives the number of items to do now, or none, which the bar
+   * calls once each time the owner moves to another screen (IHM-16). Without it, the bar
+   * keeps `todoCount`.
+   */
+  readTodoCount?: (() => Promise<number | null>) | undefined;
 }>;
 
-type EntryListProps = NavigationBarProps & Readonly<{ currentHref: string | null }>;
+type EntryListProps = Readonly<{
+  entries: NavigationBarProps['entries'];
+  todoCount: number | null;
+  currentHref: string | null;
+}>;
 
 const HOME = '/';
 
@@ -67,25 +84,78 @@ function EntryList({ entries, todoCount, currentHref }: EntryListProps): ReactNo
   );
 }
 
+/** The count that `read` gives, or none when the call fails, offline for instance. */
+async function countOrNone(read: () => Promise<number | null>): Promise<number | null> {
+  try {
+    return await read();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The number of items to do on the screen at `pathname`: the count of the server's render,
+ * then the one that `readTodoCount` gives once after each move to another screen, never on
+ * a timer (IHM-16, module map section 3.1); a call that fails leaves none, and the answer of
+ * a call that a later move or a new render outran is dropped. A read count holds only over
+ * the render it was read after: a new render of the server, after an action, shows its own
+ * count, even one equal to an earlier render's.
+ */
+function useCountOfScreen(
+  pathname: string,
+  todoCount: CountOfRender,
+  readTodoCount: NavigationBarProps['readTodoCount'],
+): number | null {
+  /** A count read after a move to another screen, over the render that the server gave. */
+  type FreshCount = Readonly<{ count: number | null; over: CountOfRender }>;
+  const [fresh, setFresh] = useState<FreshCount | null>(null);
+  const readForRef = useRef(pathname);
+  useEffect(() => {
+    let isLatest = true;
+    const read = async (action: () => Promise<number | null>) => {
+      const count = await countOrNone(action);
+      if (isLatest) {
+        setFresh({ count, over: todoCount });
+      }
+    };
+    if (readTodoCount !== undefined && readForRef.current !== pathname) {
+      readForRef.current = pathname;
+      void read(readTodoCount);
+    }
+    return () => {
+      isLatest = false;
+    };
+  }, [pathname, readTodoCount, todoCount]);
+  return fresh !== null && fresh.over === todoCount ? fresh.count : todoCount.count;
+}
+
 /** The entries, the one of the screen shown marked, once the address is known. */
-function CurrentEntryList({ entries, todoCount }: NavigationBarProps): ReactNode {
+function CurrentEntryList({ entries, todoCount, readTodoCount }: NavigationBarProps): ReactNode {
   const pathname = usePathname();
+  const count = useCountOfScreen(pathname, todoCount, readTodoCount);
   const current = entries.find(({ href }) => isCurrent(href, pathname));
-  return <EntryList entries={entries} todoCount={todoCount} currentHref={current?.href ?? null} />;
+  return <EntryList entries={entries} todoCount={count} currentHref={current?.href ?? null} />;
 }
 
 /**
  * The permanent navigation bar (IHM-16): at the bottom of the screen on a phone, within a
  * thumb's reach, and on the side on a large screen (IHM-01). The entry of the current
  * screen says so to screen readers and stands out by its weight and its bar, not by its
- * color alone (IHM-61); the Home entry carries the number of items to do. A screen whose
- * address is only known at request time shows the entries unmarked until it is.
+ * color alone (IHM-61); the Home entry carries the number of items to do, read again at
+ * each move to another screen when `readTodoCount` is given. A screen whose address is
+ * only known at request time shows the entries unmarked until it is.
  */
-export function NavigationBar({ entries, todoCount }: NavigationBarProps): ReactNode {
+export function NavigationBar({
+  entries,
+  todoCount,
+  readTodoCount,
+}: NavigationBarProps): ReactNode {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-auto lg:w-56 lg:border-t-0 lg:border-r lg:pb-0">
-      <Suspense fallback={<EntryList entries={entries} todoCount={todoCount} currentHref={null} />}>
-        <CurrentEntryList entries={entries} todoCount={todoCount} />
+      <Suspense
+        fallback={<EntryList entries={entries} todoCount={todoCount.count} currentHref={null} />}
+      >
+        <CurrentEntryList entries={entries} todoCount={todoCount} readTodoCount={readTodoCount} />
       </Suspense>
     </nav>
   );

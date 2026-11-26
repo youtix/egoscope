@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import axe from 'axe-core';
 import { usePathname } from 'next/navigation';
 import { describe, expect, it, vi } from 'vitest';
@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { NavigationBar } from './navigation-bar';
 
 import type { NavigationEntry, NavigationLink } from './entries';
+import type { NavigationBarProps } from './navigation-bar';
 
 vi.mock(import('next/navigation'), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -23,10 +24,36 @@ const LOT_1: readonly NavigationLink<NavigationEntry>[] = [
 ];
 
 /** The navigation bar on the screen at `pathname`. */
-function renderAt(pathname: string, todoCount: number | null = null) {
+function renderAt(pathname: string, count: number | null = null) {
   vi.mocked(usePathname).mockReturnValue(pathname);
-  return render(<NavigationBar entries={LOT_1} todoCount={todoCount} />);
+  return render(<NavigationBar entries={LOT_1} todoCount={{ count }} />);
 }
+
+type ReadTodoCount = () => Promise<number | null>;
+/** The count of one render of the layout on the server, an object of its own at each render. */
+type CountOfRender = NavigationBarProps['todoCount'];
+
+/**
+ * The bar of a signed-in owner on the screen at `pathname`, under the layout's render
+ * `rendered`, which reads its count with `read`. Passing the same render again plays a move
+ * that the layout does not render again, as a client navigation does.
+ */
+function liveBarAt(pathname: string, rendered: CountOfRender, read: ReadTodoCount) {
+  vi.mocked(usePathname).mockReturnValue(pathname);
+  return <NavigationBar entries={LOT_1} todoCount={rendered} readTodoCount={read} />;
+}
+
+/**
+ * Lets every answer that the bar awaits land, inside `act`: a task of the event loop starts
+ * only once every pending promise callback has run.
+ */
+const settle = async (): Promise<void> =>
+  act(
+    async () =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve);
+      }),
+  );
 
 /** The names of the links of the navigation bar, in their order. */
 const linkNames = (): readonly string[] =>
@@ -89,5 +116,114 @@ describe('NavigationBar', () => {
     const withoutCount = await axe.run(view.container, WCAG_22_AA);
 
     expect(withoutCount.violations).toStrictEqual([]);
+  });
+
+  describe('the count after a move to another screen', () => {
+    it('[IHM-16] reads the number of items to do again once each time the owner moves to another screen', async () => {
+      const read = vi.fn<ReadTodoCount>().mockResolvedValue(7);
+      const atLoad = { count: 5 };
+      const { rerender } = render(liveBarAt('/', atLoad, read));
+
+      expect(screen.getByRole('link', { name: 'Home 5 to do' })).toBeVisible();
+      expect(read).not.toHaveBeenCalled();
+      rerender(liveBarAt('/players', atLoad, read));
+
+      await expect(screen.findByRole('link', { name: 'Home 7 to do' })).resolves.toBeVisible();
+      rerender(liveBarAt('/players', atLoad, read));
+      read.mockResolvedValue(2);
+      rerender(liveBarAt('/types', atLoad, read));
+
+      await expect(screen.findByRole('link', { name: 'Home 2 to do' })).resolves.toBeVisible();
+      expect(read).toHaveBeenCalledTimes(2);
+    });
+
+    it('[IHM-16] shows no count once a read fails, or gives none', async () => {
+      const read = vi.fn<ReadTodoCount>().mockRejectedValue(new TypeError('Failed to fetch'));
+      const atLoad = { count: 5 };
+      const { rerender } = render(liveBarAt('/', atLoad, read));
+
+      rerender(liveBarAt('/players', atLoad, read));
+
+      await expect(screen.findByRole('link', { name: 'Home' })).resolves.toBeVisible();
+      read.mockResolvedValue(4);
+      rerender(liveBarAt('/types', atLoad, read));
+      await expect(screen.findByRole('link', { name: 'Home 4 to do' })).resolves.toBeVisible();
+      read.mockResolvedValue(null);
+      rerender(liveBarAt('/more', atLoad, read));
+      await expect(screen.findByRole('link', { name: 'Home' })).resolves.toBeVisible();
+    });
+
+    it('[IHM-16] shows a new count from the server over the one it read', async () => {
+      const read = vi.fn<ReadTodoCount>().mockResolvedValue(7);
+      const atLoad = { count: 5 };
+      const { rerender } = render(liveBarAt('/', atLoad, read));
+      rerender(liveBarAt('/players', atLoad, read));
+      await screen.findByRole('link', { name: 'Home 7 to do' });
+
+      rerender(liveBarAt('/players', { count: 9 }, read));
+
+      expect(screen.getByRole('link', { name: 'Home 9 to do' })).toBeVisible();
+      expect(read).toHaveBeenCalledOnce();
+    });
+
+    it('[IHM-16] [CL-IHM-20] shows a new render of the server over a read count, even one equal to the first', async () => {
+      const read = vi.fn<ReadTodoCount>().mockResolvedValue(6);
+      const atLoad = { count: 5 };
+      const { rerender } = render(liveBarAt('/', atLoad, read));
+      rerender(liveBarAt('/players', atLoad, read));
+      await screen.findByRole('link', { name: 'Home 6 to do' });
+
+      rerender(liveBarAt('/players', { count: 5 }, read));
+
+      expect(screen.getByRole('link', { name: 'Home 5 to do' })).toBeVisible();
+    });
+
+    it('[IHM-16] brings back no read count once two new renders of the server replaced it', async () => {
+      const read = vi.fn<ReadTodoCount>().mockResolvedValue(6);
+      const atLoad = { count: 5 };
+      const { rerender } = render(liveBarAt('/', atLoad, read));
+      rerender(liveBarAt('/players', atLoad, read));
+      await screen.findByRole('link', { name: 'Home 6 to do' });
+
+      rerender(liveBarAt('/players', { count: 7 }, read));
+      expect(screen.getByRole('link', { name: 'Home 7 to do' })).toBeVisible();
+      rerender(liveBarAt('/players', { count: 5 }, read));
+
+      expect(screen.getByRole('link', { name: 'Home 5 to do' })).toBeVisible();
+      expect(read).toHaveBeenCalledOnce();
+    });
+
+    it('[IHM-16] keeps the answer of the last move when an earlier read answers after it', async () => {
+      const first = Promise.withResolvers<number | null>();
+      const read = vi
+        .fn<ReadTodoCount>()
+        .mockReturnValueOnce(first.promise)
+        .mockResolvedValueOnce(8);
+      const atLoad = { count: 5 };
+      const { rerender } = render(liveBarAt('/', atLoad, read));
+      rerender(liveBarAt('/players', atLoad, read));
+      rerender(liveBarAt('/types', atLoad, read));
+      await screen.findByRole('link', { name: 'Home 8 to do' });
+
+      first.resolve(7);
+      await settle();
+
+      expect(screen.getByRole('link', { name: 'Home 8 to do' })).toBeVisible();
+    });
+
+    it('[IHM-16] keeps a new render of the server when a read that it outran answers after it', async () => {
+      const late = Promise.withResolvers<number | null>();
+      const read = vi.fn<ReadTodoCount>().mockReturnValueOnce(late.promise);
+      const atLoad = { count: 5 };
+      const { rerender } = render(liveBarAt('/', atLoad, read));
+      rerender(liveBarAt('/players', atLoad, read));
+
+      rerender(liveBarAt('/players', { count: 9 }, read));
+      late.resolve(6);
+      await settle();
+
+      expect(screen.getByRole('link', { name: 'Home 9 to do' })).toBeVisible();
+      expect(read).toHaveBeenCalledOnce();
+    });
   });
 });

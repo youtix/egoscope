@@ -16,7 +16,12 @@ describe('Gallery', () => {
   it('shows every part of the design system, each under its own heading', () => {
     render(<Gallery />);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Component gallery' })).toBeVisible();
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: /^Component gallery, with the term Type sheet/u,
+      }),
+    ).toBeVisible();
     expect(screen.getByRole('link', { name: 'Back to Home' })).toHaveAttribute('href', '/');
     expect(
       screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent),

@@ -1,6 +1,8 @@
+import { z } from 'zod';
+
 import { expect, test } from './fixtures/test';
 
-import type { Locator, Page, Request } from '@playwright/test';
+import type { APIRequestContext, Locator, Page, Request } from '@playwright/test';
 
 // Every Lot 1 screen of module map section 3.3 outside the two access screens, with an
 // invented player, the slug of a candidate type and integer identifiers.
@@ -44,7 +46,23 @@ const LOT_1_SCREENS = [
 
 // A Lot 2 screen, which the Lot 1 server of these tests does not serve.
 const LOT_2_SCREEN = '/alerts';
+// An address that no route of the app matches, as a typo or an outdated link gives.
+const NO_ROUTE = '/no-screen-has-this-address';
+const OK = 200;
 const NOT_FOUND = 404;
+
+// The hermetic control that opens and closes to-do items named by the spec.
+const TO_DO = '/api/test/to-do';
+// The items that the count journey opens, named after its project, so that the journey of the
+// other project, which runs on the same server at the same time, never closes them.
+const JOURNEY_ITEMS = [1, 2] as const;
+// The answer of the control: the number of items to do on the server once it has changed.
+const CONTROL_ANSWER = z.strictObject({ count: z.number().int().nonnegative() });
+// The two screens between which the count journey moves by the bar.
+const PLAYERS = { name: 'Players', path: '/players' } as const;
+const TYPES = { name: 'Types', path: '/types' } as const;
+// The accessible name of the Home entry while it carries a count, "Home 5 to do".
+const HOME_COUNT = /Home \d+ to do/u;
 
 // The two widths of IHM-01: a phone, and a large screen, from 1024 pixels on.
 const PHONE = { width: 390, height: 844 } as const;
@@ -75,6 +93,36 @@ const isPrefetch = (request: Request): boolean => {
   const names = new Set(Object.keys(request.headers()));
   return PREFETCH_HEADERS.some((name) => names.has(name));
 };
+
+/** The name of the to-do item `item` of the count journey of `project`. */
+const journeyItem = (project: string, item: (typeof JOURNEY_ITEMS)[number]): string =>
+  `Item ${String(item)} of the ${project} count journey`;
+
+/** The names of the to-do items of the count journey of `project`. */
+const journeyItems = (project: string): readonly string[] =>
+  JOURNEY_ITEMS.map((item) => journeyItem(project, item));
+
+/** Opens or closes, with `method`, each to-do item named in `names`. */
+async function changeItems(
+  request: APIRequestContext,
+  method: 'post' | 'delete',
+  names: readonly string[],
+): Promise<void> {
+  for (const name of names) {
+    const response = await request[method](TO_DO, { data: { name } });
+    expect(response.status()).toBe(OK);
+  }
+}
+
+/**
+ * The number of items to do on the server now, which the control answers when it opens
+ * `name`, an item of the journey already open, again: opening it twice changes nothing.
+ */
+async function countOnServer(request: APIRequestContext, name: string): Promise<number> {
+  const response = await request.post(TO_DO, { data: { name } });
+  expect(response.status()).toBe(OK);
+  return CONTROL_ANSWER.parse(await response.json()).count;
+}
 
 test.describe('the navigation shell', () => {
   test.describe('without a session', () => {
@@ -135,6 +183,59 @@ test.describe('the navigation shell', () => {
     expect(layout).toMatchObject({ top: 0, left: 0, doesScrollSideways: false });
     expect(Math.round(layout.bottom)).toBe(LARGE_SCREEN.height);
     expect(layout.right).toBeLessThan(LARGE_SCREEN.width / 2);
+  });
+
+  test('[IHM-16] [CL-IHM-19] answers an address that matches no route with a page of its own, outside the shell', async ({
+    page,
+  }) => {
+    const response = await page.goto(NO_ROUTE);
+
+    expect(response?.status()).toBe(NOT_FOUND);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'This address leads to no screen',
+    );
+    await expect(page.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', '/');
+    await expect(page.getByRole('navigation')).toHaveCount(0);
+  });
+
+  test.describe('the number of items to do', () => {
+    test.afterEach(async ({ request }, testInfo) => {
+      await changeItems(request, 'delete', journeyItems(testInfo.project.name));
+    });
+
+    test('[IHM-16] [IHM-20] shows on the Home entry the number of the screen the owner moves to, with no reload', async ({
+      page,
+      request,
+    }, testInfo) => {
+      const items = journeyItems(testInfo.project.name);
+      const probe = journeyItem(testInfo.project.name, JOURNEY_ITEMS[0]);
+      await page.goto('/');
+      const navigation = page.getByRole('navigation');
+      await expect(navigation.getByRole('link', { name: HOME_COUNT })).toBeVisible();
+      // A full load would lose it: it stays only while the router moves between screens.
+      await page.evaluate(() => Object.assign(globalThis, { notReloaded: true }));
+      await changeItems(request, 'post', items);
+
+      // The journey of the other project opens and closes items of its own meanwhile, so a
+      // move proves the count only when the server's number is the same just before and just
+      // after it: the Home entry must then show that number, which includes this journey's
+      // items, opened after the first screen loaded. A move that the other journey disturbed
+      // is made again, to the other screen.
+      let next: typeof PLAYERS | typeof TYPES = PLAYERS;
+      await expect(async () => {
+        const screen = next;
+        next = screen === PLAYERS ? TYPES : PLAYERS;
+        const onServer = await countOnServer(request, probe);
+        await navigation.getByRole('link', { name: screen.name, exact: true }).click();
+        await expect(page).toHaveURL(screen.path);
+
+        await expect(
+          navigation.getByRole('link', { name: `Home ${String(onServer)} to do`, exact: true }),
+        ).toBeVisible();
+        expect(await countOnServer(request, probe)).toBe(onServer);
+      }).toPass();
+      expect(await page.evaluate(() => 'notReloaded' in globalThis)).toBe(true);
+    });
   });
 
   test('asks the server nothing on a timer, however long the screen stays open', async ({

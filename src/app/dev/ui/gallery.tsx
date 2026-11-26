@@ -1,6 +1,6 @@
 import { useId } from 'react';
 
-import { LinkButton, PageHeader } from '@/lib/ui';
+import { GlossaryTerm, LinkButton, PageHeader } from '@/lib/ui';
 
 import { ButtonSamples, NoticeSamples, TextSamples } from './action-samples';
 import { BlockSamples, ListSamples } from './content-samples';
@@ -33,8 +33,13 @@ function Section({ title, children }: SectionProps): ReactNode {
 export function Gallery(): ReactNode {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-4 py-8">
+      {/* The page's one first-level heading also shows a title that holds a glossary term. */}
       <PageHeader
-        title="Component gallery"
+        title={
+          <>
+            Component gallery, with the term <GlossaryTerm term="typeSheet" />
+          </>
+        }
         description="Every component of the design system, in each of its states."
         actions={<LinkButton href="/" label="Back to Home" />}
       />

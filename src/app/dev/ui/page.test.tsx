@@ -73,7 +73,12 @@ describe('/dev/ui', () => {
 
     render(await ComponentGalleryPage());
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Component gallery' })).toBeVisible();
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: /^Component gallery, with the term Type sheet/u,
+      }),
+    ).toBeVisible();
     await expect(generateMetadata()).resolves.toStrictEqual({ title: 'Component gallery' });
   });
 

@@ -26,6 +26,9 @@ export { fakeControls, scriptFake } from './fake-controls';
 // draft-server.ts
 export { draftServerOf, withdrawDrafts } from './draft-server';
 
+// to-do.ts
+export { closeTodoItem, openTodoItem } from './to-do';
+
 // scenarios.ts
 export {
   applyScenarios,

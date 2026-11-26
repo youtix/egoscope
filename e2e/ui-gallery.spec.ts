@@ -61,6 +61,11 @@ async function fontSize(text: Locator): Promise<number> {
   );
 }
 
+// The gallery's title, which holds a glossary term, and the term's definition.
+const GALLERY_TITLE = 'Component gallery, with the term Type sheet';
+const TYPE_SHEET_DEFINITION =
+  'The definition of an event type: what it covers, its inclusion and exclusion criteria, and an example.';
+
 for (const colorScheme of THEMES) {
   test.describe(`the component gallery in the ${colorScheme} theme`, () => {
     test.use({ colorScheme, permissions: ['clipboard-read', 'clipboard-write'] });
@@ -315,6 +320,25 @@ for (const colorScheme of THEMES) {
       await expect(term).toBeFocused();
     });
 
+    test('[IHM-15] opens the definition of a term in the heading of the page, which stays its one first-level heading', async ({
+      page,
+    }) => {
+      const heading = page.getByRole('heading', { level: 1 });
+      const term = heading.getByRole('button', { name: 'Type sheet', exact: true });
+      const definition = page.getByText(TYPE_SHEET_DEFINITION, { exact: true });
+      await expect(heading).toHaveCount(1);
+      await expect(heading).toHaveAccessibleName(GALLERY_TITLE);
+      await expect(definition).toBeHidden();
+
+      await term.click();
+      await expect(definition).toBeVisible();
+      await expect(heading).toHaveAccessibleName(`${GALLERY_TITLE} ${TYPE_SHEET_DEFINITION}`);
+      await page.keyboard.press('Escape');
+      await expect(definition).toBeHidden();
+      await expect(heading).toHaveAccessibleName(GALLERY_TITLE);
+      await expect(term).toBeFocused();
+    });
+
     test('[IHM-15] [CL-IHM-26] opens the definition of each first label of the figures, and only the first label is a button', async ({
       page,
     }) => {
@@ -463,7 +487,7 @@ test.describe('the component gallery outside development and the hermetic mode',
       const body = await response.text();
 
       expect(response.status()).toBe(404);
-      expect(body).toContain('This page could not be found.');
+      expect(body).toContain('This address leads to no screen');
       expect(body).toContain('<meta name="robots" content="noindex"/>');
       expect(body).not.toContain('Component gallery');
     } finally {
