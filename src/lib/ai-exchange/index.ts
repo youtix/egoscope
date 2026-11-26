@@ -52,6 +52,7 @@ export type {
 } from './research-result/format';
 
 // research-result/dates.ts
+export { readDate } from './research-result/dates';
 export type { DateReading, DateReadingError, DateWarning } from './research-result/dates';
 
 // research-result/read-result.ts

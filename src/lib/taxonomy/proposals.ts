@@ -78,9 +78,9 @@ export type ProposalEdit = Readonly<{
   expectedVersion: number;
 }>;
 
-// The key of the transaction lock that one creation at a time takes, so that two proposals
-// made at once never draw the same identifier.
-const IDENTIFIER_LOCK_KEY = 77_002;
+// The transaction lock that one creation at a time holds, so that two proposals made at
+// once never draw the same identifier.
+const IDENTIFIER_LOCK = 'taxonomy.proposal-identifiers';
 // The longest slug before a suffix, cut at a hyphen (CL-TAX-02).
 const MAX_SLUG_LENGTH = 40;
 // The first suffix that a taken identifier gets (CL-TAX-02).
@@ -244,7 +244,7 @@ export async function createProposal(
   if (Object.keys(fields).length > 0) {
     return err({ kind: 'invalid_fields', fields });
   }
-  await tx.execute(sql`select pg_advisory_xact_lock(${IDENTIFIER_LOCK_KEY})`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${IDENTIFIER_LOCK}))`);
   const [created] = await tx
     .insert(eventTypes)
     .values({

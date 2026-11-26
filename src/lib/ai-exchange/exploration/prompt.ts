@@ -102,7 +102,7 @@ No type may be about:
 // The elements of TAX-16 with the invitation of D-06 and the risk of TAX-08.
 const WHAT_TO_GIVE = `6. WHAT TO GIVE FOR EACH TYPE
 For each type you propose, give its name; its definition; its inclusion criteria; its exclusion criteria, naming the neighboring type that prevails, if any; its dating rule, which says whether its events are known in advance; a generic example that names no real person, written with player A, team X and a national outlet; its documentation difficulty; its possible overlaps with the types of point 5; and its illustration sources, public and dated articles that report real events of the type. Write short sentences, in English, that an AI can apply without interpretation.
-The documentation difficulty, easy, medium or hard, says how easily a search of dated press, archives included, finds every event of the type. Also propose types whose events are harder to document, provided they are clean and datable, and flag them by their difficulty: for such a type, a search mostly finds the events that people remember, often because a striking game followed, which threatens a complete count.`;
+The documentation difficulty, easy, medium or hard, says how easily a search of dated press, archives included, finds every event of the type. Also propose types whose events are harder to document, provided they are clean and datable, and flag them by their difficulty: for such a type, a search mostly finds the events that people remember, often because a striking game followed, which threatens exhaustive counting.`;
 
 // The exploration response of CL-TAX-04, whose sources are those of the research result.
 const ANSWER_FORMAT = `7. ANSWER FORMAT
@@ -207,7 +207,7 @@ function referenceLine(article: ExplorationArticleReference): string {
 /** What a targeted exploration deepens, with the references of its articles (TAX-16). */
 function targetLines(target: ExplorationTarget): readonly string[] {
   if (target.kind === 'idea') {
-    return [IDEA_MODE, `Idea to deepen: ${target.idea}`];
+    return [IDEA_MODE, `Idea to deepen: ${target.idea.trim()}`];
   }
   const references = target.articleReferences.map((article) => referenceLine(article));
   return [

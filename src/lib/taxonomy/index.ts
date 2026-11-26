@@ -49,7 +49,25 @@ export type {
 
 // lifecycle.ts: reject, reopen, withdrawType, reactivate
 
-// exploration.ts: generateExplorationPrompt, previewExplorationResponse, createFromExploration
+// exploration.ts, with exploration-creation.ts beside it for the size limits
+export { generateExplorationPrompt, previewExplorationResponse } from './exploration';
+export type {
+  ExplorationAim,
+  ExplorationDuplicate,
+  ExplorationPreview,
+  ExplorationPromptChoice,
+  ExplorationPromptRefusal,
+  PreviewedType,
+} from './exploration';
+export { createFromExploration } from './exploration-creation';
+export type {
+  CopiedElement,
+  ElementPick,
+  ExplorationChoice,
+  ExplorationCreation,
+  ExplorationCreationRefusal,
+  ExplorationTargetPicks,
+} from './exploration-creation';
 
 // detection-proposals.ts: receiveDetectionProposal, addOccurrence, attachAsOccurrence,
 //   detachOccurrence, eraseOccurrencesOf, proposalArticleReferences (Lot 2)
