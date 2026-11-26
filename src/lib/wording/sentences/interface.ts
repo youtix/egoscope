@@ -53,5 +53,71 @@ export const interfaceSentences = {
   incidentConsequenceTelegramLinkBroken: 'Telegram messages are not delivered.',
   incidentConsequenceExportReminder: 'Your data has no recent full export.',
 
+  // The navigation shell (IHM-16, CL-IHM-25): the entries of the navigation bar and of the
+  // More menu, named after the code values of the glossary's NavigationEntry and
+  // MoreMenuEntry sets (the menu's Method and limits is methodAndLimits above), and what
+  // screen readers say of the count on the Home entry (IHM-61)
+  home: 'Home',
+  players: 'Players',
+  alerts: 'Alerts',
+  types: 'Types',
+  more: 'More',
+  backtestRequests: 'Backtest requests',
+  profiles: 'Profiles',
+  settings: 'Settings',
+  appStatus: 'App status',
+  activityJournal: 'Activity journal',
+  help: 'Help',
+  detectedEvents: 'Detected events',
+  validationTable: 'Validation table',
+  collectionAndDetection: 'Collection and detection',
+  todoCount: '{n} to do',
+
+  // The titles of the other screens of module map section 3.3, which each screen's task
+  // keeps or replaces by the name of the object it shows (IHM-17); the screen of an
+  // identifier that matches no object (CL-IHM-19); the error screen, which says what the
+  // owner can do (edge case « Erreur du serveur »); what screen readers say while a screen
+  // loads (IHM-60)
+  playerPage: 'Player page',
+  editIdentity: 'Edit identity',
+  deletePlayerData: 'Delete player data',
+  profileDetail: 'Profile detail',
+  caseDetail: 'Case detail',
+  eventPage: 'Event page',
+  correctEvent: 'Correct an event',
+  withdrawEvent: 'Withdraw and erase this event',
+  request: 'Request',
+  importScreen: 'Import',
+  typeSheet: 'Type sheet',
+  editTypeSheet: 'Edit the type sheet',
+  validation: 'Validation',
+  split: 'Split',
+  eventsToReview: 'Events to review',
+  generalTrend: 'General trend',
+  merge: 'Merge',
+  exploreNewTypes: 'Explore new types',
+  account: 'Account',
+  display: 'Display',
+  parameters: 'Parameters',
+  notifications: 'Notifications',
+  alertSheet: 'Alert sheet',
+  pressSources: 'Press sources',
+  addPressSource: 'Add a press source',
+  editPressSource: 'Edit a press source',
+  collectionJournal: 'Collection journal',
+  runDetail: 'Run detail',
+  classificationQueue: 'Classification queue',
+  notRelevantArticles: 'Not-relevant articles',
+  detectionJournal: 'Detection journal',
+  modelInstructions: 'Model instructions',
+  article: 'Article',
+  itemNoLongerExists: 'This item no longer exists',
+  goToHome: 'Go to Home',
+  somethingWentWrong: 'Something went wrong',
+  screenNotShown:
+    'The app could not show this screen. Try again, and if it fails again, try later.',
+  tryAgain: 'Try again',
+  loadingScreen: 'Loading the screen',
+
   // An area adds its groups below, one commented group per screen or task.
 } as const;

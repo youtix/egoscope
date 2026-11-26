@@ -154,7 +154,7 @@ describe('ignored folders', { timeout: 120_000 }, () => {
     const { files, classes } = await tailwindScan();
 
     // The scan read the project, so the absence of the probe is meaningful.
-    expect(files).toContain(path.join(PROJECT, 'src/app/page.tsx'));
+    expect(files).toContain(path.join(PROJECT, 'src/app/layout.tsx'));
     expect(files.filter((file) => isIgnoredPath(path.relative(PROJECT, file)))).toStrictEqual([]);
     expect(classes).not.toContain(PROBE_CLASS);
   });
