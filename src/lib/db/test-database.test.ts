@@ -160,6 +160,15 @@ async function writeRows(db: Database): Promise<void> {
   await db.transaction(async (tx) => nextValue(tx, 'request_reference_2026'));
 }
 
+/** Writes rows into a database, closes it and tells which PGlite it was. */
+async function writtenAndClosed(): Promise<string> {
+  const { db, close } = await createTestDatabase();
+  const start = await startOf(db);
+  await writeRows(db);
+  await close();
+  return start;
+}
+
 describe('createTestDatabase', { timeout: 60_000 }, () => {
   it('[TRV-76] gives a database with every migration applied and no rows', async () => {
     const { db } = await openTestDatabase();
@@ -232,6 +241,12 @@ describe('createTestDatabase', { timeout: 60_000 }, () => {
     ]);
   });
 
+  it('[TRV-76] keeps giving one PGlite to tests that write and close, one after the other', async () => {
+    const starts = [await writtenAndClosed(), await writtenAndClosed(), await writtenAndClosed()];
+
+    expect(starts).toStrictEqual([starts[0], starts[0], starts[0]]);
+  });
+
   it('[TRV-76] ends the transaction that a test left open, even a failed one', async () => {
     const left = await createTestDatabase();
     const leftStart = await startOf(left.db);
@@ -276,12 +291,13 @@ describe('createTestDatabase', { timeout: 60_000 }, () => {
         `insert into sequence_counters (name, last_value) values ('import_sequence', 7)`,
       ),
     ]);
+    const isInTransaction = client.isInTransaction();
     await racing.close();
 
     const next = await openTestDatabase();
 
     await expect(sentQueries).resolves.toMatchObject([{ rows: [] }, { affectedRows: 1 }]);
-    expect(await startOf(next.db)).toBe(racingStart);
+    expect([isInTransaction, await startOf(next.db)]).toStrictEqual([false, racingStart]);
     expect(await openTransaction(next.db)).toBeNull();
     await expect(next.db.select().from(sequenceCounters)).resolves.toStrictEqual([]);
   });
@@ -289,11 +305,13 @@ describe('createTestDatabase', { timeout: 60_000 }, () => {
   it('[TRV-76] starts a fresh PGlite after one that could not go back, and closes without error', async () => {
     const broken = await createTestDatabase();
     const brokenStart = await startOf(broken.db);
-    await clientOf(broken.db).close();
+    const client = clientOf(broken.db);
+    await client.close();
     await broken.close();
 
     const next = await openTestDatabase();
 
+    expect(client.closed).toBe(true);
     expect(await startOf(next.db)).not.toBe(brokenStart);
     await expect(next.db.select().from(sequenceCounters)).resolves.toStrictEqual([]);
   });
@@ -346,6 +364,20 @@ describe('createTestDatabase', { timeout: 60_000 }, () => {
 
     expect(await startOf(next.db)).not.toBe(changedStart);
     expect(await roles(next.db)).not.toContain('left_by_a_test');
+  });
+
+  it('[TRV-76] resets the settings that a test changed for its session', async () => {
+    const changed = await createTestDatabase();
+    const changedStart = await startOf(changed.db);
+    await changed.db.execute(sql`set statement_timeout = 1234`);
+    await changed.close();
+
+    const next = await openTestDatabase();
+
+    expect(await startOf(next.db)).toBe(changedStart);
+    expect(
+      await names(next.db, sql`select current_setting('statement_timeout') as name`),
+    ).toStrictEqual(['0']);
   });
 
   it('[TRV-76] closes harmlessly twice, and refuses any later write through the closed handle', async () => {

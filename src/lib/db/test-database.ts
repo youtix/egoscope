@@ -33,13 +33,17 @@ export type TestDatabases = Readonly<{
   stop: () => Promise<void>;
 }>;
 
+// What a database holds outside the tables and the sequences of its public schema, in two
+// parts: the catalog of the relations, which truncating a table rewrites, and the rest.
+type Fingerprint = Readonly<{ classes: string; rest: string }>;
+
 // A test file's PGlite between two of its tests.
 type KeptDatabase = Readonly<{
   pglite: PgliteDatabase;
   /** Reads the fingerprint, as the catalog of `pglite` wrote the statement once. */
   fingerprinting: SQL;
   /** The fingerprint as it was when the database last equaled the template. */
-  fingerprint: string;
+  fingerprint: Fingerprint;
 }>;
 
 // The hash that names a template and the digest that ends its file, so that a file cut
@@ -57,11 +61,13 @@ const PARTIAL = '.partial';
 
 // What the fingerprint reads: every table and every sequence outside the public schema, the
 // catalogs among them and the bookkeeping of Drizzle's migrator, but not the TOAST tables,
-// which only hold the long values of the others.
+// which only hold the long values of the others. The catalog of the relations is read apart.
+const CLASSES = 'pg_catalog.pg_class';
 const FINGERPRINTED = sql`
   select c.relkind as kind, format('%I.%I', n.nspname, c.relname) as name
   from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace
   where c.relkind in ('r', 'S') and n.nspname not in ('public', 'pg_toast')
+    and c.oid <> ${CLASSES}::regclass
   order by c.oid`;
 
 // The tables of the public schema that hold a page: those that held a row since the
@@ -83,8 +89,10 @@ const RESTART = sql`
 
 const relation = z.object({ kind: z.enum(['r', 'S']), name: z.string() });
 const relationRows = z.object({ rows: z.array(relation) });
-const fingerprintValue = z.object({ fingerprint: z.string() });
+const fingerprintValue = z.object({ classes: z.string(), rest: z.string() });
 const fingerprintRow = z.object({ rows: z.tuple([fingerprintValue]) });
+const classesValue = z.object({ classes: z.string() });
+const classesRow = z.object({ rows: z.tuple([classesValue]) });
 const tableName = z.object({ name: z.string() });
 const tableRows = z.object({ rows: z.array(tableName) });
 
@@ -182,23 +190,34 @@ async function storedOrBuiltTemplate(store: TemplateStore): Promise<Blob> {
   return (await readStoredTemplate(store.folder, key)) ?? builtTemplate(store, key);
 }
 
-// For each table, its rows and the newest transaction that wrote one, which any change to
-// the table changes; for each sequence, its value; and when the configuration was last
-// loaded, which a reload after `alter system` changes.
+// The rows of the table `name` and the newest transaction that wrote one, which any change
+// to the table changes.
+function rowsAndNewestWriter(name: string): string {
+  return `(select count(*) || ':' || coalesce(max(xmin::text::bigint), 0) from ${name})`;
+}
+
+const CLASSES_FINGERPRINT = sql.raw(`select ${rowsAndNewestWriter(CLASSES)} as classes`);
+
+// For each table, its rows and their newest writer; for each sequence, its value; and when
+// the configuration was last loaded, which a reload after `alter system` changes.
 function fingerprintingOf(relations: readonly z.infer<typeof relation>[]): SQL {
   const parts = relations.map(({ kind, name }) =>
     kind === 'S'
       ? `(select last_value || ':' || is_called from ${name})`
-      : `(select count(*) || ':' || coalesce(max(xmin::text::bigint), 0) from ${name})`,
+      : rowsAndNewestWriter(name),
   );
-  return sql.raw(
-    `select array[pg_catalog.pg_conf_load_time()::text, ${parts.join(', ')}]::text as fingerprint`,
-  );
+  const rest = `array[pg_catalog.pg_conf_load_time()::text, ${parts.join(', ')}]::text`;
+  return sql.raw(`select ${rowsAndNewestWriter(CLASSES)} as classes, ${rest} as rest`);
 }
 
-async function fingerprintOf(db: Database, fingerprinting: SQL): Promise<string> {
+async function fingerprintOf(db: Database, fingerprinting: SQL): Promise<Fingerprint> {
   const result = await db.execute(fingerprinting);
-  return fingerprintRow.parse(result).rows[0].fingerprint;
+  return fingerprintRow.parse(result).rows[0];
+}
+
+async function classesOf(db: Database): Promise<string> {
+  const result = await db.execute(CLASSES_FINGERPRINT);
+  return classesRow.parse(result).rows[0].classes;
 }
 
 async function open(template: Blob): Promise<KeptDatabase> {
@@ -225,7 +244,8 @@ async function returnToTemplate(kept: KeptDatabase): Promise<KeptDatabase | unde
     if (pglite.isInTransaction()) {
       await pglite.db.execute(sql`rollback`);
     }
-    if ((await fingerprintOf(pglite.db, fingerprinting)) !== kept.fingerprint) {
+    const { classes, rest } = await fingerprintOf(pglite.db, fingerprinting);
+    if (classes !== kept.fingerprint.classes || rest !== kept.fingerprint.rest) {
       return undefined;
     }
     // Settings, prepared statements, cursors, session locks and temporary objects.
@@ -235,12 +255,13 @@ async function returnToTemplate(kept: KeptDatabase): Promise<KeptDatabase | unde
     if (occupied.length === 0) {
       return kept;
     }
-    // Truncating also empties the tables that refer to these, and gives each new files,
-    // which the catalog records: the fingerprint is read again.
+    // Truncating also empties the tables that refer to these, and gives each new files, which
+    // the catalog of the relations records and no other catalog: that part is read again.
+    // Were another written, the next return would find the fingerprint changed, and stop.
     await pglite.db.execute(
       sql.raw(`truncate ${occupied.map(({ name }) => name).join(', ')} cascade`),
     );
-    return { ...kept, fingerprint: await fingerprintOf(pglite.db, fingerprinting) };
+    return { ...kept, fingerprint: { classes: await classesOf(pglite.db), rest } };
   } catch {
     return undefined;
   }
