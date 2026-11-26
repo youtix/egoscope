@@ -1,6 +1,6 @@
 import { render, within } from '@testing-library/react';
 import axe from 'axe-core';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -266,6 +266,11 @@ describe('the case block', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       .update(cases)
       .set({ opponentStrengthNotEvaluable: true, stakesNotEvaluable: true })
       .where(eq(cases.id, present(second)));
+    // The world's cases have no opponent record to evaluate, which these two now have.
+    await db
+      .update(cases)
+      .set({ opponentStrengthNotEvaluable: false })
+      .where(inArray(cases.id, [excluded, present(third)]));
     await db
       .update(cases)
       .set({ referenceInstantOrigin: 'uncertain_precedence_shift' })
@@ -483,10 +488,18 @@ describe('the case block', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
 
   it('[IHM-50] [IHM-61] passes the WCAG 2.2 AA rules and shows no betting word', async () => {
     const view = await openCase(world.excluded.id);
+    // Each text as the screen shows it apart, where the text content of the whole block
+    // would glue the end of one to the start of the next.
+    const texts: string[] = [];
+    within(view).queryAllByText((text) => {
+      texts.push(text);
+      return false;
+    });
 
     await expect(axe.run(view, WCAG_22_AA)).resolves.toHaveProperty('violations', []);
+    expect(texts).toContain('Game stakes: High');
     expect(() => {
-      assertNoBettingWords(view.textContent);
+      assertNoBettingWords(texts.join(' / '));
     }).not.toThrow();
   });
 
