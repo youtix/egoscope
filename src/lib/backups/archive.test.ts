@@ -20,6 +20,7 @@ import { toEpochMs } from '@/lib/time';
 
 import { archiveEntries } from './archive';
 
+import type { ZipEntry } from './zip';
 import type { Database } from '@/lib/db';
 
 const EXPORTED_AT = toEpochMs(Date.UTC(2026, 10, 25, 9, 30, 12, 345));
@@ -83,17 +84,30 @@ function byName(left: string, right: string): number {
   return left.localeCompare(right, 'en');
 }
 
+/** The file of each table that the schema exports and the archive keeps. */
+function archivedFiles(): string[] {
+  const exported: readonly unknown[] = Object.values(database);
+  return exported
+    .filter((value): value is PgTable => is(value, PgTable) && !isOutsideArchive(value))
+    .map((table) => `${getTableConfig(table).name}.jsonl`);
+}
+
+/** The content of `entry`, read to its end as text. */
+async function textOf(entry: ZipEntry): Promise<string> {
+  const decoder = new TextDecoder();
+  let text = '';
+  for await (const part of entry.chunks) {
+    text += decoder.decode(part, { stream: true });
+  }
+  return text + decoder.decode();
+}
+
 /** The entries of the archive of `db`, in order, each read to its end as text. */
 async function entriesOf(db: Database): Promise<readonly (readonly [string, string])[]> {
   return db.transaction(async (tx) => {
     const entries: (readonly [string, string])[] = [];
     for await (const entry of archiveEntries(tx, EXPORTED_AT)) {
-      const decoder = new TextDecoder();
-      let text = '';
-      for await (const part of entry.chunks) {
-        text += decoder.decode(part, { stream: true });
-      }
-      entries.push([entry.name, text + decoder.decode()]);
+      entries.push([entry.name, await textOf(entry)]);
     }
     return entries;
   });
@@ -149,17 +163,13 @@ describe('the archive', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     db = created.db;
   });
 
-  it('[TRV-52] [TRV-53] holds a readme first, one JSON Lines file per table that the schema exports, and the manifest last', async () => {
+  it('[TRV-52] holds a readme first, one JSON Lines file per table that the schema exports, and the manifest last', async () => {
     const { player } = await profiledPlayer(db);
 
     const entries = await entriesOf(db);
 
-    const exported: readonly unknown[] = Object.values(database);
-    const archived = exported
-      .filter((value): value is PgTable => is(value, PgTable) && !isOutsideArchive(value))
-      .map((table) => `${getTableConfig(table).name}.jsonl`);
     expect(entries.map(([name]) => name).toSorted(byName)).toStrictEqual(
-      ['readme.txt', 'manifest.json', ...archived].toSorted(byName),
+      ['readme.txt', 'manifest.json', ...archivedFiles()].toSorted(byName),
     );
     expect([entries[0]?.[0], entries.at(-1)?.[0]]).toStrictEqual(['readme.txt', 'manifest.json']);
     const players = new Map(entries).get('followed_players.jsonl') ?? '';
@@ -176,6 +186,29 @@ describe('the archive', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         birthdayOrigin: player.birthdayOrigin,
       }),
     ]);
+  });
+
+  it("[TRV-52] refuses to write the manifest when a table's file was skipped, saying how many tables it expected and read", async () => {
+    await profiledPlayer(db);
+    const expected = archivedFiles().length;
+
+    const skipping = db.transaction(async (tx) => {
+      for await (const entry of archiveEntries(tx, EXPORTED_AT)) {
+        if (entry.name !== 'teams.jsonl') {
+          await textOf(entry);
+        }
+      }
+    });
+
+    await expect(skipping).rejects.toThrow(
+      new Error(
+        `The manifest expects ${String(expected)} tables, but ${String(expected - 1)} were read: read every table's file before the manifest.`,
+      ),
+    );
+    const manifest = manifestOf(await filesOf(db));
+    expect(manifest.tables.map((table) => table.file).toSorted(byName)).toStrictEqual(
+      archivedFiles().toSorted(byName),
+    );
   });
 
   it('[TRV-52] [CL-TRV-05] [CL-DSN-08] leaves out the drafts, the account, the sessions, the login failures and the withdrawal ledger, and gives the withdrawn-events counter in the manifest', async () => {

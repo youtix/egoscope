@@ -31,10 +31,26 @@ const MINUTE_SHIFT = 5;
 const SECOND_SHIFT = 1;
 const YEAR_SHIFT = 9;
 const MONTH_SHIFT = 5;
-const SHORT = 2;
-const LONG = 4;
+// The kinds of field: a two-byte and a four-byte number, and the four-byte CRC-32.
+const SHORT = 'short';
+const LONG = 'long';
+const CHECKSUM = 'checksum';
+const TWO_BYTES = 2;
+const FOUR_BYTES = 4;
+const WIDTHS = { [SHORT]: TWO_BYTES, [LONG]: FOUR_BYTES, [CHECKSUM]: FOUR_BYTES } as const;
+// The largest value each kind holds. A CRC-32 may take any value of its four bytes; a size,
+// an offset or a count stays below the all-ones value, which the format keeps as its marker
+// for "see the ZIP64 field", and the format written has no ZIP64 records.
+const SHORT_MAXIMUM = 0xff_fe;
+const LONG_MAXIMUM = 0xff_ff_ff_fe;
+const CHECKSUM_MAXIMUM = 0xff_ff_ff_ff;
+const MAXIMUMS = {
+  [SHORT]: SHORT_MAXIMUM,
+  [LONG]: LONG_MAXIMUM,
+  [CHECKSUM]: CHECKSUM_MAXIMUM,
+} as const;
 
-type Field = readonly [width: typeof SHORT | typeof LONG, value: number];
+type Field = readonly [kind: keyof typeof WIDTHS, value: number];
 
 /** What the central directory says of an entry once its data is written. */
 type Written = Readonly<{
@@ -47,19 +63,27 @@ type Written = Readonly<{
 
 const encoder = new TextEncoder();
 
-/** The little-endian bytes of `fields`, then `tail`. */
+/**
+ * The little-endian bytes of `fields`, then `tail`. A value that its field cannot hold ends
+ * the archive with an error instead of wrapping into a corrupt file.
+ */
 function bytes(fields: readonly Field[], tail: Uint8Array = new Uint8Array()): Uint8Array {
-  const width = fields.reduce((sum, [size]) => sum + size, 0);
+  const width = fields.reduce((sum, [kind]) => sum + WIDTHS[kind], 0);
   const out = new Uint8Array(width + tail.length);
   const view = new DataView(out.buffer);
   let at = 0;
-  for (const [size, value] of fields) {
-    if (size === SHORT) {
+  for (const [kind, value] of fields) {
+    if (value > MAXIMUMS[kind]) {
+      throw new Error(
+        `A ZIP field of ${String(WIDTHS[kind])} bytes holds at most ${String(MAXIMUMS[kind])}, not ${String(value)}: the archive has no ZIP64 records, so it stays under 4 GiB and 65535 entries.`,
+      );
+    }
+    if (kind === SHORT) {
       view.setUint16(at, value, true);
     } else {
       view.setUint32(at, value, true);
     }
-    at += size;
+    at += WIDTHS[kind];
   }
   out.set(tail, width);
   return out;
@@ -86,7 +110,7 @@ function common(stamp: readonly [number, number], entry: Omit<Written, 'offset' 
     [SHORT, DEFLATE],
     [SHORT, stamp[0]],
     [SHORT, stamp[1]],
-    [LONG, entry.crc],
+    [CHECKSUM, entry.crc],
     [LONG, entry.compressedSize],
     [LONG, entry.size],
   ] as const satisfies readonly Field[];
@@ -228,7 +252,7 @@ export async function* zip(
     const sizes = yield* entryData(entry);
     const descriptor = bytes([
       [LONG, DATA_DESCRIPTOR],
-      [LONG, sizes.crc],
+      [CHECKSUM, sizes.crc],
       [LONG, sizes.compressedSize],
       [LONG, sizes.size],
     ]);

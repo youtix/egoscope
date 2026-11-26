@@ -51,6 +51,8 @@ export type JournalExportRequest = Readonly<{
 const CSV_TYPE = 'text/csv; charset=utf-8';
 const CRLF = '\r\n';
 const NEEDS_QUOTES = /[",\r\n]/u;
+// The first characters with which a spreadsheet reads a cell as a formula (see `field`).
+const FORMULA_START = /^[=+\-@\t\r]/u;
 // The length of `YYYY-MM-DDTHH:MM:SS`, an ISO 8601 instant cut to the second.
 const ISO_SECONDS_LENGTH = 19;
 
@@ -158,13 +160,26 @@ const CSV_COLUMNS: Readonly<Record<PartialExportKind, CsvColumns>> = {
   profiles: PROFILE_COLUMNS,
 };
 
-/** One value as a CSV field (RFC 4180): instants in ISO 8601 UTC, numbers with a decimal point. */
+/**
+ * One value as a CSV field (RFC 4180): instants in ISO 8601 UTC, numbers with a decimal point.
+ *
+ * Decision of the coordinator (issue #467): a text cell whose first character is `=`, `+`,
+ * `-`, `@`, a tab or a carriage return is written with a leading apostrophe, before the
+ * quoting, so that a spreadsheet shows it as text instead of running it as a formula. An
+ * event's description is written by an outside AI from press texts, its source urls and a
+ * team's abbreviation come from outside services, and a display name from the owner: none of
+ * them can be trusted. Only the first character of the whole cell counts. The kind of a cell
+ * is the type of its value: a number, a boolean and an instant keep their form, so a negative
+ * number stays `-1.25`; every other column is written by the application in a fixed form
+ * (identifiers, codes, dates, seasons) that never starts with these characters. The rule sits
+ * where every text cell is written, so that a later column gets it.
+ */
 function field(value: unknown): string {
   let text = '';
   if (value instanceof Date) {
     text = value.toISOString();
   } else if (typeof value === 'string') {
-    text = value;
+    text = FORMULA_START.test(value) ? `'${value}` : value;
   } else if (typeof value === 'number' || typeof value === 'boolean') {
     text = String(value);
   }
