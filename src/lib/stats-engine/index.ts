@@ -311,8 +311,27 @@ export type { RowAssessment } from './tracking/assessment';
 export type { TooFewTrackedCases } from './tracking/assessment';
 
 // tracking/decisions.ts
+export { decisionStanding, isPostTipOff } from './tracking/decisions';
+export type { DecisionStanding, DecisionStandingInput, TipOffGames } from './tracking/decisions';
+export type { PostTipOffDecisionEffect, TrackedCaseDecision } from './tracking/decisions';
+
+// tracking/case-place.ts
+export { overallSubrowOf } from './tracking/case-place';
+export type { OverallSubrowKind, TableForecast } from './tracking/case-place';
+export type { TableTrackedCase, TrackedCaseOutcome } from './tracking/case-place';
+
+// tracking/table-rows.ts
+export type { PlayerStatus, TableEventType, TablePlayer } from './tracking/table-rows';
+export type { ValidationRowPlace, ValidationRowScope } from './tracking/table-rows';
+
+// tracking/row-values.ts
+export type { CaseSetValues, CategoryCounts } from './tracking/row-values';
+export type { SeparateCounts, TouchedCount } from './tracking/row-values';
 
 // tracking/validation-table.ts
+export { validationRows } from './tracking/validation-table';
+export type { RegroupingExit, TableHistoricalCase } from './tracking/validation-table';
+export type { ValidationRow, ValidationTableInput } from './tracking/validation-table';
 
 // --- alerts/ ---------------------------------------------------------------------
 

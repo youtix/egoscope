@@ -151,11 +151,11 @@ describe('expectedFalseSignals', () => {
   });
 
   it.each([-0.5, 11, NaN])(
-    '[SEN-41] refuses a threshold of %s, outside 0 to 11, which only a bug can give',
+    '[SEN-41] refuses a threshold of %s, outside 0 up to, but not including, 11, which only a bug can give',
     (threshold) => {
       expect(() => expectedFalseSignals(1, withThresholds(threshold))).toThrow(
         new RangeError(
-          `No normal tail for a threshold of ${String(threshold)}: it is computed from 0 to 11.`,
+          `No normal tail for a threshold of ${String(threshold)}: it is computed from 0 up to, but not including, 11.`,
         ),
       );
     },
