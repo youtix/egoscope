@@ -16,15 +16,14 @@ const itemRequest = z.strictObject({ name: z.string().min(1) });
 
 type Change = (db: Database, name: string) => Promise<number>;
 
+/** The answer of a server that is not hermetic, which knows no such control. */
+const notFound = () => new Response(null, { status: NOT_FOUND, headers: NO_STORE });
+
 /**
- * Applies `change` to the to-do item that the request names, `{ "name": "<text>" }`, in the
- * hermetic mode only, and answers the number of items to do; not found on any other server.
+ * Applies `change` to the to-do item that the request names, `{ "name": "<text>" }`, and
+ * answers the number of items to do.
  */
 async function changeItem(request: Request, change: Change): Promise<Response> {
-  await connection();
-  if (!isHermetic()) {
-    return new Response(null, { status: NOT_FOUND, headers: NO_STORE });
-  }
   const parsed = itemRequest.safeParse(await readCommand(request));
   if (!parsed.success) {
     return Response.json(
@@ -46,7 +45,8 @@ async function changeItem(request: Request, change: Change): Promise<Response> {
  * that the navigation bar now shows (IHM-16). Not found on any other server.
  */
 export async function POST(request: Request): Promise<Response> {
-  return changeItem(request, openTodoItem);
+  await connection();
+  return isHermetic() ? changeItem(request, openTodoItem) : notFound();
 }
 
 /**
@@ -55,5 +55,6 @@ export async function POST(request: Request): Promise<Response> {
  * any other server.
  */
 export async function DELETE(request: Request): Promise<Response> {
-  return changeItem(request, closeTodoItem);
+  await connection();
+  return isHermetic() ? changeItem(request, closeTodoItem) : notFound();
 }
