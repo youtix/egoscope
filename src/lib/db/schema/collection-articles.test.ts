@@ -15,6 +15,7 @@ import {
 import { taskRuns } from './scheduler';
 
 import type { Database } from '../types';
+import type { PgInsertValue } from 'drizzle-orm/pg-core';
 
 // The tables of collection.md about the articles the sources bring.
 const TABLES = ['article_sightings', 'articles', 'dedup_traces'];
@@ -104,12 +105,12 @@ const ARTICLE = {
   firstTaskRunId: RUN_ID,
 } as const;
 // An article set aside as not relevant, its retention clock started.
-const NOT_RELEVANT = {
+const NOT_RELEVANT: PgInsertValue<typeof articles> = {
   ...ARTICLE,
   processingStatus: 'not_relevant',
   notRelevantReasons: ['no_followed_player'],
   retentionClockStartedAt: at(9),
-} as const;
+};
 const SIGHTING = { articleId: ARTICLE_ID, pressSourceId: SOURCE_ID, firstSeenAt: at(8) } as const;
 const HASH = new Uint8Array(32).fill(7);
 const TRACE = { linkSha256: HASH, firstCollectedAt: at(8), articleDeletedAt: at(9) } as const;
@@ -190,7 +191,7 @@ describe('the tables of the collected articles', { timeout: 60_000 }, () => {
     await expect(db.$count(articles)).resolves.toBe(5);
   });
 
-  it.each([
+  it.each<readonly [string, PgInsertValue<typeof articles>, string]>([
     ['a blank title', { ...ARTICLE, title: '\u{A0}' }, 'title'],
     [
       'a publication after its first collection',
@@ -226,7 +227,7 @@ describe('the tables of the collected articles', { timeout: 60_000 }, () => {
       { ...ARTICLE, retentionClockStartedAt: at(9) },
       'retention_clock',
     ],
-  ] as const)(
+  ])(
     '[COL-19] [COL-25] [COL-35] [COL-36] [CL-DET-01] refuses an article with %s',
     async (_case, article, check) => {
       const insert = db.insert(articles).values(article);

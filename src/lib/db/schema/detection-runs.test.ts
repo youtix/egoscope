@@ -10,6 +10,7 @@ import { followedPlayers } from './players';
 import { taskRuns } from './scheduler';
 
 import type { Database } from '../types';
+import type { PgInsertValue } from 'drizzle-orm/pg-core';
 
 // The tables of detection.md about its counts, its runs and its incidents.
 const TABLES = ['classification_incident_details', 'detection_runs', 'exposure_counts'];
@@ -66,12 +67,12 @@ const RUN_ID = 1;
 const INCIDENT_ID = 1;
 const EXPOSURE = { playerId: PARENTS.playerId, countedOn: '2024-12-02' } as const;
 // The incident of a reached quota of the language model.
-const QUOTA_REACHED = {
+const QUOTA_REACHED: PgInsertValue<typeof incidents> = {
   kind: 'quota_reached',
   causeKey: 'language_model',
   serviceRole: 'language_model',
   quotaCauses: ['limit_reached'],
-} as const;
+};
 // The counters of a run, each of which a negative value breaks.
 const COUNTERS = [
   'articlesReceived',

@@ -10,6 +10,7 @@ import { alertSheets, alertSheetSections } from './alerts';
 import { alertSheetCaveats, alertSheetExpectedGames, alertSheetUpdates } from './alerts-history';
 
 import type { Database } from '../types';
+import type { PgInsertValue } from 'drizzle-orm/pg-core';
 
 // The tables of alert-sheets.md that follow a sheet after its production.
 const TABLES = ['alert_sheet_caveats', 'alert_sheet_expected_games', 'alert_sheet_updates'];
@@ -105,11 +106,11 @@ const SUPERSEDED = {
   supersessionReason: 'postponed',
 } as const;
 const CAVEAT = { alertSheetId: SHEET_ID, kind: 'small_sample', computedAt: at(10) } as const;
-const KNOWN_CONTEXT = {
+const KNOWN_CONTEXT: PgInsertValue<typeof alertSheetCaveats> = {
   ...CAVEAT,
   kind: 'known_context',
   knownContextReasons: ['high_stakes'],
-} as const;
+};
 const UPDATE = { alertSheetId: SHEET_ID, occurredAt: at(11), kind: 'status_changed' } as const;
 // A value that no stored set of the model holds.
 const OUTSIDE = sql`'outside'`;
@@ -250,7 +251,7 @@ describe('the expected games, caveats and updates of a sheet', { timeout: 60_000
     await expect(db.$count(alertSheetCaveats)).resolves.toBe(12);
   });
 
-  it.each([
+  it.each<readonly [string, PgInsertValue<typeof alertSheetCaveats>, string]>([
     ['a kind outside the list', { ...CAVEAT, kind: OUTSIDE }, 'kind'],
     [
       'a reason outside the list',
@@ -267,7 +268,7 @@ describe('the expected games, caveats and updates of a sheet', { timeout: 60_000
       { ...CAVEAT, knownContextReasons: ['opponent_strength'] },
       'known_context',
     ],
-  ] as const)('[ALE-16] [CL-ALE-07] refuses a caveat with %s', async (_case, caveat, check) => {
+  ])('[ALE-16] [CL-ALE-07] refuses a caveat with %s', async (_case, caveat, check) => {
     const insert = db.insert(alertSheetCaveats).values(caveat);
 
     await expect(insert).rejects.toMatchObject(violationOf(`alert_sheet_caveats_${check}_check`));

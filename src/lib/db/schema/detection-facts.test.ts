@@ -13,6 +13,7 @@ import { articleAttachments, classificationFacts } from './detection-facts';
 import { events } from './events';
 
 import type { Database } from '../types';
+import type { PgInsertValue } from 'drizzle-orm/pg-core';
 
 // The tables of detection.md about the facts a classification reports and the
 // articles they attach.
@@ -232,7 +233,7 @@ describe('the facts of a classification and the articles they attach', { timeout
     await expect(db.$count(classificationFacts)).resolves.toBe(13);
   });
 
-  it.each([
+  it.each<readonly [string, PgInsertValue<typeof classificationFacts>, string]>([
     [
       'a kind outside the list',
       {
@@ -252,7 +253,7 @@ describe('the facts of a classification and the articles they attach', { timeout
     ['an outcome outside the list', { ...VALIDATED, outcome: OUTSIDE }, 'outcome'],
     [
       'a reason of a part, not of a fact',
-      { ...NOT_RELEVANT, notRelevantReason: 'no_fact' },
+      { ...NOT_RELEVANT, notRelevantReason: sql`'no_fact'` },
       'not_relevant_reason',
     ],
     [
@@ -329,7 +330,7 @@ describe('the facts of a classification and the articles they attach', { timeout
       { ...VALIDATED, outcome: 'linked_to_proposal' },
       'linked',
     ],
-  ] as const)(
+  ])(
     '[DET-16] [DET-28] [DET-58] [CL-DET-02] [CL-DET-03] refuses a fact with %s',
     async (_case, fact, check) => {
       const insert = db.insert(classificationFacts).values(fact);
