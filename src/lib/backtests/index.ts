@@ -27,4 +27,26 @@ export type {
 // detection.ts: createFromDetection, attachDetectedEvent, routeDetectedEvent, rankedTodoRequests
 //   (Lot 2)
 
-// queries.ts: list, get, requestsToDo, requestsOfPlayer, inProgress
+// queries.ts, with request-detail.ts, sheet-versions.ts and request-reads.ts beside it for the
+// size limits: list, get, requestsToDo, requestsOfPlayer, inProgress, outdatedPrompts
+export { inProgress, list, requestsOfPlayer, requestsToDo } from './queries';
+export type { InProgress, PlayerRequest, RequestListPage, RequestListQuery } from './queries';
+export { get } from './request-detail';
+export type {
+  OverallPeriod,
+  RequestCancellation,
+  RequestDetail,
+  RequestType,
+} from './request-detail';
+export type {
+  BacktestRequestKind,
+  BacktestRequestOrigin,
+  BacktestRequestStatus,
+  BacktestRequestTrigger,
+  RequestDeadline,
+  RequestGame,
+  RequestPlayer,
+  RequestSummary,
+} from './request-reads';
+export { outdatedPrompts } from './sheet-versions';
+export type { OutdatedPrompt, OutdatedType } from './sheet-versions';
