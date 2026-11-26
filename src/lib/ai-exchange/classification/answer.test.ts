@@ -400,6 +400,22 @@ describe('checkAnswer', () => {
       fault('empty_text', listAt('new_type_facts', 'suggested_definition')),
       withNewType({ suggestedDefinition: '' }),
     ],
+    [
+      fault('empty_text', listAt('known_entry_facts', 'justification')),
+      withLists({ knownEntryFacts: [{ ...KNOWN_ENTRY, justification: '' }] }),
+    ],
+    [
+      fault('wrong_type', listAt('new_type_facts', 'justification')),
+      withNewType({ justification: 5 }),
+    ],
+    [
+      fault('wrong_type', [...PART_PATH, 'known_entry_facts', 0]),
+      withLists({ knownEntryFacts: [null] }),
+    ],
+    [
+      fault('wrong_type', [...PART_PATH, 'calendar_facts', 0]),
+      withLists({ calendarFacts: ['birthday'] }),
+    ],
   ])('[CL-DET-02] makes a part unusable for a fault of the schema: %j', (reason, text) => {
     expect(check(text)).toStrictEqual(unusable(reason));
   });

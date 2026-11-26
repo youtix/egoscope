@@ -169,6 +169,7 @@ function readTimingHint(
   }
   // A day `YYYY-MM-DD` sorts after the instant that the article's date starts exactly when
   // it is a later day: on the same day, it is the shorter of the two texts.
+  // Stryker disable next-line EqualityOperator: a day of ten characters never equals the longer instant text, so > and >= agree on every input
   return accept(read.value > article.publishedAt ? null : read.value);
 }
 
