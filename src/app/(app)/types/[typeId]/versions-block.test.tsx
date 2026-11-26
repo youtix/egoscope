@@ -67,6 +67,23 @@ function itemStartingWith(start: string): HTMLElement {
   return found;
 }
 
+/** The number that a list item gives as its sheet version, none for a history entry. */
+function versionNumberOf(item: HTMLElement): string | undefined {
+  const line = within(item).queryByText(/^\d+$/u, { selector: 'p' });
+  return line === null ? undefined : textOf(line).split(' ').at(-1);
+}
+
+/** The list item of sheet version `versionNumber`. */
+function versionItem(versionNumber: number): HTMLElement {
+  const found = screen
+    .getAllByRole('listitem')
+    .find((item) => versionNumberOf(item) === String(versionNumber));
+  if (found === undefined) {
+    throw new Error(`No list item shows sheet version ${String(versionNumber)}.`);
+  }
+  return found;
+}
+
 /** Which of the `labels` `item` shows, in the order given. */
 function shownIn(item: HTMLElement, labels: readonly string[]): string[] {
   return labels.filter((text) => within(item).queryByText(text) !== null);
@@ -87,6 +104,7 @@ async function addVersion(
     eventTypeId: MEDIA_STORM,
     versionNumber,
     kind: 'substantive_change',
+    substantiveScope: 'narrows',
     content: { name: 'Media storm' },
     ...values,
   });
@@ -121,7 +139,7 @@ describe('the versions block of the type sheet', { timeout: DATABASE_TEST_TIMEOU
 
     await renderBlock();
 
-    expect(factsOf(itemStartingWith('Sheet version 2'))).toStrictEqual({
+    expect(factsOf(versionItem(2))).toStrictEqual({
       terms: [
         'Date',
         'Reason',
@@ -137,7 +155,7 @@ describe('the versions block of the type sheet', { timeout: DATABASE_TEST_TIMEOU
   it('[TAX-26] never hides a count: a version that changed no event reads zero for each', async () => {
     await renderBlock();
 
-    expect(factsOf(itemStartingWith('Sheet version 1'))).toStrictEqual({
+    expect(factsOf(versionItem(1))).toStrictEqual({
       terms: [
         'Date',
         'Reason',
@@ -154,16 +172,19 @@ describe('the versions block of the type sheet', { timeout: DATABASE_TEST_TIMEOU
     await addVersion(db, 2, { createdAt: hourOf(1), substantiveScope: 'broadens' });
     await addVersion(db, 3, { createdAt: hourOf(2), substantiveScope: 'narrows' });
     await addVersion(db, 4, { createdAt: hourOf(3), substantiveScope: 'both' });
-    await addVersion(db, 5, { createdAt: hourOf(4), kind: 'merge', mergeCoversUnion: true });
+    await addVersion(db, 5, {
+      createdAt: hourOf(4),
+      kind: 'merge',
+      substantiveScope: null,
+      mergeCoversUnion: true,
+    });
     const kinds = ['Validation', 'Substantive change', 'Merge'];
     const scopes = ['Broadens the type', 'Narrows the type', 'Both'];
 
     await renderBlock();
 
     expect(
-      [1, 2, 3, 4, 5].map((n) =>
-        shownIn(itemStartingWith(`Sheet version ${String(n)}`), [...kinds, ...scopes]),
-      ),
+      [1, 2, 3, 4, 5].map((n) => shownIn(versionItem(n), [...kinds, ...scopes])),
     ).toStrictEqual([
       ['Validation'],
       ['Substantive change', 'Broadens the type'],
@@ -179,11 +200,11 @@ describe('the versions block of the type sheet', { timeout: DATABASE_TEST_TIMEOU
 
     await renderBlock();
 
-    expect(
-      screen
-        .getAllByRole('listitem')
-        .map((item) => textOf(item).slice(0, 'Sheet version 1'.length)),
-    ).toStrictEqual(['Sheet version 1', 'Sheet version 2', 'Sheet version 3']);
+    expect(screen.getAllByRole('listitem').map((item) => versionNumberOf(item))).toStrictEqual([
+      '1',
+      '2',
+      '3',
+    ]);
   });
 
   it('[IHM-15] opens the definition of the sheet version from its first label only', async () => {
@@ -192,9 +213,7 @@ describe('the versions block of the type sheet', { timeout: DATABASE_TEST_TIMEOU
     await renderBlock();
 
     expect(screen.getAllByRole('button', { name: 'Sheet version' })).toHaveLength(1);
-    expect(within(itemStartingWith('Sheet version 1')).getByRole('button')).toHaveTextContent(
-      'Sheet version',
-    );
+    expect(within(versionItem(1)).getByRole('button')).toHaveTextContent('Sheet version');
     expect(screen.getAllByText('Sheet version')).toHaveLength(2);
     expect(screen.getAllByText(definition('sheetVersion').text)).toHaveLength(1);
   });
@@ -235,7 +254,7 @@ describe('the versions block of the type sheet', { timeout: DATABASE_TEST_TIMEOU
 
     const entries = screen
       .getAllByRole('listitem')
-      .filter((item) => !textOf(item).startsWith('Sheet version'));
+      .filter((item) => versionNumberOf(item) === undefined);
     expect(
       entries.map((entry) => [
         textOf(entry).slice(0, 'Wed 25 Nov 2026, 13:00'.length),
@@ -431,7 +450,7 @@ describe('the versions block of the type sheet', { timeout: DATABASE_TEST_TIMEOU
 
     await renderBlock();
 
-    expect(factsOf(itemStartingWith('Sheet version 1')).values[0]).toBe('Wed 25 Nov 2026, 04:00');
+    expect(factsOf(versionItem(1)).values[0]).toBe('Wed 25 Nov 2026, 04:00');
   });
 
   it('[TAX-20] asks for a missing page when no type has the identifier', async () => {
