@@ -315,17 +315,43 @@ describe('feedIn', () => {
     expect(elapsedMs).toBeLessThan(READ_BUDGET_MS);
   });
 
-  it('[TRV-17] [COL-41] stops at the first error of a body full of them, unreadable after a feed root and not a feed before any root', () => {
+  it('[TRV-17] [COL-41] stops at the first error of a body full of them, unreadable after a feed root and not a feed when no root opens near it', () => {
     const { answers, elapsedMs, largestBytes } = timed([
       `<rss version="2.0">${filling('&x;')}</rss>`,
       `<rss version="2.0">${filling('</>')}</rss>`,
       `${filling('</>')}<rss version="2.0"/>`,
-      'Some text<rss version="2.0"><channel/></rss>',
+      `${filling('</>')}<html><body/></html>`,
     ]);
 
     expect(largestBytes).toBeLessThanOrEqual(MAX_FEED_BYTES);
     expect(answers).toStrictEqual([UNREADABLE, UNREADABLE, NOT_A_FEED, NOT_A_FEED]);
     expect(elapsedMs).toBeLessThan(READ_BUDGET_MS);
+  });
+
+  it('[COL-41] answers a feed with an error before its root as unreadable, and a page with one as not a feed', () => {
+    const feed = rss('<item><title>Stray text above</title></item>');
+    const before = [
+      'Some text',
+      'Warning: Undefined variable $title in /srv/feed.php on line 12\n<?xml version="1.0"?>\n',
+      '<!-- cached -->\n<?xml version="1.0"?>',
+    ];
+    // A UTF-8 byte order mark, read as three characters under the ISO-8859-1 that the answer names.
+    const marked = Buffer.concat([
+      Buffer.from([0xef, 0xbb, 0xbf]),
+      Buffer.from(`<?xml version="1.0"?>${feed}`),
+    ]);
+
+    expect([
+      ...before.map((text) => feedIn(bytesOf(`${text}${feed}`), XML_TYPE, COURTSIDE)),
+      feedIn(marked, 'application/rss+xml; charset=ISO-8859-1', COURTSIDE),
+    ]).toStrictEqual([UNREADABLE, UNREADABLE, UNREADABLE, UNREADABLE]);
+    // The same feed read without the error, and a page after the same errors.
+    expect(titleOf(bytesOf(feed), XML_TYPE)).toBe('Stray text above');
+    expect(
+      ['Some text<html><body/></html>', '<!-- cached -->\n<?xml version="1.0"?><html/>'].map(
+        (text) => feedIn(bytesOf(text), XML_TYPE, COURTSIDE),
+      ),
+    ).toStrictEqual([NOT_A_FEED, NOT_A_FEED]);
   });
 
   it('[COL-17] [TRV-17] decodes a feed in the charset its answer names, else its declaration', () => {
