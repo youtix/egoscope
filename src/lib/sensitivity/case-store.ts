@@ -10,11 +10,9 @@ import { and, asc, eq, inArray, notExists, sql, TransactionRollbackError } from 
 import { caseReviewFlags, cases, caseTriggeredCriteria, events, games } from '@/lib/db';
 import { recordCaseLinks } from '@/lib/events';
 import { ok } from '@/lib/result';
-import { now } from '@/lib/time';
 
-import { isHeldBy, valuesOf, writeCaseRows } from './case-rows';
+import { present, writeCase } from './case-rows';
 
-import type { CaseValues } from './case-rows';
 import type { RecalculationCause } from './recalculate';
 import type { CaseRow, RegroupingReactions } from './types';
 import type { Transaction } from '@/lib/db';
@@ -44,7 +42,8 @@ type Written = Readonly<{ target: Target; caseId: CaseId }>;
  * Reads what the write compares and regroups: the player's cases with their criteria and
  * flags, and the events of the evaluation in the order they were recorded, each tracked
  * when detected, or calendar-derived before its game's scheduled start (SUI-05, SUI-07,
- * CL-VUE-13); the database compares instants finer than a JavaScript date.
+ * CL-VUE-13); the database compares instants finer than a JavaScript date, and a
+ * calendar-derived event always has its game (`events_calendar_check`).
  */
 async function readState(tx: Transaction, results: PlayerCaseResults) {
   const rows = await tx.select().from(cases).where(eq(cases.playerId, results.playerId));
@@ -62,7 +61,7 @@ async function readState(tx: Transaction, results: PlayerCaseResults) {
         id: events.id,
         playerId: events.playerId,
         caseId: events.caseId,
-        isTracked: sql<boolean>`${events.origin} = 'detected' OR (${events.origin} = 'calendar' AND coalesce(${events.createdAt} < ${games.scheduledStartAt}, false))`,
+        isTracked: sql<boolean>`${events.origin} = 'detected' OR (${events.origin} = 'calendar' AND ${events.createdAt} < ${games.scheduledStartAt})`,
       })
       .from(events)
       .leftJoin(games, eq(games.id, events.derivedGameId))
@@ -81,14 +80,6 @@ type StoredState = Awaited<ReturnType<typeof readState>>;
 
 /** An event of the evaluation as it is stored: its player, its case, and whether it would make its own case tracked. */
 type StoredEvent = StoredState['events'][number];
-
-/** `value`, which the database always gives: its absence is a bug. */
-function present<T>(value: T | undefined, what: string): T {
-  if (value === undefined) {
-    throw new Error(`The case store found no ${what}.`);
-  }
-  return value;
-}
 
 /** The target of `evaluated`, with the stored case of its type that already has its measured game. */
 function targetOf(evaluated: EvaluatedCase, state: StoredState) {
@@ -124,53 +115,6 @@ function targetsOf(results: PlayerCaseResults, state: StoredState): readonly Tar
     target.kept = candidate;
   }
   return targets;
-}
-
-/**
- * Writes the row of `target` and gives its id: a new case takes the origin and the
- * creation instant of its earliest-recorded event (CL-VUE-03, CL-VUE-13, SUI-04); a kept
- * case keeps both and is written only when one of its values changes.
- */
-async function writeRow(tx: Transaction, target: Target, values: CaseValues): Promise<CaseId> {
-  const computedAt = new Date(now());
-  const { kept, earliest, evaluated } = target;
-  if (kept === null) {
-    const [inserted] = await tx
-      .insert(cases)
-      .values({
-        ...values,
-        playerId: earliest.playerId,
-        eventTypeId: evaluated.eventTypeId,
-        origin: earliest.isTracked ? 'tracked' : 'historical',
-        createdAt: sql`(select ${events.createdAt} from ${events} where ${events.id} = ${earliest.id})`,
-        computedAt,
-      })
-      .returning({ id: cases.id });
-    return present(inserted, 'inserted case').id;
-  }
-  if (!isHeldBy(kept, values)) {
-    await tx
-      .update(cases)
-      .set({ ...values, computedAt })
-      .where(eq(cases.id, kept.id));
-  }
-  return kept.id;
-}
-
-/**
- * Writes one case of the evaluation with its criteria, review flags and history (SEN-07 to
- * SEN-17, CL-SEN-17), and gives its id.
- */
-async function writeCase(
-  tx: Transaction,
-  target: Target,
-  { state, cause }: Readonly<{ state: StoredState; cause: RecalculationCause }>,
-): Promise<CaseId> {
-  const values = valuesOf(target.evaluated);
-  const caseId = await writeRow(tx, target, values);
-  const written = { caseId, evaluated: target.evaluated, values, before: target.kept };
-  await writeCaseRows(tx, written, { criteria: state.criteria, flags: state.flags, cause });
-  return caseId;
 }
 
 /** The link of each event of the evaluation to its case and, when historical, its precedence (CL-IMP-17). */
@@ -229,9 +173,10 @@ async function write<E>(
   reactions: readonly RegroupingReactions<E>[],
 ): Promise<Result<readonly CaseId[], E>> {
   const state = await readState(tx, results);
+  const rows = { criteria: state.criteria, flags: state.flags, cause: results.cause };
   const written: Written[] = [];
   for (const target of targetsOf(results, state)) {
-    written.push({ target, caseId: await writeCase(tx, target, { state, cause: results.cause }) });
+    written.push({ target, caseId: await writeCase(tx, target, rows) });
   }
   await recordCaseLinks(tx, linksOf(written, results));
   const deleted = await deleteEmptied(tx, { results, state, written }, reactions);
