@@ -64,7 +64,9 @@ Row checks:
   every detected-only and calendar-only column is null.
 - Detected: `detected_status`, `reference_at`, `reference_date_precision`, `reference_date_rule`
   and `classification_origin` are not null; `reference_date_on`, `reference_offset_minutes` and the
-  historical-only and calendar-only columns are null; `(detected_status = 'dismissed') = (dismissal_reason IS NOT NULL AND dismissed_at IS NOT NULL)`;
+  historical-only and calendar-only columns are null; `events_dismissed_check`,
+  `(detected_status = 'dismissed') = (dismissal_reason IS NOT NULL AND dismissed_at IS NOT NULL) AND (detected_status = 'dismissed' OR dismissal_reason IS NULL)`,
+  which also refuses a dismissal reason on a detected event that is not dismissed;
   `dismissal_comment IS NOT NULL` when `dismissal_reason = 'other'`;
   `events_user_classification_check`,
   `classification_origin IS DISTINCT FROM 'user' OR detection_confidence IS NULL`: an owner's
@@ -634,7 +636,10 @@ run, for each player and type:
    reached no game is a case of its own.
 2. A group keeps the existing case that already has that measured game; if none has it, the case
    of the group's earliest-recorded event; otherwise a new case with the origin of the group's
-   earliest-recorded event (CL-VUE-03).
+   earliest-recorded event (CL-VUE-03). The earliest-recorded event is the one with the earliest
+   `created_at`; of two events recorded at the same instant, as the events of one import are, since
+   they share their transaction's instant, the one stored first, with the lower `id`, counts as the
+   earlier.
 3. Cases left without events are deleted with their history, criteria, flags and decisions; their
    events now belong to the surviving case, whose `created_at` and origin do not change (SUI-04,
    CL-VUE-03). In Lot 2 the recalculation (`sensitivity.processRecalculationJobs`) runs the
@@ -643,6 +648,8 @@ run, for each player and type:
    the regrouping's transaction, after the events have joined the surviving case and before the
    emptied case is deleted, while the emptied case's row is still readable with its measured game
    and its gap as they were before the regrouping; the emptied case is not recalculated in between.
+   When one write empties several cases of a player, the reactions run over the emptied cases in
+   ascending id, so that the result does not depend on the physical order of their rows (SEN-36).
    Each moves the rows that point at the emptied case to the surviving case, or deletes them when
    that case already has one; tracking first records the exit (`regrouping_exits`, CL-SUI-16),
    tied to the emptied case's earliest-recorded detected or calendar-derived event, and records
