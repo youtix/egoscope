@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { toEpochMs } from '@/lib/time';
+import { now, toEpochMs } from '@/lib/time';
 
 import type { CallContext } from './types';
 
@@ -9,6 +9,9 @@ const CONTEXT: CallContext = {
   signal: new AbortController().signal,
 };
 const NAME = 'egoscope-backup-20261116T040000Z-weekly.bin';
+const REPOSITORY = 'quiet-owner/archive-vault';
+const TOKEN = 'invented-token-for-tests';
+const CALL_BUDGET_MS = 10_000;
 // Where the process keeps its one fake.
 const SHARED_FAKE = Symbol.for('egoscope.backup-storage.fake');
 const NOT_CONFIGURED = {
@@ -33,8 +36,10 @@ describe('backupStorage', () => {
     vi.stubGlobal(SHARED_FAKE, undefined);
   });
 
-  it('[TRV-47] answers "not configured" to every call, sending nothing, while no real adapter serves', async () => {
-    const storage = (await accessorWith({}))();
+  it('[TRV-47] answers "not configured" to every call, sending nothing, without the repository or the token', async () => {
+    const fetchSpy = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchSpy);
+    const storage = (await accessorWith({ BACKUP_GITHUB_REPOSITORY: REPOSITORY }))();
     const answers = [
       await storage.checkHealth(CONTEXT),
       await storage.ensureContainer(CONTEXT),
@@ -52,6 +57,38 @@ describe('backupStorage', () => {
       NOT_CONFIGURED,
       NOT_CONFIGURED,
     ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('[TRV-47] serves the GitHub adapter, on the configured repository with the configured token', async () => {
+    const fetchSpy = vi.fn<typeof fetch>(async () => {
+      await Promise.resolve();
+      return Response.json({ private: true });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const storage = (
+      await accessorWith({ BACKUP_GITHUB_REPOSITORY: REPOSITORY, BACKUP_GITHUB_TOKEN: TOKEN })
+    )();
+    const health = await storage.checkHealth({
+      deadline: toEpochMs(now() + CALL_BUDGET_MS),
+      signal: new AbortController().signal,
+    });
+    const [address, init] = fetchSpy.mock.calls[0] ?? [];
+
+    expect(health).toMatchObject({ ok: true, value: { private: true }, call: { httpRequests: 1 } });
+    expect(address).toBe(`https://api.github.com/repos/${REPOSITORY}`);
+    expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('[TRV-47] answers "not configured", sending nothing, while the configuration is invalid', async () => {
+    const fetchSpy = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchSpy);
+    const storage = (
+      await accessorWith({ BACKUP_GITHUB_REPOSITORY: 'no repository', BACKUP_GITHUB_TOKEN: TOKEN })
+    )();
+
+    expect(await storage.list(CONTEXT)).toStrictEqual(NOT_CONFIGURED);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('serves the one fake of the process when EGOSCOPE_FAKES names the port', async () => {

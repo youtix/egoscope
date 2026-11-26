@@ -1,0 +1,98 @@
+{
+  "bad_credentials": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "x-github-api-version-selected": "2026-03-10"
+    },
+    "body": {
+      "message": "Bad credentials",
+      "documentation_url": "https://docs.github.com/rest",
+      "status": "401"
+    }
+  },
+  "not_accessible": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "x-accepted-github-permissions": "contents=write",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4993",
+      "x-ratelimit-reset": "1794805200",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "message": "Resource not accessible by personal access token",
+      "documentation_url": "https://docs.github.com/rest/releases/assets#delete-a-release-asset",
+      "status": "403"
+    }
+  },
+  "not_found": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4992",
+      "x-ratelimit-reset": "1794805200",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "message": "Not Found",
+      "documentation_url": "https://docs.github.com/rest/releases/assets#get-a-release-asset",
+      "status": "404"
+    }
+  },
+  "already_exists": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4991",
+      "x-ratelimit-reset": "1794805200",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "message": "Validation Failed",
+      "request_id": "0000:111111:2222222:3333333:44444444",
+      "documentation_url": "https://docs.github.com/rest/releases/assets#upload-a-release-asset",
+      "errors": [{ "resource": "ReleaseAsset", "code": "already_exists", "field": "name" }]
+    }
+  },
+  "rate_limited": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "0",
+      "x-ratelimit-reset": "1794808800",
+      "x-ratelimit-used": "5000",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "message": "API rate limit exceeded for user ID 900000002. If you reach out to GitHub Support for help, please include the request ID 0000:111111:2222222:3333333:55555555.",
+      "documentation_url": "https://docs.github.com/rest/overview/rate-limits-for-the-rest-api",
+      "status": "403"
+    }
+  },
+  "secondary_rate_limit": {
+    "status": 429,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "retry-after": "60",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4990",
+      "x-ratelimit-reset": "1794805200",
+      "x-ratelimit-resource": "core"
+    },
+    "body": {
+      "message": "You have exceeded a secondary rate limit. Please wait a few minutes before you try again.",
+      "documentation_url": "https://docs.github.com/rest/overview/rate-limits-for-the-rest-api#about-secondary-rate-limits",
+      "status": "429"
+    }
+  },
+  "bad_gateway": {
+    "status": 502,
+    "headers": { "content-type": "application/json; charset=utf-8" },
+    "body": { "message": "Server Error" }
+  }
+}
