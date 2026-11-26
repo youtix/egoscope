@@ -324,9 +324,9 @@ export async function checkedCorrection(
       ? [{ kind: 'too_many_sources', maxSourcesPerEvent }]
       : [];
   const results = checkEvents([corrected], context).map((check) => verdict(check, others));
+  const problems = results.flatMap((result) => (result.ok ? [] : result.error));
   const [accepted] = results.flatMap((result) => (result.ok ? [result.value] : []));
   if (accepted === undefined) {
-    const problems = results.flatMap((result) => (result.ok ? [] : result.error));
     return err({ kind: 'failed_checks', problems });
   }
   const { publicDate, sources, ...plain } = correction;

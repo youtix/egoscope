@@ -301,7 +301,7 @@ describe('checkedCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     await expect(
       check({
         sources: [
-          typedSource(STORED_LINK, '2024-11-20'),
+          { ...typedSource(STORED_LINK, '2024-11-20'), outlet: null },
           timed,
           typedSource(NEW_LINK, '2024-11-19'),
         ],
@@ -328,7 +328,7 @@ describe('checkedCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
           {
             url: STORED_LINK,
             cleanedUrl: STORED_LINK,
-            outlet: 'Daily',
+            outlet: null,
             title: null,
             publication: { on: '2024-11-20', at: null },
           },
