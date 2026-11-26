@@ -128,7 +128,7 @@ describe('the reads of events', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ]);
   });
 
-  it('[DSN-06] [DET-48] [CL-DET-26] gives a detected event with its marks, its status changes and the sources the owner added, timed with or without a zone', async () => {
+  it('[DSN-06] [DET-44] [DET-48] [CL-DET-26] gives a dismissed detected event with its reason, its marks, its status changes and the sources the owner added, timed with or without a zone', async () => {
     const detected = await insertDetectedEvent(db, { playerId: second });
     const ownerSources = [
       { on: '2026-11-23', at: DATE_ONLY_AT, offsetMinutes: null, precision: 'approximate' },

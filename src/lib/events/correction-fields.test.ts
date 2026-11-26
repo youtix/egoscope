@@ -1,7 +1,14 @@
 import { asc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createTestDatabase, eventCorrections, eventMarks, events, tallyExits } from '@/lib/db';
+import {
+  cases,
+  createTestDatabase,
+  eventCorrections,
+  eventMarks,
+  events,
+  tallyExits,
+} from '@/lib/db';
 import {
   DATABASE_TEST_TIMEOUT_MS,
   insertEventType,
@@ -21,7 +28,7 @@ import { createDetected, setDetectedStatus } from './status';
 import type { EventChanges } from './correction-fields';
 import type { NewDetectedEvent } from './status';
 import type { EventRow } from './types';
-import type { DetectedEvent } from './views';
+import type { DetectedEvent, DetectedReference } from './views';
 import type { Database } from '@/lib/db';
 import type { FixedClock } from '@/lib/time';
 
@@ -35,9 +42,15 @@ const HOUR_MS = 3_600_000;
 const TRADE_RUMOR = 'trade-rumor';
 const CONFIDENCE = 82;
 
-/** Instant `at` in ISO 8601, as the correction history keeps a reference instant. */
-function isoOf(at: number): string {
-  return new Date(at).toISOString();
+const STORED_REFERENCE: DetectedReference = {
+  at: REFERENCE_AT,
+  precision: 'exact',
+  rule: 'earliest_source',
+};
+
+/** A reference date as the correction history keeps it: its instant in ISO 8601, its precision and its rule. */
+function valueOf({ at, precision, rule }: DetectedReference): string {
+  return `${new Date(at).toISOString()} ${precision} ${rule}`;
 }
 
 describe('the corrections of a detected event', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
@@ -74,7 +87,7 @@ describe('the corrections of a detected event', { timeout: DATABASE_TEST_TIMEOUT
         playerId,
         eventTypeId: MEDIA_STORM,
         sheetVersionNumber: 1,
-        reference: { at: REFERENCE_AT, precision: 'exact', rule: 'earliest_source' },
+        reference: STORED_REFERENCE,
         description: 'Three national outlets covered the player on the same day.',
         context: {
           injuryReturn: { value: 'yes', origin: 'classification' },
@@ -148,9 +161,12 @@ describe('the corrections of a detected event', { timeout: DATABASE_TEST_TIMEOUT
 
   it('[DET-31] [CL-DET-27] [DET-52] moves the reference date earlier with its precision and rule, and later only once its reference article is detached', async () => {
     const event = await created();
-    const earlier = await correct(event.playerEventId, {
-      reference: { at: EARLIER_AT, precision: 'approximate', rule: 'earliest_source' },
-    });
+    const earlierReference = {
+      at: EARLIER_AT,
+      precision: 'approximate',
+      rule: 'earliest_source',
+    } as const;
+    const earlier = await correct(event.playerEventId, { reference: earlierReference });
     const later = { at: LATER_AT, precision: 'exact', rule: 'coverage_threshold' } as const;
     const refused = await correct(event.playerEventId, { reference: later });
     const otherDetached = await correct(event.playerEventId, {
@@ -186,9 +202,58 @@ describe('the corrections of a detected event', { timeout: DATABASE_TEST_TIMEOUT
       },
     });
     await expect(correctionValues(event.playerEventId)).resolves.toStrictEqual([
-      ['reference_date', isoOf(REFERENCE_AT), isoOf(EARLIER_AT)],
-      ['reference_date', isoOf(EARLIER_AT), isoOf(LATER_AT)],
+      ['reference_date', valueOf(STORED_REFERENCE), valueOf(earlierReference)],
+      ['reference_date', valueOf(earlierReference), valueOf(later)],
       ['article_detached', null, null],
+    ]);
+  });
+
+  it('[DET-31] [CL-DET-27] [DET-52] [CL-DSN-15] traces a change of precision or rule alone, and nothing for the reference sent back as stored', async () => {
+    const event = await created();
+    const unchanged = await correct(event.playerEventId, { reference: STORED_REFERENCE });
+    const approximate = { ...STORED_REFERENCE, precision: 'approximate' } as const;
+    const byPrecision = await correct(event.playerEventId, { reference: approximate });
+    const byThreshold = { ...approximate, rule: 'coverage_threshold' } as const;
+    const byRule = await correct(event.playerEventId, { reference: byThreshold });
+
+    expect(unchanged).toMatchObject({ ok: true, value: { changed: [], event: { rowVersion: 1 } } });
+    expect([byPrecision, byRule]).toMatchObject([
+      { ok: true, value: { changed: ['reference_date'], event: { rowVersion: 2 } } },
+      { ok: true, value: { changed: ['reference_date'], event: { rowVersion: 3 } } },
+    ]);
+    await expect(correctionValues(event.playerEventId)).resolves.toStrictEqual([
+      ['reference_date', valueOf(STORED_REFERENCE), valueOf(approximate)],
+      ['reference_date', valueOf(approximate), valueOf(byThreshold)],
+    ]);
+  });
+
+  it('[DET-47] [CA-DET-27] moves an event of a case to another player, leaving its case for the recalculation to derive again', async () => {
+    const event = await created();
+    const [inCase] = await db
+      .insert(cases)
+      .values({
+        playerId,
+        eventTypeId: MEDIA_STORM,
+        origin: 'tracked',
+        status: 'not_measurable',
+        statusReason: 'no_game_within_window',
+        referenceInstantAt: new Date(REFERENCE_AT),
+        referenceInstantOrigin: 'known_instant',
+      })
+      .returning({ id: cases.id });
+    await db.update(events).set({ caseId: inCase?.id }).where(eq(events.id, event.playerEventId));
+    const moved = await correct(event.playerEventId, { playerId: otherPlayerId });
+
+    expect(inCase).toBeDefined();
+    expect(moved).toMatchObject({
+      ok: true,
+      value: {
+        changed: ['player'],
+        event: { playerId: otherPlayerId, eventTypeId: MEDIA_STORM, caseId: null, rowVersion: 2 },
+      },
+    });
+    await expect(correctionValues(event.playerEventId)).resolves.toStrictEqual([
+      ['player', playerId, otherPlayerId],
     ]);
   });
 
@@ -209,14 +274,23 @@ describe('the corrections of a detected event', { timeout: DATABASE_TEST_TIMEOUT
     await expect(correctionValues(event.playerEventId)).resolves.toStrictEqual([]);
   });
 
-  it('[DET-47] refuses to merge an event that is not another detected event of the player', async () => {
+  it('[DET-47] refuses to merge an event that is not another detected event of the player, the new one when the correction changes it', async () => {
     const kept = await created({ eventTypeId: TRADE_RUMOR });
     const ofOtherPlayer = await created({ eventTypeId: TRADE_RUMOR, playerId: otherPlayerId });
+    const ofPlayer = await created({ eventTypeId: TRADE_RUMOR });
     const notMergeable = [
       await correct(kept.playerEventId, { mergedEventId: ofOtherPlayer.playerEventId }),
       await correct(kept.playerEventId, { mergedEventId: kept.playerEventId }),
       await correct(kept.playerEventId, { mergedEventId: historical.id }),
+      await correct(kept.playerEventId, {
+        playerId: otherPlayerId,
+        mergedEventId: ofPlayer.playerEventId,
+      }),
     ];
+    const movedAndMerged = await correct(kept.playerEventId, {
+      playerId: otherPlayerId,
+      mergedEventId: ofOtherPlayer.playerEventId,
+    });
 
     expect(notMergeable.map((outcome) => !outcome.ok && outcome.error)).toStrictEqual(
       Array.from({ length: notMergeable.length }, () => ({
@@ -224,7 +298,14 @@ describe('the corrections of a detected event', { timeout: DATABASE_TEST_TIMEOUT
         fields: { mergedEventId: 'not_a_detected_event_of_the_player' },
       })),
     );
-    await expect(correctionValues(kept.playerEventId)).resolves.toStrictEqual([]);
+    expect(movedAndMerged).toMatchObject({
+      ok: true,
+      value: { changed: ['player', 'event_merged_in'], event: { playerId: otherPlayerId } },
+    });
+    await expect(correctionValues(kept.playerEventId)).resolves.toStrictEqual([
+      ['player', playerId, otherPlayerId],
+      ['event_merged_in', null, null],
+    ]);
   });
 
   it('[DET-47] [DET-52] merges another detected event of the player: the kept one traces it, the absorbed one is erased with the tally exit merged', async () => {
@@ -256,7 +337,11 @@ describe('the corrections of a detected event', { timeout: DATABASE_TEST_TIMEOUT
       value: { changed: ['reference_date', 'detection_confidence', 'event_merged_in'] },
     });
     await expect(correctionValues(kept.playerEventId)).resolves.toStrictEqual([
-      ['reference_date', isoOf(REFERENCE_AT), isoOf(EARLIER_AT)],
+      [
+        'reference_date',
+        valueOf(STORED_REFERENCE),
+        valueOf({ at: EARLIER_AT, precision: 'exact', rule: 'earliest_source' }),
+      ],
       ['event_merged_in', null, null],
     ]);
     expect(erased).toStrictEqual({

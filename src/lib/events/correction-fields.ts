@@ -203,10 +203,13 @@ export async function checkChanges(
   };
 }
 
-/** Whether `mergedEventId` is another detected event of the player of `event` (DET-47). */
+/**
+ * Whether `mergedEventId` is another detected event of `playerId`, the player that `event`
+ * has once the correction is applied (DET-47).
+ */
 async function isMergeable(
   tx: Transaction,
-  event: EventRow,
+  { event, playerId }: Readonly<{ event: EventRow; playerId: string }>,
   mergedEventId: number,
 ): Promise<boolean> {
   const [absorbed] = await tx
@@ -217,7 +220,7 @@ async function isMergeable(
         eq(events.id, mergedEventId),
         ne(events.id, event.id),
         eq(events.origin, 'detected'),
-        eq(events.playerId, event.playerId),
+        eq(events.playerId, playerId),
       ),
     );
   return absorbed !== undefined;
@@ -226,13 +229,13 @@ async function isMergeable(
 /**
  * Checks the detected-event changes of `changes` on `event`: its reference date moves
  * later only when its reference article is detached (DET-31, DET-48, CL-DET-27), and only
- * another detected event of its player merges into it (DET-47). Nothing to fix for a key
- * that `changes` leaves out.
+ * another detected event of its player merges into it: of the new player when the same
+ * correction changes the player (DET-47). Nothing to fix for a key that `changes` leaves out.
  */
 export async function checkDetectedChanges(
   tx: Transaction,
   event: EventRow,
-  { reference, detachedArticle, mergedEventId }: EventChanges,
+  { reference, detachedArticle, mergedEventId, playerId }: EventChanges,
 ): Promise<CorrectionFieldErrors> {
   const isLater =
     reference !== undefined &&
@@ -240,7 +243,8 @@ export async function checkDetectedChanges(
     reference.at > event.referenceAt.getTime();
   const isRefusedLater = isLater && detachedArticle !== 'reference_article';
   const isRefusedMerge =
-    mergedEventId !== undefined && !(await isMergeable(tx, event, mergedEventId));
+    mergedEventId !== undefined &&
+    !(await isMergeable(tx, { event, playerId: playerId ?? event.playerId }, mergedEventId));
   return {
     ...(isRefusedLater && { reference: 'later_without_detachment' }),
     ...(isRefusedMerge && { mergedEventId: 'not_a_detected_event_of_the_player' }),
@@ -335,11 +339,23 @@ export function columnChanges(
   return planned;
 }
 
+/**
+ * A detected event's reference date as its correction history keeps it: the instant in
+ * ISO 8601, then its precision and its rule, so that a change of either alone shows.
+ */
+function referenceValue(event: EventRow): string | null {
+  return event.referenceAt === null
+    ? null
+    : [event.referenceAt.toISOString(), event.referenceDatePrecision, event.referenceDateRule].join(
+        ' ',
+      );
+}
+
 // The stored value of each structured field that a correction traces (CL-DSN-15).
 const VALUE_OF_FIELD: ReadonlyMap<CorrectedField, (event: EventRow) => string | null> = new Map([
   ['player', (event: EventRow) => event.playerId],
   ['event_type', (event: EventRow) => event.eventTypeId],
-  ['reference_date', (event: EventRow) => event.referenceAt?.toISOString() ?? null],
+  ['reference_date', referenceValue],
   ['injury_return', (event: EventRow) => event.injuryReturn],
   ['game_stakes', (event: EventRow) => event.gameStakes],
 ]);
@@ -360,8 +376,8 @@ export function isTraced(field: CorrectedField): field is NewEventCorrectionRow[
 }
 
 /**
- * The stored value of a structured field — player, type, reference instant in ISO 8601,
- * context indication — that the corrections of a detected event and the context
+ * The stored value of a structured field — player, type, reference instant in ISO 8601
+ * with its precision and rule, context indication — that the corrections of a detected event and the context
  * corrections of a calendar-derived one keep; none for a free text, the sources or an
  * action (DET-52, CA-DET-27, CL-DSN-15, CL-DSN-20).
  */

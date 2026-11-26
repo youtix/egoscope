@@ -74,9 +74,9 @@ export type { CorrectedSource, PublicDate } from './correction-sources';
 export { createDetected, setDetectedStatus } from './status';
 export type {
   DetectedStatusChange,
+  DetectedStatusRefusal,
   NewDetectedEvent,
   NewDismissal,
-  StatusRefusal,
   StatusSaved,
 } from './status';
 
@@ -105,6 +105,7 @@ export type {
   DetectedEventMark,
   DetectedReference,
   DetectedState,
+  DetectedStatusRecord,
   DismissalReason,
   HistoricalEvent,
   ImportWarning,
@@ -112,6 +113,5 @@ export type {
   PlayerEvent,
   PlayerEventSource,
   ReferenceDateRule,
-  StatusChange,
   StoredEventMark,
 } from './views';

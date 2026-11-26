@@ -134,7 +134,7 @@ export type DetectedEventMark = Readonly<{
 }>;
 
 /** A dismissal or a reinstatement, with its instant, and the reason and comment of a dismissal (DET-52). */
-export type StatusChange = Readonly<{
+export type DetectedStatusRecord = Readonly<{
   changedAt: EpochMs;
   toStatus: DetectedState['detectedStatus'];
   dismissalReason: DismissalReason | null;
@@ -167,7 +167,7 @@ export type DetectedEvent = EventBase &
     detectionConfidence: number | null;
     classificationOrigin: ClassificationOrigin;
     marks: readonly DetectedEventMark[];
-    statusChanges: readonly StatusChange[];
+    statusChanges: readonly DetectedStatusRecord[];
     sources: readonly OwnerAddedSource[];
   }>;
 
@@ -336,7 +336,7 @@ function markOf(row: EventMarkRow): DetectedEventMark {
 }
 
 /** The view of a status change's row. */
-function statusChangeOf(row: EventStatusChangeRow): StatusChange {
+function statusChangeOf(row: EventStatusChangeRow): DetectedStatusRecord {
   return {
     changedAt: instant(row.changedAt),
     toStatus: row.toStatus,

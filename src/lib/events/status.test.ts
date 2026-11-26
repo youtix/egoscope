@@ -164,7 +164,7 @@ describe('the detected events', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     expect(await db.$count(events, eq(events.origin, 'detected'))).toBe(before);
   });
 
-  it('[DET-43] [DET-45] [DET-46] [DET-52] dismisses and reinstates, writing each change with its instant and reason', async () => {
+  it('[DET-43] [DET-44] [DET-45] [DET-46] [DET-52] dismisses and reinstates, writing each change with its instant and reason, the dismissed event kept with its reason', async () => {
     const event = await created();
     clock.advance(HOUR_MS);
     const dismissedAt = now();

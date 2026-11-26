@@ -64,7 +64,7 @@ export type DetectedStatusChange = Readonly<{ expectedVersion: number }> &
   );
 
 /** Why a status or mark change is refused. */
-export type StatusRefusal =
+export type DetectedStatusRefusal =
   | Readonly<{ kind: 'not_detected' }>
   | Readonly<{ kind: 'status_unchanged'; detectedStatus: DetectedState['detectedStatus'] }>
   | Readonly<{ kind: 'invalid_comment'; problem: TextProblem }>
@@ -85,7 +85,7 @@ type StatusColumns = Readonly<{
 type DetectedPlanner = (event: EventRow, changes: EventChanges) => Partial<NewEventRow> | null;
 
 const NO_LONGER_EXISTS: NoLongerExists = { kind: 'no_longer_exists' };
-const NOT_DETECTED: StatusRefusal = { kind: 'not_detected' };
+const NOT_DETECTED: DetectedStatusRefusal = { kind: 'not_detected' };
 const NOTHING_ATTACHED = { sources: [], marks: [], statusChanges: [] } as const;
 
 /**
@@ -172,7 +172,7 @@ async function moveTo(
 async function commentOf(
   tx: Transaction,
   dismissal: NewDismissal,
-): Promise<Result<string | null, StatusRefusal>> {
+): Promise<Result<string | null, DetectedStatusRefusal>> {
   if (dismissal.reason !== 'other') {
     return ok(null);
   }
@@ -188,7 +188,7 @@ async function dismiss(
   tx: Transaction,
   event: EventRow,
   dismissal: NewDismissal,
-): Promise<Result<StatusSaved, StatusRefusal>> {
+): Promise<Result<StatusSaved, DetectedStatusRefusal>> {
   if (event.detectedStatus === 'dismissed') {
     return err({ kind: 'status_unchanged', detectedStatus: 'dismissed' });
   }
@@ -209,7 +209,7 @@ async function dismiss(
 async function reinstate(
   tx: Transaction,
   event: EventRow,
-): Promise<Result<StatusSaved, StatusRefusal>> {
+): Promise<Result<StatusSaved, DetectedStatusRefusal>> {
   if (event.detectedStatus !== 'dismissed') {
     return err({ kind: 'status_unchanged', detectedStatus: 'detected' });
   }
@@ -268,7 +268,7 @@ export async function setDetectedStatus(
   tx: Transaction,
   eventId: number,
   change: DetectedStatusChange,
-): Promise<Result<StatusSaved, StatusRefusal>> {
+): Promise<Result<StatusSaved, DetectedStatusRefusal>> {
   const [event] = await tx.select().from(events).where(eq(events.id, eventId)).for('update');
   if (event === undefined) {
     return err(NO_LONGER_EXISTS);
