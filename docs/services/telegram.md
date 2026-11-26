@@ -115,6 +115,14 @@ that carries it is passed through `env.redact` before it goes anywhere (TRV-64; 
   must be escaped ([Formatting options](https://core.telegram.org/bots/api#formatting-options)).
   Telegram apps ask for confirmation before opening an inline link and show its full URL; a bare
   URL avoids that prompt. Never set `allow_paid_broadcast`.
+  - An empty text, one with no character once its tags are read, which Telegram refuses, is a bug
+    of the caller: every adapter, the fake included, throws a `RangeError` before any request;
+    `textLength` and `requireText` live in `types.ts`, shared by both adapters.
+  - Telegram counts the 4,096 characters itself: the adapter does not check the length before
+    sending, it maps Telegram's refusal to `too_long`.
+  - Pacing the sends, one a second per chat, is the caller's (`quotas.telegram.messagesPerSecond`).
+  - `bot_deactivated` is never answered by this adapter: the Bot API documents no answer that
+    tells a deactivated bot from a refused token, both 401 (`unauthorized`).
 - **Receiving: webhook (recommended)**. A serverless application has no process to poll with, and
   the owner's tap must be confirmed within the 15-minute code validity (TEL-29). The application
   calls `setWebhook` once, during the installation check (TRV-47), with:
@@ -209,6 +217,23 @@ transport, recorded in this sheet and fixed in the code, never a setting (CL-TEL
 Nothing: Telegram is the notification channel chosen by the owner (D-30). What can be replaced is
 the bot: if its token leaks or the bot is lost, create a new one with BotFather, enter the new token
 and link the chat again (TEL-29, TRV-75 step 14).
+
+## What rests on the documentation alone
+
+No bot or token existed before the hand-over (a coordinator decision of 26 November), so the
+recorded answers of `data/fixtures/telegram/` come from the Bot API documentation, as
+[their README](../../data/fixtures/telegram/README.md) describes. The owner checks these points
+with a real bot first:
+
+- the error descriptions that the adapter tells apart, which the reference does not list: 403
+  "bot was blocked by the user" as `blocked`, any other 403 as `chat_not_found`; 400 "chat not
+  found" as `chat_not_found`, "message is too long" as `too_long`, "message to delete not found" as
+  `not_found` and "message can't be deleted for everyone" as `delete_refused`; 409 "can't use
+  getUpdates method while webhook is active" as `webhook_conflict`;
+- 401 for a revoked token and 404 for an address whose token names no bot, both `unauthorized`;
+- a 400 to `setWebhook` as Telegram's refusal of the webhook, its description shown;
+- `parameters.retry_after` in seconds on 429;
+- `last_error_date` in Unix seconds, and an empty `url` when no webhook is set.
 
 ## Date checked
 
