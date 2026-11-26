@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { toIsoDate } from './calendar-date';
 import {
   formatDate,
+  formatDayAndMonth,
   formatGameTime,
   formatInstant,
   formatZoneName,
@@ -148,6 +149,21 @@ describe('formatDate', () => {
     vi.spyOn(Temporal.PlainDate.prototype, 'dayOfWeek', 'get').mockReturnValue(8);
 
     expect(() => formatDate(day('2026-11-18'), 'short')).toThrow('No name at position 8.');
+  });
+});
+
+describe('formatDayAndMonth', () => {
+  it.each([
+    [{ month: 1, day: 5 }, '5 January'],
+    [{ month: 10, day: 26 }, '26 October'],
+    [{ month: 2, day: 29 }, '29 February'],
+    [{ month: 12, day: 31 }, '31 December'],
+  ])('[CL-VUE-15] shows the day and month %o as "%s", without a year', (dayAndMonth, shown) => {
+    expect(formatDayAndMonth(dayAndMonth)).toBe(shown);
+  });
+
+  it('refuses a month that the calendar does not have', () => {
+    expect(() => formatDayAndMonth({ month: 13, day: 1 })).toThrow('No name at position 13.');
   });
 });
 

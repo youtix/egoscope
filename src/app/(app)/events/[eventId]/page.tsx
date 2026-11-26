@@ -2,6 +2,9 @@ import { guardScreen, paths } from '@/lib/navigation';
 import { PageHeader } from '@/lib/ui';
 import { sentence } from '@/lib/wording';
 
+import { EventBlock } from './event-block';
+import { zoneStatement } from './zone-statement';
+
 import type { ReactNode } from 'react';
 
 /**
@@ -15,12 +18,8 @@ export default async function EventPage({
   await guardScreen(paths.event(Number(eventId)));
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title={sentence('interface.eventPage')}
-        // --- Slot: the statement of the zone in use, "Times in Paris time" (CL-IHM-04),
-        // a description that this page's area writes
-      />
-      {/* --- Slot: event-block.tsx, which the sensitive-crosscutting area adds --- */}
+      <PageHeader title={sentence('interface.eventPage')} description={await zoneStatement()} />
+      <EventBlock eventId={eventId} />
 
       {/* --- Slot: historical-block.tsx, which the backtest-import area adds --- */}
 

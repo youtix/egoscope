@@ -5,6 +5,7 @@ export type { Clock, FixedClock } from './clock';
 export { deviceTimeZone } from './device-zone';
 export {
   formatDate,
+  formatDayAndMonth,
   formatGameTime,
   formatInstant,
   formatZoneName,

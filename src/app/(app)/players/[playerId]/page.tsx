@@ -2,6 +2,8 @@ import { guardScreen, paths } from '@/lib/navigation';
 import { PageHeader } from '@/lib/ui';
 import { sentence } from '@/lib/wording';
 
+import { EventsBlock } from './events-block';
+
 import type { ReactNode } from 'react';
 
 /**
@@ -28,7 +30,7 @@ export default async function PlayerPage({
 
       {/* --- Slot: profiles-block.tsx, which the statistics-sensitivity area adds --- */}
 
-      {/* --- Slot: events-block.tsx, which the sensitive-crosscutting area adds --- */}
+      <EventsBlock playerId={playerId} />
 
       {/* --- Slot: detected-block.tsx (Lot 2), which the collection-detection area adds --- */}
 

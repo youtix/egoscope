@@ -1447,6 +1447,24 @@ Dismissal timing (DET-46) is not stored: a dismissal stores its instant, and the
 | doublon                           | `duplicate`                       | Duplicate                       |
 | autre (avec une précision courte) | `other`                           | Other                           |
 
+`EventCorrectionField` — IMP-32, DET-47, DET-48, DET-52, CL-DSN-15 (`event_corrections.field`: the field or the detected-event action that one entry of the correction history names; the last four are the actions DET-52 traces)
+
+| French                         | Code value            | UI label            |
+| ------------------------------ | --------------------- | ------------------- |
+| joueur                         | `player`              | Player              |
+| type                           | `event_type`          | Type                |
+| date de référence              | `reference_date`      | Reference date      |
+| description                    | `description`         | Description         |
+| sources                        | `sources`             | Sources             |
+| retour de blessure             | `injury_return`       | Return from injury  |
+| enjeu du match                 | `game_stakes`         | Game stakes         |
+| confiance de la recherche      | `research_confidence` | Research confidence |
+| réserve « non vérifié »        | `unverified_note`     | Not verified        |
+| article détaché                | `article_detached`    | Article detached    |
+| événement fusionné             | `event_merged_in`     | Event merged in     |
+| joueur ajouté depuis l'article | `player_added`        | Player added        |
+| repêchage                      | `rescued`             | Rescued             |
+
 `DerivationDropReason` — CL-TAX-19, CL-TEL-21 (why the game of a calendar-derived event no longer qualifies, the event being deleted with its case; the label completes "This event no longer applies: {reason}." of section 7.5; `mapping_changed` comes before the six others whenever the run's request holds the cause `mapping_changed` for the player)
 
 | French                                 | Code value               | UI label                                |
@@ -3294,6 +3312,13 @@ Exploration response refusals (TAX-17, CL-TAX-04), the codes of `ExplorationResp
 | — (CL-IHM-19, lien vers l'accueil)                                                                                                                                                                                                                    | Go to Home                                                                                                                                                                                                                                | CL-IHM-19                            |
 | — (erreur du serveur : titre, message, bouton)                                                                                                                                                                                                        | Something went wrong / The app could not show this screen. Try again, and if it fails again, try later. / Try again                                                                                                                       | IHM-12                               |
 | — (chargement d'un écran, lu par les lecteurs d'écran)                                                                                                                                                                                                | Loading the screen                                                                                                                                                                                                                        | IHM-60                               |
+| — (fiche d'un événement : ses faits)                                                                                                                                                                                                                  | Origin / Reference date / {date}, before tip-off / Precision / Description / Sources / Link / Outlet / Title / Published / Return from injury / Game stakes / Correction history                                                          | IHM-67, CL-IHM-21                    |
+| — (fiche d'un événement dérivé du calendrier : son match)                                                                                                                                                                                             | Derived game / Opponent / {location} {name} / Home or away / Basis of the derivation / His recorded birthday, {date} / His last game for {team}, {date}                                                                                   | CL-IHM-21, CL-VUE-15                 |
+| — (valeurs de EventOrigin, DatePrecision, InjuryReturn, GameStakes, ContextIndicationOrigin et GameVenue, section 4.1)                                                                                                                                | Historical / Detected / Derived from the calendar / Exact / Approximate / No date / Yes / No / High / Normal / Unknown / Research / Classification / You / Home / Away                                                                    | IHM-67, DSN-07, H-09                 |
+| — (indication de contexte avec son origine ; événement hors de tout cas)                                                                                                                                                                              | {value} (origin: {origin}) / Not in a case yet                                                                                                                                                                                            | IHM-67, SEN-18                       |
+| — (historique des corrections, valeurs de EventCorrectionField, section 4.1)                                                                                                                                                                          | Never corrected / Not verified / Article detached / Event merged in / Player added / Rescued / {date} — {field} / {date} — {field}, from {before} to {after} / {date} ({precision})                                                       | IMP-32, DET-52, CL-DSN-15            |
+| — (fiche d'un événement : actions, lecture impossible)                                                                                                                                                                                                | Correct the event / Correct the context / The app cannot read this event right now: try again in a few minutes.                                                                                                                           | IHM-67, CL-IHM-21                    |
+| — (page d'un joueur : ses événements)                                                                                                                                                                                                                 | Events / No event yet / His events appear once a backtest result is imported for him or his schedule gives a calendar-derived one. / The app cannot read his events right now: try again in a few minutes.                                | IHM-22, IHM-56                       |
 
 Limits recalled before a withdrawal (CL-DSN-19), in this order, after "A withdrawal answers a sensitivity reason and never depends on the game that followed.":
 
@@ -3725,7 +3750,7 @@ Points the specs, the decisions and the rulings leave open, each with its provis
 
 Stored sets still to add. The data model defines these sets, which this file does not list yet; until a task adds one here with its labels, its values are the data model's (section 1, ownership). The core chapters list theirs in the data model README, section 6; the Lot 2 chapters in their own modeling choices:
 
-- core chapters (data model README, section 6): `birthday_origin`; the statistics-source key, `FetchUnitKind`, `stats_source_versions.resource`, `series.round`, `failed_checks`, `stat_corrections.element` and `Participation`; `CalendarDerivation`; `event_corrections.field`, `reference_date_rule`, `DerivationRequestKind` and `DerivationCause`; the coverage `origin`; the recalculation `scope` and job status; `BackupKind`, the backup failure causes, `ExportKind`, the restore `source_kind`, `lot2_object_kind` and the export format;
+- core chapters (data model README, section 6): `birthday_origin`; the statistics-source key, `FetchUnitKind`, `stats_source_versions.resource`, `series.round`, `failed_checks`, `stat_corrections.element` and `Participation`; `CalendarDerivation`; `reference_date_rule`, `DerivationRequestKind` and `DerivationCause`; the coverage `origin`; the recalculation `scope` and job status; `BackupKind`, the backup failure causes, `ExportKind`, the restore `source_kind`, `lot2_object_kind` and the export format;
 - collection: `SourceReadFailureReason` (`collection.md`, choice 5);
 - detection: `PartRecognition`, `ArticlePartStatus`, `QueueEntryKind`, `UserClassificationAction`, `FactKind`, `FactOutcome` (`detection.md`, choice 12; `FactNovelty` has its row in section 3.9);
 - alert sheets: `AlertSheetSectionKind`, `SnapshotKind`, `AlertSheetUpdateKind`, `ExpectedGameChangeReason`, `KnownContextReason` (`alert-sheets.md`, choice 4; `ExpectedGameUnknownReason` has its set in section 4.1);
@@ -3734,7 +3759,6 @@ Stored sets still to add. The data model defines these sets, which this file doe
 
 These sets are shown to the owner, each by the requirement cited; the task that builds the screen or message showing one adds its labels here in its own pull request, and a task that displays a value of any other set of these lists adds that set here first:
 
-- `event_corrections.field`: the changed fields of the correction history (IMP-32 « date et champs modifiés », DET-52, CL-DSN-15);
 - `ExportKind`: the full export and the partial exports the owner chooses from (TRV-52, row « export complet »);
 - `SourceReadFailureReason`: each source's failure reason in plain language in the collection journal (COL-48, CA-COL-25; section 3.8);
 - `AlertSheetUpdateKind`: the entries of a sheet's update journal (ALE-20 to ALE-31; "Updates", section 3.10);
