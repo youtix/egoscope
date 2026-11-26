@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import axe from 'axe-core';
-import { and, eq, gt, inArray, or } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import {
@@ -10,7 +10,6 @@ import {
   eventSources,
   games,
   parameterOverrides,
-  teamSourceRefs,
 } from '@/lib/db';
 import {
   BIRTHDAY,
@@ -53,7 +52,9 @@ const FIRST_CORRECTION = new Date(Date.UTC(2024, 10, 21, 9));
 const SECOND_CORRECTION = new Date(Date.UTC(2024, 10, 21, 10, 15));
 const FORMER_TEAM = 'former-team';
 // The second invented player moves from team 2 to team 3 on 3 November 2025.
-const TRADE = new Date(Date.UTC(2025, 10, 3));
+const TRADED_ON = '2025-11-03';
+const LYNX = 2;
+const COMETS = 3;
 
 /** A database of the test's own, which the block reaches through `getDb()`. */
 async function servedDatabase(): Promise<Database> {
@@ -323,22 +324,17 @@ describe('EventBlock of a calendar-derived event', { timeout: DATABASE_TEST_TIME
       name: 'First game against a former team',
       calendarDerivation: 'former_team',
     });
-    const team = (ref: string) =>
-      db
-        .select({ id: teamSourceRefs.teamId })
-        .from(teamSourceRefs)
-        .where(eq(teamSourceRefs.sourceTeamRef, ref));
-    const withComets = or(
-      inArray(games.homeTeamId, team('3')),
-      inArray(games.awayTeamId, team('3')),
-    );
-    const withLynx = or(inArray(games.homeTeamId, team('2')), inArray(games.awayTeamId, team('2')));
-    // His first game with team 3 against team 2, after his trade of 3 November 2025.
+    // His first game for the Comets against the Lynx, after his trade.
     const [game] = await db
       .select({ id: games.id, on: games.gameDayOn })
       .from(games)
-      .where(and(withComets, withLynx, gt(games.scheduledStartAt, TRADE)))
-      .orderBy(games.scheduledStartAt);
+      .where(
+        and(
+          eq(games.homeTeamId, COMETS),
+          eq(games.awayTeamId, LYNX),
+          gt(games.gameDayOn, TRADED_ON),
+        ),
+      );
     const [event] = await db
       .insert(events)
       .values({
@@ -355,9 +351,10 @@ describe('EventBlock of a calendar-derived event', { timeout: DATABASE_TEST_TIME
 
     await shown(event?.id ?? 0);
 
-    expect(fact('Opponent')).toHaveTextContent('Pine Valley Lynx');
+    expect(fact('Opponent')).toHaveTextContent(/^Pine Valley Lynx$/u);
+    expect(fact('Home or away')).toHaveTextContent(/^Home$/u);
     expect(fact('Basis of the derivation')).toHaveTextContent(
-      'His last game for Pine Valley Lynx, LAST',
+      /^His last game for Pine Valley Lynx, Sunday 2 November 2025$/u,
     );
   });
 });
