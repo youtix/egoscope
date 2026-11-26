@@ -295,8 +295,20 @@ export type { RecordingTiming } from './tracking/recording';
 export type { RecordingTimingInput } from './tracking/recording';
 
 // tracking/category.ts
+export { caseCategory } from './tracking/category';
+export { chanceExpectedCounts } from './tracking/category';
+export { gapInForecastDirection } from './tracking/category';
+export type { CaseCategory } from './tracking/category';
+export type { ChanceExpectedCounts } from './tracking/category';
 
 // tracking/assessment.ts
+export { assessCases } from './tracking/assessment';
+export { gapSummary } from './tracking/assessment';
+export type { AssessedCase } from './tracking/assessment';
+export type { CaseSetAssessment } from './tracking/assessment';
+export type { GapSummary } from './tracking/assessment';
+export type { RowAssessment } from './tracking/assessment';
+export type { TooFewTrackedCases } from './tracking/assessment';
 
 // tracking/decisions.ts
 
