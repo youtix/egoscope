@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import axe from 'axe-core';
 import { describe, expect, it, vi } from 'vitest';
 
+import { getParam } from '@/lib/params';
 import { getTrend } from '@/lib/sensitivity';
 import { toEpochMs } from '@/lib/time';
 import { assertNoBettingWords, definition } from '@/lib/wording';
@@ -13,6 +14,7 @@ import type { TrendDetail } from '@/lib/sensitivity';
 const { getDb } = vi.hoisted(() => ({ getDb: vi.fn() }));
 vi.mock(import('@/lib/db'), async (importOriginal) => ({ ...(await importOriginal()), getDb }));
 vi.mock(import('@/lib/sensitivity'), () => ({ getTrend: vi.fn() }));
+vi.mock(import('@/lib/params'), () => ({ getParam: vi.fn() }));
 
 // The WCAG 2.2 A and AA rules, as the end-to-end watch runs them (CL-IHM-08).
 const WCAG_22_AA = { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] };
@@ -90,9 +92,10 @@ function trendOf(overrides: Partial<TrendDetail> = {}): TrendDetail {
 }
 
 /** Renders the block of the type, whose trend is `trend`, or none. */
-async function renderBlock(trend: TrendDetail | null) {
+async function renderBlock(trend: TrendDetail | null, timeZone = 'Europe/Paris') {
   getDb.mockResolvedValue({ ok: true, db: DB });
   vi.mocked(getTrend).mockResolvedValue(trend);
+  vi.mocked(getParam).mockResolvedValue(timeZone);
   return render(await TrendBlock({ typeId: TYPE_ID }));
 }
 
@@ -158,6 +161,77 @@ describe('TrendBlock', () => {
     expect(screen.getByText('possible, increase')).toBeVisible();
   });
 
+  it('[CL-SEN-16] [IHM-48] marks a trend being recalculated, next to the date of its last complete values', async () => {
+    await renderBlock(trendOf({ notices: ['recalculating'] }));
+
+    expect(screen.getByText('Recalculation in progress')).toBeVisible();
+    expect(screen.queryByText('Awaiting statistics')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Last complete values of Friday 20 November 2026, 09:15 Paris time'),
+    ).toBeVisible();
+    expect(screen.getByText('possible, increase')).toBeVisible();
+    expect(getParam).toHaveBeenCalledExactlyOnceWith(DB, 'display.timeZone');
+  });
+
+  it('[IHM-48] marks a trend that awaits statistics, next to the date of its last complete values', async () => {
+    await renderBlock(trendOf({ notices: ['awaiting_statistics'] }));
+
+    expect(screen.getByText('Awaiting statistics')).toBeVisible();
+    expect(screen.queryByText('Recalculation in progress')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Last complete values of Friday 20 November 2026, 09:15 Paris time'),
+    ).toBeVisible();
+  });
+
+  it('[IHM-48] marks both a recalculation and a wait for statistics when both hold', async () => {
+    await renderBlock(trendOf({ notices: ['recalculating', 'awaiting_statistics'] }));
+
+    expect(screen.getByText('Recalculation in progress')).toBeVisible();
+    expect(screen.getByText('Awaiting statistics')).toBeVisible();
+    expect(screen.getAllByText(/^Last complete values of /u)).toHaveLength(1);
+  });
+
+  it("[CL-TRV-02] [IHM-48] writes the date of the last complete values in the owner's time zone", async () => {
+    await renderBlock(trendOf({ notices: ['recalculating'] }), 'America/New_York');
+
+    expect(
+      screen.getByText('Last complete values of Friday 20 November 2026, 03:15 New York time'),
+    ).toBeVisible();
+  });
+
+  it('[IHM-48] writes no mark and no date for a trend that is neither recalculated nor awaiting statistics', async () => {
+    await renderBlock(trendOf({ notices: ['archived'] }));
+
+    expect(screen.queryByText('Recalculation in progress')).not.toBeInTheDocument();
+    expect(screen.queryByText('Awaiting statistics')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Last complete values/u)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['playing_time_too_low', 'Playing time too low'],
+    ['injury_return', 'Return from injury'],
+    ['unusual_stakes', 'Unusual stakes'],
+    ['opponent_strength', 'Opponent strength'],
+    ['co_occurring', 'Co-occurring'],
+  ] as const)(
+    '[CL-SEN-13] shows the permanent warning of the criterion %s switched off for the type',
+    async (criterion, label) => {
+      await renderBlock(trendOf({ warnings: [{ kind: 'confounder_not_separable', criterion }] }));
+
+      expect(
+        screen.getByText(
+          `Criterion switched off for this type: ${label}. The effect cannot be separated from it.`,
+        ),
+      ).toBeVisible();
+    },
+  );
+
+  it('[CL-SEN-13] shows no warning for a type that has no criterion switched off', async () => {
+    await renderBlock(trendOf());
+
+    expect(screen.queryByText(/Criterion switched off/u)).not.toBeInTheDocument();
+  });
+
   it('[IHM-56] shows why a type without any case has no trend, and the backtest that fills it', async () => {
     await renderBlock(null);
 
@@ -199,6 +273,13 @@ describe('TrendBlock', () => {
   it.each([
     ['a trend', trendOf()],
     ['an archived trend', trendOf({ notices: ['archived'] })],
+    [
+      'a trend being recalculated, awaiting statistics, with a criterion switched off',
+      trendOf({
+        notices: ['recalculating', 'awaiting_statistics'],
+        warnings: [{ kind: 'confounder_not_separable', criterion: 'unusual_stakes' }],
+      }),
+    ],
     ['a type without any case', null],
   ])(
     '[IHM-50] [IHM-61] shows no betting word and no accessibility violation for %s',
