@@ -4,20 +4,21 @@ import type { Page } from '@playwright/test';
 
 // The screen that the app opens on, for the signed-in owner of every test's browser context.
 const HOME = '/';
-// A signed-in screen that no cache of the device holds.
+// A signed-in screen that stays readable offline, of which no cache holds a copy yet.
 const SCREEN = '/players';
+// A signed-in screen that needs the network.
+const ONLINE_ONLY_SCREEN = '/settings';
 const ICONS = ['/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 const OFFLINE_PAGE_MESSAGE =
   'This screen has not been loaded on this device yet: connect to the internet to open it.';
 
 /**
- * Registers the worker from `page` and waits until it is active, which F-offline replaces
- * by the registration that the app-wide device pieces mount in the authenticated layout
- * (module map section 2.1, offline). Returns the path of the pages that it controls.
+ * Waits until the worker that the app-wide device pieces of the authenticated layout
+ * register is active (module map section 2.1, offline), and returns the path of the pages
+ * that it controls.
  */
-async function installWorker(page: Page): Promise<string> {
+async function appWorker(page: Page): Promise<string> {
   const scope = await page.evaluate(async () => {
-    await navigator.serviceWorker.register('/sw.js', { scope: '/' });
     const registration = await navigator.serviceWorker.ready;
     return registration.scope;
   });
@@ -65,41 +66,38 @@ test.describe('the installable app', () => {
     const response = await page.goto(HOME);
 
     expect(await response?.text()).toMatch(/<link rel="manifest" href="\/manifest\.webmanifest"/u);
-    expect(await installWorker(page)).toBe('/');
+    expect(await appWorker(page)).toBe('/');
     const cached = await cachedPaths(page);
     expect(cached.filter((cachedPath) => !cachedPath.startsWith('/_next/static/'))).toStrictEqual([
       '/offline-page',
     ]);
   });
 
-  test('[CL-TRV-13] [TRV-22] caches no signed-in screen that its worker answered, and shows the offline page instead of it once the device has no connection', async ({
+  test('[CL-TRV-13] [IHM-57] keeps, beside the files of its build, a copy of the screens that stay readable offline alone', async ({
     page,
   }) => {
     await page.goto(HOME);
-    await installWorker(page);
+    await appWorker(page);
 
+    await page.goto(ONLINE_ONLY_SCREEN);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
     await page.goto(SCREEN);
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Players');
     expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
-    const cached = await cachedPaths(page);
-    expect(cached.filter((cachedPath) => !cachedPath.startsWith('/_next/static/'))).toStrictEqual([
-      '/offline-page',
-    ]);
-
-    await page.context().setOffline(true);
-    await page.goto(SCREEN);
-
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Offline');
-    await expect(page.getByText(OFFLINE_PAGE_MESSAGE)).toBeVisible();
-    await expect(page).toHaveURL(SCREEN);
+    await expect
+      .poll(async () => {
+        const paths = await cachedPaths(page);
+        return paths.filter((cachedPath) => !cachedPath.startsWith('/_next/static/'));
+      })
+      .toStrictEqual(['/offline-page', SCREEN]);
   });
 
   test('[TRV-22] shows the offline page, not an error, when the owner opens a screen that no cache holds without connection', async ({
     page,
   }) => {
     await page.goto(HOME);
-    await installWorker(page);
+    await appWorker(page);
     await page.context().setOffline(true);
 
     await page.goto(SCREEN);

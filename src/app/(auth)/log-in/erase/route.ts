@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { currentSession, SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { logger } from '@/lib/log';
+import { ERASE_DEVICE_DATA_COOKIE } from '@/lib/offline';
 
 import type { SessionEndReason } from '@/lib/auth';
 import type { NextRequest } from 'next/server';
@@ -11,6 +12,9 @@ const SEE_OTHER = 303;
 // them; and its storage, the device drafts and the service worker with the copies of the
 // screens that it caches among them (IHM-08, DSN-33).
 const EVERYTHING = '"cache", "cookies", "storage"';
+// How long the login page has the device erase its data in script, in seconds: enough for
+// the login page that this step sends the device to.
+const ERASE_IN_SCRIPT_SECONDS = 300;
 
 /** How the device's session ended, or null while it is open, absent or cannot be checked. */
 async function endingOfSession(): Promise<SessionEndReason | null> {
@@ -51,6 +55,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     // The cookie is expired too, where the browser ignores Clear-Site-Data, so that the
     // next login page finds no session and never sends the device through the step again.
     response.cookies.set(SESSION_COOKIE, '', { ...SESSION_COOKIE_OPTIONS, maxAge: 0 });
+    // Where the browser ignores Clear-Site-Data too, the login page erases in script.
+    response.cookies.set(ERASE_DEVICE_DATA_COOKIE, '1', {
+      ...SESSION_COOKIE_OPTIONS,
+      maxAge: ERASE_IN_SCRIPT_SECONDS,
+    });
   }
   return response;
 }

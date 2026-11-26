@@ -137,12 +137,17 @@ test.describe('the navigation shell', () => {
     expect(layout.right).toBeLessThan(LARGE_SCREEN.width / 2);
   });
 
-  test('asks the server nothing on a timer, however long the screen stays open', async ({
+  test('[IHM-04] asks the server nothing on a timer, however long the screen stays open', async ({
     page,
   }) => {
     await page.clock.install();
+    // The contact as the app opens, which no timer starts (IHM-04).
+    const contacted = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === '/api/health',
+    );
     await page.goto(LOT_2_SCREEN);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await contacted;
     const asked: Request[] = [];
     page.on('request', (request) => {
       asked.push(request);

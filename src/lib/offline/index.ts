@@ -17,15 +17,32 @@ export {
 export type { ApplyError, ApplyResult, VersionRegistration } from './update';
 
 // online-status.ts: useOnlineStatus (F-offline)
+export { useOnlineStatus } from './online-status';
+export type { ConnectivityMode } from './online-status';
 
 // offline-banner.tsx: OfflineBanner (F-offline)
+export { OfflineBanner } from './offline-banner';
+export type { OfflineBannerProps } from './offline-banner';
 
 // online-only-submit.tsx: OnlineOnlySubmit (F-offline)
+export { OnlineOnlySubmit } from './online-only-submit';
+export type { OnlineOnlySubmitProps } from './online-only-submit';
 
 // update-banner.tsx: UpdateBanner (F-offline)
+export { UpdateBanner } from './update-banner';
 
 // refresh-on-return.ts: useRefreshOnReturn (F-offline)
+export { useRefreshOnReturn } from './refresh-on-return';
 
 // device-shell.tsx: DeviceShell, the app-wide device pieces of the layout's slot (F-offline)
+export { DeviceShell } from './device-shell';
+export type { DeviceShellProps } from './device-shell';
 
 // device-data.ts: clearDeviceData (F-offline)
+export { clearDeviceData, ERASE_DEVICE_DATA_COOKIE } from './device-data';
+
+// erase-device-data.tsx: the login page's erasure for a browser that ignores Clear-Site-Data (F-offline)
+export { EraseDeviceData } from './erase-device-data';
+
+// screen-copies.ts: what the page shares with the worker of src/app/sw.ts (F-offline)
+export type { WorkerContract } from './screen-copies';

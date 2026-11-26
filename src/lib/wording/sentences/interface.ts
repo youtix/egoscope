@@ -156,5 +156,15 @@ export const interfaceSentences = {
   passwordTooShort: 'This password is too short: use at least {k} {k|character|characters}.',
   passwordNotStored: 'The app cannot save your password right now: try again in a few minutes.',
 
+  // The device pieces of every screen (IHM-03, IHM-57, IHM-58), F-offline: the offline
+  // banner over a screen with its copy's date or without a copy, the reason of an action
+  // that needs the server, and the banner of a new version with its reload
+  offlineCopyFrom: 'Offline — data from {date} at {time}',
+  offlineWithoutCopy: 'Offline — this screen is not available offline.',
+  unavailableOffline: 'Unavailable offline: connect to the internet to do this.',
+  newVersionAvailable: 'New version available',
+  reloadApp: 'Reload the app',
+  reloadWaitsForDraft: 'The app reloads once your draft is saved.',
+
   // An area adds its groups above this line, one commented group per screen or task.
 } as const;

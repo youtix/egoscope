@@ -1,10 +1,12 @@
 import 'server-only';
 
 import { io } from 'next/cache';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { currentSession, lockoutStatus } from '@/lib/auth';
 import { logger } from '@/lib/log';
+import { ERASE_DEVICE_DATA_COOKIE, EraseDeviceData } from '@/lib/offline';
 import { ok } from '@/lib/result';
 import { Banner, Notice, PageHeader } from '@/lib/ui';
 import { sentence } from '@/lib/wording';
@@ -104,8 +106,12 @@ export async function LogInScreen({
   if (!lockout.ok) {
     return unavailable(lockout.error.kind);
   }
+  // Set by the step that erases the data of a device whose session the owner ended.
+  const sent = await cookies();
+  const isErasing = sent.has(ERASE_DEVICE_DATA_COOKIE);
   return (
     <>
+      {isErasing && <EraseDeviceData />}
       <PageHeader title={sentence('interface.logIn')} />
       {told !== null && <Banner message={endedLabel(told)} />}
       <LogInForm action={logInAction.bind(null, target)} initial={{ lockout: lockout.value }} />

@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import axe from 'axe-core';
+import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
@@ -20,6 +21,8 @@ const harness = vi.hoisted(() => ({
   lockoutUntil: vi.fn<typeof lockoutUntil>(),
   logInAction:
     vi.fn<(next: unknown, previous: LogInState, data: FormData) => Promise<LogInState>>(),
+  // The Cookie header that the device sends with the page, or none.
+  sent: { cookie: null as string | null },
 }));
 
 /** What `redirect()` throws in these tests: the address it sends the device to. */
@@ -36,6 +39,20 @@ vi.mock(import('next/navigation'), async (importOriginal) => ({
   ...(await importOriginal()),
   redirect: (to: string) => {
     throw new Redirected(to);
+  },
+}));
+
+vi.mock(import('next/headers'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  cookies: async () => {
+    const server = await import('next/server');
+    const headers = harness.sent.cookie === null ? {} : { cookie: harness.sent.cookie };
+    const incoming = new server.NextRequest('https://egoscope.test/log-in', { headers }).cookies;
+    const outgoing = new server.NextResponse().cookies;
+    return Object.assign(incoming, {
+      set: outgoing.set.bind(outgoing),
+      delete: outgoing.delete.bind(outgoing),
+    });
   },
 }));
 
@@ -94,6 +111,7 @@ async function redirectOf(query: LogInQuery, state: SessionState): Promise<strin
 describe('the login screen', () => {
   beforeEach(() => {
     onTestFinished(installFakeClock(fixedClock(START)));
+    harness.sent.cookie = null;
     harness.lockoutStatus.mockResolvedValue({ ok: true, value: { lockedUntil: null } });
     harness.lockoutUntil.mockResolvedValue({ ok: true, value: { until: UNTIL, notice: NOTICE } });
     harness.logInAction.mockResolvedValue({ lockout: null });
@@ -173,6 +191,30 @@ describe('the login screen', () => {
       await expect(axe.run(document.body, WCAG_22_AA)).resolves.toHaveProperty('violations', []);
     },
   );
+
+  it('[IHM-08] [DSN-33] has the device erase its data in script after a session that the owner ended, where the browser ignored Clear-Site-Data', async () => {
+    harness.sent.cookie = '__Host-egoscope-erase=1';
+    const wasCacheDeleted = vi.fn<(name: string) => Promise<boolean>>().mockResolvedValue(true);
+    vi.stubGlobal('caches', { delete: wasCacheDeleted });
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    localStorage.setItem('egoscope.last-screen', '{"path":"/players/7","scrollY":640}');
+
+    render(await logInScreen({ next: NEXT, ended: 'logged_out' }));
+
+    expect(wasCacheDeleted).toHaveBeenCalledExactlyOnceWith('egoscope-screens');
+    await waitFor(() => {
+      expect(localStorage).toHaveLength(0);
+    });
+  });
+
+  it('[IHM-08] [IHM-11] leaves the data of a device that the erase step did not mark, a device whose session expired among them', async () => {
+    const wasCacheDeleted = vi.fn<(name: string) => Promise<boolean>>().mockResolvedValue(true);
+    vi.stubGlobal('caches', { delete: wasCacheDeleted });
+
+    render(await logInScreen({ next: NEXT, ended: 'expired' }));
+
+    expect(wasCacheDeleted).not.toHaveBeenCalled();
+  });
 
   it('[IHM-08] tells nothing to a device without a session whose address names no way a session ends', async () => {
     render(await logInScreen({ next: NEXT, ended: UNKNOWN_REASON }));

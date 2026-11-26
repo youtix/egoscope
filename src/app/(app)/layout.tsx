@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 
 import { NavigationBar, navigationEntries } from '@/lib/navigation';
 
+import { DevicePieces } from './device-pieces';
 import { SignedInNavigation } from './signed-in-navigation';
 
 import type { ReactNode } from 'react';
@@ -23,7 +24,10 @@ export default function AppLayout({ children }: Readonly<{ children: ReactNode }
       </main>
       {/* --- Slot: the run check at app opening, which F-tasks fills (TRV-25, TRV-31) --- */}
 
-      {/* --- Slot: the app-wide device pieces, which F-offline fills (module map §2.1) --- */}
+      {/* The app-wide device pieces (module map §2.1), once the session is checked */}
+      <Suspense fallback={null}>
+        <DevicePieces />
+      </Suspense>
     </div>
   );
 }

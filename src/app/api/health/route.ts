@@ -1,7 +1,7 @@
 import { connection } from 'next/server';
 
 import { requireSession } from '@/lib/auth';
-import { readServerEnv } from '@/lib/env';
+import { deploymentId, readServerEnv } from '@/lib/env';
 import { logger } from '@/lib/log';
 
 import type { ReadyError, SessionEndReason, SessionRefusal } from '@/lib/auth';
@@ -55,7 +55,11 @@ function refused(error: ReadyError | SessionRefusal): Response {
 
 /**
  * Health probe, for a device with a valid session only (CL-TRV-13): 200 while the server
- * environment is valid, 503 otherwise. The session check of `auth.requireSession()` is the
+ * environment is valid, with the build that the server runs, its deployment's identifier
+ * or null where the host gives none, which a device without a service worker compares to
+ * tell a new version (IHM-03); 503 otherwise. A session still on the initial password
+ * answers 401 without an ending: only "Choose your password" opens to it, and nothing of
+ * it ended (TRV-57). The session check of `auth.requireSession()` is the
  * only database work it does, and a request without a session cookie asks nothing of the
  * database. A refused session answers 401 with how it ended, so that the device erases its
  * data when the owner ended it (IHM-08). The body never says which variable is wrong; the
@@ -71,6 +75,6 @@ export async function GET(): Promise<Response> {
   }
   const env = readServerEnv();
   return env.ok
-    ? Response.json({ status: 'ok' }, { headers: NO_STORE })
+    ? Response.json({ status: 'ok', version: deploymentId() ?? null }, { headers: NO_STORE })
     : invalidEnv(env.error.variables);
 }

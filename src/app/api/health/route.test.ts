@@ -47,8 +47,17 @@ describe('GET /api/health', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    await expect(response.json()).resolves.toStrictEqual({ status: 'ok' });
+    await expect(response.json()).resolves.toStrictEqual({ status: 'ok', version: null });
     expect(checkSession).toHaveBeenCalledExactlyOnceWith('/');
+  });
+
+  it('[IHM-03] [IHM-04] names the build that the server runs, its deployment, for a device without a service worker', async () => {
+    vi.stubEnv('VERCEL_DEPLOYMENT_ID', 'dpl_build2');
+    const { GET } = await import('./route');
+
+    const response = await GET();
+
+    await expect(response.json()).resolves.toStrictEqual({ status: 'ok', version: 'dpl_build2' });
   });
 
   it('asks nothing of a configured database beyond the session check', async () => {
@@ -63,7 +72,7 @@ describe('GET /api/health', () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toStrictEqual({ status: 'ok' });
+    await expect(response.json()).resolves.toStrictEqual({ status: 'ok', version: null });
   });
 
   it('runs at request time instead of being prerendered', async () => {

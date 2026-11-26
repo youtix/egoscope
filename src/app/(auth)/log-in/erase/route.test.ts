@@ -22,6 +22,10 @@ const OPENED_AT = toEpochMs(Date.UTC(2026, 10, 23, 9));
 // The session cookie, expired with the attributes that its `__Host-` name requires.
 const EXPIRED_COOKIE =
   '__Host-egoscope-session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=lax';
+// The cookie that has the login page erase the device's data in script for five minutes,
+// with the same attributes; Next.js writes its Expires date from the clock.
+const ERASE_IN_SCRIPT_COOKIE =
+  /^__Host-egoscope-erase=1; Path=\/; Expires=[^;]+ GMT; Max-Age=300; Secure; HttpOnly; SameSite=lax$/u;
 
 /** The answer to the step, for a device whose session is in `state`, asked for `next`. */
 async function erase(state: SessionState, next: string | null = '/players?tab=cases') {
@@ -31,23 +35,23 @@ async function erase(state: SessionState, next: string | null = '/players?tab=ca
 }
 
 /**
- * What the answer tells the browser: where to go, what to erase, which cookie to set, and
+ * What the answer tells the browser: where to go, what to erase, which cookies to set, and
  * not to keep it. Next.js writes no Expires date from the clock for a Max-Age of 0, so the
- * cookie is compared whole.
+ * expired cookie is compared whole.
  */
 function told(response: Response) {
   return {
     status: response.status,
     location: response.headers.get('location'),
     clear: response.headers.get('clear-site-data'),
-    cookie: response.headers.get('set-cookie'),
+    cookies: response.headers.getSetCookie(),
     cache: response.headers.get('cache-control'),
   };
 }
 
 describe('the step of the login page that tells a device how its session ended', () => {
   it.each(['logged_out', 'password_changed', 'reset', 'restored'] as const)(
-    '[IHM-08] [TRV-62] [CL-TRV-05] [CL-IHM-10] has the device erase its data and its session cookie after a session ended by %s, then shows the login page',
+    '[IHM-08] [DSN-33] [TRV-62] [CL-TRV-05] [CL-IHM-10] has the device erase its data and its session cookie after a session ended by %s, even where the browser ignores Clear-Site-Data, then shows the login page',
     async (reason) => {
       const response = await erase({ state: 'ended', reason });
 
@@ -55,7 +59,7 @@ describe('the step of the login page that tells a device how its session ended',
         status: 303,
         location: `/log-in?next=%2Fplayers%3Ftab%3Dcases&ended=${reason}`,
         clear: EVERYTHING,
-        cookie: EXPIRED_COOKIE,
+        cookies: [EXPIRED_COOKIE, expect.stringMatching(ERASE_IN_SCRIPT_COOKIE)],
         cache: 'no-store',
       });
     },
@@ -68,7 +72,7 @@ describe('the step of the login page that tells a device how its session ended',
       status: 303,
       location: `/log-in?next=%2Fplayers%3Ftab%3Dcases&ended=expired`,
       clear: null,
-      cookie: null,
+      cookies: [],
       cache: 'no-store',
     });
   });
@@ -80,7 +84,7 @@ describe('the step of the login page that tells a device how its session ended',
       status: 303,
       location: `/log-in?next=%2Fplayers%3Ftab%3Dcases`,
       clear: null,
-      cookie: null,
+      cookies: [],
       cache: 'no-store',
     });
   });
@@ -100,7 +104,7 @@ describe('the step of the login page that tells a device how its session ended',
       status: 303,
       location: `/log-in?next=%2Fplayers%3Ftab%3Dcases`,
       clear: null,
-      cookie: null,
+      cookies: [],
       cache: 'no-store',
     });
   });
@@ -117,7 +121,7 @@ describe('the step of the login page that tells a device how its session ended',
       status: 303,
       location: `/log-in?next=%2F`,
       clear: null,
-      cookie: null,
+      cookies: [],
       cache: 'no-store',
     });
   });

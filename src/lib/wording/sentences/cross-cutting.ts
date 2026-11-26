@@ -37,5 +37,9 @@ export const crossCuttingSentences = {
   offlinePageMessage:
     'This screen has not been loaded on this device yet: connect to the internet to open it.',
 
+  // The offline page of a screen that needs the network, which the device keeps no copy of
+  // (IHM-57, module map section 3.3), F-offline
+  offlinePageNotKept: 'This screen is not available offline: connect to the internet to open it.',
+
   // An area adds its groups above this line, one commented group per screen or task.
 } as const;
