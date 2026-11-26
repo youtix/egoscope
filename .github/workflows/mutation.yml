@@ -2,11 +2,14 @@
 # in src/lib/stats-engine/ and src/lib/ai-exchange/, and their own tests must catch
 # every one. The workflow always starts, with no path filter, and its final job,
 # `mutation`, always reports a result, because `main` requires it by name. The job
-# that runs Stryker finishes at once when the pull request (or, on main, the push)
-# changes nothing in the mutation scope (scripts/mutation-scope.ts), and otherwise
-# tests every mutant afresh: it keeps no result of an earlier run, which Stryker's
-# incremental mode would reuse after a change that it cannot see
-# (scripts/mutation-gate.ts).
+# that runs Stryker finishes at once when nothing in the mutation scope
+# (scripts/mutation-scope.ts) differs from its base, and otherwise tests every mutant
+# afresh: it keeps no result of an earlier run, which Stryker's incremental mode would
+# reuse after a change that it cannot see. The base of a pull request is the base
+# branch of its merge commit; the base of a push to main is the last commit of main on
+# which this workflow succeeded, since GitHub replaces the pending runs of main when
+# several merges land at once, and a replaced run tests nothing. Without such a commit,
+# the job tests every mutant (scripts/mutation-gate.ts, scripts/mutation-base.ts).
 name: Mutation
 
 on:
@@ -27,17 +30,24 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      actions: read # Lists the successful runs of this workflow on main, the base of a push.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # The commit under test and its first parent, which the change is measured
-          # against: the base branch of a pull request's merge commit, or the
-          # previous commit of main.
-          fetch-depth: 2
+          # The whole history, for both events: it holds the base branch of a pull
+          # request's merge commit and every commit of main, so that the gate can
+          # compare with the last one on which this workflow succeeded and check that
+          # it is an ancestor of the commit under test.
+          fetch-depth: 0
       - uses: ./.github/actions/setup-project
+      # One step with no condition: the gate chooses the base from the event, and tests
+      # every mutant for an event that it does not know.
       - name: Mutation tests from scratch, when the mutation scope changed
-        run: bun scripts/mutation-gate.ts HEAD^1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: bun scripts/mutation-gate.ts --event "$EVENT"
       # Stryker writes its report only when it runs.
       - name: Upload the mutation report (HTML and JSON)
         if: ${{ !cancelled() && hashFiles('reports/mutation/mutation.json') != '' }}

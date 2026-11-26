@@ -253,10 +253,13 @@ and AA rules:
   its file, directly or not.
 - `bun run test:mutation` runs it, under the shared lock. `bun run gate` runs it from scratch
   (`--force`), and only when one of these differs from `origin/main`: a file of the pure core,
-  `stryker.config.ts`, `scripts/mutation-run.ts`, `.github/workflows/mutation.yml`,
-  `vitest.stryker.config.ts`, `vitest.config.ts`, `package.json`, `bun.lock`,
-  `scripts/mutation-scope.ts`, `tsconfig.json` or a file of `data/`. The `mutation` workflow does
-  the same in CI, where no result of an earlier run is kept.
+  `stryker.config.ts`, `vitest.stryker.config.ts`, `vitest.config.ts`, `scripts/mutation-run.ts`
+  or a file that one of these configurations imports, `.github/workflows/mutation.yml`,
+  `package.json`, `bun.lock`, `tsconfig.json` or a file of `data/` that a file of the pure core
+  imports. `scripts/mutation-imports.ts` reads those imports from the tree under test. The
+  `mutation` workflow does the same in CI, where no result of an earlier run is kept: a pull
+  request compares with its base branch, and a push to `main` with the last commit of `main` on
+  which the workflow succeeded, or tests every mutant when that commit cannot be found.
 - A run of your own is incremental: it records its results in `reports/` (git-ignored), and the
   next tests only the mutants of what changed, and those of code that runs when a module loads.
   Stryker tells whether a mutant changed by its own code alone, and whether a test changed by its

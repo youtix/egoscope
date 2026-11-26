@@ -81,8 +81,10 @@ renamed. It refuses a change to a frozen French specification, unless the checks
 changes a specification. It stops at the first failing step. CI runs the full gate on every push.
 
 `gate` runs the mutation tests from scratch, and only when a file of their scope, which
-[`CLAUDE.md`](CLAUDE.md) lists under "Mutation testing", differs from `origin/main`. The `mutation`
-workflow does the same in CI.
+[`CLAUDE.md`](CLAUDE.md) lists under "Mutation testing", differs from `origin/main`: the fixtures of
+`data/` count only when a file of the pure core imports them. The `mutation` workflow does the same
+in CI, against the base branch of a pull request, and on `main` against the last commit on which it
+succeeded.
 
 Several agents may share one machine, so the heavy scripts (`build`, `typecheck`, `lint`,
 `lint:fix`, `test`, `test:coverage`, `test:mutation`, `e2e`, `knip`, `check:changed` and `gate`)
