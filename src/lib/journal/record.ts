@@ -83,7 +83,7 @@ export async function record(tx: Transaction, entry: JournalEntryInput): Promise
   if (stored.technicalDetails !== undefined) {
     await tx.insert(journalTechnicalDetails).values({
       journalEntryId: inserted.id,
-      details: keptDetails(stored.technicalDetails),
+      details: keptDetails(stored.technicalDetails, stored.messageKey),
     });
   }
   return inserted.id;
