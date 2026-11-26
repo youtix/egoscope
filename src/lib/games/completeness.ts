@@ -14,10 +14,16 @@ import { endOfLocalDay, startOfLocalDay, toEpochMs, userDay } from '@/lib/time';
 import { STATS_SOURCE } from './directory';
 import { instant, linesGameOf, mappedPlayers } from './indicators';
 
-import type { CasesChange, GameRow } from './types';
+import type { CasesChange, CasesChanges, GameRow } from './types';
 import type { Database, Transaction } from '@/lib/db';
 import type { IncidentKind } from '@/lib/incidents';
-import type { GameId, PhaseGame, PlayerId, SeasonSchedule } from '@/lib/stats-engine';
+import type {
+  GameId,
+  PhaseGame,
+  PlayerId,
+  SeasonSchedule,
+  StatisticsUpdateCause,
+} from '@/lib/stats-engine';
 import type { EpochMs, IsoDate } from '@/lib/time';
 
 type Executor = Database | Transaction;
@@ -38,6 +44,10 @@ const WITHOUT_LINES = and(
   eq(games.status, 'final'),
   or(not(games.homeLinesPublished), not(games.awayLinesPublished)),
 );
+// A game not over yet, or not updated since its tip-off: its day is not complete (STA-35).
+const NOT_OVER = inArray(games.status, ['scheduled', 'in_progress']);
+// The lines whose case waits for the game's consolidation, and is not measurable after it (SEN-07).
+const AWAITING_CONSOLIDATION = ['incomplete', 'suspect'] as const;
 
 /** What the derivations take beyond the database: the update's instant and the owner's zone, the `display.timeZone` setting. */
 export type DerivationContext = Readonly<{ now: EpochMs; timeZone: string }>;
@@ -45,17 +55,21 @@ export type DerivationContext = Readonly<{ now: EpochMs; timeZone: string }>;
 /** The final games of one competition day, a US date, whose box scores are still missing (STA-35). */
 export type DayCompleteness = Readonly<{ day: IsoDate; gamesWithoutLines: readonly GameId[] }>;
 
-/** What a step changed in cases: the recalculation its caller records, of the cause « référence mise à jour » (CL-SEN-17). */
-export type DerivedChange = CasesChange<'baseline_updated'> | null;
+/** What a step changed in cases: the recalculation of `cause` its caller records, or null (CL-SEN-17). */
+export type DerivedChange<C extends StatisticsUpdateCause> = CasesChange<C> | null;
 
-/** The change of the cases of `playerIds`, in the order given, that `gameIds` concern; null when no player is concerned. */
-function changeOf(playerIds: readonly PlayerId[], gameIds: readonly GameId[]): DerivedChange {
+/** The change of `cause` of the cases of `playerIds`, in the order given, that `gameIds` concern; null when no player is concerned. */
+function changeOf<C extends StatisticsUpdateCause>(
+  cause: C,
+  playerIds: readonly PlayerId[],
+  gameIds: readonly GameId[],
+): DerivedChange<C> {
   if (playerIds.length === 0) {
     return null;
   }
   const sortedGames = [...new Set(gameIds)].toSorted((left, right) => left - right);
   return {
-    cause: 'baseline_updated',
+    cause,
     scope: { kind: 'statistics_update', playerIds: [...new Set(playerIds)], gameIds: sortedGames },
   };
 }
@@ -103,20 +117,21 @@ async function awaitedFrom(db: Executor, { now, timeZone }: DerivationContext): 
 }
 
 /**
- * The last complete competition day: the latest US date of a final game such that no final
- * game of that day or before still awaits its box scores, a game whose box scores are
- * missing past the delay of STA-35 being settled as unavailable; null when no day is
- * complete (STA-35, CL-STA-11).
+ * The last complete competition day: the latest US date of a final game such that no game
+ * of that day or before is still scheduled or in progress, and no final one still awaits its
+ * box scores, a game whose box scores are missing past the delay of STA-35 being settled as
+ * unavailable; null when no day is complete (STA-35, CL-STA-11).
  */
 export async function completeThrough(
   db: Executor,
   ctx: DerivationContext,
 ): Promise<IsoDate | null> {
   const from = await awaitedFrom(db, ctx);
+  const awaitedLines = and(WITHOUT_LINES, gte(games.gameDayOn, from));
   const [awaited] = await db
     .select({ day: sql<IsoDate | null>`min(${games.gameDayOn})::text` })
     .from(games)
-    .where(and(WITHOUT_LINES, gte(games.gameDayOn, from)));
+    .where(or(NOT_OVER, awaitedLines));
   const before = awaited?.day ?? null;
   const [complete] = await db
     .select({ day: sql<IsoDate | null>`max(${games.gameDayOn})::text` })
@@ -133,12 +148,13 @@ export async function completeThrough(
  * is unknown, his team's lines unpublished, more than `games.boxScoreUnavailableAfterDays`
  * counted days after its US date (CL-STA-11), so that a past-season game listed without
  * lines is unavailable at once. A placeholder stays until a refetch brings his line.
- * Gives the cases the change concerns (STA-35, CL-STA-04, CL-SEN-16).
+ * Gives the cases it concerns, which leave the pending state: « nouveaux cas » (STA-35,
+ * CL-STA-04, CL-SEN-16, CL-SEN-17).
  */
 export async function markUnavailable(
   tx: Transaction,
   ctx: DerivationContext,
-): Promise<DerivedChange> {
+): Promise<DerivedChange<'new_cases'>> {
   const from = await awaitedFrom(tx, ctx);
   const candidates = await tx
     .select()
@@ -173,6 +189,7 @@ export async function markUnavailable(
     .returning({ playerId: boxScores.playerId, gameId: boxScores.gameId });
   const playerIds = written.map(({ playerId }) => playerId);
   return changeOf(
+    'new_cases',
     playerIds,
     written.map(({ gameId }) => gameId),
   );
@@ -231,25 +248,42 @@ async function doesEndAPhase(
 }
 
 /**
- * Consolidates each final game whose correction window, `games.correctionWindowDays` from
- * its scheduled start, is over: `consolidated_at` set once and never cleared, so it is never
- * requested again (STA-33, STA-42). Gives the cases of the seasons whose phase it made final,
- * the players with a line in them, since their baselines turn final (STA-20, CL-SEN-16).
+ * The cases that consolidating `consolidated` takes out of the pending state: those of the
+ * players whose line of one of these games is incomplete or suspect, not measurable from now
+ * on (SEN-07, CL-SEN-17).
  */
-export async function consolidate(tx: Transaction, ctx: DerivationContext): Promise<DerivedChange> {
-  const params = await getParams(tx);
-  const windowStart = new Date(ctx.now - params.get('games.correctionWindowDays') * DAY_MS);
-  const consolidated = await tx
-    .update(games)
-    .set({ consolidatedAt: new Date(ctx.now) })
-    .where(
-      and(
-        eq(games.status, 'final'),
-        isNull(games.consolidatedAt),
-        lte(games.scheduledStartAt, windowStart),
-      ),
-    )
-    .returning();
+async function settledCases(
+  tx: Transaction,
+  consolidated: readonly GameRow[],
+): Promise<DerivedChange<'new_cases'>> {
+  if (consolidated.length === 0) {
+    return null;
+  }
+  const ofGames = inArray(
+    boxScores.gameId,
+    consolidated.map(({ id }) => id),
+  );
+  const lines = await tx
+    .select({ playerId: boxScores.playerId, gameId: boxScores.gameId })
+    .from(boxScores)
+    .where(and(ofGames, inArray(boxScores.status, AWAITING_CONSOLIDATION)))
+    .orderBy(asc(boxScores.playerId), asc(boxScores.gameId));
+  return changeOf(
+    'new_cases',
+    lines.map(({ playerId }) => playerId),
+    lines.map(({ gameId }) => gameId),
+  );
+}
+
+/**
+ * The cases of the seasons whose phase consolidating `consolidated` made final, the players
+ * with a line in them, since their baselines turn final: « référence mise à jour » (STA-20,
+ * CL-SEN-17).
+ */
+async function finalBaselineCases(
+  tx: Transaction,
+  consolidated: readonly GameRow[],
+): Promise<DerivedChange<'baseline_updated'>> {
   const seasons = new Set(consolidated.map((game) => game.season));
   const ended: string[] = [];
   for (const season of seasons) {
@@ -269,7 +303,40 @@ export async function consolidate(tx: Transaction, ctx: DerivationContext): Prom
     .orderBy(asc(boxScores.playerId));
   const endingGames = consolidated.filter((game) => ended.includes(game.season));
   return changeOf(
+    'baseline_updated',
     players.map(({ playerId }) => playerId),
     endingGames.map(({ id }) => id),
   );
+}
+
+/**
+ * Consolidates each final game whose correction window, `games.correctionWindowDays` from
+ * its scheduled start, is over: `consolidated_at` set once and never cleared, so it is never
+ * requested again (STA-33, STA-42). Gives the changes of cases, in the order of CL-SEN-17:
+ * the new cases of the incomplete or suspect lines it settles (SEN-07), then the baselines
+ * of the phases it made final (STA-20); null when it changes no case (CL-SEN-16).
+ */
+export async function consolidate(
+  tx: Transaction,
+  ctx: DerivationContext,
+): Promise<CasesChanges | null> {
+  const params = await getParams(tx);
+  const windowStart = new Date(ctx.now - params.get('games.correctionWindowDays') * DAY_MS);
+  const consolidated = await tx
+    .update(games)
+    .set({ consolidatedAt: new Date(ctx.now) })
+    .where(
+      and(
+        eq(games.status, 'final'),
+        isNull(games.consolidatedAt),
+        lte(games.scheduledStartAt, windowStart),
+      ),
+    )
+    .returning();
+  const newCases = await settledCases(tx, consolidated);
+  const baselineUpdated = await finalBaselineCases(tx, consolidated);
+  if (newCases === null) {
+    return baselineUpdated === null ? null : [baselineUpdated];
+  }
+  return baselineUpdated === null ? [newCases] : [newCases, baselineUpdated];
 }
