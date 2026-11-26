@@ -222,6 +222,14 @@ describe('the rows of an evaluated case', { timeout: DATABASE_TEST_TIMEOUT_MS },
 
     await write(excluded(injuryReturn, [playingTime(14)]));
     const first = await criteriaOf();
+    // A change of a key column moves the first row after the others, and back keeps its values:
+    // stored last, it still comes first, since the store reads the criteria by id.
+    const moved = eq(caseTriggeredCriteria.id, first[0]?.id ?? 0);
+    await db.update(caseTriggeredCriteria).set({ condition: null }).where(moved);
+    await db
+      .update(caseTriggeredCriteria)
+      .set({ condition: injuryReturn[0].condition })
+      .where(moved);
     await write(excluded(injuryReturn, [playingTime(14)]));
     const again = await criteriaOf();
     await write(excluded([opponent], [playingTime(15)]));
