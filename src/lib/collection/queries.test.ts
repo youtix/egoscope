@@ -138,11 +138,12 @@ async function threeSources(db: Database) {
     retentionClockStartedAt: at(NOW_MS),
   });
   await insertArticle(db, { pressSourceId: atlantic.id, overrides: ATTACHED });
+  // Found last, the older gap comes after the newer one.
+  const newer = await insertGap(db, { pressSourceId: bayside.id });
   const older = await insertGap(db, {
     pressSourceId: bayside.id,
     overrides: { detectedAt: at(NOW_MS - DAY_MS) },
   });
-  const newer = await insertGap(db, { pressSourceId: bayside.id });
   const ofAtlantic = await insertGap(db, { pressSourceId: atlantic.id });
   return { bayside, atlantic, westwind, gaps: { older, newer, ofAtlantic } };
 }
@@ -230,6 +231,14 @@ describe('the reads and writers of the collection', { timeout: DATABASE_TEST_TIM
           gaps: [],
         },
       ]);
+    });
+
+    it('[COL-11] lists two sources of one outlet in the order they were registered', async () => {
+      const registered = [await insertPressSource(db), await insertPressSource(db)];
+
+      const listed = await sources(db);
+
+      expect(listed.map(({ source }) => source.id)).toStrictEqual(registered.map(({ id }) => id));
     });
 
     it('[COL-11] [CL-COL-21] keeps the figures once the purge has deleted the articles they counted', async () => {
@@ -324,7 +333,7 @@ describe('the reads and writers of the collection', { timeout: DATABASE_TEST_TIM
       );
     });
 
-    it('[COL-31] gives one article with the sources it was seen in, first seen first', async () => {
+    it('[COL-25] gives one article with the sources it was seen in, first seen first', async () => {
       const first = await insertPressSource(db);
       const second = await insertPressSource(db);
       const third = await insertPressSource(db);

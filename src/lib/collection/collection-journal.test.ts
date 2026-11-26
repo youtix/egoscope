@@ -252,13 +252,13 @@ async function entries(db: Database) {
         outletName: 'Atlantic Rim Hoops',
         readAt: SECOND_START,
         readAttempts: 1,
-        counters: NO_COUNTERS,
+        counters: { ...NO_COUNTERS, itemsRead: 5, duplicates: 5 },
         uncollectedPeriod: { startAt: SECOND_START - 3 * DAY_MS, endAt: SECOND_START - HOUR_MS },
         permanentRedirectUrl: null,
         interruptionStartedAt: FIRST_START,
       },
     ],
-    totals: { ...NO_COUNTERS, itemsRead: 2, newArticles: 2 },
+    totals: { ...NO_COUNTERS, itemsRead: 7, newArticles: 2, duplicates: 5 },
     gaps: [],
     incidents: [],
   };
@@ -342,6 +342,8 @@ describe('the collection journal', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
     ) => insertIncident(db, { kind, openedAtMs, closedAtMs, pressSourceId });
     const downAtStart = await write('press_source_down', [FIRST_START, null], atlantic.id);
     const tooShortClosedAtEnd = await write('feed_too_short', [FIRST_START - DAY_MS, FIRST_END]);
+    // Opened at the same instant as the next one, and written first: listed first.
+    const silentWithin = await write('press_source_silent', [FIRST_START + 4 * MINUTE_MS, null]);
     const impossibleWithin = await write('collection_impossible', [
       FIRST_START + 4 * MINUTE_MS,
       FIRST_START + 5 * MINUTE_MS,
@@ -374,6 +376,15 @@ describe('the collection journal', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
         closedDuringRun: false,
       },
       {
+        incidentId: silentWithin,
+        kind: 'press_source_silent',
+        pressSourceId: null,
+        openedAt: FIRST_START + 4 * MINUTE_MS,
+        closedAt: null,
+        openedDuringRun: true,
+        closedDuringRun: false,
+      },
+      {
         incidentId: impossibleWithin,
         kind: 'collection_impossible',
         pressSourceId: null,
@@ -401,7 +412,7 @@ describe('the collection journal', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
     ]);
   });
 
-  it('[COL-45] lengthens the maximum age in force when the run started, not the one in force now', async () => {
+  it('[CL-COL-07] names the admitted age from the maximum age in force when the run started, not the one in force now', async () => {
     const world = await journal(db);
     const key = 'collection.maxArticleAgeDays';
     await db.insert(parameterChanges).values([

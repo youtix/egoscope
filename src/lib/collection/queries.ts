@@ -144,10 +144,7 @@ export async function sources(db: Reader): Promise<readonly SourceOverview[]> {
     .orderBy(asc(pressSources.outletName), asc(pressSources.id));
   const counts = await windowCounts(db, window.firstDay);
   const attached = await attachedCounts(db, window.start);
-  const gapRows = await db
-    .select()
-    .from(collectionGaps)
-    .orderBy(desc(collectionGaps.detectedAt), desc(collectionGaps.id));
+  const gapRows = await db.select().from(collectionGaps).orderBy(desc(collectionGaps.detectedAt));
   const gaps = Map.groupBy(gapRows, (gap) => gap.pressSourceId);
   return rows.map((source) => ({
     source,
@@ -217,7 +214,7 @@ export async function article(db: Reader, articleId: number): Promise<ArticleWit
     .select()
     .from(articleSightings)
     .where(eq(articleSightings.articleId, articleId))
-    .orderBy(asc(articleSightings.firstSeenAt), asc(articleSightings.id));
+    .orderBy(asc(articleSightings.firstSeenAt));
   return { ...row, sightings };
 }
 

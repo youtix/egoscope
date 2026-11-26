@@ -324,7 +324,7 @@ export async function runs(db: Reader, filter: RunFilter = {}): Promise<readonly
     .select()
     .from(taskRuns)
     .where(and(STARTED_COLLECTION_RUN, startedFrom, startedBefore, readTheSource))
-    .orderBy(desc(taskRuns.startedAt), desc(taskRuns.id));
+    .orderBy(desc(taskRuns.startedAt));
   return entriesOf(db, rows);
 }
 
