@@ -1,0 +1,161 @@
+{
+  "prose_answer": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "result": {
+        "id": "chatcmpl-fixture-prose",
+        "object": "chat.completion",
+        "created": 1795683660,
+        "model": "@cf/zai-org/glm-4.7-flash",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Here are the facts: Tobias Quillfeather argued with his coach.",
+              "refusal": null
+            },
+            "finish_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 5412,
+          "completion_tokens": 21,
+          "total_tokens": 5433
+        }
+      },
+      "success": true,
+      "errors": [],
+      "messages": []
+    }
+  },
+  "no_content": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "result": {
+        "id": "chatcmpl-fixture-empty",
+        "object": "chat.completion",
+        "created": 1795683720,
+        "model": "@cf/zai-org/glm-4.7-flash",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": null,
+              "refusal": null
+            },
+            "finish_reason": "length",
+            "logprobs": null
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 5412,
+          "completion_tokens": 1000,
+          "total_tokens": 6412
+        }
+      },
+      "success": true,
+      "errors": [],
+      "messages": []
+    }
+  },
+  "json_mode_not_met": {
+    "status": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "result": null,
+      "success": false,
+      "errors": [
+        {
+          "message": "JSON Mode couldn't be met"
+        }
+      ],
+      "messages": []
+    }
+  },
+  "neurons_used_up": {
+    "status": 429,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "result": null,
+      "success": false,
+      "errors": [
+        {
+          "code": 3036,
+          "message": "You have used up your daily free allocation of 10,000 neurons."
+        }
+      ],
+      "messages": []
+    }
+  },
+  "out_of_capacity": {
+    "status": 429,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "result": null,
+      "success": false,
+      "errors": [
+        {
+          "code": 3040,
+          "message": "Capacity temporarily exceeded, please try again."
+        }
+      ],
+      "messages": []
+    }
+  },
+  "request_timeout": {
+    "status": 408,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "result": null,
+      "success": false,
+      "errors": [
+        {
+          "code": 3007,
+          "message": "Request timeout"
+        }
+      ],
+      "messages": []
+    }
+  },
+  "bad_token": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "result": null,
+      "success": false,
+      "errors": [
+        {
+          "code": 10000,
+          "message": "Authentication error"
+        }
+      ],
+      "messages": []
+    }
+  },
+  "server_error": {
+    "status": 502,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<html><body><h1>502 Bad Gateway</h1></body></html>"
+  }
+}

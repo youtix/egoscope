@@ -1,0 +1,25 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Report the facts that each article tells of each recognized player.\n\nType public_dispute: a public argument with a coach or a teammate.\n\nDo not repropose: late_arrival."
+    },
+    {
+      "role": "user",
+      "content": "{\"articles\":[{\"id\":\"article-1\",\"text\":\"Tobias Quillfeather argues with his coach on the bench.\"},{\"id\":\"article-2\",\"text\":\"Marlo Vantreese scores 31 points in a home win.\"}]}"
+    }
+  ],
+  "max_completion_tokens": 1000,
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "classification",
+      "schema": {
+        "type": "object",
+        "required": ["articles"],
+        "additionalProperties": false
+      },
+      "strict": true
+    }
+  }
+}

@@ -109,8 +109,12 @@ export type ClassifyOptions<T, E> = Readonly<{
 
 /**
  * Why a classification has no usable answer, with every step in order: its attempts all
- * gave unusable answers (DET-22), or every provider was deferred or failed before they
- * were used, which uses no attempt (DET-08, CL-DET-03).
+ * gave unusable answers (DET-22), `attempts_exhausted`; or `unanswered`, when no provider
+ * was left to try, or the call was cancelled or reached its deadline, before the attempts
+ * were all used. An `unanswered` classification may have used attempts already, an
+ * unusable answer of the primary followed by a deferred fallback, say, and detection
+ * applies CL-DET-03 to it from its steps: the refused or unanswered calls use no
+ * attempt, and the item keeps waiting (DET-08).
  */
 export type ClassifyFailure<E> = Readonly<{
   kind: 'attempts_exhausted' | 'unanswered';

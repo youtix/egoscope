@@ -173,6 +173,29 @@ describe('createFakeProvider', () => {
     expect(late.ok).toBe(true);
     expect(answerOf(tooLate)).toBe('timeout');
   });
+
+  it('ends a slow call at once as timeout when its signal cancels it, and sends nothing for a call cancelled before it began', async () => {
+    const provider = createFakeProvider(OPTIONS);
+    provider.slowNext(DEADLINE_MS);
+    const during = new AbortController();
+    const before = new AbortController();
+    before.abort();
+    const startedAt = now();
+    const pending = provider.complete({ ...context(), signal: during.signal }, REQUEST);
+    during.abort();
+    const cancelled = await pending;
+    const endedAt = now();
+    const neverSent = await provider.complete({ ...context(), signal: before.signal }, REQUEST);
+
+    expect(answerOf(cancelled)).toBe('timeout');
+    expect(endedAt - startedAt).toBeLessThan(DEADLINE_MS);
+    expect(neverSent).toStrictEqual({
+      ok: false,
+      error: { kind: 'timeout' },
+      call: { httpRequests: 0, tokens: 0, neurons: 0, requestsResetAt: null, tokensResetAt: null },
+    });
+    expect(provider.received()).toHaveLength(1);
+  });
 });
 
 describe('createFakeLanguageModel', () => {

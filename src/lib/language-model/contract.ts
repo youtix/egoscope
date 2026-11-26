@@ -29,6 +29,8 @@ type ContractCase = (harness: ProviderHarness) => Promise<ContractCheck>;
 const DEADLINE_MS = 10_000;
 /** A deadline that a slow answer outlasts. */
 const SHORT_DEADLINE_MS = 20;
+/** How long after its start a slow call is cancelled, well before its deadline. */
+const CANCEL_AFTER_MS = 20;
 // How much later than its deadline a timed-out call may end: timers fire late under load.
 const LATENESS_MS = 1000;
 const ARTICLES = ['article-1', 'article-2'];
@@ -102,6 +104,20 @@ async function timesOut({ provider, inject }: ProviderHarness): Promise<Contract
   };
 }
 
+async function endsWhenCancelled({ provider, inject }: ProviderHarness): Promise<ContractCheck> {
+  inject('slow');
+  const controller = new AbortController();
+  const startedAt = now();
+  setTimeout(() => {
+    controller.abort();
+  }, CANCEL_AFTER_MS);
+  const outcome = await provider.complete({ ...context(), signal: controller.signal }, REQUEST);
+  return {
+    observed: [kindOf(outcome), now() <= startedAt + CANCEL_AFTER_MS + LATENESS_MS],
+    promised: ['timeout', true],
+  };
+}
+
 /** The ceiling of one request is a positive whole number of tokens. */
 async function declaresCeiling({ provider }: ProviderHarness): Promise<ContractCheck> {
   await Promise.resolve();
@@ -113,8 +129,9 @@ async function declaresCeiling({ provider }: ProviderHarness): Promise<ContractC
  * The behaviors that every provider of the chain shows, by title (module map §2.3, §5):
  * one answer that names each article of the request (DET-12); its request and tokens
  * reported; a refusal for quota reported as such, before the declared limit
- * included (TRV-06); a minute limit with the delay to wait; a timeout at the deadline;
- * and the ceiling of one request in tokens, by which callers size their batches.
+ * included (TRV-06); a minute limit with the delay to wait; a timeout at the deadline,
+ * and at once when the call's signal cancels it; and the ceiling of one request in
+ * tokens, by which callers size their batches.
  */
 export const LANGUAGE_MODEL_CONTRACT: Readonly<Record<string, ContractCase>> = {
   '[DET-12] answers a request of several articles with JSON that names each one': namesEachArticle,
@@ -122,5 +139,7 @@ export const LANGUAGE_MODEL_CONTRACT: Readonly<Record<string, ContractCase>> = {
   '[TRV-06] reports a refusal for quota as quota_refused': reportsQuotaRefusal,
   'reports a minute limit as rate_limited, with the delay to wait': reportsMinuteLimit,
   'answers timeout when its answer outlasts the deadline, without waiting past it': timesOut,
+  'answers timeout at once when its signal cancels the call, without waiting for the answer':
+    endsWhenCancelled,
   'declares the ceiling in tokens of one request': declaresCeiling,
 };

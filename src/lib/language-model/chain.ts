@@ -1,6 +1,8 @@
 // The provider chain of the language-model port (module map §5, and §10 point 10): the
 // providers in order, each through the caller's budget, every answer through the caller's
 // validator, an unusable answer sent once more to the next provider.
+import { now } from '@/lib/time';
+
 import { hasAnswer } from './errors';
 
 import type {
@@ -57,13 +59,19 @@ async function tryProvider<T, E>(
 const hasUsedAttempt = <E>(step: ChainStep<E>): boolean =>
   step.kind === 'unusable' || (step.kind === 'failed' && hasAnswer(step.error));
 
+// Whether the call's bounds are gone, so that no further step can finish: its signal
+// cancelled it, or its deadline has come.
+const isOver = ({ deadline, signal }: CallContext): boolean => signal.aborted || now() >= deadline;
+
 /**
  * Classifies `request` through `providers` in order (DET-22, CL-DET-03, module map §5):
  * each provider is called through the caller's budget, and passed by for the rest of the
  * classification when its budget defers the call or the call fails without an answer,
  * which uses no attempt (DET-08); an unusable answer, refused by the validator or by the
  * provider itself, uses one, and the same request goes to the next provider, or to the
- * same one when it is alone, until `attempts` are used.
+ * same one when it is alone, until `attempts` are used. Once the call is cancelled or its
+ * deadline has come, no further provider is called, nor its budget asked, and the
+ * classification is `unanswered` with the steps so far.
  */
 export function createChain(providers: readonly LanguageModelProvider[]): LanguageModel {
   async function classify<T, E>(
@@ -75,7 +83,7 @@ export function createChain(providers: readonly LanguageModelProvider[]): Langua
     const passedBy = new Set<ProviderName>();
     let used = 0;
     let provider = nextOpen(providers, passedBy, 0);
-    while (provider !== undefined && used < options.attempts) {
+    while (provider !== undefined && used < options.attempts && !isOver(ctx)) {
       const step = await tryProvider(provider, { ctx, request, options });
       if ('ok' in step) {
         return step;
