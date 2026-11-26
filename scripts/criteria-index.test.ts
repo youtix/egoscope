@@ -18,7 +18,8 @@ async function rowsOf(criteria: readonly Criterion[]): Promise<readonly string[]
   return lines.slice(lines.findIndex((line) => line.startsWith('| ID ')) + 2, -1);
 }
 
-describe('criteriaIndex', () => {
+// Each test loads Prettier, which a busy machine can slow down past the default timeout.
+describe('criteriaIndex', { timeout: 30_000 }, () => {
   it('lists each criterion with its ID, a link to its spec file and its first words', async () => {
     const rows = await rowsOf([
       criterion('CA-VUE-01', 'docs/00-vue-d-ensemble.md', '(VUE-01) Étant donné un joueur suivi.'),

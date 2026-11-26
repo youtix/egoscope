@@ -12,8 +12,9 @@ the check that proves it. Hypotheses, questions, decisions and rulings (H-13, Q-
 CL-STA-01) may be cited too; they need no test. Write "None" for tooling-only work.
 
 The trace workflow fails a description without this heading. Outside this comment, it reads every
-token of this section shaped like an ID whose prefix the specs use (JOU-4 is one, SHA-256 is not),
-and fails unless each requirement and criterion among them has a test that names it, or a waiver in
+token of this section shaped like an ID whose prefix the specs use (JOU-4 is one, SHA-256 is not).
+It fails on such a token that the specs do not define, as JOU-4 is, and on any requirement or
+criterion among them that has neither a test that names it nor a waiver in
 docs/engineering/requirement-waivers.md.
 -->
 

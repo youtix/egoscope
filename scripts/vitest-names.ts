@@ -150,10 +150,26 @@ function argumentPart(
 }
 
 /**
+ * The node that `callback` is given to: the call it is an argument of, also from inside
+ * the object and array literals passed to the call, as a fixture of `it.extend()` is,
+ * alone or in a tuple with its options (`it.extend({ seed: [async ({ skip }, use) => …,
+ * { auto: true }] })`).
+ */
+function receiverOf(callback: TSESTree.Node): TSESTree.Node | undefined {
+  const { parent } = callback;
+  return parent?.type === AST_NODE_TYPES.Property ||
+    parent?.type === AST_NODE_TYPES.ObjectExpression ||
+    parent?.type === AST_NODE_TYPES.ArrayExpression
+    ? receiverOf(parent)
+    : parent;
+}
+
+/**
  * What `node`, where it is used, holds of the test context (`argumentPart`), if a
- * parameter binds it of a callback passed to one of `owners`, known by any name it
- * goes by (`vitestNames`): `context` in `it('…', (context) => …)`. `scope` is the
- * scope of the whole file.
+ * parameter binds it of a callback given to one of `owners` (`receiverOf`), known by
+ * any name it goes by (`vitestNames`): `context` in `it('…', (context) => …)`, and
+ * `skip` in the fixture `it.extend({ seed: async ({ skip }, use) => … })`. `scope` is
+ * the scope of the whole file.
  */
 export function contextPart(
   node: TSESTree.Identifier,
@@ -161,7 +177,7 @@ export function contextPart(
   owners: ReadonlySet<string>,
 ): ArgumentPart | undefined {
   const definition = ASTUtils.findVariable(scope, node)?.defs[0];
-  const owner = definition?.node.parent;
+  const owner = definition === undefined ? undefined : receiverOf(definition.node);
   return definition?.type === TSESLint.Scope.DefinitionType.Parameter &&
     owner?.type === AST_NODE_TYPES.CallExpression &&
     vitestNames(owner.callee, scope).some((name) => owners.has(name))

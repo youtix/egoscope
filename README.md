@@ -66,8 +66,9 @@ bun run dev                  # http://localhost:3000
 
 `check:changed` runs Prettier, ESLint, markdownlint and the structure check on the files that
 differ from `origin/main` (committed, staged, unstaged or untracked; deletions and renames count),
-runs `bun run trace` when a specification, a ruling, a test, the waiver register or the criteria
-index differs, type-checks the whole project incrementally, then runs the tests related to the
+runs `bun run trace` when a specification, a ruling, a test, the waiver register, the criteria
+index or the check's own code and settings differ (its scripts, and `prettier.config.ts`, which
+formats the criteria index), type-checks the whole project incrementally, then runs the tests related to the
 changed files, or all of them when tooling changed or a source file was deleted or renamed. It
 refuses a change to a frozen French specification, unless the checksum list
 `docs/frozen-specs.sha256` changes in the same diff: that is the coordinator's path, when the owner

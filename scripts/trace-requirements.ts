@@ -74,6 +74,9 @@ const EXIT_PROBLEMS = 1;
 const EXIT_USAGE = 2;
 // The author of the pull requests that update dependencies, which cover no requirement.
 const DEPENDENCY_BOT = 'dependabot[bot]';
+// --author names who opened the pull request whose description --require-claimed reads.
+const AUTHOR_ALONE =
+  "Option '--author' needs --require-claimed: it names the author of the pull request whose description that option reads.";
 const CLAIMS_HEADING = /^#{1,6}\s+Requirements covered\s*$/iu;
 const NO_HEADING =
   'The description has no "Requirements covered" heading outside comments, so it claims nothing: add `## Requirements covered`, then list below it the requirements and criteria that the pull request covers, or write "None" for tooling only.';
@@ -185,6 +188,9 @@ function optionsOf(args: readonly string[]): Options | string {
       strict: true,
       allowPositionals: false,
     });
+    if (values.author !== undefined && !values['require-claimed']) {
+      return AUTHOR_ALONE;
+    }
     return {
       strict: values.strict,
       required: values.require.flatMap((ids) => ids.split(ID_SEPARATORS)).filter((id) => id !== ''),

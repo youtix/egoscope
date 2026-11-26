@@ -64,10 +64,21 @@ const NAMED_FILES = 3;
 
 const byPath = (left: string, right: string): number => left.localeCompare(right, 'en');
 
+// The traceability check's own code, and Prettier's settings, which format the criteria index.
+const TRACE_CODE =
+  /^scripts\/(?:trace-[^/]+|spec-ids|test-titles|waiver-register|criteria-index)\.ts$/u;
+const PRETTIER_SETTINGS = 'prettier.config.ts';
+
 // What the traceability check reads (trace-requirements.ts): the specifications and
-// rulings, the test files, the waiver register and the criteria index.
+// rulings, the test files, the waiver register and the criteria index; and what decides
+// how it reads them: its own code and settings.
 const isTraced = (file: string): boolean =>
-  isSpecSource(file) || isTestFile(file) || file === REGISTER_PATH || file === INDEX_PATH;
+  isSpecSource(file) ||
+  isTestFile(file) ||
+  file === REGISTER_PATH ||
+  file === INDEX_PATH ||
+  TRACE_CODE.test(file) ||
+  file === PRETTIER_SETTINGS;
 
 /**
  * Reads the output of `git diff --name-status -z`: a deletion removes its path, a
