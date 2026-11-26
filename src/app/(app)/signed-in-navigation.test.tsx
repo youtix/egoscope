@@ -25,6 +25,8 @@ vi.mock(import('@/lib/todo'), () => ({ todoCount: vi.fn() }));
 
 // The connection that the session check opened, which the shell reuses.
 const DB = Object.freeze({ kind: 'the connection of the request' });
+const COUNT_FAILED =
+  'The navigation bar is shown without the number of items to do: the session check or the count failed.';
 
 /** A device with an open session, on a server whose to-do list holds `count` items. */
 function signedIn(count: number): void {
@@ -38,7 +40,6 @@ function signedIn(count: number): void {
     },
   });
   getDb.mockResolvedValue({ ok: true, db: DB });
-  vi.mocked(recordDatabaseActivity).mockResolvedValue(undefined);
   vi.mocked(todoCount).mockResolvedValue(count);
 }
 
@@ -58,12 +59,13 @@ describe('SignedInNavigation', () => {
     expect(todoCount).toHaveBeenCalledWith(DB);
   });
 
-  it("[TRV-03] records the minute's database activity of a signed-in owner's visit", async () => {
+  it("[TRV-03] leaves the minute's database activity to the page guard, which runs at every page", async () => {
     signedIn(0);
 
     await renderNavigation();
 
-    expect(recordDatabaseActivity).toHaveBeenCalledExactlyOnceWith(DB);
+    expect(screen.getByRole('link', { name: 'Home 0 to do' })).toBeVisible();
+    expect(recordDatabaseActivity).not.toHaveBeenCalled();
   });
 
   it('[IHM-10] shows the bar alone without a session, and asks the database nothing more', async () => {
@@ -77,7 +79,6 @@ describe('SignedInNavigation', () => {
     expect(screen.getByRole('link', { name: 'Home' })).toBeVisible();
     expect(screen.getAllByRole('link')).toHaveLength(4);
     expect(getDb).not.toHaveBeenCalled();
-    expect(recordDatabaseActivity).not.toHaveBeenCalled();
   });
 
   it('[IHM-16] shows the bar alone when the database cannot be reached', async () => {
@@ -87,7 +88,6 @@ describe('SignedInNavigation', () => {
     await renderNavigation();
 
     expect(screen.getByRole('link', { name: 'Home' })).toBeVisible();
-    expect(recordDatabaseActivity).not.toHaveBeenCalled();
     expect(todoCount).not.toHaveBeenCalled();
   });
 
@@ -99,21 +99,7 @@ describe('SignedInNavigation', () => {
 
     expect(screen.getByRole('link', { name: 'Home' })).toBeVisible();
     expect(screen.getAllByRole('link')).toHaveLength(4);
-    expect(logger.error).toHaveBeenCalledExactlyOnceWith(
-      'The navigation bar is shown without the number of items to do, which could not be read.',
-      { error: failure },
-    );
-  });
-
-  it('[IHM-16] keeps the bar, without a count, when the activity record fails', async () => {
-    signedIn(5);
-    vi.mocked(recordDatabaseActivity).mockRejectedValueOnce(new Error('Connection terminated'));
-
-    await renderNavigation();
-
-    expect(screen.getByRole('link', { name: 'Home' })).toBeVisible();
-    expect(todoCount).not.toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledOnce();
+    expect(logger.error).toHaveBeenCalledExactlyOnceWith(COUNT_FAILED, { error: failure });
   });
 
   it('[IHM-16] keeps the bar, without a count, when the count fails', async () => {
@@ -125,10 +111,7 @@ describe('SignedInNavigation', () => {
 
     expect(screen.getByRole('link', { name: 'Home' })).toBeVisible();
     expect(screen.queryByText('5 to do')).not.toBeInTheDocument();
-    expect(logger.error).toHaveBeenCalledExactlyOnceWith(
-      'The navigation bar is shown without the number of items to do, which could not be read.',
-      { error: failure },
-    );
+    expect(logger.error).toHaveBeenCalledExactlyOnceWith(COUNT_FAILED, { error: failure });
   });
 
   it('leaves to Next.js the errors through which it controls a request', async () => {

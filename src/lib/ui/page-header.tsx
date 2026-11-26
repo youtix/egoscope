@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react';
 
 export type PageHeaderProps = Readonly<{
-  /** The screen's title, its only first-level heading. */
-  title: string;
+  /**
+   * The screen's title, its only first-level heading: a text, or one that holds the
+   * `GlossaryTerm` of a term of glossary section 7.7, which opens its definition (IHM-15).
+   */
+  title: ReactNode;
   /** A sentence under the title, such as the zone in which the screen states its times. */
   description?: string;
   /** The screen's main actions, which wrap under the title on a phone. */

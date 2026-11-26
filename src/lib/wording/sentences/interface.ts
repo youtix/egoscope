@@ -113,6 +113,7 @@ export const interfaceSentences = {
   article: 'Article',
   itemNoLongerExists: 'This item no longer exists',
   goToHome: 'Go to Home',
+  addressLeadsNowhere: 'This address leads to no screen',
   somethingWentWrong: 'Something went wrong',
   screenNotShown:
     'The app could not show this screen. Try again, and if it fails again, try later.',

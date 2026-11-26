@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures/test';
 
-import type { Locator, Page, Request } from '@playwright/test';
+import type { APIRequestContext, Locator, Page, Request } from '@playwright/test';
 
 // Every Lot 1 screen of module map section 3.3 outside the two access screens, with an
 // invented player, the slug of a candidate type and integer identifiers.
@@ -44,7 +44,19 @@ const LOT_1_SCREENS = [
 
 // A Lot 2 screen, which the Lot 1 server of these tests does not serve.
 const LOT_2_SCREEN = '/alerts';
+// An address that no route of the app matches, as a typo or an outdated link gives.
+const NO_ROUTE = '/no-screen-has-this-address';
+const OK = 200;
 const NOT_FOUND = 404;
+
+// The hermetic control that opens and closes to-do items named by the spec.
+const TO_DO = '/api/test/to-do';
+// The items that the count journey opens. The journey of the other project runs on the same
+// server at the same time and holds one item at most, so with two of its own the count that
+// a journey reads after opening them is above the one it read before, whatever the other does.
+const JOURNEY_ITEMS = [1, 2] as const;
+// The number in the accessible name of the Home entry, "Home 5 to do".
+const HOME_COUNT = /Home (?<count>\d+) to do/u;
 
 // The two widths of IHM-01: a phone, and a large screen, from 1024 pixels on.
 const PHONE = { width: 390, height: 844 } as const;
@@ -75,6 +87,28 @@ const isPrefetch = (request: Request): boolean => {
   const names = new Set(Object.keys(request.headers()));
   return PREFETCH_HEADERS.some((name) => names.has(name));
 };
+
+/** The names of the to-do items of the count journey of `project`. */
+const journeyItems = (project: string): readonly string[] =>
+  JOURNEY_ITEMS.map((item) => `Item ${String(item)} of the ${project} count journey`);
+
+/** Opens or closes, with `method`, each to-do item named in `names`. */
+async function changeItems(
+  request: APIRequestContext,
+  method: 'post' | 'delete',
+  names: readonly string[],
+): Promise<void> {
+  for (const name of names) {
+    const response = await request[method](TO_DO, { data: { name } });
+    expect(response.status()).toBe(OK);
+  }
+}
+
+/** The number of items to do that `home`, the Home entry of the bar, says to screen readers. */
+async function countOn(home: Locator): Promise<number> {
+  const snapshot = await home.ariaSnapshot();
+  return Number(HOME_COUNT.exec(snapshot)?.groups?.['count']);
+}
 
 test.describe('the navigation shell', () => {
   test.describe('without a session', () => {
@@ -135,6 +169,47 @@ test.describe('the navigation shell', () => {
     expect(layout).toMatchObject({ top: 0, left: 0, doesScrollSideways: false });
     expect(Math.round(layout.bottom)).toBe(LARGE_SCREEN.height);
     expect(layout.right).toBeLessThan(LARGE_SCREEN.width / 2);
+  });
+
+  test('[IHM-16] [CL-IHM-19] answers an address that matches no route with a page of its own, outside the shell', async ({
+    page,
+  }) => {
+    const response = await page.goto(NO_ROUTE);
+
+    expect(response?.status()).toBe(NOT_FOUND);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'This address leads to no screen',
+    );
+    await expect(page.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', '/');
+    await expect(page.getByRole('navigation')).toHaveCount(0);
+  });
+
+  test.describe('the number of items to do', () => {
+    test.afterEach(async ({ request }, testInfo) => {
+      await changeItems(request, 'delete', journeyItems(testInfo.project.name));
+    });
+
+    test('[IHM-16] [IHM-20] shows on the Home entry the number of the screen the owner moves to, with no reload', async ({
+      page,
+      request,
+    }, testInfo) => {
+      await page.goto('/');
+      const navigation = page.getByRole('navigation');
+      const home = navigation.getByRole('link', { name: HOME_COUNT });
+      await expect(home).toBeVisible();
+      const before = await countOn(home);
+      // A full load would lose it: it stays only while the router moves between screens.
+      await page.evaluate(() => Object.assign(globalThis, { notReloaded: true }));
+
+      await navigation.getByRole('link', { name: 'Players', exact: true }).click();
+      await expect(page).toHaveURL('/players');
+      await changeItems(request, 'post', journeyItems(testInfo.project.name));
+      await navigation.getByRole('link', { name: 'Types', exact: true }).click();
+      await expect(page).toHaveURL('/types');
+
+      await expect.poll(async () => countOn(home)).toBeGreaterThan(before);
+      expect(await page.evaluate(() => 'notReloaded' in globalThis)).toBe(true);
+    });
   });
 
   test('asks the server nothing on a timer, however long the screen stays open', async ({
