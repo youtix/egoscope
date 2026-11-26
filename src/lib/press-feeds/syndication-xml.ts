@@ -210,6 +210,15 @@ function feedOf(root: XmlElement, format: Format, address: string): Feed {
   };
 }
 
+/** A new element of the outline for `tag`, as yet with no elements and no text. */
+const elementOf = ({ uri, local, attributes }: SaxesTagNS): XmlElement => ({
+  uri,
+  local,
+  attributes: Object.values(attributes),
+  children: [],
+  text: [],
+});
+
 /**
  * The elements of a document as the parser meets them, down to the kept depth and
  * without the items of an element past the item bound, and the errors met on the way.
@@ -244,30 +253,31 @@ class Outline {
 
   /**
    * Keeps an element when every element around it is kept, down to the kept depth, and
-   * no error came before it: the first error settles the answer, and a root that comes
-   * after one is no feed's.
+   * no error came before it, since the first error settles the answer. A first root that
+   * opens after an error is still noted, without its content, so that a feed broken
+   * before its root, by a warning or a byte order mark above it, stays apart from a
+   * document that is no feed (COL-41).
    */
-  open({ uri, local, attributes }: SaxesTagNS): void {
+  open(tag: SaxesTagNS): void {
     this.#depth += 1;
     if (this.#depth > MAX_FEED_DEPTH) {
       this.fail();
     }
+    if (this.#errors > 0) {
+      if (this.#depth === 1 && this.roots.length === 0) {
+        this.roots.push(elementOf(tag));
+      }
+      return;
+    }
     const parent = this.#open.at(-1);
     if (
-      this.#errors > 0 ||
       this.#depth !== this.#open.length + 1 ||
       this.#depth > KEPT_DEPTH ||
-      this.#isExtraItem(parent, uri, local)
+      this.#isExtraItem(parent, tag.uri, tag.local)
     ) {
       return;
     }
-    const element: XmlElement = {
-      uri,
-      local,
-      attributes: Object.values(attributes),
-      children: [],
-      text: [],
-    };
+    const element = elementOf(tag);
     (parent?.children ?? this.roots).push(element);
     this.#open.push(element);
   }
@@ -335,10 +345,11 @@ function decoded(bytes: Uint8Array, contentType: string | null): string | null {
 
 /**
  * The feed that the body of an answer at `address` holds (COL-41, TRV-17): not a feed
- * when its root is no syndication format's, or when it has none before its first error;
- * unreadable when it is not text in its charset, or when a feed's root is followed by
- * XML that is not well-formed (a reference to an entity other than XML's five included,
- * whether a DTD declares it or not) or nested past the depth bound.
+ * when its root is no syndication format's, or when none opens by the end of the slice
+ * of its first error; unreadable when it is not text in its charset, or when a feed's
+ * root comes with XML that is not well-formed, before it (such as a warning or a byte
+ * order mark above it) or after it (a reference to an entity other than XML's five
+ * included, whether a DTD declares it or not), or nested past the depth bound.
  */
 export function feedIn(
   bytes: Uint8Array,
