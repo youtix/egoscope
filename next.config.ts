@@ -62,6 +62,9 @@ const nextConfig: NextConfig = {
   // Version-matched Next.js guidance for agents lives in CLAUDE.md, so `next dev`
   // must not write its own AGENTS.md into the working tree.
   agentRules: false,
+  // The end-to-end harness builds the hermetic server of each lot into a folder of its
+  // own (e2e/fixtures/hermetic-server.ts); every other build uses Next.js's own, .next/.
+  distDir: process.env['EGOSCOPE_E2E_BUILD_DIR'] ?? '.next',
   // Routes are prerendered except where they read request-time or uncached data.
   cacheComponents: true,
   partialPrefetching: true,

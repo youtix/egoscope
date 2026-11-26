@@ -10,8 +10,8 @@ const NO_STORE = { 'Cache-Control': 'no-store' };
 /**
  * End-to-end control of the running app, in the hermetic mode only (TRV-15): scripts
  * one of the server's fakes, `{ "control": "<fake>.<control>", ...arguments }`, and
- * answers the control it ran; an invalid command runs none. Not found on any other
- * server.
+ * answers the control it ran, `{ "ran": … }`, with what the fake answered when it
+ * answers, `"answer"`; an invalid command runs none. Not found on any other server.
  */
 export async function POST(request: Request): Promise<Response> {
   await connection();
@@ -20,6 +20,6 @@ export async function POST(request: Request): Promise<Response> {
   }
   const scripted = scriptFake(await readCommand(request));
   return scripted.ok
-    ? Response.json({ ran: scripted.value }, { headers: NO_STORE })
+    ? Response.json(scripted.value, { headers: NO_STORE })
     : Response.json(scripted.error, { status: BAD_REQUEST, headers: NO_STORE });
 }

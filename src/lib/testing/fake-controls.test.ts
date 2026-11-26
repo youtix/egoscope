@@ -35,6 +35,21 @@ const CONTROLS = [
   'backup-storage.fail-next',
   'backup-storage.interrupt-next-upload',
   'backup-storage.keep-next-deletion',
+  'press-feeds.publish',
+  'press-feeds.post',
+  'press-feeds.move',
+  'press-feeds.fail-next',
+  'language-model.script',
+  'language-model.fail-next',
+  'language-model.slow-next',
+  'language-model.set-fallback',
+  'telegram.deliver',
+  'telegram.deliver-again',
+  'telegram.block',
+  'telegram.inbox',
+  'telegram.fail-next',
+  'telegram.refuse-webhooks',
+  'telegram.fail-webhook-delivery',
 ];
 const OTHER_KEY = 'wake:ticks';
 const TTL_SECONDS = 600;
@@ -127,7 +142,7 @@ describe('the controls of the fakes', () => {
     ])('runs %s on the wake plan', async (control, error) => {
       const { readPlan } = await cacheWithAPlan();
 
-      expect(scriptFake({ control })).toStrictEqual({ ok: true, value: control });
+      expect(scriptFake({ control })).toStrictEqual({ ok: true, value: { ran: control } });
       await expect(readPlan()).resolves.toStrictEqual({ ok: false, error });
     });
 
@@ -147,7 +162,7 @@ describe('the controls of the fakes', () => {
 
       expect(
         scriptFake({ control: 'stats-source.inject', fault: { kind: 'outage', times: 1 } }),
-      ).toStrictEqual({ ok: true, value: 'stats-source.inject' });
+      ).toStrictEqual({ ok: true, value: { ran: 'stats-source.inject' } });
       await expect(source.checkHealth(CONTEXT)).resolves.toMatchObject({
         ok: false,
         error: { kind: 'unavailable' },

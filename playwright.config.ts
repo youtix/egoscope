@@ -55,10 +55,10 @@ export default defineConfig<SessionOptions>({
     hermeticServer(1),
     // Started once the Lot 1 server listens, on the build that it made.
     accountServer(),
-    // --- Slot: the Lot 2 server, which the Lot 2 task fills ---------------------------
-    // A second hermetic server, with EGOSCOPE_LOT=2, on a port of its own. Its build
-    // needs a folder of its own beside .next/, which next.config.ts does not offer yet.
-    // hermeticServer(2),
+    // --- Slot: the Lot 2 server -------------------------------------------------------
+    // A second hermetic server, with EGOSCOPE_LOT=2, on a port of its own, from a build
+    // in a folder of its own, which it makes once the servers of the Lot 1 build listen.
+    hermeticServer(2),
   ],
   projects: [
     {
@@ -78,10 +78,18 @@ export default defineConfig<SessionOptions>({
       testMatch: `${ACCOUNT_SPECS}/*.spec.ts`,
       use: { ...DESKTOP, baseURL: accountServerUrl(), signedIn: false },
     },
-    // --- Slot: the Lot 2 projects, which the Lot 2 task fills -------------------------
+    // --- Slot: the Lot 2 projects ----------------------------------------------------
     // The specs under e2e/lot2/, and only those, on the desktop and on the phone, against
-    // the Lot 2 server:
-    // { name: 'desktop-lot2', testMatch: `${LOT_2_SPECS}/*.spec.ts`, use: { ...DESKTOP, baseURL: serverUrl(2) } },
-    // { name: 'phone-lot2', testMatch: `${LOT_2_SPECS}/*.spec.ts`, use: { ...PHONE, baseURL: serverUrl(2) } },
+    // the Lot 2 server.
+    {
+      name: 'desktop-lot2',
+      testMatch: `${LOT_2_SPECS}/*.spec.ts`,
+      use: { ...DESKTOP, baseURL: serverUrl(2) },
+    },
+    {
+      name: 'phone-lot2',
+      testMatch: `${LOT_2_SPECS}/*.spec.ts`,
+      use: { ...PHONE, baseURL: serverUrl(2) },
+    },
   ],
 });

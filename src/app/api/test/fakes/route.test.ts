@@ -1,8 +1,11 @@
 import { connection } from 'next/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { fakeBackupStorage } from '@/lib/backup-storage';
-import { toEpochMs } from '@/lib/time';
+import { fakeLanguageModel } from '@/lib/language-model';
+import { fakePressFeeds } from '@/lib/press-feeds';
+import { fakeTelegram } from '@/lib/telegram';
+import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 // `connection()` only works inside a Next.js request; here it just records the call.
 vi.mock(import('next/server'), async (importOriginal) => ({
@@ -18,6 +21,30 @@ const CONTEXT = {
   signal: new AbortController().signal,
 };
 const SET_PUBLIC = { control: 'backup-storage.set-private', private: false };
+const LOT_2_FAKES = [
+  'egoscope.press-feeds.fake',
+  'egoscope.language-model.fake',
+  'egoscope.telegram.fake',
+];
+const FEED = 'https://news.test/courtside.xml';
+const CHAT = { id: 4242, type: 'private' } as const;
+// An instant before the calls' deadline, at which the Lot 2 fakes, which check it, answer.
+const AT = toEpochMs(Date.UTC(2026, 10, 20, 8));
+
+/** Fresh Lot 2 fakes, at a fixed instant before the calls' deadline. */
+function freshLot2Fakes(): void {
+  for (const fake of LOT_2_FAKES) {
+    vi.stubGlobal(Symbol.for(fake), undefined);
+  }
+  onTestFinished(installFakeClock(fixedClock(AT)));
+}
+
+/** What the Lot 2 fakes hold that their controls change: a feed, the fallback, the updates for polling. */
+async function lot2State() {
+  const feed = await fakePressFeeds().readFeed(CONTEXT, { url: FEED, knownVersion: null });
+  const updates = await fakeTelegram().getUpdates(CONTEXT, { offset: null });
+  return { feed: feed.ok, providers: fakeLanguageModel().providers().length, updates };
+}
 
 /** Stubs each of `variables` with its value. */
 function stubVariables(variables: Readonly<Record<string, string>>): void {
@@ -104,6 +131,44 @@ describe('POST /api/test/fakes', () => {
     await expect(response.text()).resolves.toBe('');
     await expect(isPrivate()).resolves.toBe(true);
   });
+
+  it('answers what the fake answered for a control that reads it, such as the messages of a Telegram chat', async () => {
+    freshLot2Fakes();
+    const { POST } = await hermeticRoute();
+    await POST(command({ control: 'telegram.deliver', chat: CHAT, text: 'Hi' }));
+    await fakeTelegram().sendMessage(CONTEXT, { chat: CHAT.id, text: 'A new alert.' });
+
+    const response = await POST(command({ control: 'telegram.inbox', chat: CHAT.id }));
+
+    await expect(response.json()).resolves.toStrictEqual({
+      ran: 'telegram.inbox',
+      answer: [{ messageId: 3, text: 'A new alert.', sentAt: '2026-11-20T08:00:00.000Z' }],
+    });
+  });
+
+  it.each([
+    { control: 'press-feeds.publish', url: FEED, feed: { items: [{ title: 'A late comeback' }] } },
+    { control: 'language-model.set-fallback', configured: true },
+    { control: 'telegram.deliver', chat: CHAT, text: 'Hi' },
+  ])(
+    'answers 404 to the Lot 2 control %j outside the hermetic mode, and scripts nothing',
+    async (body) => {
+      freshLot2Fakes();
+      const before = await lot2State();
+      const { POST } = await import('./route');
+
+      const response = await POST(command(body));
+
+      expect(response.status).toBe(404);
+      await expect(response.text()).resolves.toBe('');
+      await expect(lot2State()).resolves.toStrictEqual(before);
+      expect(before).toStrictEqual({
+        feed: false,
+        providers: 1,
+        updates: { ok: true, value: [], call: { httpRequests: 1, messages: 0 } },
+      });
+    },
+  );
 
   it('runs at request time instead of being prerendered with the environment of the build', async () => {
     const { POST } = await import('./route');
