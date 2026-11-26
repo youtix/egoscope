@@ -33,8 +33,8 @@ export type FeedDocument =
 // ancestors, each of which gathers the text of everything it holds.
 const KEPT_DEPTH = 4;
 // The characters given to the parser at a time: a handler cannot stop the parser within
-// a write, so a document nested past the depth bound is dropped at the end of the slice
-// in which it passes it, a few thousand elements later at most.
+// a write, so a document that fails, by an error or by a nesting past the depth bound,
+// is dropped at the end of the slice in which it does, a few thousand characters later.
 const PARSE_SLICE_CHARS = 4096;
 // The XML declaration, which may name the encoding, sits at the very start of a body.
 const DECLARATION_BYTES = 200;
@@ -220,7 +220,6 @@ class Outline {
   readonly #itemCounts = new Map<XmlElement | undefined, number>();
   #depth = 0;
   #errors = 0;
-  #isTooDeep = false;
   readonly roots: XmlElement[] = [];
 
   /** Whether an element named `uri` and `local` is an item past the bound of `parent`'s items, counting it if not. */
@@ -234,26 +233,28 @@ class Outline {
     return count >= MAX_FEED_ITEMS;
   }
 
-  /** The errors met: one more for a document nested past the depth bound. */
+  /** The errors met, each element nested past the depth bound counted as one. */
   get errors(): number {
-    return this.#isTooDeep ? this.#errors + 1 : this.#errors;
-  }
-
-  /** Whether the document is nested past the depth bound, which ends its parse. */
-  get isTooDeep(): boolean {
-    return this.#isTooDeep;
+    return this.#errors;
   }
 
   fail(): void {
     this.#errors += 1;
   }
 
-  /** Keeps an element when every element around it is kept, down to the kept depth. */
+  /**
+   * Keeps an element when every element around it is kept, down to the kept depth, and
+   * no error came before it: the first error settles the answer, and a root that comes
+   * after one is no feed's.
+   */
   open({ uri, local, attributes }: SaxesTagNS): void {
     this.#depth += 1;
-    this.#isTooDeep ||= this.#depth > MAX_FEED_DEPTH;
+    if (this.#depth > MAX_FEED_DEPTH) {
+      this.fail();
+    }
     const parent = this.#open.at(-1);
     if (
+      this.#errors > 0 ||
       this.#depth !== this.#open.length + 1 ||
       this.#depth > KEPT_DEPTH ||
       this.#isExtraItem(parent, uri, local)
@@ -288,8 +289,9 @@ class Outline {
 
 /**
  * The elements of `text` and the number of errors the parser met, as an outline keeps
- * them. The parser takes `text` a slice at a time and stops at a document nested past
- * the depth bound, whose cost would grow with the square of its depth.
+ * them. The parser takes `text` a slice at a time and stops after the slice of the first
+ * error, which settles the answer. So a document full of errors, or one nested past the
+ * depth bound, whose cost would grow with the square of its depth, costs a slice or two.
  */
 function elementsOf(text: string): Readonly<{ roots: readonly XmlElement[]; errors: number }> {
   const parser = new SaxesParser({ xmlns: true });
@@ -308,10 +310,10 @@ function elementsOf(text: string): Readonly<{ roots: readonly XmlElement[]; erro
   });
   parser.on('text', gather);
   parser.on('cdata', gather);
-  for (let start = 0; start < text.length && !outline.isTooDeep; start += PARSE_SLICE_CHARS) {
+  for (let start = 0; start < text.length && outline.errors === 0; start += PARSE_SLICE_CHARS) {
     parser.write(text.slice(start, start + PARSE_SLICE_CHARS));
   }
-  if (!outline.isTooDeep) {
+  if (outline.errors === 0) {
     parser.close();
   }
   return { roots: outline.roots, errors: outline.errors };
@@ -333,9 +335,10 @@ function decoded(bytes: Uint8Array, contentType: string | null): string | null {
 
 /**
  * The feed that the body of an answer at `address` holds (COL-41, TRV-17): not a feed
- * when its root is no syndication format's, or when it has none; unreadable when it is
- * not text in its charset or not well-formed XML, a reference to an entity other than
- * XML's five included, whether a DTD declares it or not.
+ * when its root is no syndication format's, or when it has none before its first error;
+ * unreadable when it is not text in its charset, or when a feed's root is followed by
+ * XML that is not well-formed (a reference to an entity other than XML's five included,
+ * whether a DTD declares it or not) or nested past the depth bound.
  */
 export function feedIn(
   bytes: Uint8Array,

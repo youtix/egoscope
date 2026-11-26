@@ -58,6 +58,28 @@ const nested = (levels: number): Uint8Array =>
     ),
   );
 
+// Room left beside the repeated content for a document's root, within the byte bound.
+const ROOT_BYTES = 64;
+// A body up to the byte bound is read in far less time than this.
+const READ_BUDGET_MS = 1000;
+const UNREADABLE = { ok: false, error: { kind: 'unreadable' } } as const;
+const NOT_A_FEED = { ok: false, error: { kind: 'not_a_feed' } } as const;
+
+/** `unit` repeated as often as the byte bound allows beside a root. */
+const filling = (unit: string): string =>
+  unit.repeat(Math.floor((MAX_FEED_BYTES - ROOT_BYTES) / unit.length));
+
+/** What `documents` give, the time they took to read and the bytes of the largest. */
+function timed(
+  documents: readonly string[],
+): Readonly<{ answers: unknown[]; elapsedMs: number; largestBytes: number }> {
+  const bodies = documents.map((text) => bytesOf(text));
+  const started = performance.now();
+  const answers = bodies.map((bytes) => feedIn(bytes, XML_TYPE, COURTSIDE));
+  const elapsedMs = performance.now() - started;
+  return { answers, elapsedMs, largestBytes: Math.max(...bodies.map((body) => body.byteLength)) };
+}
+
 /** The title of the first item that `bytes` give, or the error of a body that gives none. */
 function titleOf(bytes: Uint8Array, contentType: string | null): unknown {
   const document = feedIn(bytes, contentType, COURTSIDE);
@@ -281,23 +303,29 @@ describe('feedIn', () => {
   });
 
   it('[TRV-17] answers an RSS or Atom document nested as deep as the byte bound allows as unreadable, at once', () => {
-    const roots = [
-      ['<rss version="2.0">', '</rss>'],
-      ['<feed xmlns="http://www.w3.org/2005/Atom">', '</feed>'],
-    ] as const;
-    const rootBytes = 64;
-    const levels = Math.floor((MAX_FEED_BYTES - rootBytes) / '<a></a>'.length);
-    const documents = roots.map(([open, close]) =>
-      bytesOf(`${open}${'<a>'.repeat(levels)}${'</a>'.repeat(levels)}${close}`),
-    );
-
-    expect(documents.map(({ byteLength }) => byteLength <= MAX_FEED_BYTES)).toStrictEqual([
-      true,
-      true,
+    const levels = Math.floor((MAX_FEED_BYTES - ROOT_BYTES) / '<a></a>'.length);
+    const nesting = `${'<a>'.repeat(levels)}${'</a>'.repeat(levels)}`;
+    const { answers, elapsedMs, largestBytes } = timed([
+      `<rss version="2.0">${nesting}</rss>`,
+      `<feed xmlns="http://www.w3.org/2005/Atom">${nesting}</feed>`,
     ]);
-    expect(documents.map((bytes) => feedIn(bytes, XML_TYPE, COURTSIDE))).toStrictEqual(
-      documents.map(() => ({ ok: false, error: { kind: 'unreadable' } })),
-    );
+
+    expect(largestBytes).toBeLessThanOrEqual(MAX_FEED_BYTES);
+    expect(answers).toStrictEqual([UNREADABLE, UNREADABLE]);
+    expect(elapsedMs).toBeLessThan(READ_BUDGET_MS);
+  });
+
+  it('[TRV-17] [COL-41] stops at the first error of a body full of them, unreadable after a feed root and not a feed before any root', () => {
+    const { answers, elapsedMs, largestBytes } = timed([
+      `<rss version="2.0">${filling('&x;')}</rss>`,
+      `<rss version="2.0">${filling('</>')}</rss>`,
+      `${filling('</>')}<rss version="2.0"/>`,
+      'Some text<rss version="2.0"><channel/></rss>',
+    ]);
+
+    expect(largestBytes).toBeLessThanOrEqual(MAX_FEED_BYTES);
+    expect(answers).toStrictEqual([UNREADABLE, UNREADABLE, NOT_A_FEED, NOT_A_FEED]);
+    expect(elapsedMs).toBeLessThan(READ_BUDGET_MS);
   });
 
   it('[COL-17] [TRV-17] decodes a feed in the charset its answer names, else its declaration', () => {
