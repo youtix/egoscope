@@ -1,14 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
 
-import {
-  boxScores,
-  createTestDatabase,
-  games,
-  statCorrections,
-  statsSourceMappings,
-  teamSourceRefs,
-} from '@/lib/db';
+import { boxScores, createTestDatabase, games, statCorrections, teamSourceRefs } from '@/lib/db';
 import { createFakeStatsSource } from '@/lib/stats-source';
 import {
   DATABASE_TEST_TIMEOUT_MS,
@@ -18,7 +11,9 @@ import {
 } from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
+import { storeDirectory } from './directory';
 import * as linesModule from './lines';
+import { changeMapping, confirmMapping } from './mapping';
 
 import type { LinesChange, LinesRead } from './lines';
 import type { Database } from '@/lib/db';
@@ -80,15 +75,6 @@ function edited(
   return lines.map((line) =>
     line.game === game && line.player === player ? { ...line, ...change } : line,
   );
-}
-
-/** The counts of p01's line in the first game. */
-function firstCounts(lines: readonly SourceBoxScore[]): SourceBoxScore['counts'] {
-  const line = lines.find(({ game, player }) => game === FIRST_GAME && player === 'p01');
-  if (line === undefined) {
-    throw new Error('no line of p01 in the first game');
-  }
-  return line.counts;
 }
 
 describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
@@ -177,24 +163,11 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
     return rows[0];
   }
 
-  /** The placeholder of p01's unavailable sheet in the first game (STA-35). */
-  async function insertPlaceholder() {
-    await db.insert(boxScores).values({
-      playerId: P01,
-      gameId: firstGameId(),
-      statsSource: 'sportsdataverse_espn',
-      sourcePlayerRef: 'p01',
-      status: 'unavailable',
-      hasRoundedMinutes: false,
-      fetchedAt: new Date(AT),
-    });
-  }
-
-  async function consolidateFirstGame() {
+  async function consolidate(game: string, consolidatedAt: Date | null = new Date(AT)) {
     await db
       .update(games)
-      .set({ consolidatedAt: new Date(AT) })
-      .where(eq(games.id, firstGameId()));
+      .set({ consolidatedAt })
+      .where(eq(games.id, idOf(gameIds, game)));
   }
 
   it('[STA-01] takes its lines in the type of the source port answer only, and offers no other operation', () => {
@@ -303,10 +276,9 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
     });
 
     it('[STA-08] keeps the checks that a suspect line fails, and a line without time unrounded', async () => {
-      const lines = await read();
-      const suspect = edited(lines, { counts: { ...firstCounts(lines), points: 30 } });
+      source.correctBoxScore({ game: FIRST_GAME, player: 'p01', counts: { points: 30 } });
 
-      await ingest(edited(suspect, { playingTime: null }, { game: SECOND_GAME }));
+      await ingest(edited(await read(), { playingTime: null }, { game: SECOND_GAME }));
 
       expect(await lineOf(P01)).toMatchObject({
         status: 'suspect',
@@ -319,21 +291,6 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
         seconds: null,
         hasRoundedMinutes: false,
       });
-    });
-
-    it('[STA-08] stores no line for a requested player whose mapping is not established, nor for one not requested', async () => {
-      await db
-        .update(statsSourceMappings)
-        .set({ status: 'to_establish', sourcePlayerRef: null, establishedAt: null })
-        .where(eq(statsSourceMappings.playerId, P06));
-
-      await insertPlayer(db, { source: 'p04' });
-
-      const change = await ingest(await read(['p01', 'p06', 'p04']));
-
-      const stored = await db.select({ playerId: boxScores.playerId }).from(boxScores);
-      expect(new Set(stored.map(({ playerId }) => playerId))).toStrictEqual(new Set([P01]));
-      expect(change.changed.playerIds).toStrictEqual([P01]);
     });
 
     it('[CL-STA-04] sets the published flag of each side whose lines the answer holds, and only those', async () => {
@@ -363,7 +320,7 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
     });
 
     it('[CL-STA-04] stores a first line of a consolidated game whose team lines were never published', async () => {
-      await consolidateFirstGame();
+      await consolidate(FIRST_GAME);
 
       await ingest(await read());
 
@@ -373,7 +330,7 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
 
     it('[STA-08] [STA-33] stores the lines of a player read after a teammate as first lines, in a consolidated game too', async () => {
       await ingest(await read(['p01']), { players: ['p01'] });
-      await consolidateFirstGame();
+      await consolidate(FIRST_GAME);
 
       const change = await ingest(await read());
 
@@ -398,19 +355,36 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
       expect(change).toStrictEqual({ changed, corrected: NO_SCOPE, teamHistoryChanged: [] });
     });
 
-    it('[STA-08] [STA-33] [CL-STA-04] counts no unavailable placeholder as a read, so its player gets first lines where his team lines were published', async () => {
-      await insertPlaceholder();
-      await ingest(await read(['p06']), { players: ['p06'] });
-      await consolidateFirstGame();
+    it.each([
+      ['in its window', null],
+      ['consolidated meanwhile', new Date(AT)],
+    ])(
+      '[STA-08] [STA-33] [JOU-12] stores as first lines those of a player mapped again to his identity, in a game his teammate published meanwhile, %s',
+      async (_, consolidatedAt) => {
+        // Read before the game; then his mapping is changed, and p06's read publishes team 1's side.
+        const lines = await read();
+        await ingest(lines.filter(({ game }) => game !== SECOND_GAME));
+        const players = await source.getSeasonPlayers(CALL, { season: SEASON, knownVersion: null });
+        await db.transaction(async (tx) => {
+          await storeDirectory(tx, { season: SEASON, entries: dataOf(players) });
+          await changeMapping(tx, { playerId: P01 });
+        });
+        clock.advance(DAY_MS);
+        await ingest(lines);
+        await db.transaction(async (tx) =>
+          confirmMapping(tx, { playerId: P01, sourcePlayerRef: 'p01' }),
+        );
+        clock.advance(DAY_MS);
+        await consolidate(SECOND_GAME, consolidatedAt);
 
-      const change = await ingest(await read());
+        const change = await ingest(lines);
 
-      expect(await lineOf(P01)).toMatchObject({ status: 'unavailable' });
-      expect(await lineOf(P01, SECOND_GAME)).toMatchObject({ status: 'complete' });
-      expect(await corrections()).toStrictEqual([]);
-      expect(change.changed.gameIds).toHaveLength(9);
-      expect(change).toMatchObject({ changed: { playerIds: [P01] }, corrected: NO_SCOPE });
-    });
+        expect(await lineOf(P01, SECOND_GAME)).toMatchObject({ fetchedAt: new Date(LATER) });
+        expect(await corrections()).toStrictEqual([]);
+        const changed = { playerIds: [P01], gameIds: [idOf(gameIds, SECOND_GAME)] };
+        expect(change).toStrictEqual({ changed, corrected: NO_SCOPE, teamHistoryChanged: [] });
+      },
+    );
 
     it('[STA-08] files a line under the game team the source names, whatever its home flag says, and leaves out a line of a team foreign to the game', async () => {
       const lines = edited(
@@ -431,7 +405,7 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
       // p01 read without a line in the first two games, which p06's lines publish for team 1.
       const lines = await read();
       await ingest(edited(edited(lines, NOT_PLAYED), NOT_PLAYED, { game: SECOND_GAME }));
-      await consolidateFirstGame();
+      await consolidate(FIRST_GAME);
 
       const change = await ingest(lines);
 
@@ -537,7 +511,7 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
     });
 
     it('[STA-33] leaves a consolidated game as it is without a manual refetch', async () => {
-      await consolidateFirstGame();
+      await consolidate(FIRST_GAME);
       source.correctBoxScore({ game: FIRST_GAME, player: 'p01', counts: { assists: 7 } });
       const lines = edited(await read(), NOT_PLAYED, { player: 'p06' });
 
@@ -549,7 +523,7 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
     });
 
     it('[STA-34] replaces and traces a correction of a consolidated game on a manual refetch', async () => {
-      await consolidateFirstGame();
+      await consolidate(FIRST_GAME);
       source.correctBoxScore({ game: FIRST_GAME, player: 'p01', counts: { assists: 7 } });
 
       const change = await ingest(await read(), { isManualRefetch: true });
@@ -561,8 +535,17 @@ describe('the box-score lines of a season read', { timeout: DATABASE_TEST_TIMEOU
 
     it('[STA-34] [CL-STA-04] keeps an unavailable placeholder until a manual refetch brings a played line', async () => {
       await db.delete(boxScores).where(eq(boxScores.playerId, P01));
-      await insertPlaceholder();
-      await consolidateFirstGame();
+      // The placeholder of p01's unavailable sheet in the first game (STA-35).
+      await db.insert(boxScores).values({
+        playerId: P01,
+        gameId: firstGameId(),
+        statsSource: 'sportsdataverse_espn',
+        sourcePlayerRef: 'p01',
+        status: 'unavailable',
+        hasRoundedMinutes: false,
+        fetchedAt: new Date(AT),
+      });
+      await consolidate(FIRST_GAME);
       const lines = await read();
       await ingest(edited(lines, NOT_PLAYED), { isManualRefetch: true });
       await ingest(lines);
