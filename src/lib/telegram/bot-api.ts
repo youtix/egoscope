@@ -216,7 +216,7 @@ async function exchange<T>(
   // One read of the clock: a second one could pass the deadline, and a negative delay
   // makes `AbortSignal.timeout` throw.
   const leftMs = ctx.deadline - now();
-  if (ctx.signal.aborted || leftMs <= 0) {
+  if (ctx.signal.aborted || leftMs < 0) {
     return failed(TIMEOUT, NO_CALL);
   }
   const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(leftMs)]);

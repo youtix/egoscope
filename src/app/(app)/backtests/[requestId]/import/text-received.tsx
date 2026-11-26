@@ -14,7 +14,7 @@ const FIRST_OF_A_PAIR = 0x1_00_00;
  * the text.
  */
 function unitsAt(text: string, index: number): number {
-  return Number(text.codePointAt(index)) >= FIRST_OF_A_PAIR ? 2 : 1;
+  return Number(text.codePointAt(index)) > FIRST_OF_A_PAIR ? 2 : 1;
 }
 
 /**

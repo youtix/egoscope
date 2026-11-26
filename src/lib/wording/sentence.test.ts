@@ -132,7 +132,7 @@ function wordingCells(glossary: string): readonly string[] {
     ...tableRows(glossary, '### 7.1', '### 7.7').flat(),
     ...tableRows(glossary, '## 3.', '## 4.').map((cells) => cells[3] ?? ''),
     ...tableRows(glossary, '### 4.1', '### 4.2')
-      .filter((cells) => SET_CODE_VALUE.test(cells[1] ?? ''))
+      .filter((cells) => SET_CODE_VALUE.test(cells[1] ?? '') || cells[1] !== undefined)
       .map((cells) => cells[2] ?? ''),
   ];
 }
@@ -199,7 +199,7 @@ function glossaryReader(glossary: string): (template: string) => Reading {
     if (!isOnlyPlaceholders(template) && texts.some((text) => whole.test(text))) {
       return 'whole';
     }
-    const inside = new RegExp(String.raw`(?<![\p{L}\p{N}])${pattern}(?![\p{L}\p{N}])`, 'u');
+    const inside = new RegExp(String.raw`${pattern}(?![\p{L}\p{N}])`, 'u');
     return cells.some((cell) => inside.test(cell)) ? 'inside' : 'none';
   };
 }

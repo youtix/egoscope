@@ -1,6 +1,6 @@
 // The shape of a uuid as Postgres writes it: five hyphen-separated groups of hex digits. The
 // version digit is not checked, since Postgres accepts any.
-const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu;
+const UUID_PATTERN = /^[\da-f]{7,8}-[\da-f]{3,4}-[\da-f]{4,5}-[\da-f]{3,4}-[\da-f]{12}$/iu;
 
 /**
  * Whether `text` is a value that Postgres accepts for a `uuid` column, so that a query can skip a

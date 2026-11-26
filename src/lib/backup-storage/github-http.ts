@@ -79,7 +79,7 @@ export function parsedJson<T>(schema: z.ZodType<T>, text: string): Step<T> {
 /** Whether the JSON body `text` of an answer has a message that names a rate limit. */
 function isRateLimitMessage(text: string): boolean {
   const body = parsedJson(ERROR_BODY, text);
-  return body.ok && RATE_LIMIT_MESSAGE.test(body.value.message);
+  return RATE_LIMIT_MESSAGE.test(body.ok ? body.value.message : text);
 }
 
 /**
