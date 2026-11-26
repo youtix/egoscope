@@ -74,8 +74,32 @@ export type { CaseFactoryOptions, CaseRow } from './factories/sensitivity';
 // --- statistics-sensitivity ------------------------------------------------------
 
 // factories/profiles.ts
-export { buildProfile, buildTrend } from './factories/profiles';
-export type { ViewShape } from './factories/profiles';
+export {
+  buildProfile,
+  buildTrend,
+  insertProfile,
+  insertTrend,
+  insertValueVersion,
+  insertVerdictChange,
+} from './factories/profiles';
+export type { CalculationSubject, ViewShape } from './factories/profiles';
+// factories/profile-cases.ts
+export { DEFAULT_PARAMS } from './factories/profile-cases';
+export type { CalculationScope, ProfileValues } from './factories/profile-cases';
+// worlds/statistics-sensitivity-lot1.ts
+export {
+  birthdayOnNextGameDay,
+  playerWithEveryStatus,
+  statisticsSensitivityLot1,
+  trendWithHistory,
+} from './worlds/statistics-sensitivity-lot1';
+export type {
+  BirthdayGame,
+  ByView,
+  PlayerWithEveryStatus,
+  TrendWithHistory,
+  WorldBase,
+} from './worlds/statistics-sensitivity-lot1';
 
 // --- collection-detection --------------------------------------------------------
 

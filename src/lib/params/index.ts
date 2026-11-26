@@ -4,6 +4,7 @@ export {
   lastCalculationChange,
   listRegistry,
   snapshotCalculationParams,
+  storedValueOf,
   valueAt,
 } from './accessors';
 export type { CalculationChange, Executor, RegistryRow, Setting } from './accessors';

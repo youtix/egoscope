@@ -8,7 +8,7 @@ import { changedElsewhere, err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
 import { invalidate } from '@/lib/wake-plan';
 
-import { getParams, valueOf } from './accessors';
+import { getParams, storedValueOf } from './accessors';
 import { ENTRIES, isOverridable } from './catalog';
 import { SWITCHED_OFF_CRITERION_KEY } from './registry/taxonomy';
 import { brokenRelation, refusalOf, writeValue } from './relations';
@@ -57,7 +57,11 @@ async function stateOf<K extends OverridableKey>(
     .from(parameterOverrides)
     .where(eq(parameterOverrides.parameterKey, key));
   if (override !== undefined) {
-    return { value: valueOf(key, override.value), version: override.version, overridden: true };
+    return {
+      value: storedValueOf(key, override.value),
+      version: override.version,
+      overridden: true,
+    };
   }
   // Without an override, the version counts the key's changes, which every save and
   // every reset adds to: a version once shown never comes back after a reset.
