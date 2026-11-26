@@ -298,9 +298,11 @@ describe('the service worker', () => {
       worker.fetch(new Request(`${ORIGIN}/_next/static/chunks/other-9f1d.js`)),
       worker.fetch(new Request(`https://elsewhere.test${APP_CHUNK}`)),
       worker.fetch(new Request(`${ORIGIN}${APP_CHUNK}`, { method: 'POST' })),
+      // The data of a screen that a client-side navigation loads is as signed-in as the screen.
+      worker.fetch(new Request(`${ORIGIN}/players?_rsc=1a2b`, { headers: { RSC: '1' } })),
     ];
 
-    expect(answers).toStrictEqual([undefined, undefined, undefined, undefined]);
+    expect(answers).toStrictEqual([undefined, undefined, undefined, undefined, undefined]);
     expect(await device.caches.keys()).toStrictEqual([SHELL_CACHE]);
     expect(device.keysOf(SHELL_CACHE)).toHaveLength(SHELL.files.length + 1);
   });
