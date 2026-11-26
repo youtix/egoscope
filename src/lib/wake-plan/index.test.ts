@@ -26,8 +26,8 @@ const START = toEpochMs(Date.UTC(2026, 10, 1));
 const HASH = 'f'.repeat(64);
 const READ_ALLOWANCE = 1_000_000;
 const WRITE_ALLOWANCE = 200_000;
-// What a test that hangs costs: four times the slowest test on a GitHub runner.
-const SUITE_TIMEOUT_MS = 40_000;
+// The suite timeout: four times the slowest test on a GitHub runner (10.2 s), rounded up to 5 s.
+const SUITE_TIMEOUT_MS = 45_000;
 
 // The month's events, by their offset from the start of the month.
 const isPrimaryTick = (offset: number) => offset % (5 * MINUTE) === 0;
