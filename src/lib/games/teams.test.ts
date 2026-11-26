@@ -39,7 +39,6 @@ const NEXT_SEASON = '2026-27';
 const CALL_WINDOW_MS = 60_000;
 // A US day after every game of the season it closes, so that its lines are all stored.
 const AFTER_SEASON = '2026-06-30';
-const AFTER_NEXT_SEASON = '2027-06-30';
 
 /** Noon UTC on the day given, of 2025 unless another year is. */
 const noon = (month: number, day: number, year = 2025): Date =>
@@ -139,20 +138,20 @@ describe('the current team and the team history', { timeout: DATABASE_TEST_TIMEO
     return db.transaction(async (tx) => updateTeamFromGames(tx, playerId));
   }
 
-  /** The record of the invented player `ref` in the player file of `season`, as the fake serves it. */
-  async function recordOf(ref: LeaguePlayer, season = SEASON): Promise<PlayerRecord> {
+  /** The record of the invented player `ref` in the player file of 2025-26, as the fake serves it. */
+  async function recordOf(ref: LeaguePlayer): Promise<PlayerRecord> {
     const ctx = {
       deadline: toEpochMs(now() + CALL_WINDOW_MS),
       signal: new AbortController().signal,
     };
     const outcome = await source.getPlayerRecords(ctx, {
-      season,
+      season: SEASON,
       knownVersion: null,
       players: [ref],
     });
     const [record] = outcome.ok && outcome.value.kind === 'read' ? outcome.value.data : [];
     if (record === undefined) {
-      throw new Error(`The fake lists no record of ${ref} in ${season}.`);
+      throw new Error(`The fake lists no record of ${ref} in ${SEASON}.`);
     }
     return record;
   }
@@ -377,31 +376,34 @@ describe('the current team and the team history', { timeout: DATABASE_TEST_TIMEO
     });
   });
 
-  it('[JOU-13] [CL-JOU-20] [CL-STA-31] sets "without team" for a release that the player file reports, a second read of it being no news', async () => {
-    await insertLeagueSeason(db, NEXT_SEASON);
-    moveTo(noon(10, 15, 2026));
-    const lakeport = await teamOf('4');
-    const playerId = await follow('p08', '4');
-    await ingest(playerId, 'p08', { lastDay: AFTER_NEXT_SEASON, season: NEXT_SEASON });
-    const record = await recordOf('p08', NEXT_SEASON);
+  it('[JOU-13] [CL-JOU-20] [CL-JOU-25] [CL-STA-31] sets "without team" for a release that the player file reads after a read that gave his team, a release counting as a team like another, and a second read of it being no news', async () => {
+    const [pineValley, redstone] = [await teamOf('2'), await teamOf('3')];
+    const playerId = await follow('p02', '2');
+    const record = await recordOf('p02');
+    const release: PlayerRecord = { ...record, currentTeam: { kind: 'without_team' } };
+    moveTo(noon(11, 3));
+    await read(playerId, record);
 
-    moveTo(noon(11, 10, 2026));
-    const released = await read(playerId, record);
-    moveTo(noon(11, 11, 2026));
-    const again = await read(playerId, record);
+    moveTo(noon(11, 4));
+    const released = await read(playerId, release);
+    const releasedAt = await playerOf(playerId);
+    moveTo(noon(11, 5));
+    const again = await read(playerId, release);
 
     expect([released, again]).toStrictEqual([
-      { ok: true, value: { ...MOVED.value, birthdayChanged: true } },
+      { ok: true, value: { ...MOVED.value, birthdayChanged: false } },
       NOTHING,
     ]);
-    await expect(historyOf(playerId)).resolves.toMatchObject([
-      { origin: 'entered' },
-      observed(noon(11, 10, 2026), [lakeport, null], null),
+    expect(releasedAt).toMatchObject({ teamId: null, fileTeamId: null, fileReadAt: noon(11, 4) });
+    await expect(historyOf(playerId)).resolves.toStrictEqual([
+      entered(BEFORE_SEASON, [null, pineValley], null),
+      observed(noon(11, 3), [pineValley, redstone], null),
+      observed(noon(11, 4), [redstone, null], null),
     ]);
     await expect(playerOf(playerId)).resolves.toMatchObject({
       teamId: null,
       fileTeamId: null,
-      fileReadAt: noon(11, 11, 2026),
+      fileReadAt: noon(11, 5),
     });
   });
 
