@@ -276,6 +276,21 @@ application's interface and both current ones are plain HTTPS. In order of prefe
   ([AI Endpoints catalog](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog/)), with no
   contract, and shared by every Vercel customer behind the same outbound address.
 
+## What rests on the documentation alone
+
+No Cloudflare account or token existed before the hand-over, so the recorded answers of
+`data/fixtures/language-model/workers-ai/` come from the provider's documentation, not from real
+calls ([their README](../../data/fixtures/language-model/workers-ai/README.md)). The owner checks
+these five behaviors first, with a real account:
+
+- the chat-completion layout of the answer of `glm-4.7-flash`, its content as a string in
+  `choices`;
+- the refusal "JSON Mode couldn't be met", which the adapter recognizes by its message;
+- the `429` with code 3036 for the daily allowance used up, and the one-minute wait on the other
+  `429`s when they come without a `retry-after` header;
+- whether the model's reasoning counts in `max_completion_tokens`;
+- the neurons, counted on every prompt token, cached ones included.
+
 ## Date checked
 
 2026-11-11.
