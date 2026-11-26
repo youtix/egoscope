@@ -48,8 +48,12 @@ type Criterion = Extract<ProfileCase, Readonly<{ status: 'excluded' }>>['trigger
 /** A stored case with the scheduled start of its measured game, null without one. */
 type CaseOutcomeRow = CaseRow & Readonly<{ startAt: Date | null }>;
 
-/** A manual decision, with the case it was made on (SEN-17). */
-type ManualDecisionRow = ManualDecision & Readonly<{ caseId: number }>;
+/**
+ * A manual decision, with the case it was made on and the status that case had when it
+ * was made (SEN-17).
+ */
+type ManualDecisionRow = ManualDecision &
+  Readonly<{ caseId: number; previousStatus: 'measured' | 'excluded' }>;
 
 /**
  * What the rows of one case hold: the research confidence of each of its events that
@@ -135,22 +139,48 @@ function trendCaseOf(
   return { ...base, ...outcomeOf(row, facts.criteria) };
 }
 
+/** Whether `left` was made before `right`: by instant, then by id, as the engine orders them. */
+const isEarlier = (left: ManualDecision, right: ManualDecision): boolean =>
+  left.decidedAt < right.decidedAt || (left.decidedAt === right.decidedAt && left.id < right.id);
+
+/**
+ * The first of `decisions` made on the game of the ruling decision `ruling`, which is one
+ * of them (SEN-17, CL-SEN-12).
+ */
+function firstDecisionOn(
+  ruling: ManualDecisionRow,
+  decisions: readonly ManualDecisionRow[],
+): ManualDecisionRow {
+  let first = ruling;
+  for (const each of decisions) {
+    if (each.measuredGameId === ruling.measuredGameId && isEarlier(each, first)) {
+      first = each;
+    }
+  }
+  return first;
+}
+
 /**
  * A measured or excluded case that a manual decision rules (SEN-17, SEN-27, CL-SEN-12),
- * with the status its automatic criteria give it: those stored beside the criterion
- * `manual` for an exclusion; excluded for a reinstatement, which drops the criteria it
- * overrides and was made on an excluded case.
+ * with the status its automatic criteria give it. For an exclusion, those stored beside
+ * the criterion `manual`. A reinstatement drops the criteria it overrides, so for it the
+ * status the case had before the first decision made on its game: no decision ruled it
+ * then, and an exclusion is made only on a measured case and a reinstatement only on an
+ * excluded one. Undoing an exclusion made by hand thus leaves the case measured.
  */
 function decidedCaseOf(row: CaseOutcomeRow, facts: CaseFacts): ManuallyDecidedCase | null {
   const decision = effectiveDecision(facts.decisions, row.measuredGameId);
   if (decision === null || row.statusReason !== null) {
     return null;
   }
+  if (decision.kind === 'reinstate') {
+    const first = firstDecisionOn(decision, facts.decisions);
+    return { caseId: row.id, statusWithoutDecision: first.previousStatus };
+  }
   const isAutomaticallyExcluded = facts.criteria.some((criterion) => criterion !== 'manual');
   return {
     caseId: row.id,
-    statusWithoutDecision:
-      isAutomaticallyExcluded || decision.kind === 'reinstate' ? 'excluded' : 'measured',
+    statusWithoutDecision: isAutomaticallyExcluded ? 'excluded' : 'measured',
   };
 }
 
@@ -163,6 +193,40 @@ async function caseRowsOf(db: Reader, eventTypeId: string): Promise<readonly Cas
     .where(eq(cases.eventTypeId, eventTypeId))
     .orderBy(asc(cases.id));
   return rows.map(({ row, startAt }) => ({ ...row, startAt }));
+}
+
+/** The key of a player's measured game, to tell two cases that share it (SEN-06). */
+const gameKeyOf = (playerId: string, measuredGameId: number | null): string =>
+  `${playerId} ${String(measuredGameId)}`;
+
+/** The rows of `items`, grouped by the case each belongs to. */
+const byCase = <T extends Readonly<{ caseId: number | null }>>(items: readonly T[]) =>
+  Map.groupBy(items, ({ caseId }) => caseId);
+
+/**
+ * The measured games, keyed by player, of the cases of another validated type of the
+ * players of `rows` on one of their games (SEN-06, CL-SEN-29).
+ */
+async function sharedGamesOf(
+  db: Reader,
+  eventTypeId: string,
+  rows: readonly CaseOutcomeRow[],
+): Promise<ReadonlySet<string>> {
+  const playerIds = [...new Set(rows.map(({ playerId }) => playerId))];
+  const gameIds = rows.flatMap(({ measuredGameId }) => measuredGameId ?? []);
+  const others = await db
+    .select({ playerId: cases.playerId, measuredGameId: cases.measuredGameId })
+    .from(cases)
+    .innerJoin(eventTypes, eq(eventTypes.id, cases.eventTypeId))
+    .where(
+      and(
+        ne(cases.eventTypeId, eventTypeId),
+        eq(eventTypes.status, 'validated'),
+        inArray(cases.playerId, playerIds),
+        inArray(cases.measuredGameId, gameIds),
+      ),
+    );
+  return new Set(others.map((other) => gameKeyOf(other.playerId, other.measuredGameId)));
 }
 
 /**
@@ -187,29 +251,20 @@ async function factsOf(db: Reader, eventTypeId: string, rows: readonly CaseOutco
     .select()
     .from(caseManualDecisions)
     .where(inArray(caseManualDecisions.caseId, ids));
-  const gameIds = rows.flatMap(({ measuredGameId }) => measuredGameId ?? []);
-  const others = await db
-    .select({ playerId: cases.playerId, measuredGameId: cases.measuredGameId })
-    .from(cases)
-    .innerJoin(eventTypes, eq(eventTypes.id, cases.eventTypeId))
-    .where(
-      and(
-        ne(cases.eventTypeId, eventTypeId),
-        eq(eventTypes.status, 'validated'),
-        inArray(cases.measuredGameId, gameIds),
-      ),
-    );
+  const confidencesOf = byCase(confidences);
+  const criteriaOf = byCase(criteria);
+  const decisionsOf = byCase(decisions);
+  const sharedGames = await sharedGamesOf(db, eventTypeId, rows);
   return (row: CaseOutcomeRow): CaseFacts => ({
-    confidences: confidences
-      .filter(({ caseId }) => caseId === row.id)
-      .map(({ researchConfidence }) => ({ researchConfidence })),
-    criteria: criteria.filter(({ caseId }) => caseId === row.id).map(({ criterion }) => criterion),
-    decisions: decisions
-      .filter(({ caseId }) => caseId === row.id)
-      .map((decision) => ({ ...decision, decidedAt: toEpochMs(decision.decidedAt.getTime()) })),
-    isCoOccurring: others.some(
-      (other) => other.playerId === row.playerId && other.measuredGameId === row.measuredGameId,
-    ),
+    confidences: (confidencesOf.get(row.id) ?? []).map(({ researchConfidence }) => ({
+      researchConfidence,
+    })),
+    criteria: (criteriaOf.get(row.id) ?? []).map(({ criterion }) => criterion),
+    decisions: (decisionsOf.get(row.id) ?? []).map((decision) => ({
+      ...decision,
+      decidedAt: toEpochMs(decision.decidedAt.getTime()),
+    })),
+    isCoOccurring: sharedGames.has(gameKeyOf(row.playerId, row.measuredGameId)),
   });
 }
 
@@ -239,11 +294,12 @@ export async function buildTrendInput(
     .from(tallyExits)
     .where(eq(tallyExits.eventTypeId, eventTypeId))
     .orderBy(asc(tallyExits.id));
+  const withFacts = rows.map((row) => ({ row, facts: factsOfCase(row) }));
   const input: TrendEvaluationInput = {
     typeStatus: type.status,
-    cases: rows.flatMap((row) => trendCaseOf(row, factsOfCase(row)) ?? []),
+    cases: withFacts.flatMap(({ row, facts }) => trendCaseOf(row, facts) ?? []),
     exitReasons: exits.map(({ reason }) => reason),
-    manuallyDecidedCases: rows.flatMap((row) => decidedCaseOf(row, factsOfCase(row)) ?? []),
+    manuallyDecidedCases: withFacts.flatMap(({ row, facts }) => decidedCaseOf(row, facts) ?? []),
   };
   return ok({ input, params: await paramsInForce(db) });
 }

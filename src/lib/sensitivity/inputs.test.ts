@@ -62,6 +62,9 @@ const JAN_11 = Date.UTC(2026, 0, 11, 12, 0);
 const DECIDED_AT = Date.UTC(2026, 0, 18, 15, 0);
 // New York's offset from UTC in winter, in minutes.
 const NEW_YORK_WINTER = -300;
+// The days the clocks moved for daylight saving time (DST) in 2026, each with the instant
+// of 00:00 in Los Angeles the next day.
+const DST_ENDS = { '2026-03-08': Date.UTC(2026, 2, 9, 7), '2026-11-01': Date.UTC(2026, 10, 2, 8) };
 // His line of each game: 2 × 8 field goals, 2 threes and 4 free throws are 22 points, in 34:30.
 const LINE = {
   statsSource: SOURCE,
@@ -345,6 +348,16 @@ describe('the input of a player’s evaluation', { timeout: DATABASE_TEST_TIMEOU
     ]);
   });
 
+  it('[SEN-01] [CL-SEN-02] [TRV-73] reads a date without a time at 00:00 Los Angeles time the next day across both changes of daylight saving time', async () => {
+    const ids = await Promise.all(
+      Object.keys(DST_ENDS).map(async (on) => historical(world, { referenceDateOn: on }, [{ on }])),
+    );
+    const { input } = await inputOf(db);
+    expect(ids.map((id) => eventOf(input, id).attachmentEvent)).toMatchObject(
+      Object.values(DST_ENDS).map((referenceInstantAt) => ({ referenceInstantAt })),
+    );
+  });
+
   it('[TRV-73] [CL-SEN-07] [SEN-44] reads a source of the game’s day without a time at the end of that US day in Pacific time, which shifts the event to the next game', async () => {
     const timed = await historical(world, TIMED_JAN_15, [{ on: '2026-01-15' }]);
     const { input, params } = await inputOf(db);
@@ -462,7 +475,7 @@ describe('the input of a player’s evaluation', { timeout: DATABASE_TEST_TIMEOU
       { on: '2026-01-16' },
     ]);
     const derivedAhead = await birthday(world, jan17, JAN_11);
-    const derivedAfter = await birthday(world, jan15, DECIDED_AT);
+    const derivedAtStart = await birthday(world, jan15, JAN_15_EVENING);
     const decisions = await db
       .insert(caseManualDecisions)
       .values({
@@ -486,11 +499,12 @@ describe('the input of a player’s evaluation', { timeout: DATABASE_TEST_TIMEOU
         measuredGameId: previous,
         eventIds: [later, recorded],
       }),
-      // Else a new case with its event's origin, a calendar case tracked when derived ahead.
+      // Else a new case with its event's origin, a calendar case tracked when derived ahead
+      // and historical when derived at its game's scheduled start (CL-VUE-13).
       storedCaseOf({ eventTypeId: MEDIA_STORM, measuredGameId: null, eventIds: [later] }),
       storedCaseOf({ eventTypeId: CONTRACT, measuredGameId: jan17, eventIds: [later] }),
       storedCaseOf({ eventTypeId: BIRTHDAY, measuredGameId: jan17, eventIds: [derivedAhead] }),
-      storedCaseOf({ eventTypeId: BIRTHDAY, measuredGameId: jan15, eventIds: [derivedAfter] }),
+      storedCaseOf({ eventTypeId: BIRTHDAY, measuredGameId: jan15, eventIds: [derivedAtStart] }),
     ]).toMatchObject([
       {
         origin: 'tracked',
@@ -513,16 +527,18 @@ describe('the input of a player’s evaluation', { timeout: DATABASE_TEST_TIMEOU
     expect(() => storedCaseOf(unknown)).toThrow('No event of his among 0');
   });
 
-  it('[TRV-35] [CL-TRV-03] refuses a player nobody follows, and gives the instant of the evaluation with its US date and the calculation parameters in force', async () => {
+  it('[TRV-35] [CL-TRV-03] refuses a player nobody follows, and gives the instant of the evaluation with its US date, the New York one in the evening, and the calculation parameters in force', async () => {
     const unknown = await buildPlayerInput(db, { ...QUERY, playerId: UNKNOWN_PLAYER });
     expect(unknown).toStrictEqual({ ok: false, error: { kind: 'player_not_found' } });
     await db
       .insert(parameterOverrides)
       .values({ parameterKey: 'games.minBaselineGames', value: 9 });
+    // 19:30 in New York, already the next day in UTC; the suite's clock comes back after.
+    installFakeClock(fixedClock(toEpochMs(JAN_15_EVENING)));
     const { input, params } = await inputOf(db);
     expect([input.now, input.nowGameDayOn, params.games.minBaselineGames]).toStrictEqual([
-      NOW,
-      '2026-01-20',
+      JAN_15_EVENING,
+      '2026-01-15',
       9,
     ]);
     expect(input.seasons).toMatchObject({

@@ -38,6 +38,8 @@ const NOW = toEpochMs(Date.UTC(2026, 10, 8, 17, 0));
 // Two instants of manual decisions, the second a day later.
 const FIRST_DECISION = Date.UTC(2026, 10, 1, 15, 0);
 const SECOND_DECISION = Date.UTC(2026, 10, 2, 15, 0);
+// A day before the first of them.
+const DAY_BEFORE_DECISIONS = Date.UTC(2026, 9, 31, 15, 0);
 // What a measured or excluded case holds beside its gap (cases_measured_check).
 const MEASUREMENT = {
   status: 'measured',
@@ -110,6 +112,17 @@ function exclusion(caseId: number, measuredGameId: number, decidedAt = FIRST_DEC
     previousStatus: 'measured',
     measuredGameId,
     decidedAt: new Date(decidedAt),
+  } as const;
+}
+
+/** A reinstatement of `caseId`, made on `measuredGameId` at `decidedAt`. */
+function reinstatement(caseId: number, measuredGameId: number, decidedAt: number) {
+  return {
+    ...exclusion(caseId, measuredGameId, decidedAt),
+    kind: 'reinstate',
+    exclusionReason: null,
+    reinstatementReason: 'incorrect_context_indication',
+    previousStatus: 'excluded',
   } as const;
 }
 
@@ -219,13 +232,7 @@ describe('the input of a type’s trend', { timeout: DATABASE_TEST_TIMEOUT_MS },
       exclusion(ids.excluded, g2),
       exclusion(ids.withdrawnPlayers, g1),
       exclusion(ids.reinstated, g3),
-      {
-        ...exclusion(ids.reinstated, g3, SECOND_DECISION),
-        kind: 'reinstate',
-        exclusionReason: null,
-        reinstatementReason: 'incorrect_context_indication',
-        previousStatus: 'excluded',
-      },
+      reinstatement(ids.reinstated, g3, SECOND_DECISION),
       exclusion(pending.unmeasurable, g4),
     ]);
   }
@@ -312,13 +319,40 @@ describe('the input of a type’s trend', { timeout: DATABASE_TEST_TIMEOUT_MS },
     expect(input.typeStatus).toBe('validated');
   });
 
-  it('[SEN-17] [SEN-27] [CL-SEN-12] gives each measured or excluded case that a decision made on its game rules, with the status its automatic criteria give it', async () => {
+  it('[SEN-17] [SEN-27] [CL-SEN-12] gives each measured or excluded case that a decision made on its game rules, with the status its automatic criteria give it, measured once an exclusion made by hand is undone', async () => {
     await fillCases();
     const { input } = await trendOf(MEDIA_STORM);
     expect(input.manuallyDecidedCases).toStrictEqual([
       { caseId: ids.excluded, statusWithoutDecision: 'excluded' },
       { caseId: ids.withdrawnPlayers, statusWithoutDecision: 'measured' },
-      { caseId: ids.reinstated, statusWithoutDecision: 'excluded' },
+      { caseId: ids.reinstated, statusWithoutDecision: 'measured' },
+    ]);
+  });
+
+  it('[SEN-17] [SEN-27] [CL-SEN-12] gives a reinstated case the status it had before the first decision made on its game, by instant then by id, whatever was decided on another game', async () => {
+    const { g1, g2, g3 } = world.games;
+    const undone = await caseOf(db, { playerId: P07, measuredGameId: g2 });
+    const overridden = await caseOf(db, { playerId: P07, measuredGameId: g3 });
+    // Recorded before the exclusion it undoes, and after a reinstatement on another game.
+    await db
+      .insert(caseManualDecisions)
+      .values([
+        reinstatement(undone, g1, DAY_BEFORE_DECISIONS),
+        reinstatement(undone, g2, SECOND_DECISION),
+        exclusion(undone, g2, FIRST_DECISION),
+      ]);
+    // Automatically excluded, reinstated, excluded at the same instant, then reinstated again.
+    await db
+      .insert(caseManualDecisions)
+      .values([
+        reinstatement(overridden, g3, FIRST_DECISION),
+        exclusion(overridden, g3, FIRST_DECISION),
+        reinstatement(overridden, g3, SECOND_DECISION),
+      ]);
+    const { input } = await trendOf(MEDIA_STORM);
+    expect(input.manuallyDecidedCases).toStrictEqual([
+      { caseId: undone, statusWithoutDecision: 'measured' },
+      { caseId: overridden, statusWithoutDecision: 'excluded' },
     ]);
   });
 
