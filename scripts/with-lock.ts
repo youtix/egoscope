@@ -1,24 +1,35 @@
 /**
- * Runs a heavy command (type check, lint, tests, build, knip) under one lock that
- * every worktree of this clone shares, so the agents on one machine take turns:
+ * Runs a heavy command (type check, lint, tests, build, knip) under a lock with two
+ * slots that every worktree of this clone shares, so the agents on one machine take
+ * turns:
  *
  *   bun scripts/with-lock.ts <command> [arguments...]
  *
- * - The lock is `egoscope-heavy.lock` in the shared git directory
- *   (`git rev-parse --git-common-dir`); `egoscope-heavy.lock.json` says who holds it.
- * - The command holds the lock itself, on a file descriptor it inherits, so the
- *   lock lasts as long as the command (and anything it leaves running), even when
- *   this wrapper is killed. The wrapper catches SIGINT, SIGTERM and SIGHUP from its
- *   first instant: it passes them on to the command and waits for the command to
+ * - Slot 1 is `egoscope-heavy.lock` and slot 2 `egoscope-heavy-2.lock`, in the shared
+ *   git directory (`git rev-parse --git-common-dir`); the `.json` file beside each,
+ *   `egoscope-heavy.lock.json` and `egoscope-heavy-2.lock.json`, says who holds it.
+ *   Slot 1 keeps the protocol of the older wrapper, which knows that slot alone, so
+ *   an older wrapper and this one exclude each other there.
+ * - A whole-project command takes slot 1 only. A narrow command (an eslint run with
+ *   paths, as scripts/command-scope.ts decides; every Vitest run is whole-project)
+ *   takes whichever slot is free, trying slot 2 first, and when both are busy it waits
+ *   and takes the first that frees. So one whole-project command runs at a time, with
+ *   at most one narrow command beside it, or two narrow commands run together.
+ * - The command holds its slot itself, on a file descriptor it inherits, so the
+ *   slot stays taken as long as the command (and anything it leaves running), even
+ *   when this wrapper is killed. The wrapper catches SIGINT, SIGTERM and SIGHUP from
+ *   its first instant: it passes them on to the command and waits for the command to
  *   end, and one that comes before the command has started ends the run without
  *   starting it, with status 128 plus the signal's number.
- * - The command's exit code is passed on untouched: whether the lock was free
+ * - The command's exit code is passed on untouched: whether the slot was free
  *   travels on a pipe of its own, so no exit code makes the command run again.
  * - CI never locks, and neither does a command started by a run that already holds
- *   the lock: `bun run gate` takes it once for all its steps.
- * - A waiter says whom it waits for and for how long, and gives up as soon as one
- *   run has held the lock for more than 30 minutes.
- * - Watch, UI and dev-server modes are refused: they would hold the lock until stopped.
+ *   a slot, whichever it is: `bun run gate` takes slot 1 once for all its steps.
+ * - A waiter says whom it waits for, the holder of every slot it may take, and for
+ *   how long, and gives up as soon as one of them has held its slot for more than
+ *   30 minutes. A slot whose lock file cannot be used is passed over, and only when
+ *   no slot that the command may take can be used does it run without the lock.
+ * - Watch, UI and dev-server modes are refused: they would hold a slot until stopped.
  *
  * Tests override the lock folder and the limit with EGOSCOPE_LOCK_DIR and
  * EGOSCOPE_LOCK_LIMIT_SECONDS.
@@ -30,6 +41,7 @@ import path from 'node:path';
 import { setImmediate as nextTurn, setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
+import { commandScope } from './command-scope';
 import { catchSignals, endOf, runUnlocked } from './signal-relay';
 
 import type { Command, Relay } from './signal-relay';
@@ -39,11 +51,15 @@ export type Holder = Readonly<{ pid: number; startedAt: number; command: string;
 
 type Env = Readonly<Record<string, string | undefined>>;
 type Attempt = Readonly<{ state: 'held' | 'busy' | 'unlockable'; code: number }>;
-/** The lock that a run waits for, since when it waits, and the run's signals. */
+/** A slot that a run may take, since when the run waits, and the run's signals. */
 type Lock = Readonly<{ lockPath: string; waitStart: number; relay: Relay }>;
+type Timing = Readonly<{ now: number; waitStart: number; limitMs: number }>;
 
 const HELD = 'EGOSCOPE_LOCK_HELD';
-const LOCK_NAME = 'egoscope-heavy.lock';
+const SLOT_1 = 'egoscope-heavy.lock';
+const SLOT_2 = 'egoscope-heavy-2.lock';
+const SLOT_RULE =
+  'Heavy scripts take turns across worktrees on two slots: a whole-project one takes the first alone, a narrow one either.';
 const CI_OFF_VALUES: ReadonlySet<string> = new Set(['', '0', 'false']);
 // `-w` is the short form of `--watch` for Vitest and tsc.
 const WATCH_FLAGS: ReadonlySet<string> = new Set(['--watch', '-w', '--ui', '--hot']);
@@ -146,10 +162,7 @@ export function parseHolder(text: string): Holder | undefined {
  * Says whether a waiter gives up: the known holder has kept the lock longer than
  * the limit, or, when the holder is unknown, the waiter itself has waited that long.
  */
-export function isOverLimit(
-  holder: Holder | undefined,
-  timing: Readonly<{ now: number; waitStart: number; limitMs: number }>,
-): boolean {
+export function isOverLimit(holder: Holder | undefined, timing: Timing): boolean {
   const since = holder === undefined ? timing.waitStart : holder.startedAt;
   return timing.now - since > timing.limitMs;
 }
@@ -265,61 +278,77 @@ async function attempt(command: readonly string[], lock: Lock): Promise<Attempt>
   return { state: reply === 'held' || reply === 'busy' ? reply : 'unlockable', code };
 }
 
-/** Returns what to tell a waiter now, and whether it must give up. */
+/**
+ * Returns what to tell a waiter now, and whether it must give up: as soon as the
+ * holder of one of the slots it may take is over the limit, each slot on its own.
+ */
 function checkWait(
-  lockPath: string,
-  timing: Readonly<{ now: number; waitStart: number; limitMs: number }>,
+  locks: readonly Lock[],
+  timing: Timing,
 ): Readonly<{ giveUp: boolean; message: string }> {
-  const holder = readHolder(`${lockPath}.json`);
-  const who = describeHolder(holder, timing.now, lockPath);
+  const slots = locks.map(({ lockPath }) => ({ lockPath, holder: readHolder(`${lockPath}.json`) }));
+  const describe = ({ holder, lockPath }: (typeof slots)[number]): string =>
+    describeHolder(holder, timing.now, lockPath);
   const waited = formatDuration(timing.now - timing.waitStart);
-  return isOverLimit(holder, timing)
+  const stuck = slots.find(({ holder }) => isOverLimit(holder, timing));
+  return stuck === undefined
     ? {
-        giveUp: true,
-        message: `[lock] Gave up after waiting ${waited}: ${who}, more than the ${formatDuration(timing.limitMs)} limit (${lockPath}). If that run is stuck, stop it, then run this command again.`,
+        giveUp: false,
+        message: `[lock] Waiting for ${slots.map((slot) => describe(slot)).join(', and for ')}; waited ${waited} so far. ${SLOT_RULE}`,
       }
     : {
-        giveUp: false,
-        message: `[lock] Waiting for ${who}; waited ${waited} so far. Heavy scripts run one at a time across worktrees.`,
+        giveUp: true,
+        message: `[lock] Gave up after waiting ${waited}: ${describe(stuck)}, more than the ${formatDuration(timing.limitMs)} limit (${stuck.lockPath}). If that run is stuck, stop it, then run this command again.`,
       };
 }
 
 /**
- * Settles a run after an attempt: the command's exit code if it ran, or if it never
- * will under the lock (the wrapper was told to stop, or the lock is unusable).
- * Undefined means that another run holds the lock, so the waiter waits.
+ * Tries each slot of `locks` once, in order, and settles the run: the command's exit
+ * code if it ran on one, or if it never will under the lock (the wrapper was told to
+ * stop, or no slot's lock file is usable). Otherwise it returns the slots that another
+ * run holds, for which the run waits: an unusable slot is passed over while another
+ * one may be taken.
  */
-async function settle(
+async function tryEach(
   command: Command,
-  { state, code }: Attempt,
-  lock: Lock,
-): Promise<number | undefined> {
-  if (state === 'held') {
-    return code;
+  locks: readonly Lock[],
+  relay: Relay,
+): Promise<number | readonly Lock[]> {
+  const busy: Lock[] = [];
+  for (const lock of locks) {
+    const { state, code } = await attempt(command, lock);
+    if (state === 'held') {
+      return code;
+    }
+    const stopStatus = relay.stopStatus();
+    if (stopStatus !== undefined) {
+      return stopStatus;
+    }
+    if (state === 'busy') {
+      busy.push(lock);
+    }
   }
-  const stopStatus = lock.relay.stopStatus();
-  if (stopStatus !== undefined) {
-    return stopStatus;
+  if (busy.length > 0) {
+    return busy;
   }
-  if (state === 'unlockable') {
-    console.error(`[lock] Cannot lock ${lock.lockPath}: running without the shared lock.`);
-    return runUnlocked(command, lock.relay);
-  }
-  return undefined;
+  const paths = locks.map(({ lockPath }) => lockPath).join(' or ');
+  console.error(`[lock] Cannot lock ${paths}: running without the shared lock.`);
+  return runUnlocked(command, relay);
 }
 
 async function waitAndRun(argv: Command, folder: string, relay: Relay): Promise<number> {
-  const lockPath = path.join(folder, LOCK_NAME);
   const waitStart = monotonicNow();
   const limitSeconds = Number(process.env['EGOSCOPE_LOCK_LIMIT_SECONDS'] ?? DEFAULT_LIMIT_SECONDS);
   const timing = { waitStart, limitMs: limitSeconds * MS_PER_SECOND };
-  const lock = { lockPath, waitStart, relay };
+  // The slots that the command may take, in the order it tries them.
+  const slots = commandScope(argv, process.cwd()) === 'narrow' ? [SLOT_2, SLOT_1] : [SLOT_1];
+  const locks = slots.map((slot) => ({ lockPath: path.join(folder, slot), waitStart, relay }));
   for (let poll = 0; ; poll += 1) {
-    const settled = await settle(argv, await attempt(argv, lock), lock);
-    if (settled !== undefined) {
-      return settled;
+    const tried = await tryEach(argv, locks, relay);
+    if (typeof tried === 'number') {
+      return tried;
     }
-    const verdict = checkWait(lockPath, { ...timing, now: monotonicNow() });
+    const verdict = checkWait(tried, { ...timing, now: monotonicNow() });
     if (verdict.giveUp || poll % POLLS_PER_REPORT === 0) {
       console.error(verdict.message);
     }

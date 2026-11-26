@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { describe, expect, it, onTestFinished } from 'vitest';
+import { beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 
 import {
   describeHolder,
@@ -19,9 +19,14 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 
 const SCRIPT = path.join(import.meta.dirname, 'with-lock.ts');
 const LOCK = 'egoscope-heavy.lock';
+const LOCK_2 = 'egoscope-heavy-2.lock';
 const HOLDER = { pid: 4242, startedAt: 1_000_000, command: 'vitest run', cwd: '/work/tree' };
 const MISSING_PROGRAM = 'egoscope-missing-program';
+// The older wrapper's attempt on slot 1, which exits with 1 when another run holds it.
+const OLDER_ATTEMPT = 'exec 9>>"$1"; flock -n 9';
 
+type Child = ChildProcessWithoutNullStreams;
+type Env = Readonly<Record<string, string>>;
 type Outcome = Readonly<{
   code: number | null;
   signal: NodeJS.Signals | null;
@@ -30,13 +35,16 @@ type Outcome = Readonly<{
   endedAt: number;
 }>;
 type Run = Readonly<{
-  child: ChildProcessWithoutNullStreams;
+  child: Child;
   stderr: () => string;
   /** Settles when the wrapper process ends, while its command may still write output. */
   exited: Promise<unknown>;
   /** Settles once the output is complete: the wrapper and its command have both ended. */
   outcome: Promise<Outcome>;
 }>;
+
+/** A whole-project command: `script` in a shell, with `args` as its `$1`, `$2`… */
+const whole = (script: string, ...args: string[]): string[] => ['sh', '-c', script, 'sh', ...args];
 
 /** A fresh lock folder for one test, so tests never touch the real machine-wide lock. */
 function lockFolder(): string {
@@ -48,11 +56,7 @@ function lockFolder(): string {
 }
 
 /** Starts the script outside CI and outside any held lock, with `extra` variables. */
-function start(
-  args: readonly string[],
-  folder: string,
-  extra: Readonly<Record<string, string>> = {},
-): Run {
+function start(args: readonly string[], folder: string, extra: Env = {}): Run {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     CI: undefined,
@@ -80,12 +84,8 @@ function start(
   return { child, stderr: () => stderr, exited, outcome };
 }
 
-async function withLock(
-  args: readonly string[],
-  folder: string,
-  extra: Readonly<Record<string, string>> = {},
-): Promise<Outcome> {
-  return start(args, folder, extra).outcome;
+async function withLock(...args: Parameters<typeof start>): Promise<Outcome> {
+  return start(...args).outcome;
 }
 
 async function until(isDone: () => boolean): Promise<void> {
@@ -94,9 +94,14 @@ async function until(isDone: () => boolean): Promise<void> {
   }
 }
 
-/** Resolves once a run holds the lock in `folder`. */
-async function untilHeld(folder: string): Promise<void> {
-  await until(() => existsSync(path.join(folder, `${LOCK}.json`)));
+/** Resolves once a run holds the slot `lock` in `folder`. */
+async function untilHeld(folder: string, lock = LOCK): Promise<void> {
+  await until(() => existsSync(path.join(folder, `${lock}.json`)));
+}
+
+/** Resolves once `run` waits for a slot. */
+async function untilWaiting(run: Run): Promise<void> {
+  await until(() => run.stderr().includes('[lock] Waiting for'));
 }
 
 /**
@@ -138,9 +143,23 @@ function slowGit(folder: string, reply: string): SlowGit {
   };
 }
 
-/** Says whether a process holds the lock in `folder`, by trying to take it. */
-function isLocked(folder: string): boolean {
-  return spawnSync('flock', ['--nonblock', path.join(folder, LOCK), 'true']).status !== 0;
+/** Says whether a process holds the slot `lock` in `folder`, by trying to take it. */
+function isLocked(folder: string, lock = LOCK): boolean {
+  return spawnSync('flock', ['--nonblock', path.join(folder, lock), 'true']).status !== 0;
+}
+
+/**
+ * Holds the slot `lock` in `folder` the way the older wrapper holds slot 1, with an
+ * flock on its lock file alone and no holder record, until its input ends or the
+ * test does.
+ */
+async function holdLikeOlderWrapper(folder: string, lock = LOCK): Promise<Child> {
+  const holder = spawn('flock', [path.join(folder, lock), 'cat']);
+  onTestFinished(() => {
+    holder.stdin.end();
+  });
+  await until(() => isLocked(folder, lock));
+  return holder;
 }
 
 function parentOf(pid: number): number {
@@ -161,7 +180,38 @@ function wrappersOf(pid: number, top: number): number[] {
   return chain;
 }
 
+type Slot = Readonly<{
+  lock: string;
+  /** The other slots that this slot's commands may take. */
+  others: readonly string[];
+  /** A command that takes this slot: `script` in a shell, with `args` as its `$1`, `$2`… */
+  command: (script: string, ...args: string[]) => string[];
+}>;
+
+/** Holds every other slot that the commands of `slot` may take: they run on it or not at all. */
+async function occupyOthers(folder: string, slot: Slot): Promise<void> {
+  await Promise.all(slot.others.map(async (lock) => holdLikeOlderWrapper(folder, lock)));
+}
+
 describe('with-lock', { timeout: 30_000 }, () => {
+  // A stand-in for ESLint, which makes a command narrow: it runs its arguments, here
+  // the shell of a whole-project command, whose words name paths (`sh`), none of them `.`.
+  let fakeEslint = '';
+  const narrow: typeof whole = (...words) => [fakeEslint, ...whole(...words)];
+  const slots: [string, Slot][] = [
+    ['slot 1, which a whole-project command takes', { lock: LOCK, others: [], command: whole }],
+    ['slot 2, taken first by a narrow command', { lock: LOCK_2, others: [LOCK], command: narrow }],
+  ];
+
+  beforeAll(() => {
+    const bin = mkdtempSync(path.join(tmpdir(), 'egoscope-eslint-'));
+    fakeEslint = path.join(bin, 'eslint');
+    writeFileSync(fakeEslint, '#!/bin/sh\nexec "$@"\n', { mode: 0o755 });
+    return () => {
+      rmSync(bin, { recursive: true, force: true });
+    };
+  });
+
   it.each([
     [{}, true],
     [{ CI: 'true' }, false],
@@ -243,169 +293,110 @@ describe('with-lock', { timeout: 30_000 }, () => {
     expect(outcome.stderr).toContain('[lock] Refusing the --watch flag: a watch, UI or dev-server');
   });
 
-  it('runs the command with its arguments, such as a test path, and returns its exit code', async () => {
-    const outcome = await withLock(
-      ['sh', '-c', 'printf "%s|" "$@"; exit 3', 'sh', 'src/lib/foo', '--flag'],
-      lockFolder(),
-    );
-
-    expect(outcome.code).toBe(3);
-    expect(outcome.stdout).toBe('src/lib/foo|--flag|');
-  });
-
-  it.each([1, 197])(
-    'runs a command that exits with %i exactly once, and passes the code on',
-    async (code) => {
-      const folder = lockFolder();
-      const runs = path.join(folder, 'runs');
-
-      const outcome = await withLock(
-        ['sh', '-c', `echo run >> "$1"; exit ${String(code)}`, 'sh', runs],
-        folder,
-      );
-
-      expect(outcome.code).toBe(code);
-      expect(readFileSync(runs, 'utf8')).toBe('run\n');
-    },
-  );
-
-  it('makes a second run wait for the first, and says how long it waited', async () => {
+  it('makes a second whole-project run wait for the first, even while slot 2 is free, and says how long it waited', async () => {
     const folder = lockFolder();
     const first = withLock(['sh', '-c', 'sleep 1.5'], folder);
     await untilHeld(folder);
-    const second = withLock(['true'], folder);
+    const second = start(['true'], folder);
+    await untilWaiting(second);
 
-    const [held, waited] = await Promise.all([first, second]);
-
+    expect(isLocked(folder, LOCK_2)).toBe(false);
+    const [held, waited] = await Promise.all([first, second.outcome]);
     expect(waited.code).toBe(0);
     expect(waited.endedAt).toBeGreaterThanOrEqual(held.endedAt);
     expect(waited.stderr).toMatch(/Waiting for "sh -c sleep 1\.5" .*; waited \d+s so far/u);
     expect(waited.stderr).toMatch(/Got the lock after waiting \d+s/u);
   });
 
-  it.each([
-    ['with the lock', {}],
-    ['without the lock', { CI: 'true' }],
-  ])(
-    'passes SIGTERM on to the command of a run %s and waits for the command to end',
-    async (_run, extra) => {
-      const folder = lockFolder();
-      const [started, cleaned] = [path.join(folder, 'started'), path.join(folder, 'cleaned')];
-      const script = [
-        'trap \'kill "$pid"; sleep 0.5; touch "$2"; exit 42\' TERM',
-        'sleep 10 & pid=$!',
-        'touch "$1"',
-        'wait "$pid"',
-      ].join('\n');
-      const run = start(['sh', '-c', script, 'sh', started, cleaned], folder, extra);
-      // The wrapper catches the signals before it starts any process, so a command
-      // that has set its trap shows that both are ready.
-      await until(() => existsSync(started));
-
-      run.child.kill('SIGTERM');
-      const outcome = await run.outcome;
-
-      expect(outcome.code).toBe(42);
-      expect(existsSync(cleaned)).toBe(true);
-    },
-  );
-
-  it.each<[NodeJS.Signals, number]>([
-    ['SIGINT', 130],
-    ['SIGTERM', 143],
-    ['SIGHUP', 129],
-  ])(
-    'ends on a %s that comes before the command has started, with status %i, and starts nothing',
-    async (signal, status) => {
-      const folder = lockFolder();
-      const ran = path.join(folder, 'ran');
-      // The first run holds the lock until its input ends, so the second one cannot start.
-      const holder = start(['cat'], folder);
-      await untilHeld(folder);
-      const waiter = start(['touch', ran], folder);
-      // The wrapper writes this line once it has caught the signals and found the lock taken.
-      await until(() => waiter.stderr().includes('[lock] Waiting for'));
-
-      waiter.child.kill(signal);
-      const stopped = await waiter.outcome;
-      holder.child.stdin.end();
-      await holder.outcome;
-
-      expect(stopped.code).toBe(status);
-      expect(stopped.signal).toBeNull();
-      expect(existsSync(ran)).toBe(false);
-    },
-  );
-
-  it.each([
-    ['takes the lock', (folder: string) => `echo '${folder}'`, ''],
-    [
-      'runs without it',
-      () => 'exit 1',
-      '[lock] No git directory or no flock here: running without the shared lock.\n',
-    ],
-  ])(
-    'ends with status 143 and starts nothing on a SIGTERM during the start-up checks of a run that %s',
-    async (_run, reply, stderr) => {
-      const folder = lockFolder();
-      // Without EGOSCOPE_LOCK_DIR, the wrapper asks git for its lock folder.
-      const git = slowGit(folder, reply(folder));
-      // Starting a missing program fails at once and loudly, so a signal passed on to
-      // it cannot hide the start: the wrapper reports it without the lock, and the
-      // hold shell, which ignores the signal, under it. A quiet run started nothing.
-      const run = start([MISSING_PROGRAM], folder, { EGOSCOPE_LOCK_DIR: '', PATH: git.path });
-      await until(() => existsSync(git.asked));
-
-      run.child.kill('SIGTERM');
-      await untilDelivered(run.child.pid ?? 0);
-      git.answer();
-      const stopped = await run.outcome;
-
-      expect(stopped.code).toBe(143);
-      expect(stopped.signal).toBeNull();
-      expect(stopped.stderr).toBe(stderr);
-    },
-  );
-
-  it('keeps the lock until the command ends, even when every wrapper is killed', async () => {
+  it('runs a narrow command on slot 2 while a whole-project one holds slot 1, each with its own exit code', async () => {
     const folder = lockFolder();
-    const [started, finished] = [path.join(folder, 'started'), path.join(folder, 'finished')];
-    const run = start(
-      ['sh', '-c', 'echo "$$" > "$1"; sleep 2; touch "$2"', 'sh', started, finished],
-      folder,
-    );
-    await until(() => existsSync(started) && readFileSync(started, 'utf8').endsWith('\n'));
-    const wrappers = wrappersOf(Number(readFileSync(started, 'utf8')), run.child.pid ?? 0);
+    const wholeRun = start(whole('cat > /dev/null; exit 3'), folder);
+    await untilHeld(folder);
 
-    for (const wrapper of wrappers) {
-      process.kill(wrapper, 'SIGKILL');
-    }
-    await run.exited;
+    const narrowRun = await withLock(narrow('exit 5'), folder);
+    wholeRun.child.stdin.end();
+    const wholeOutcome = await wholeRun.outcome;
 
-    expect(isLocked(folder)).toBe(true);
-    await until(() => !isLocked(folder));
-    expect(existsSync(finished)).toBe(true);
+    expect(narrowRun.code).toBe(5);
+    expect(narrowRun.stderr).toBe('');
+    expect(wholeOutcome.code).toBe(3);
   });
 
-  it('stops waiting on SIGTERM, without ever running the command', async () => {
+  it.each(['slot 1', 'slot 2'])(
+    'runs two narrow commands together, and a third, which names both, on %s once it frees first',
+    async (freed) => {
+      const folder = lockFolder();
+      const [firstCommand, secondCommand] = [narrow('exec cat', 'a'), narrow('exec cat', 'b')];
+      const first = start(firstCommand, folder);
+      await untilHeld(folder, LOCK_2);
+      const second = start(secondCommand, folder);
+      await untilHeld(folder, LOCK);
+      const third = start(narrow('true'), folder);
+      await untilWaiting(third);
+
+      const [freedRun, keptRun] = freed === 'slot 1' ? [second, first] : [first, second];
+      freedRun.child.stdin.end();
+      // The third run ends while the other holder still runs: it took the slot that freed.
+      const ended = await third.outcome;
+      keptRun.child.stdin.end();
+      await Promise.all([first.outcome, second.outcome]);
+
+      expect(ended.code).toBe(0);
+      expect(ended.stderr).toContain(`Waiting for "${firstCommand.join(' ')}" in `);
+      expect(ended.stderr).toContain(`, and for "${secondCommand.join(' ')}" in `);
+    },
+  );
+
+  it('excludes the older wrapper on slot 1 both ways, and runs a narrow command on slot 2 beside it', async () => {
     const folder = lockFolder();
     const ran = path.join(folder, 'ran');
-    const holding = withLock(['sh', '-c', 'sleep 1.5'], folder);
-    await untilHeld(folder);
-    const waiter = start(['touch', ran], folder);
-    await until(() => waiter.stderr().includes('[lock] Waiting for'));
+    const older = await holdLikeOlderWrapper(folder);
+    const wholeRun = start(whole('touch "$1"; exec cat', ran), folder);
+    await untilWaiting(wholeRun);
 
-    waiter.child.kill('SIGTERM');
-    await Promise.all([waiter.outcome, holding]);
-
+    const narrowRun = await withLock(narrow('exit 4'), folder);
     expect(existsSync(ran)).toBe(false);
+    older.stdin.end();
+    await until(() => existsSync(ran));
+    const olderAttempt = spawnSync('sh', ['-c', OLDER_ATTEMPT, 'sh', path.join(folder, LOCK)]);
+    wholeRun.child.stdin.end();
+    const wholeOutcome = await wholeRun.outcome;
+
+    expect(narrowRun.code).toBe(4);
+    expect(olderAttempt.status).toBe(1);
+    expect(wholeOutcome.code).toBe(0);
   });
 
-  it('takes the lock once for a run and the runs it starts, without deadlock', async () => {
-    const outcome = await withLock(['bun', SCRIPT, 'sh', '-c', 'echo nested'], lockFolder());
+  it('applies the 30-minute limit to the holder of each slot on its own', async () => {
+    const folder = lockFolder();
+    // A run that has held slot 2 since 1970, far past the limit.
+    const stuck = await holdLikeOlderWrapper(folder, LOCK_2);
+    const record = { pid: stuck.pid, startedAt: 0, command: 'eslint src/lib/stuck', cwd: '/work' };
+    writeFileSync(path.join(folder, `${LOCK_2}.json`), JSON.stringify(record));
+    const holder = start(whole('exec cat'), folder);
+    await untilHeld(folder);
 
-    expect(outcome.code).toBe(0);
-    expect(outcome.stdout).toBe('nested\n');
+    const narrowWaiter = await withLock(narrow('true'), folder);
+    const wholeWaiter = start(whole('true'), folder);
+    await untilWaiting(wholeWaiter);
+    holder.child.stdin.end();
+    const wholeOutcome = await wholeWaiter.outcome;
+
+    expect(narrowWaiter.code).toBe(1);
+    expect(narrowWaiter.stderr).toMatch(
+      /Gave up after waiting \d+s: "eslint src\/lib\/stuck" in \/work \(pid \d+\), which has held the lock for \d+m \d+s, more than the 30m 00s limit/u,
+    );
+    expect(narrowWaiter.stderr).toContain(`limit (${path.join(folder, LOCK_2)})`);
+    expect(wholeOutcome.code).toBe(0);
+    expect(wholeOutcome.stderr).not.toContain('src/lib/stuck');
+  });
+
+  it('runs a narrow command on slot 1, and not without the lock, when slot 2 cannot be locked', async () => {
+    const folder = lockFolder();
+    mkdirSync(path.join(folder, LOCK_2));
+    const command = narrow('flock -n "$1" true || exit 9', path.join(folder, LOCK));
+    // Run without the lock, the command would take slot 1 itself and end with 0.
+    await expect(withLock(command, folder)).resolves.toMatchObject({ code: 9 });
   });
 
   it('never locks in CI', async () => {
@@ -429,32 +420,208 @@ describe('with-lock', { timeout: 30_000 }, () => {
     expect(outcome.stderr).toMatch(/^\[lock\] Cannot run egoscope-missing-program: .+\n$/u);
   });
 
-  it('fails with a clear message when one run holds the lock past the limit', async () => {
-    const folder = lockFolder();
-    const stuck = withLock(['sh', '-c', 'sleep 3'], folder);
-    await untilHeld(folder);
+  describe.each(slots)('on %s', (_slot, slot) => {
+    it('runs the command with its arguments, such as a test path, and returns its exit code', async () => {
+      const folder = lockFolder();
+      await occupyOthers(folder, slot);
 
-    const waiter = await withLock(['true'], folder, { EGOSCOPE_LOCK_LIMIT_SECONDS: '1' });
-    await stuck;
+      const outcome = await withLock(
+        slot.command('printf "%s|" "$@"; exit 3', 'src/lib/foo', '--flag'),
+        folder,
+      );
 
-    expect(waiter.code).toBe(1);
-    expect(waiter.stderr).toMatch(
-      /Gave up after waiting \d+s: "sh -c sleep 3" .* has held the lock for \d+s, more than the 1s limit/u,
+      expect(outcome.code).toBe(3);
+      expect(outcome.stdout).toBe('src/lib/foo|--flag|');
+    });
+
+    it.each([1, 197])(
+      'runs a command that exits with %i exactly once, and passes the code on',
+      async (code) => {
+        const folder = lockFolder();
+        const runs = path.join(folder, 'runs');
+        await occupyOthers(folder, slot);
+
+        const outcome = await withLock(
+          slot.command(`echo run >> "$1"; exit ${String(code)}`, runs),
+          folder,
+        );
+
+        expect(outcome.code).toBe(code);
+        expect(readFileSync(runs, 'utf8')).toBe('run\n');
+      },
     );
-  });
 
-  it('names a process that a finished command left running with the lock', async () => {
-    const folder = lockFolder();
-    // The command ends at once; the sleep it starts in the background keeps the lock.
-    const leaving = start(['sh', '-c', 'sleep 3 &'], folder);
-    await leaving.exited;
+    it.each([
+      ['with the lock', {}],
+      ['without the lock', { CI: 'true' }],
+    ])(
+      'passes SIGTERM on to the command of a run %s and waits for the command to end',
+      async (_run, extra) => {
+        const folder = lockFolder();
+        const [started, cleaned] = [path.join(folder, 'started'), path.join(folder, 'cleaned')];
+        const script = [
+          'trap \'kill "$pid"; sleep 0.5; touch "$2"; exit 42\' TERM',
+          'sleep 10 & pid=$!',
+          'touch "$1"',
+          'wait "$pid"',
+        ].join('\n');
+        await occupyOthers(folder, slot);
+        const run = start(slot.command(script, started, cleaned), folder, extra);
+        // The wrapper catches the signals before it starts any process, so a command
+        // that has set its trap shows that both are ready.
+        await until(() => existsSync(started));
 
-    const waiter = await withLock(['true'], folder, { EGOSCOPE_LOCK_LIMIT_SECONDS: '1' });
-    await leaving.outcome;
+        run.child.kill('SIGTERM');
+        const outcome = await run.outcome;
 
-    expect(waiter.code).toBe(1);
-    expect(waiter.stderr).toContain(
-      'a process that an earlier command left running in the background, which still holds the lock',
+        expect(outcome.code).toBe(42);
+        expect(existsSync(cleaned)).toBe(true);
+      },
     );
+
+    it.each<[NodeJS.Signals, number]>([
+      ['SIGINT', 130],
+      ['SIGTERM', 143],
+      ['SIGHUP', 129],
+    ])(
+      'ends on a %s that comes before the command has started, with status %i, and starts nothing',
+      async (signal, status) => {
+        const folder = lockFolder();
+        const ran = path.join(folder, 'ran');
+        await occupyOthers(folder, slot);
+        // The first run holds the slot until its input ends, so the second one cannot start.
+        const holder = start(slot.command('exec cat'), folder);
+        await untilHeld(folder, slot.lock);
+        const waiter = start(slot.command('touch "$1"', ran), folder);
+        // The wrapper writes this line once it has caught the signals and found the slot taken.
+        await untilWaiting(waiter);
+
+        waiter.child.kill(signal);
+        const stopped = await waiter.outcome;
+        holder.child.stdin.end();
+        await holder.outcome;
+
+        expect(stopped.code).toBe(status);
+        expect(stopped.signal).toBeNull();
+        expect(existsSync(ran)).toBe(false);
+      },
+    );
+
+    it.each([
+      ['takes the lock', (folder: string) => `echo '${folder}'`, ''],
+      [
+        'runs without it',
+        () => 'exit 1',
+        '[lock] No git directory or no flock here: running without the shared lock.\n',
+      ],
+    ])(
+      'ends with status 143 and starts nothing on a SIGTERM during the start-up checks of a run that %s',
+      async (_run, reply, stderr) => {
+        const folder = lockFolder();
+        await occupyOthers(folder, slot);
+        // Without EGOSCOPE_LOCK_DIR, the wrapper asks git for its lock folder.
+        const git = slowGit(folder, reply(folder));
+        // Starting a missing program fails at once and loudly, so a signal passed on to
+        // it cannot hide the start: the shell of the command, which ignores the signal
+        // as every shell from that PATH does, reports it. A quiet run started nothing.
+        const missing = slot.command(`exec ${MISSING_PROGRAM}`);
+        const run = start(missing, folder, { EGOSCOPE_LOCK_DIR: '', PATH: git.path });
+        await until(() => existsSync(git.asked));
+
+        run.child.kill('SIGTERM');
+        await untilDelivered(run.child.pid ?? 0);
+        git.answer();
+        const stopped = await run.outcome;
+
+        expect(stopped.code).toBe(143);
+        expect(stopped.signal).toBeNull();
+        expect(stopped.stderr).toBe(stderr);
+      },
+    );
+
+    it('keeps the slot until the command ends, even when every wrapper is killed', async () => {
+      const folder = lockFolder();
+      const [started, finished] = [path.join(folder, 'started'), path.join(folder, 'finished')];
+      await occupyOthers(folder, slot);
+      const run = start(
+        slot.command('echo "$$" > "$1"; sleep 2; touch "$2"', started, finished),
+        folder,
+      );
+      await until(() => existsSync(started) && readFileSync(started, 'utf8').endsWith('\n'));
+      const wrappers = wrappersOf(Number(readFileSync(started, 'utf8')), run.child.pid ?? 0);
+
+      for (const wrapper of wrappers) {
+        process.kill(wrapper, 'SIGKILL');
+      }
+      await run.exited;
+
+      expect(isLocked(folder, slot.lock)).toBe(true);
+      await until(() => !isLocked(folder, slot.lock));
+      expect(existsSync(finished)).toBe(true);
+    });
+
+    it('stops waiting on SIGTERM, without ever running the command', async () => {
+      const folder = lockFolder();
+      const ran = path.join(folder, 'ran');
+      await occupyOthers(folder, slot);
+      const holding = withLock(slot.command('sleep 1.5'), folder);
+      await untilHeld(folder, slot.lock);
+      const waiter = start(slot.command('touch "$1"', ran), folder);
+      await untilWaiting(waiter);
+
+      waiter.child.kill('SIGTERM');
+      await Promise.all([waiter.outcome, holding]);
+
+      expect(existsSync(ran)).toBe(false);
+    });
+
+    it('takes the slot once for a run and the runs it starts, whichever slot it is, without deadlock', async () => {
+      const folder = lockFolder();
+      await occupyOthers(folder, slot);
+
+      // The nested command is whole-project: it would wait for slot 1 if it locked.
+      const outcome = await withLock(
+        slot.command('exec bun "$1" sh -c "echo nested"', SCRIPT),
+        folder,
+      );
+
+      expect(outcome.code).toBe(0);
+      expect(outcome.stdout).toBe('nested\n');
+    });
+
+    it('fails with a clear message when one run holds the slot past the limit', async () => {
+      const folder = lockFolder();
+      await occupyOthers(folder, slot);
+      const stuck = withLock(slot.command('sleep 3'), folder);
+      await untilHeld(folder, slot.lock);
+
+      const waiter = await withLock(slot.command('true'), folder, {
+        EGOSCOPE_LOCK_LIMIT_SECONDS: '1',
+      });
+      await stuck;
+
+      expect(waiter.code).toBe(1);
+      expect(waiter.stderr).toMatch(/Gave up after waiting \d+s: /u);
+      expect(waiter.stderr).toContain(`: "${slot.command('sleep 3').join(' ')}" in `);
+      expect(waiter.stderr).toMatch(/has held the lock for \d+s, more than the 1s limit/u);
+    });
+
+    it('names a process that a finished command left running with the slot', async () => {
+      const folder = lockFolder();
+      await occupyOthers(folder, slot);
+      // The command ends at once; the sleep it starts in the background keeps the slot.
+      const leaving = start(slot.command('sleep 3 &'), folder);
+      await leaving.exited;
+
+      const waiter = await withLock(slot.command('true'), folder, {
+        EGOSCOPE_LOCK_LIMIT_SECONDS: '1',
+      });
+      await leaving.outcome;
+
+      expect(waiter.code).toBe(1);
+      expect(waiter.stderr).toContain(
+        `a process that an earlier command left running in the background, which still holds the lock (find it with \`fuser -v ${path.join(folder, slot.lock)}\`)`,
+      );
+    });
   });
 });
