@@ -43,24 +43,30 @@ const SPEC_FILES = [
 // The slot that ends every file, above which an area adds its own groups.
 const AREA_SLOT =
   '\n  // An area adds its groups above this line, one commented group per screen or task.\n} as const;\n';
-// Every fixed sentence, in the order of the spec files.
-const SENTENCE_FILES: readonly Readonly<Record<string, string>>[] = [
-  overviewSentences,
-  playersSentences,
-  taxonomySentences,
-  collectionSentences,
-  detectionSentences,
-  backtestsSentences,
-  importsSentences,
-  statisticsSentences,
-  sensitivitySentences,
-  alertsSentences,
-  trackingSentences,
-  notificationsSentences,
-  interfaceSentences,
-  sensitiveDataSentences,
-  crossCuttingSentences,
-];
+// Every fixed sentence, by the name of its file in the keys of `sentence`, in the order of
+// the spec files.
+const SENTENCE_FILES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  overview: overviewSentences,
+  players: playersSentences,
+  taxonomy: taxonomySentences,
+  collection: collectionSentences,
+  detection: detectionSentences,
+  backtests: backtestsSentences,
+  imports: importsSentences,
+  statistics: statisticsSentences,
+  sensitivity: sensitivitySentences,
+  alerts: alertsSentences,
+  tracking: trackingSentences,
+  notifications: notificationsSentences,
+  interface: interfaceSentences,
+  sensitiveData: sensitiveDataSentences,
+  crossCutting: crossCuttingSentences,
+};
+// Every fixed sentence, by its key: `sensitivity.possible`.
+const TEMPLATES: readonly (readonly [string, string])[] = Object.entries(SENTENCE_FILES).flatMap(
+  ([file, sentences]) =>
+    Object.entries(sentences).map(([name, text]) => [`${file}.${name}`, text] as const),
+);
 // The name that opens a placeholder, well formed or not: `k` of `{k|case}` too.
 const PLACEHOLDER_NAME = /\{(?<name>[A-Za-z]+)/gu;
 // A written count that takes the plural, given to every placeholder.
@@ -74,6 +80,157 @@ function filled(template: string): string {
     (match) => match.groups?.['name'] ?? '',
   );
   return fill(template, [Object.fromEntries(names.map((name) => [name, WRITTEN_VALUE]))]);
+}
+
+const GLOSSARY_TEXT = readFileSync(
+  path.join(import.meta.dirname, '../../../docs/engineering/glossary.md'),
+  'utf8',
+);
+// A placeholder of a template, {date}, or a noun that a count governs, {k|case|cases}.
+const TEMPLATE_PLACEHOLDER = /\{[A-Za-z]+(?:\|(?<one>[^{}|]+)\|(?<many>[^{}|]+))?\}/gu;
+// What a placeholder matches in a row: any text, since a row writes the placeholder, an
+// example value ("7 valid cases: 5 historical, 2 tracked") or a bare letter ("k").
+const ANY_TEXT = '.+';
+const PATTERN_SYNTAX = /[$()*+.?[\\\]^{|}]/gu;
+// The words that only join placeholders: "{k} of {m}", "from {low} to {high}".
+const CONNECTING_WORDS: ReadonlySet<string> = new Set(['from', 'of', 'on', 'to']);
+const WORD = /\p{L}+/gu;
+// The code value of a row of a set's table in section 4.1: "`active`".
+const SET_CODE_VALUE = /^`[a-z_]+`$/u;
+// The note that ends a cell: `{k} characters received ("1 character received" for one)`.
+const TRAILING_NOTE = / \([^()]*\)$/u;
+// What separates the texts that one cell lists: "Home / Players / Alerts / Types / More".
+const PART_SEPARATOR = ' / ';
+
+/** Whether a line of a glossary table is the separator row under its header. */
+const isSeparator = (line: string | undefined): boolean => line?.startsWith('| -') === true;
+
+/** The rows of the tables of a glossary text between two headings, as their cells, without their header and separator rows. */
+function tableRows(glossary: string, start: string, end: string): readonly (readonly string[])[] {
+  const lines = glossary.slice(glossary.indexOf(start), glossary.indexOf(end)).split('\n');
+  return lines
+    .filter(
+      (line, index) =>
+        line.startsWith('| ') && !isSeparator(line) && !isSeparator(lines[index + 1]),
+    )
+    .map((line) =>
+      line
+        .split('|')
+        .slice(1, -1)
+        .map((cell) => cell.trim()),
+    );
+}
+
+/**
+ * The cells of the glossary that give wording: every cell of the tables of sections 7.1 to
+ * 7.6, whose sub-tables put the English in other columns than the first ones, and the UI
+ * label of the rows of section 3 and of the sets of section 4.1. The Meaning column of
+ * section 3 is a note for engineers, never wording.
+ */
+function wordingCells(glossary: string): readonly string[] {
+  return [
+    ...tableRows(glossary, '### 7.1', '### 7.7').flat(),
+    ...tableRows(glossary, '## 3.', '## 4.').map((cells) => cells[3] ?? ''),
+    ...tableRows(glossary, '### 4.1', '### 4.2')
+      .filter((cells) => SET_CODE_VALUE.test(cells[1] ?? ''))
+      .map((cells) => cells[2] ?? ''),
+  ];
+}
+
+/** The texts that a cell gives: its whole text and each part it lists, each also without its trailing note. */
+function cellTexts(cell: string): readonly string[] {
+  return [cell, ...cell.split(PART_SEPARATOR)].flatMap((text) => [
+    text,
+    text.replace(TRAILING_NOTE, ''),
+  ]);
+}
+
+const escaped = (text: string): string => text.replaceAll(PATTERN_SYNTAX, String.raw`\$&`);
+
+/** A template as a pattern: its text literal, a placeholder any text, a noun that a count governs either of its forms. */
+function templatePattern(template: string): string {
+  let pattern = '';
+  let end = 0;
+  for (const match of template.matchAll(TEMPLATE_PLACEHOLDER)) {
+    const one = match.groups?.['one'];
+    const many = match.groups?.['many'];
+    pattern += escaped(template.slice(end, match.index));
+    pattern +=
+      one === undefined || many === undefined ? ANY_TEXT : `(?:${escaped(one)}|${escaped(many)})`;
+    end = match.index + match[0].length;
+  }
+  return pattern + escaped(template.slice(end));
+}
+
+/**
+ * Whether a template is nothing but placeholders and the words that join them, "{level},
+ * {direction}" or "{k} of {m}", which match any cell that holds the joining word.
+ */
+function isOnlyPlaceholders(template: string): boolean {
+  // The forms of its nouns, one entry for each placeholder.
+  const forms = Array.from(
+    template.matchAll(TEMPLATE_PLACEHOLDER),
+    (match) => `${match.groups?.['one'] ?? ''} ${match.groups?.['many'] ?? ''}`,
+  );
+  // The words of the template: its literal text and the forms of its nouns.
+  const text = [template.replaceAll(TEMPLATE_PLACEHOLDER, ' '), ...forms].join(' ');
+  return forms.length > 0 && (text.match(WORD) ?? []).every((word) => CONNECTING_WORDS.has(word));
+}
+
+/** How a glossary text holds a sentence: as a text of a cell, only inside a cell, or not at all. */
+type Reading = 'whole' | 'inside' | 'none';
+
+/**
+ * The reading of the fixed sentences against a glossary text. A sentence is found whole
+ * when it is a text of a wording cell, as a pattern (`cellTexts`, `templatePattern`); when
+ * it is not, or when it is nothing but placeholders and joining words, which a text of
+ * many unrelated cells matches, it must occur inside a cell, between word boundaries.
+ * Found whole, a sentence has the wording of its row: a changed word in either fails it.
+ * Found inside, it only proves that the glossary writes it as part of a longer text, and
+ * for a sentence of placeholders, such as "{k} of {m}", that a cell holds its joining
+ * word, which proves little: the test records which sentences only that reading finds.
+ */
+function glossaryReader(glossary: string): (template: string) => Reading {
+  const cells = wordingCells(glossary);
+  const texts = cells.flatMap((cell) => cellTexts(cell));
+  return (template) => {
+    const pattern = templatePattern(template);
+    const whole = new RegExp(`^${pattern}$`, 'u');
+    if (!isOnlyPlaceholders(template) && texts.some((text) => whole.test(text))) {
+      return 'whole';
+    }
+    const inside = new RegExp(String.raw`(?<![\p{L}\p{N}])${pattern}(?![\p{L}\p{N}])`, 'u');
+    return cells.some((cell) => inside.test(cell)) ? 'inside' : 'none';
+  };
+}
+
+/** The keys of the fixed sentences that the glossary holds by `reading`. */
+function sentencesRead(reading: Reading): readonly string[] {
+  const read = glossaryReader(GLOSSARY_TEXT);
+  return TEMPLATES.filter(([, template]) => read(template) === reading).map(([key]) => key);
+}
+
+/** A glossary text of one table per section that the reading reads, with one English text of section 7. */
+function madeUpGlossary(english: string): string {
+  return [
+    '## 3. Terms by domain',
+    '| French | English | Code | UI label | Meaning |',
+    '| ------ | ------- | ---- | -------- | ------- |',
+    '| joueur | player | `playerId` | Player | A followed player. |',
+    '## 4. Enumerations',
+    '### 4.1 Sets by domain',
+    '`PlayerStatus` — JOU-15',
+    '| French | Code value | UI label |',
+    '| ------ | ---------- | -------- |',
+    '| actif | `active` | Active |',
+    '### 4.2 Near-synonyms',
+    '## 7. Fixed sentences and labels',
+    '### 7.1 Notices and disclaimers',
+    '| French | English | IDs |',
+    '| ------ | ------- | --- |',
+    `| — (essai) | ${english} | IMP-02 |`,
+    '### 7.7 One-sentence definitions',
+  ].join('\n');
 }
 
 describe('fixed sentences', () => {
@@ -90,9 +247,7 @@ describe('fixed sentences', () => {
   });
 
   it('[VUE-08] fills every placeholder of every fixed sentence, and leaves no brace to reach a screen', () => {
-    const withBraces = SENTENCE_FILES.flatMap((sentences) =>
-      Object.values(sentences).map((text) => filled(text)),
-    );
+    const withBraces = TEMPLATES.map(([, text]) => filled(text));
 
     expect(withBraces.filter((text) => BRACE.test(text))).toStrictEqual([]);
   });
@@ -173,6 +328,81 @@ describe('fixed sentences', () => {
     expect(
       sentence('sensitiveData.formerTeamDescription', { player: 'Player A', team: 'Team X' }),
     ).toBe('Player A faces his former team Team X for the first time since leaving it.');
+  });
+
+  describe('against the glossary', () => {
+    it('[VUE-08] finds every fixed sentence in the wording of the glossary', () => {
+      expect(sentencesRead('none')).toStrictEqual([]);
+    });
+
+    it('[VUE-08] finds only these sentences inside a longer text of the glossary, and none other', () => {
+      // Pieces that the glossary writes only inside its rows ("possible, increase", "range
+      // from +0.09 to +1.51", "5 of 7 cases above zero", "7 valid cases: 5 historical, 2
+      // tracked"), and sentences of placeholders and joining words, which a whole text
+      // cannot prove. A sentence that joins them or leaves them is seen by a reviewer here.
+      expect(sentencesRead('inside')).toStrictEqual([
+        'sensitivity.rangeBounds',
+        'sensitivity.validCaseCount',
+        'sensitivity.possible',
+        'sensitivity.probable',
+        'sensitivity.increase',
+        'sensitivity.decrease',
+        'sensitivity.levelAndDirection',
+        'sensitivity.proportionAsCounts',
+        'interface.deviceDescription',
+      ]);
+    });
+
+    it('[VUE-08] finds a sentence whole in a text of a cell, one of its parts or a UI label, read as a pattern', () => {
+      const cases = [
+        [
+          '{k} characters received ("1 character received" for one)',
+          '{k} {k|character|characters} received',
+        ],
+        [
+          'This file is {size} MB, over the {limit} MB limit: choose a smaller text file.',
+          'This file is {size} MB, over the {limit} MB limit: choose a smaller text file.',
+        ],
+        [
+          '7 valid cases: 5 historical, 2 tracked',
+          '{k} valid {k|case|cases}: {h} historical, {t} tracked',
+        ],
+        ['Home / Players / More', 'Players'],
+        ['Home / Players / More', 'Player'],
+        ['Home / Players / More', 'Active'],
+      ] as const;
+
+      expect(
+        cases.map(([english, template]) => glossaryReader(madeUpGlossary(english))(template)),
+      ).toStrictEqual(['whole', 'whole', 'whole', 'whole', 'whole', 'whole']);
+    });
+
+    it('[VUE-08] finds a piece of a longer text, or a sentence of placeholders, only inside a cell', () => {
+      const read = glossaryReader(madeUpGlossary('possible, increase / inconclusive'));
+
+      expect(
+        ['possible', '{level}, {direction}', 'inconclusive (the level alone)'].map((template) =>
+          read(template),
+        ),
+      ).toStrictEqual(['inside', 'inside', 'none']);
+    });
+
+    it('[VUE-08] finds no sentence that differs from its row by a word, nor one in a header or the Meaning column', () => {
+      const read = glossaryReader(
+        madeUpGlossary('This file is far over the {limit} MB limit: choose a smaller text file.'),
+      );
+
+      expect(
+        [
+          'This file is {size} MB, over the {limit} MB limit: choose a smaller text file.',
+          'This file is far over the {limit} MB limit: choose another text file.',
+          'English',
+          'UI label',
+          'A followed player.',
+          'active',
+        ].map((template) => read(template)),
+      ).toStrictEqual(['none', 'none', 'none', 'none', 'none', 'none']);
+    });
   });
 
   it('refuses a sentence that no spec file holds', () => {

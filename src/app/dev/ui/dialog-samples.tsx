@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 
 import { ConfirmDialog, Dialog, Form, FormField, Notice, PasteArea } from '@/lib/ui';
+import { formatCount } from '@/lib/wording';
 
 import type { ReactNode } from 'react';
 
@@ -82,7 +83,9 @@ export function PasteSample(): ReactNode {
         pasteRefusedMessage="Paste refused: hold a finger on the area, then choose Paste."
         fileLabel="Choose a text file"
         maxFileBytes={MAX_FILE_BYTES}
-        fileTooLargeMessage="This file is larger than 64 KiB."
+        fileTooLargeMessage={(sizeBytes) =>
+          `This file is ${formatCount(sizeBytes)} bytes, over the 64 KiB limit.`
+        }
         fileUnreadableMessage="This file cannot be read as text."
       />
     </FormField>

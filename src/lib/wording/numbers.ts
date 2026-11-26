@@ -55,6 +55,11 @@ const TRUE_MINUS = '\u{2212}';
 const TO_FIXED_LIMIT = 1e21;
 const THOUSANDS_GROUP = 3;
 const PERCENT = 100;
+// A size is written in MB to the hundredth (CL-IMP-27): a hundredth of a megabyte is
+// 10,000 bytes.
+const HUNDREDTHS = 100;
+const BYTES_PER_HUNDREDTH_MEGABYTE = 10_000;
+const SIZE_DECIMALS = 2;
 
 /** A run of digits with a comma between thousands: "12,345". */
 function groupThousands(digits: string): string {
@@ -147,6 +152,21 @@ export function formatCount(count: number): string {
     throw new RangeError(`${String(count)} is not a count.`);
   }
   return groupThousands(String(count));
+}
+
+/**
+ * A size in bytes, in megabytes as people read it (IHM-13, IMP-02, CL-IMP-27): 1 MB is
+ * 1,000,000 bytes, and the size is rounded up to the hundredth, so that a size over a
+ * limit never reads as the limit, without the zeros that end the decimals: "0.01" for 1
+ * byte, "2" for 2,000,000, "2.01" for 2,000,001. It writes the size that the refusal of
+ * a pasted text gives (`checkPastedTextSize` of `@/lib/ai-exchange`), and from 1,000 MB
+ * on it puts the comma of IHM-13 between thousands, "1,000", which that message does not.
+ */
+export function formatMegabytes(bytes: number): string {
+  if (!Number.isSafeInteger(bytes) || bytes < 0) {
+    throw new RangeError(`${String(bytes)} is not a size in bytes.`);
+  }
+  return formatDecimal(Math.ceil(bytes / BYTES_PER_HUNDREDTH_MEGABYTE) / HUNDREDTHS, SIZE_DECIMALS);
 }
 
 /**

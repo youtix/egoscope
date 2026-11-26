@@ -252,6 +252,26 @@ for (const colorScheme of THEMES) {
       );
     });
 
+    test('[IHM-28] [CL-IMP-27] refuses a file over the limit of the paste area, with its size, and leaves the field empty', async ({
+      page,
+    }) => {
+      const area = page.getByRole('region', { name: 'Paste area' });
+      const opening = page.waitForEvent('filechooser');
+      await area.getByRole('button', { name: 'Choose a text file' }).click();
+      const chooser = await opening;
+
+      await chooser.setFiles({
+        name: 'result.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('x'.repeat(65_537)),
+      });
+
+      await expect(
+        page.getByText('This file is 65,537 bytes, over the 64 KiB limit.'),
+      ).toBeVisible();
+      await expect(area.getByRole('textbox', { name: 'Pasted text' })).toHaveValue('');
+    });
+
     test('[IHM-61] opens the dialog, and the confirmations asked once and twice', async ({
       page,
     }) => {
