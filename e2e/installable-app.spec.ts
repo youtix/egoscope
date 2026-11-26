@@ -2,9 +2,9 @@ import { expect, test } from './fixtures/test';
 
 import type { Page } from '@playwright/test';
 
-// A page that answers without a session, with the request proxy or without it.
-const LOG_IN = '/log-in';
-// A screen that no cache of the device holds.
+// The screen that the app opens on, for the signed-in owner of every test's browser context.
+const HOME = '/';
+// A signed-in screen that no cache of the device holds.
 const SCREEN = '/players';
 const ICONS = ['/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 const OFFLINE_PAGE_MESSAGE =
@@ -62,7 +62,7 @@ test.describe('the installable app', () => {
   test('[TRV-21] [CA-TRV-06] [CL-TRV-13] links its manifest from its pages and installs its worker over the whole app, caching no data', async ({
     page,
   }) => {
-    const response = await page.goto(LOG_IN);
+    const response = await page.goto(HOME);
 
     expect(await response?.text()).toMatch(/<link rel="manifest" href="\/manifest\.webmanifest"/u);
     expect(await installWorker(page)).toBe('/');
@@ -72,10 +72,33 @@ test.describe('the installable app', () => {
     ]);
   });
 
+  test('[CL-TRV-13] [TRV-22] caches no signed-in screen that its worker answered, and shows the offline page instead of it once the device has no connection', async ({
+    page,
+  }) => {
+    await page.goto(HOME);
+    await installWorker(page);
+
+    await page.goto(SCREEN);
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Players');
+    expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+    const cached = await cachedPaths(page);
+    expect(cached.filter((cachedPath) => !cachedPath.startsWith('/_next/static/'))).toStrictEqual([
+      '/offline-page',
+    ]);
+
+    await page.context().setOffline(true);
+    await page.goto(SCREEN);
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Offline');
+    await expect(page.getByText(OFFLINE_PAGE_MESSAGE)).toBeVisible();
+    await expect(page).toHaveURL(SCREEN);
+  });
+
   test('[TRV-22] shows the offline page, not an error, when the owner opens a screen that no cache holds without connection', async ({
     page,
   }) => {
-    await page.goto(LOG_IN);
+    await page.goto(HOME);
     await installWorker(page);
     await page.context().setOffline(true);
 

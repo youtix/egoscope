@@ -231,6 +231,45 @@ describe('the service worker', () => {
     expect(await response?.text()).toBe(`${ORIGIN}/players`);
   });
 
+  it('[CL-TRV-13] caches no screen that it answered from the network, an error included', async () => {
+    const online = server();
+    let network: Network = online.network;
+    const device = deviceCaches(online.network);
+    const worker = startWorker(async (request) => network(request), device.caches);
+    await worker.install();
+
+    const home = await worker.fetch(navigation('/'));
+    const players = await worker.fetch(navigation('/players'));
+    network = server(SERVER_ERROR).network;
+    const settings = await worker.fetch(navigation('/settings'));
+
+    expect(await home?.text()).toBe(`${ORIGIN}/`);
+    expect(await players?.text()).toBe(`${ORIGIN}/players`);
+    expect(settings?.status).toBe(SERVER_ERROR);
+    expect(await device.caches.keys()).toStrictEqual([SHELL_CACHE]);
+    expect(device.keysOf(SHELL_CACHE)).toStrictEqual([
+      OFFLINE_PAGE_KEY,
+      `${ORIGIN}${APP_CHUNK}`,
+      `${ORIGIN}${BUILD_MANIFEST}`,
+    ]);
+  });
+
+  it('[CL-TRV-13] [TRV-22] answers a screen that it answered online with the offline page once the network does not answer, never with that earlier copy', async () => {
+    const online = server();
+    let network: Network = online.network;
+    const device = deviceCaches(online.network);
+    const worker = startWorker(async (request) => network(request), device.caches);
+    await worker.install();
+    await worker.fetch(navigation('/players'));
+    network = offline;
+
+    const reopened = await worker.fetch(navigation('/players'));
+
+    expect(await reopened?.text()).toContain(`<h1>Offline</h1><p>${OFFLINE_PAGE_MESSAGE}</p>`);
+    expect(await device.caches.keys()).toStrictEqual([SHELL_CACHE]);
+    expect(device.keysOf(SHELL_CACHE)).toHaveLength(SHELL.files.length + 1);
+  });
+
   it('serves the static files of its build from its cache, and from the network when the cache lost them', async () => {
     const { asked, network } = server();
     const device = deviceCaches(network);

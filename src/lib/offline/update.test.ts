@@ -91,6 +91,21 @@ describe('watchForNewVersion', () => {
     expect(hasNewVersionNow.mock.results).toStrictEqual([{ type: 'return', value: true }]);
   });
 
+  it('[IHM-03] tells the banner once a new version that was already installing as the watch began waits', () => {
+    page();
+    const installing = new FakeWorker('installing');
+    const registration = new FakeRegistration({ active: new FakeWorker('activated') });
+    registration.installing = installing;
+    const hasNewVersionNow = vi.fn(() => hasNewVersion(registration));
+    watchForNewVersion(registration, hasNewVersionNow);
+
+    registration.installing = null;
+    registration.waiting = installing;
+    installing.moveTo('installed');
+
+    expect(hasNewVersionNow.mock.results).toStrictEqual([{ type: 'return', value: true }]);
+  });
+
   it('[IHM-03] tells the banner when the waiting version is applied from another tab', () => {
     page();
     const waiting = new FakeWorker('installed');

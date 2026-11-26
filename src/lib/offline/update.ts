@@ -51,6 +51,8 @@ export function watchForNewVersion(
   const watching = new AbortController();
   const { signal } = watching;
   registration.waiting?.addEventListener('statechange', onChange, { signal });
+  // A worker that the browser already installs as the watch begins, which it found before.
+  registration.installing?.addEventListener('statechange', onChange, { signal });
   registration.addEventListener(
     'updatefound',
     () => registration.installing?.addEventListener('statechange', onChange, { signal }),
