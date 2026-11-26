@@ -1,4 +1,6 @@
-import { currentSession } from '@/lib/auth';
+import { NextResponse } from 'next/server';
+
+import { currentSession, SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from '@/lib/auth';
 import { logger } from '@/lib/log';
 
 import type { SessionEndReason } from '@/lib/auth';
@@ -23,9 +25,11 @@ async function endingOfSession(): Promise<SessionEndReason | null> {
 /**
  * The step of the login page that tells a device how its session ended (IHM-08,
  * CL-IHM-10, CL-TRV-05): a session that the owner ended, by a logout, a password change,
- * a reset or a restore, has the device erase every piece of data it holds before the
- * login page shows, "Data restored" after a restore; an expired one leaves the device's
- * data, its drafts included, to be found after the login (IHM-11). Either way the
+ * a reset or a restore, has the device erase every piece of data it holds, its session
+ * cookie among them (TRV-62), before the login page shows, "Data restored" after a
+ * restore; an expired one leaves the device's
+ * data, its drafts included, to be found after the login (IHM-11), and its cookie, so
+ * that a later logout of every device still has it erase them (CL-IHM-10). Either way the
  * device goes back to the login page, with the screen it asked for and how its session
  * ended. Only the session that the server checks decides, so that no link can erase a
  * device's data.
@@ -38,12 +42,15 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
   // A path, which the browser reads against the address it asked for: the server may know
   // itself by another host name than the one the device reached it by.
-  const headers = new Headers({
-    Location: `/log-in?${query.toString()}`,
-    'Cache-Control': 'no-store',
+  const response = new NextResponse(null, {
+    status: SEE_OTHER,
+    headers: { Location: `/log-in?${query.toString()}`, 'Cache-Control': 'no-store' },
   });
   if (ended !== null && ended !== 'expired') {
-    headers.set('Clear-Site-Data', EVERYTHING);
+    response.headers.set('Clear-Site-Data', EVERYTHING);
+    // The cookie is expired too, where the browser ignores Clear-Site-Data, so that the
+    // next login page finds no session and never sends the device through the step again.
+    response.cookies.set(SESSION_COOKIE, '', { ...SESSION_COOKIE_OPTIONS, maxAge: 0 });
   }
-  return new Response(null, { status: SEE_OTHER, headers });
+  return response;
 }

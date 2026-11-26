@@ -59,6 +59,10 @@ const MEANWHILE = 'Logins are refused after repeated wrong passwords, until the 
 const NOT_CHECKED = 'The app cannot check your password right now: try again in a few minutes.';
 const NEXT = '/players?tab=cases';
 const NONE: SessionState = { state: 'none' };
+// The ways that the owner ends a session, each of which erases the device's data (IHM-08),
+// and a value of the address that names no way a session ends.
+const OWNER_ENDINGS = ['logged_out', 'password_changed', 'reset', 'restored'] as const;
+const UNKNOWN_REASON = 'forgotten';
 
 /** A session open on this device, on the initial or the chosen password. */
 function open(passwordStatus: 'initial' | 'chosen'): SessionState {
@@ -154,9 +158,11 @@ describe('the login screen', () => {
   });
 
   it.each([
-    ['restored', 'Data restored'],
-    ['password_changed', 'Password changed'],
     ['expired', 'Session expired'],
+    ['logged_out', 'Logged out'],
+    ['password_changed', 'Password changed'],
+    ['reset', 'Password reset'],
+    ['restored', 'Data restored'],
   ])(
     '[IHM-08] [IHM-11] [CL-TRV-05] tells a device told that its session ended by %s: "%s"',
     async (ended, label) => {
@@ -167,6 +173,13 @@ describe('the login screen', () => {
       await expect(axe.run(document.body, WCAG_22_AA)).resolves.toHaveProperty('violations', []);
     },
   );
+
+  it('[IHM-08] tells nothing to a device without a session whose address names no way a session ends', async () => {
+    render(await logInScreen({ next: NEXT, ended: UNKNOWN_REASON }));
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toBeVisible();
+  });
 
   it('[IHM-11] keeps on the login page a device whose expired session was told so', async () => {
     render(
@@ -198,10 +211,24 @@ describe('the login screen', () => {
     ],
     ['reset, told of an expiry', { state: 'ended', reason: 'reset' }, 'expired'],
     ['expired, untold', { state: 'ended', reason: 'expired' }, undefined],
+    ['expired, told of a logout', { state: 'ended', reason: 'expired' }, 'logged_out'],
   ] as const)(
     '[IHM-08] sends a device whose session was %s through the step that tells it, and erases its data when the owner ended it',
     async (_case, state, ended) => {
       await expect(redirectOf({ next: NEXT, ended }, state)).resolves.toBe(
+        '/log-in/erase?next=%2Fplayers%3Ftab%3Dcases',
+      );
+    },
+  );
+
+  it.each(
+    OWNER_ENDINGS.flatMap((reason) =>
+      [reason, 'expired', UNKNOWN_REASON].map((ended) => [reason, ended] as const),
+    ),
+  )(
+    '[IHM-08] [CL-IHM-10] [CL-TRV-05] sends a device whose session was ended by %s through the step that erases its data, whatever its address says, here ended=%s',
+    async (reason, ended) => {
+      await expect(redirectOf({ next: NEXT, ended }, { state: 'ended', reason })).resolves.toBe(
         '/log-in/erase?next=%2Fplayers%3Ftab%3Dcases',
       );
     },
