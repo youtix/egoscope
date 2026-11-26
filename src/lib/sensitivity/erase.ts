@@ -113,9 +113,14 @@ export async function eraseEventData(
     return;
   }
   // The transaction has locked its event row by deleting it (`events.eraseEvent`, step 8 of
-  // sensitive-data.md section 2.1) and locks the case row now (step 9): every erasure takes
-  // the two in that order, so two cannot wait for each other. A second erasure in the case
-  // waits here for the first to commit, then reads the events left, so the last one deletes it.
+  // sensitive-data.md section 2.1) and locks the case row now (step 9). Two transactions that
+  // each erase one event take the two in that order, so neither waits for the other: a second
+  // erasure in the case waits here for the first to commit, then reads the events left, so
+  // the last one deletes it. A transaction that erases several events (a player-data deletion,
+  // section 2.2 step 1, a requalification or split, a restore's re-application) must lock all
+  // its event rows, in ascending id, before its first case lock: erasing them one by one would
+  // hold a case row while it waits for an event row that a one-event erasure in the same case
+  // holds, and the one-event erasure then waits for that case row, a deadlock.
   const [locked] = await tx
     .select({ id: cases.id })
     .from(cases)
