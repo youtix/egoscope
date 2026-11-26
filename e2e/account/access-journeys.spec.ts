@@ -75,7 +75,7 @@ async function tokenOf(page: Page): Promise<string> {
 }
 
 test.describe('the account journeys', () => {
-  test('[TRV-57] [IHM-06] [CA-TRV-30] [CA-IHM-19] [IHM-08] [IHM-10] [IHM-11] [TRV-62] [CL-IHM-10] [CL-TRV-05] opens on the initial password only "Choose your password", then the screen asked for, and has the other devices erase their data, even one that opens the address of the ending', async ({
+  test('[TRV-57] [IHM-06] [CA-TRV-30] [CA-IHM-19] [IHM-08] [IHM-10] [IHM-11] [TRV-62] [CL-IHM-10] [CL-TRV-05] opens on the initial password only "Choose your password", then the screen asked for, and has the other devices erase their data, even one that opens the address of the ending or sends a login form left open', async ({
     page,
     browser,
     baseURL,
@@ -108,6 +108,24 @@ test.describe('the account journeys', () => {
       localStorage.setItem('draft', draft);
     }, DRAFT);
     const tabletToken = await tokenOf(tablet);
+    // The laptop: a login form left open while it had no session, then a login in another tab.
+    const laptopContext = await browser.newContext(baseURL === undefined ? {} : { baseURL });
+    const oldForm = await laptopContext.newPage();
+    await accessibility.watch(oldForm);
+    const laptop = await laptopContext.newPage();
+    await accessibility.watch(laptop);
+    const oldFormAsked = addressesOf(oldForm);
+    asked.push(oldFormAsked, addressesOf(laptop));
+    await oldForm.goto('/log-in?next=%2F');
+    await expect(oldForm).toHaveURL('/log-in?next=%2F');
+    await expect(oldForm.getByLabel('Password')).toBeVisible();
+    await laptop.goto('/');
+    await logIn(laptop, TEST_ACCOUNT_INITIAL);
+    await expect(laptop).toHaveURL('/choose-password?next=%2F');
+    await laptop.evaluate((draft) => {
+      localStorage.setItem('draft', draft);
+    }, DRAFT);
+    const laptopToken = await tokenOf(laptop);
 
     await page.goto('/');
     await logIn(page, TEST_ACCOUNT_INITIAL);
@@ -142,6 +160,17 @@ test.describe('the account journeys', () => {
     expect(erasures(tabletAsked)).toBe(1);
     await tabletContext.close();
 
+    await logIn(oldForm, OWNER_CHOICE);
+    await expect(oldForm).toHaveURL(TOLD_PASSWORD_CHANGED);
+    await expect(oldForm.getByRole('status').filter({ hasText: 'Password changed' })).toBeVisible();
+    expect(await oldForm.evaluate(() => localStorage.length)).toBe(0);
+    expect(await tokenOf(oldForm)).toBe('');
+    expect(erasures(oldFormAsked)).toBe(1);
+    await logIn(oldForm, OWNER_CHOICE);
+    await expect(oldForm).toHaveURL('/');
+    expect(erasures(oldFormAsked)).toBe(1);
+    await laptopContext.close();
+
     const addresses = asked.flat().join('\n');
     for (const secret of [
       TEST_ACCOUNT_INITIAL,
@@ -150,6 +179,7 @@ test.describe('the account journeys', () => {
       phoneToken,
       pageToken,
       tabletToken,
+      laptopToken,
     ]) {
       expect(secret).not.toBe('');
       expect(addresses).not.toContain(secret);

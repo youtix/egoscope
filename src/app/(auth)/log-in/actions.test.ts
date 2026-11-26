@@ -73,7 +73,11 @@ const PHONE =
 // Monday 23 November 2026, 10:00 Paris time, and a minute.
 const START = toEpochMs(Date.UTC(2026, 10, 23, 9));
 const MINUTE = 60_000;
+const DAY = 86_400_000;
 const NEXT = '/players/12?tab=cases';
+// The login page for `NEXT`, without how the session ended, which sends the device through
+// the step that erases its data (IHM-08).
+const LOG_IN_AGAIN = '/log-in?next=%2Fplayers%2F12%3Ftab%3Dcases';
 const NOTHING_YET: LogInState = { lockout: null };
 const WRONG_PASSWORD = { password: 'This password is wrong: type it again.' };
 const NOT_CHECKED = {
@@ -114,15 +118,16 @@ function form(password: string | null): FormData {
 }
 
 /**
- * The login form sent by a device without a session, for the screen `next`: where it
- * goes, or what the form shows; and the cookie it holds afterwards.
+ * The login form sent for the screen `next`, `NEXT` by default, by a device that sends the
+ * session cookie `cookie`, none by default: where it goes, or what the form shows; and the
+ * cookie that the answer sets.
  */
 async function submit(
   on: Actions,
   password: string | null,
-  next: unknown = NEXT,
+  { next = NEXT, cookie }: Readonly<{ next?: unknown; cookie?: string | undefined }> = {},
 ): Promise<Outcome> {
-  harness.incoming = undefined;
+  harness.incoming = cookie;
   harness.sent = undefined;
   try {
     const state = await on.logInAction(next, NOTHING_YET, form(password));
@@ -206,12 +211,12 @@ describe('the login action', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     const actions = await instance();
     await chooseOn(actions);
 
-    await expect(submit(actions, CHOSEN, next)).resolves.toMatchObject({ to: '/' });
+    await expect(submit(actions, CHOSEN, { next })).resolves.toMatchObject({ to: '/' });
   });
 
   it('[IHM-10] writes neither the password nor the session token in the address it sends the device to', async () => {
     const actions = await instance();
-    const first = await submit(actions, INITIAL, '/players?seen=8');
+    const first = await submit(actions, INITIAL, { next: '/players?seen=8' });
     const token = first.cookie?.split('.', 1)[0] ?? '';
     const address = decodeURIComponent(first.to ?? '');
 
@@ -323,6 +328,79 @@ describe('the login action', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     await expect(submit(reset, RESET_TO)).resolves.toMatchObject({
       to: '/choose-password?next=%2Fplayers%2F12%3Ftab%3Dcases',
     });
+  });
+
+  it.each(
+    (['logged_out', 'password_changed', 'reset', 'restored'] as const).flatMap((reason) => [
+      { reason, typed: 'the right password', password: CHOSEN },
+      { reason, typed: 'a wrong password', password: WRONG },
+    ]),
+  )(
+    '[IHM-08] [CL-IHM-10] [CL-TRV-05] sends a device whose session ended by $reason back to the login page, with $typed, and sets no cookie',
+    async ({ reason, password }) => {
+      const actions = await instance();
+      const phone = await chooseOn(actions);
+      await db.transaction(async (tx) => actions.endAllSessions(tx, reason));
+
+      await expect(submit(actions, password, { cookie: phone })).resolves.toStrictEqual({
+        to: LOG_IN_AGAIN,
+        cookie: undefined,
+      });
+      await expect(db.select().from(loginFailures)).resolves.toStrictEqual([]);
+    },
+  );
+
+  it('[IHM-08] [CL-IHM-10] [TRV-61] sends a device whose session the owner ended back to the login page while logins are locked', async () => {
+    const actions = await instance();
+    const phone = await chooseOn(actions);
+    await db.transaction(async (tx) => actions.endAllSessions(tx, 'logged_out'));
+    await wrongTimes(actions, 5);
+
+    await expect(submit(actions, CHOSEN, { cookie: phone })).resolves.toStrictEqual({
+      to: LOG_IN_AGAIN,
+      cookie: undefined,
+    });
+    await expect(keys()).resolves.not.toContain('login_refused_while_locked');
+  });
+
+  it.each([
+    ['the address of another site', 'https://elsewhere.example/'],
+    ['the step that erases the data', '/log-in/erase'],
+  ])(
+    '[IHM-08] [IHM-10] sends a device whose session the owner ended, whose next is %s, to the login page for Home',
+    async (_case, next) => {
+      const actions = await instance();
+      const phone = await chooseOn(actions);
+      await db.transaction(async (tx) => actions.endAllSessions(tx, 'restored'));
+
+      await expect(submit(actions, CHOSEN, { next, cookie: phone })).resolves.toStrictEqual({
+        to: '/log-in?next=%2F',
+        cookie: undefined,
+      });
+    },
+  );
+
+  it('[IHM-06] [IHM-08] asks for the password on an empty field from a device whose session the owner ended, and sends it nowhere', async () => {
+    const actions = await instance();
+    const phone = await chooseOn(actions);
+    await db.transaction(async (tx) => actions.endAllSessions(tx, 'logged_out'));
+
+    await expect(submit(actions, '', { cookie: phone })).resolves.toStrictEqual({
+      state: { errors: { password: 'Type your password.' }, lockout: null },
+      cookie: undefined,
+    });
+  });
+
+  it('[IHM-11] [TRV-62] logs in a device whose session expired, to the screen asked for, with a new cookie', async () => {
+    const actions = await instance();
+    const phone = await chooseOn(actions);
+    clock.advance(31 * DAY);
+
+    const login = await submit(actions, CHOSEN, { cookie: phone });
+
+    expect(login.to).toBe(NEXT);
+    expect(login.cookie).toMatch(/^[\w-]{43}\.\d+$/u);
+    expect(login.cookie).not.toBe(phone);
   });
 
   it.each([

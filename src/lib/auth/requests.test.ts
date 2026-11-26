@@ -8,6 +8,7 @@ import { setParam } from '@/lib/params';
 import { toEpochMs } from '@/lib/time';
 
 import {
+  accountState,
   check,
   CHOSEN,
   chosenOn,
@@ -44,6 +45,10 @@ vi.mock(import('next/headers'), () => ({ cookies: async () => jar.cookies() }));
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const LOG_IN = '/log-in?next=%2Fplayers';
+// How the owner ends every session at once (IHM-08, CL-TRV-05), and the answers to a login.
+const OWNER_REASONS = ['logged_out', 'password_changed', 'reset', 'restored'] as const;
+const SESSION_ENDED = { ok: false, error: { kind: 'session-ended' } };
+const LOGGED_IN = { ok: true, value: { passwordStatus: 'chosen' } };
 
 const { instance, lastSent, device } = requestHarness(jar, vi);
 
@@ -450,6 +455,116 @@ describe('logging in and the sessions of the devices', { timeout: 60_000 }, () =
       ok: false,
       error: { kind: 'no-session' },
     });
+  });
+
+  // The owner ends every session, from another device or on the server; the password then.
+  type OwnerReason = (typeof OWNER_REASONS)[number];
+  const endEverySession = async (auth: Auth, reason: OwnerReason): Promise<string> => {
+    if (reason === 'reset' || reason === 'restored') {
+      await db.transaction(async (tx) => endAllSessions(tx, reason));
+      return CHOSEN;
+    }
+    const computer = device('Computer');
+    await logIn(auth, computer, CHOSEN);
+    await computer.request(async () =>
+      reason === 'logged_out'
+        ? auth.logOut('all-devices')
+        : auth.changePassword({ currentPassword: CHOSEN, newPassword: NEWER }),
+    );
+    return reason === 'logged_out' ? CHOSEN : NEWER;
+  };
+
+  it.each(
+    OWNER_REASONS.flatMap((reason) => [
+      { reason, typed: 'the right password', wrong: false },
+      { reason, typed: 'a wrong password', wrong: true },
+    ]),
+  )(
+    '[IHM-08] [CL-IHM-10] [CL-TRV-05] refuses a device whose session ended by $reason, with $typed, before examining it, and opens, counts and journals nothing',
+    async ({ reason, wrong }) => {
+      const auth = await instance();
+      const phone = device();
+      await chosenOn(auth, phone);
+      const right = await endEverySession(auth, reason);
+      await expect(check(auth, phone)).resolves.toStrictEqual(ended(reason));
+      const before = await accountState(db, auth);
+
+      await expect(logIn(auth, phone, wrong ? WRONG : right)).resolves.toStrictEqual(SESSION_ENDED);
+      expect(lastSent()).toBeUndefined();
+      await expect(accountState(db, auth)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it('[IHM-08] [CL-IHM-10] [TRV-61] refuses a device whose session the owner ended while logins are locked as such, not as locked, and journals and counts nothing', async () => {
+    const auth = await instance();
+    const phone = device();
+    await chosenOn(auth, phone);
+    await endEverySession(auth, 'logged_out');
+    await wrongTimes(auth, 5);
+    const before = await accountState(db, auth);
+
+    expect(before.lockout).toStrictEqual({ ok: true, value: { lockedUntil: START + 25 * MINUTE } });
+    await expect(logIn(auth, phone, CHOSEN)).resolves.toStrictEqual(SESSION_ENDED);
+    expect(lastSent()).toBeUndefined();
+    await expect(accountState(db, auth)).resolves.toStrictEqual(before);
+  });
+
+  it('[IHM-08] [CL-TRV-05] refuses a device that logged in again between two endings of every session, with the cookie of its second session', async () => {
+    const auth = await instance();
+    const phone = device();
+    await chosenOn(auth, phone);
+    await endEverySession(auth, 'logged_out');
+    // The step of the login page removes the cookie of the ended session.
+    phone.kept.cookie = undefined;
+    clock.advance(MINUTE);
+    await expect(logIn(auth, phone, CHOSEN)).resolves.toStrictEqual(LOGGED_IN);
+    const second = phone.kept.cookie;
+    clock.advance(MINUTE);
+    await endEverySession(auth, 'restored');
+
+    await expect(logIn(auth, phone, CHOSEN)).resolves.toStrictEqual(SESSION_ENDED);
+    expect([second, phone.kept.cookie]).toStrictEqual([expect.any(String), second]);
+  });
+
+  it('[IHM-08] [DSN-33] refuses a device whose session had expired when every device was logged out, before and after the purge', async () => {
+    const auth = await instance();
+    const phone = device();
+    await chosenOn(auth, phone);
+    clock.advance(31 * DAY);
+    await endEverySession(auth, 'logged_out');
+
+    await expect(logIn(auth, phone, CHOSEN)).resolves.toStrictEqual(SESSION_ENDED);
+    await db.transaction(async (tx) => purgeExpired(tx, { now: toEpochMs(START + 31 * DAY) }));
+    await expect(logIn(auth, phone, CHOSEN)).resolves.toStrictEqual(SESSION_ENDED);
+  });
+
+  it('[IHM-11] [TRV-62] logs in a device whose session expired with no ending since, in a new session', async () => {
+    const auth = await instance();
+    const phone = device();
+    await chosenOn(auth, phone);
+    const expired = phone.kept.cookie;
+    clock.advance(31 * DAY);
+    await expect(check(auth, phone)).resolves.toStrictEqual(ended('expired'));
+    const before = await accountState(db, auth);
+
+    await expect(logIn(auth, phone, CHOSEN)).resolves.toStrictEqual(LOGGED_IN);
+    expect(lastSent()?.value).toBe(phone.kept.cookie);
+    expect(phone.kept.cookie).not.toBe(expired);
+    const { sessions: after } = await accountState(db, auth);
+    expect(after).toHaveLength(before.sessions.length + 1);
+  });
+
+  it('[TRV-62] logs in as before a device with an open session, and one with a cookie that names no session', async () => {
+    const auth = await instance();
+    const phone = device();
+    await chosenOn(auth, phone);
+    const open = phone.kept.cookie;
+    const stranger = device('Computer', 'not-a-session');
+
+    await expect(logIn(auth, phone, CHOSEN)).resolves.toStrictEqual(LOGGED_IN);
+    await expect(logIn(auth, stranger, CHOSEN)).resolves.toStrictEqual(LOGGED_IN);
+    expect(phone.kept.cookie).not.toBe(open);
+    expect(stranger.kept.cookie).not.toBe('not-a-session');
   });
 
   it.each([
