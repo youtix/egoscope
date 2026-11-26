@@ -62,7 +62,11 @@ export type PlayerRecordRead = Readonly<{
   playerId: PlayerId;
   record: PlayerRecord;
   readAt: EpochMs;
-  /** Whether it is the first record of an identity confirmed in place of another (CL-JOU-11). */
+  /**
+   * Whether it is the first record of an identity confirmed in place of another (CL-JOU-11).
+   * The fetch unit knows it from the confirmation it applied: games stores nothing of it,
+   * and the mapping functions do not report it yet.
+   */
   identityChanged: boolean;
 }>;
 
@@ -376,7 +380,9 @@ async function applyFileTeam(
  * CL-JOU-25, CL-STA-27, CL-STA-31). Either way the mapping keeps the team and the instant
  * of that read; a record that does not list him is no read and leaves them as they are.
  * Applies nothing for an identity that is no longer his established mapping, and nothing
- * for a team the directory does not know yet.
+ * for a team the directory does not know yet. A fetch unit stores and applies its box
+ * scores first, through `updateTeamFromGames`, and its player-file records after them, so
+ * that a change both give is dated by his first game with the new team (JOU-13).
  */
 export async function applyPlayerRecord(
   tx: Transaction,

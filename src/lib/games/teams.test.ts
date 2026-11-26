@@ -432,6 +432,32 @@ describe('the current team and the team history', { timeout: DATABASE_TEST_TIMEO
     });
   });
 
+  it('[JOU-13] [CL-JOU-25] [CL-STA-27] [CL-JOU-03] never lets a first player-file read that gives the team of his last game before an entry take that entry back', async () => {
+    const [pineValley, redstone] = [await teamOf('2'), await teamOf('3')];
+    const granite = await teamOf('5');
+    const playerId = await follow('p02', '2');
+    // His last game before the entry is for Redstone, his first ones for Pine Valley.
+    await ingest(playerId, 'p02', { lastDay: '2025-11-06' });
+    const traded = await gameOf(playerId, '2025-11-05');
+    moveTo(noon(11, 7));
+    await enter(playerId, '5');
+    moveTo(noon(11, 8));
+
+    const fileRead = await read(playerId, await recordOf('p02'));
+
+    expect(fileRead).toStrictEqual({ ok: true, value: { ...UNCHANGED, birthdayChanged: true } });
+    await expect(historyOf(playerId)).resolves.toMatchObject([
+      { origin: 'entered' },
+      observed(traded.start, [pineValley, redstone], traded.id),
+      entered(noon(11, 7), [redstone, granite], null),
+    ]);
+    await expect(playerOf(playerId)).resolves.toMatchObject({
+      teamId: granite,
+      fileTeamId: redstone,
+      fileReadAt: noon(11, 8),
+    });
+  });
+
   it('[CL-JOU-25] [CL-STA-27] takes a record that the player file does not list as no read, leaving his team and the last read as they are', async () => {
     const redstone = await teamOf('3');
     const playerId = await follow('p02', '2');
@@ -511,11 +537,16 @@ describe('the current team and the team history', { timeout: DATABASE_TEST_TIMEO
     const pineValley = await teamOf('2');
     const playerId = await follow('p02', '2');
     const record = await recordOf('p02');
+    await db
+      .update(statsSourceMappings)
+      .set({ sourcePlayerRef: 'p03' })
+      .where(eq(statsSourceMappings.playerId, playerId));
+    const formerIdentity = await read(playerId, record);
     await db.transaction(async (tx) => changeMapping(tx, { playerId }));
 
-    const applied = await read(playerId, record);
+    const reopened = await read(playerId, record);
 
-    expect(applied).toStrictEqual(NOTHING);
+    expect([formerIdentity, reopened]).toStrictEqual([NOTHING, NOTHING]);
     await expect(playerOf(playerId)).resolves.toMatchObject({ teamId: pineValley, ...NO_BIRTHDAY });
   });
 
