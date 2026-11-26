@@ -216,10 +216,13 @@ async function judge(
  * recent than the latest recorded change and the team differs, so an older game changes
  * nothing whatever the order seasons are fetched in. The first game after an entered
  * change judges it, as the result says, so that games requests the calendar derivation
- * when it is `void` or `unconfirmed`; a player file that gives
- * `membershipAtEntry` records nothing, and the row written at the addition is judged
- * against it. The module writes player tables only (JOU-14), and the closed
- * list of the journal holds no message for an observed change, so it writes no entry.
+ * when it is `void` or `unconfirmed`; while that entry waits for its game, a player file
+ * that gives a team he already had since his last game played records nothing (`judge`,
+ * CL-JOU-25), and the row written at the addition is judged against `membershipAtEntry`.
+ * Each observed row written, by the ordinary rule or by a game that voids an entry or
+ * ends it unconfirmed, gets one `player_team_change_observed` journal entry in `tx`
+ * (TRV-41); a call that writes no row, a verification and the addition's row turning
+ * observed write none. Besides those entries, the module writes player tables only (JOU-14).
  */
 export async function recordTeamChange(
   tx: Transaction,

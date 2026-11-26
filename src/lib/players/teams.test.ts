@@ -110,11 +110,6 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
     return rows[index];
   }
 
-  async function column(name: 'to' | 'gameId') {
-    const rows = await history();
-    return rows.map((row) => row[name]);
-  }
-
   async function currentTeam() {
     const [player] = await db
       .select()
@@ -197,7 +192,7 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
       await record({ teamId: w, at: day(2), gameId: firstGame });
 
       expect(await currentTeam()).toBe(y);
-      expect(await column('to')).toStrictEqual([x, y]);
+      expect(await story()).toBe('0 ->X observed, 8 X>Y observed g2, now Y');
     });
 
     it('[JOU-13] dates a change read from the player file by the read instant, with no game', async () => {
@@ -486,7 +481,7 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
       const result = await record({ teamId: z, at: day(6), gameId: firstGame });
 
       expect(result).toStrictEqual({ ok: true, value: { changed: true, judgment: 'verified' } });
-      expect(await column('gameId')).toStrictEqual([null, null, firstGame]);
+      expect(await story()).toBe('0 ->X observed, 2 X>Y entered, 4 Y>Z entered g1, now Z');
     });
 
     it('[CL-STA-27] never lets a file that still gives his last team before the entries take back the second of two entries', async () => {
@@ -529,10 +524,11 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
   });
 
   describe('a stale player file after an entered change', () => {
-    it('[CL-JOU-25] [CL-STA-27] [CL-JOU-02] [CL-JOU-03] records nothing for the team of the previous read, and lets his first game judge the entry', async () => {
+    it('[CL-JOU-25] [CL-STA-27] [CL-JOU-02] [CL-JOU-03] records nothing for the team of the previous read or of his last game, and lets his first game judge the entry', async () => {
       await reviewStory();
 
       expect(await readFile(3, y)).toStrictEqual(NOTHING_RECORDED);
+      expect(await readFile(4, x)).toStrictEqual(NOTHING_RECORDED);
       expect(await story()).toBe(`${REVIEW_STORY}, now Z`);
       expect(
         await record({ teamId: z, at: day(5), gameId: firstGame, membershipAtEntry: x }),
@@ -583,17 +579,18 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
       expect(await story()).toBe('0 ->X observed, 2 X>Y entered, 4 Y>Z entered, now Z');
     });
 
-    it('[CL-JOU-25] counts no team older than the change that his last game wrote', async () => {
+    it('[CL-JOU-25] counts the team he left in the change that his last game wrote, and no older one', async () => {
       await follow(x, 'observed');
       await record({ teamId: w, at: day(1) });
       await record({ teamId: y, at: day(2), gameId: firstGame });
       await enter(3, z);
 
-      expect(await record({ teamId: x, at: day(4), membershipAtEntry: y })).toStrictEqual(
-        CHANGE_RECORDED,
-      );
+      expect([
+        await record({ teamId: w, at: day(4), membershipAtEntry: y }),
+        await record({ teamId: x, at: day(5), membershipAtEntry: y }),
+      ]).toStrictEqual([NOTHING_RECORDED, CHANGE_RECORDED]);
       expect(await story()).toBe(
-        '0 ->X observed, 1 X>W observed, 2 W>Y observed g1, 3 Y>Z entered, 4 Z>X observed, now X',
+        '0 ->X observed, 1 X>W observed, 2 W>Y observed g1, 3 Y>Z entered, 5 Z>X observed, now X',
       );
     });
 
@@ -613,20 +610,32 @@ describe('the team changes of a followed player', { timeout: DATABASE_TEST_TIMEO
     });
   });
 
-  it('[TRV-41] [TRV-42] [JOU-13] journals each observed row, of a player file, a game or a release, naming the player, at the instant the application learns it', async () => {
+  it('[TRV-41] [TRV-42] [JOU-13] [CL-JOU-03] journals each observed row, of a player file, a game, a game that voids an entry or a release, naming the player, at the instant the application learns it', async () => {
     await follow(x, 'observed');
     await record({ teamId: y, at: day(1) });
     await record({ teamId: z, at: day(2), gameId: firstGame });
-    await record({ teamId: null, at: day(3) });
-    const entry = {
+    await enter(3, w);
+    const voided = await record({ teamId: z, at: day(4), gameId: secondGame });
+    await record({ teamId: null, at: day(5) });
+    const observed = (on: number) => ({
       messageKey: 'player_team_change_observed',
       playerId,
       level: 'info',
       category: 'task_pass',
       messageParams: {},
-      occurredAt: new Date(day(0)),
-    };
+      occurredAt: new Date(day(on)),
+    });
 
-    expect(await db.select().from(journalEntries)).toMatchObject([entry, entry, entry]);
+    expect(voided).toStrictEqual({ ok: true, value: { changed: true, judgment: 'void' } });
+    expect(await story()).toBe(
+      '0 ->X observed, 1 X>Y observed, 2 Y>Z observed g1, 3 Z>W entered, 4 W>Z observed g2, 5 Z>- observed, now -',
+    );
+    expect(await db.select().from(journalEntries).orderBy(asc(journalEntries.id))).toMatchObject([
+      observed(0),
+      observed(0),
+      { messageKey: 'player_team_change_entered', playerId },
+      observed(3),
+      observed(3),
+    ]);
   });
 });
