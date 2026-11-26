@@ -104,6 +104,15 @@ async function readChunk(
   }
 }
 
+/** Lets go of a body that is not read, or not to its end, even one that has broken off already. */
+async function discard(body: ReadableStream | ReadableStreamDefaultReader | null): Promise<void> {
+  try {
+    await body?.cancel();
+  } catch {
+    // A body that broke off holds nothing more to let go of.
+  }
+}
+
 /** One read of a feed, which ends at its context's deadline or abort, and what it cost. */
 class FeedCall {
   readonly #signal: AbortSignal;
@@ -132,7 +141,7 @@ class FeedCall {
     if (!REDIRECTS.has(response.status)) {
       return succeed({ response, address: hop.address, movedTo: hop.movedTo });
     }
-    await response.body?.cancel();
+    await discard(response.body);
     const next = webAddress(response.headers.get('location'), hop.address);
     if (next === null || hop.hopsLeft === 0) {
       return fail({ kind: 'http_error', status: response.status });
@@ -150,7 +159,7 @@ class FeedCall {
       return succeed({ kind: 'not_modified', movedTo });
     }
     if (!response.ok) {
-      await response.body?.cancel();
+      await discard(response.body);
       return fail(statusError(response.status));
     }
     const bytes = await this.#bodyOf(response);
@@ -175,7 +184,7 @@ class FeedCall {
     while (chunk?.done === false) {
       this.#bytesReceived += chunk.value.byteLength;
       if (this.#bytesReceived > MAX_FEED_BYTES) {
-        await reader.cancel();
+        await discard(reader);
         return fail(UNREADABLE);
       }
       chunks.push(chunk.value);

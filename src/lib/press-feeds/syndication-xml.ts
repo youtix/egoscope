@@ -2,8 +2,8 @@
 // answer, decoded in its charset and parsed by a strict XML parser into an RSS 2.0,
 // RSS 1.0 or Atom feed (TRV-17). The parser reads no DTD and knows only the five
 // entities that XML predefines, so that a stranger's document can neither make it
-// fetch an entity nor expand one; only the first items of a feed, up to a bound, are
-// read.
+// fetch an entity nor expand one; it stops at a document nested past a bound, and
+// keeps only the first items of a feed, up to a bound.
 import { SaxesParser } from 'saxes';
 
 import { parseTimestamp } from '@/lib/time';
@@ -32,6 +32,10 @@ export type FeedDocument =
 // A deeper one, such as the XHTML of an Atom summary, gives its text to its kept
 // ancestors, each of which gathers the text of everything it holds.
 const KEPT_DEPTH = 4;
+// The characters given to the parser at a time: a handler cannot stop the parser within
+// a write, so a document nested past the depth bound is dropped at the end of the slice
+// in which it passes it, a few thousand elements later at most.
+const PARSE_SLICE_CHARS = 4096;
 // The XML declaration, which may name the encoding, sits at the very start of a body.
 const DECLARATION_BYTES = 200;
 const CHARSET = /charset\s*=\s*"?(?<label>[^";\s]+)/iu;
@@ -100,6 +104,7 @@ const FORMATS: readonly Format[] = [
   { root: [RDF, 'RDF'], channel: [RSS_1, 'channel'], item: [RSS_1, 'item'], itemsInChannel: false },
   { root: [ATOM, 'feed'], channel: null, item: [ATOM, 'entry'], itemsInChannel: false },
 ];
+const ITEMS: readonly Name[] = FORMATS.map(({ item }) => item);
 
 /** An element of a document, down to the kept depth: its name, its attributes, its elements and its whole text. */
 type XmlElement = Readonly<{
@@ -196,33 +201,63 @@ function itemOf(
 /** The feed of a document in `format`: its language and its first items. */
 function feedOf(root: XmlElement, format: Format, address: string): Feed {
   const channel = format.channel === null ? undefined : childOf(root, [format.channel]);
-  const items = ((format.itemsInChannel ? channel : root)?.children ?? [])
-    .filter((child) => hasName(child, format.item))
-    .slice(0, MAX_FEED_ITEMS);
+  const items = ((format.itemsInChannel ? channel : root)?.children ?? []).filter((child) =>
+    hasName(child, format.item),
+  );
   return {
     language: languageOf(channel) ?? languageOf(root),
     items: items.map((item) => itemOf(item, [root, channel], address)),
   };
 }
 
-/** The elements of `text` down to the kept depth, and the number of errors the parser met. */
-function elementsOf(text: string): Readonly<{ roots: readonly XmlElement[]; errors: number }> {
-  const parser = new SaxesParser({ xmlns: true });
-  const roots: XmlElement[] = [];
-  const open: XmlElement[] = [];
-  let depth = 0;
-  let errors = 0;
-  const gather = (chunk: string): void => {
-    for (const element of open) {
-      element.text.push(chunk);
+/**
+ * The elements of a document as the parser meets them, down to the kept depth and
+ * without the items of an element past the item bound, and the errors met on the way.
+ */
+class Outline {
+  // The kept elements around the parser's position, from the root.
+  readonly #open: XmlElement[] = [];
+  readonly #itemCounts = new Map<XmlElement | undefined, number>();
+  #depth = 0;
+  #errors = 0;
+  #isTooDeep = false;
+  readonly roots: XmlElement[] = [];
+
+  /** Whether an element named `uri` and `local` is an item past the bound of `parent`'s items, counting it if not. */
+  #isExtraItem(parent: XmlElement | undefined, uri: string, local: string): boolean {
+    const isItem = ITEMS.some(([itemUri, itemLocal]) => uri === itemUri && local === itemLocal);
+    if (!isItem) {
+      return false;
     }
-  };
-  parser.on('error', () => {
-    errors += 1;
-  });
-  parser.on('opentag', ({ uri, local, attributes }: SaxesTagNS) => {
-    depth += 1;
-    if (depth > KEPT_DEPTH) {
+    const count = this.#itemCounts.get(parent) ?? 0;
+    this.#itemCounts.set(parent, count + 1);
+    return count >= MAX_FEED_ITEMS;
+  }
+
+  /** The errors met: one more for a document nested past the depth bound. */
+  get errors(): number {
+    return this.#isTooDeep ? this.#errors + 1 : this.#errors;
+  }
+
+  /** Whether the document is nested past the depth bound, which ends its parse. */
+  get isTooDeep(): boolean {
+    return this.#isTooDeep;
+  }
+
+  fail(): void {
+    this.#errors += 1;
+  }
+
+  /** Keeps an element when every element around it is kept, down to the kept depth. */
+  open({ uri, local, attributes }: SaxesTagNS): void {
+    this.#depth += 1;
+    this.#isTooDeep ||= this.#depth > MAX_FEED_DEPTH;
+    const parent = this.#open.at(-1);
+    if (
+      this.#depth !== this.#open.length + 1 ||
+      this.#depth > KEPT_DEPTH ||
+      this.#isExtraItem(parent, uri, local)
+    ) {
       return;
     }
     const element: XmlElement = {
@@ -232,19 +267,54 @@ function elementsOf(text: string): Readonly<{ roots: readonly XmlElement[]; erro
       children: [],
       text: [],
     };
-    (open.at(-1)?.children ?? roots).push(element);
-    open.push(element);
+    (parent?.children ?? this.roots).push(element);
+    this.#open.push(element);
+  }
+
+  close(): void {
+    if (this.#depth === this.#open.length) {
+      this.#open.pop();
+    }
+    this.#depth -= 1;
+  }
+
+  /** Gives `chunk` to every kept element around it, each of which gathers the text of everything it holds. */
+  gather(chunk: string): void {
+    for (const element of this.#open) {
+      element.text.push(chunk);
+    }
+  }
+}
+
+/**
+ * The elements of `text` and the number of errors the parser met, as an outline keeps
+ * them. The parser takes `text` a slice at a time and stops at a document nested past
+ * the depth bound, whose cost would grow with the square of its depth.
+ */
+function elementsOf(text: string): Readonly<{ roots: readonly XmlElement[]; errors: number }> {
+  const parser = new SaxesParser({ xmlns: true });
+  const outline = new Outline();
+  const gather = (chunk: string): void => {
+    outline.gather(chunk);
+  };
+  parser.on('error', () => {
+    outline.fail();
+  });
+  parser.on('opentag', (tag: SaxesTagNS) => {
+    outline.open(tag);
   });
   parser.on('closetag', () => {
-    if (depth <= KEPT_DEPTH) {
-      open.pop();
-    }
-    depth -= 1;
+    outline.close();
   });
   parser.on('text', gather);
   parser.on('cdata', gather);
-  parser.write(text).close();
-  return { roots, errors };
+  for (let start = 0; start < text.length && !outline.isTooDeep; start += PARSE_SLICE_CHARS) {
+    parser.write(text.slice(start, start + PARSE_SLICE_CHARS));
+  }
+  if (!outline.isTooDeep) {
+    parser.close();
+  }
+  return { roots: outline.roots, errors: outline.errors };
 }
 
 /** The text of a body in the charset of its answer, else that of its XML declaration, else UTF-8; null when it is none. */

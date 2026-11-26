@@ -286,7 +286,7 @@ describe('feedIn', () => {
       ['<feed xmlns="http://www.w3.org/2005/Atom">', '</feed>'],
     ] as const;
     const rootBytes = 64;
-    const levels = Math.min(40_000, Math.floor((MAX_FEED_BYTES - rootBytes) / '<a></a>'.length));
+    const levels = Math.floor((MAX_FEED_BYTES - rootBytes) / '<a></a>'.length);
     const documents = roots.map(([open, close]) =>
       bytesOf(`${open}${'<a>'.repeat(levels)}${'</a>'.repeat(levels)}${close}`),
     );
