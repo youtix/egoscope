@@ -558,12 +558,14 @@ describe('parseExplorationResponse: the format and its version', () => {
 describe('parseExplorationResponse: the size bound', () => {
   // pasted-text-size.test.ts gives the rules of the size and of its message.
   it('[TAX-17] [CL-IMP-27] reads a response of the size bound set, and refuses one byte more before reading it', () => {
+    // A bound of 0.001 MB, 1,000 bytes.
+    const boundBytes = 1000;
     const empty = respond('');
-    const atLimit = `${empty}${' '.repeat(500_000 - empty.length)}`;
+    const atLimit = `${empty}${' '.repeat(boundBytes - empty.length)}`;
 
-    expect(parse(atLimit, 0.5)).toStrictEqual(read([]));
-    expect(parse(` ${atLimit}`, 0.5)).toStrictEqual(
-      refused('text_too_large', 'The pasted text is 0.51 MB, over the 0.5 MB limit.'),
+    expect(parse(atLimit, 0.001)).toStrictEqual(read([]));
+    expect(parse(` ${atLimit}`, 0.001)).toStrictEqual(
+      refused('text_too_large', 'The pasted text is 0.01 MB, over the 0.001 MB limit.'),
     );
   });
 });

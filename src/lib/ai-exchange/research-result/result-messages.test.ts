@@ -232,9 +232,10 @@ describe('blockingErrorMessage', () => {
   });
 
   it('[IMP-02] [IMP-20] [CL-IMP-27] gives a text too large the size and the limit that its size check writes, then how to fix it', () => {
-    const check = checkPastedTextSize('é'.repeat(600_000), 1);
+    // 12,000 bytes, two per character.
+    const check = checkPastedTextSize('é'.repeat(6000), 0.01);
     expect(check.ok ? undefined : blockingErrorMessage(check.error, CONTEXT).text).toBe(
-      "The pasted text is 1.2 MB, over the 1 MB limit. Paste the AI's answer alone.",
+      "The pasted text is 0.02 MB, over the 0.01 MB limit. Paste the AI's answer alone.",
     );
   });
 
