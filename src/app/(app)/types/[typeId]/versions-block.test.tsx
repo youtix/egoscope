@@ -89,6 +89,12 @@ function shownIn(item: HTMLElement, labels: readonly string[]): string[] {
   return labels.filter((text) => within(item).queryByText(text) !== null);
 }
 
+/** The violations of the WCAG 2.2 A and AA rules that axe finds in the rendered page (CL-IHM-08). */
+async function violationsOfPage(): Promise<axe.Result[]> {
+  const { violations } = await axe.run(document.body, WCAG_22_AA);
+  return violations;
+}
+
 /** The block of the media storm, rendered. */
 async function renderBlock(typeId: string = MEDIA_STORM): Promise<void> {
   render(await VersionsBlock({ typeId }));
@@ -113,6 +119,25 @@ async function addVersion(
 describe('the versions block of the type sheet', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
   let mediaStorm: EventTypeRow;
+
+  /** Version 2 of the media storm, a substantive change that widened the type, with its history entry. */
+  async function addSubstantiveChange(): Promise<void> {
+    const before = { ...sheetContent(mediaStorm), switchedOffCriterion: null };
+    await addVersion(db, 2, {
+      createdAt: hourOf(5),
+      substantiveScope: 'both',
+      reason: 'A wider type.',
+    });
+    await db.insert(typeSheetChanges).values({
+      eventTypeId: MEDIA_STORM,
+      changedAt: hourOf(5),
+      changeKind: 'substantive',
+      substantiveScope: 'both',
+      contentBefore: before,
+      contentAfter: { ...before, definition: 'A wider definition.' },
+      resultingVersionNumber: 2,
+    });
+  }
 
   beforeEach(async () => {
     const database = await createTestDatabase();
@@ -474,24 +499,49 @@ describe('the versions block of the type sheet', { timeout: DATABASE_TEST_TIMEOU
   });
 
   it('[CL-IHM-08] has no accessibility violation, the content of a change open', async () => {
-    const before = { ...sheetContent(mediaStorm), switchedOffCriterion: null };
-    await addVersion(db, 2, {
-      createdAt: hourOf(5),
-      substantiveScope: 'both',
-      reason: 'A wider type.',
-    });
-    await db.insert(typeSheetChanges).values({
-      eventTypeId: MEDIA_STORM,
-      changedAt: hourOf(5),
-      changeKind: 'substantive',
-      substantiveScope: 'both',
-      contentBefore: before,
-      contentAfter: { ...before, definition: 'A wider definition.' },
-      resultingVersionNumber: 2,
-    });
+    await addSubstantiveChange();
     await renderBlock();
     await userEvent.click(screen.getByText('Show the content before and after'));
 
-    await expect(axe.run(document.body, WCAG_22_AA)).resolves.toHaveProperty('violations', []);
+    expect(await violationsOfPage()).toStrictEqual([]);
+  });
+
+  it('[CL-IHM-08] has no accessibility violation, the content of a change still closed', async () => {
+    await addSubstantiveChange();
+    await renderBlock();
+
+    expect(await violationsOfPage()).toStrictEqual([]);
+  });
+
+  it('[CL-IHM-08] has no accessibility violation, no change recorded yet', async () => {
+    await renderBlock();
+
+    expect(await violationsOfPage()).toStrictEqual([]);
+  });
+
+  it('[CL-IHM-08] has no accessibility violation, a proposal with its link to validate it', async () => {
+    await insertEventType(db, { id: 'tattoo-reveal', name: 'Tattoo reveal', status: 'proposed' });
+    await renderBlock('tattoo-reveal');
+
+    expect(await violationsOfPage()).toStrictEqual([]);
+  });
+
+  it('[CL-IHM-08] has no accessibility violation, a rejected proposal', async () => {
+    await insertEventType(db, {
+      id: 'tattoo-reveal',
+      name: 'Tattoo reveal',
+      status: 'rejected',
+      rejectionReason: 'not_clean',
+    });
+    await renderBlock('tattoo-reveal');
+
+    expect(await violationsOfPage()).toStrictEqual([]);
+  });
+
+  it('[CL-IHM-08] has no accessibility violation, the versions could not be read', async () => {
+    harness.getDb.mockResolvedValue({ ok: false, error: { kind: 'database-not-configured' } });
+    await renderBlock();
+
+    expect(await violationsOfPage()).toStrictEqual([]);
   });
 });
