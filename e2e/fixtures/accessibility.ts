@@ -11,6 +11,7 @@ import { AxeBuilder } from '@axe-core/playwright';
 
 import { CHANGED, markChanges, MARKING } from './changes';
 import { STAMP, watchDepartures } from './departures';
+import { watchTouches } from './touches';
 
 import type { JSHandle, Keyboard, Mouse, Page, Touchscreen } from '@playwright/test';
 
@@ -330,7 +331,8 @@ class PageWatch {
  * Fits the watch into the calls that Playwright runs no handler before: the
  * page's navigations, its `close` and that of its context, which first check the
  * page when it changed; its emulations of a viewport size or of media, which
- * change what it shows; and the raw input that can leave it, keys, clicks and taps.
+ * change what it shows; and the raw input that can leave it, keys, clicks and taps,
+ * and the touches of touches.ts, one step at a time.
  */
 function fitCalls(page: Page, watch: PageWatch): void {
   const checked: Around = async (call) => {
@@ -369,6 +371,7 @@ function fitCalls(page: Page, watch: PageWatch): void {
   Object.assign(touchscreen, {
     tap: within(raw, touchscreen.tap.bind(touchscreen)),
   } satisfies Partial<Touchscreen>);
+  watchTouches(page, raw);
 }
 
 /**
