@@ -442,6 +442,16 @@ async function anotherWorkersTemplate(): Promise<Blob> {
   }
 }
 
+/** The content of `file` as a worker that opens it now reads it. */
+async function contentNow(file: string): Promise<Buffer> {
+  const handle = await open(file);
+  try {
+    return await handle.readFile();
+  } finally {
+    await handle.close();
+  }
+}
+
 /** A build that gives `template` once released, and says when a worker asked for it. */
 function withheldBuild(template: () => Promise<Blob>): Readonly<{
   build: () => Promise<Blob>;
@@ -537,13 +547,13 @@ describe('the stored template', { timeout: 60_000 }, () => {
     await Promise.race([late.asked, lateWorker]);
 
     await workerDatabase(store);
-    const stored = await readFile(file);
+    const stored = await contentNow(file);
     const reader = await open(file);
     onTestFinished(async () => reader.close());
     late.release();
     await lateWorker;
     const read = await reader.readFile();
-    const replaced = await readFile(file);
+    const replaced = await contentNow(file);
     await workerDatabase(store);
 
     expect(replaced.equals(stored)).toBe(false);
