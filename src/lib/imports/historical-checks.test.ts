@@ -12,6 +12,7 @@ import {
   insertLeagueSeason,
   insertPlayer,
   insertRequest,
+  MEDIA_STORM,
 } from '@/lib/testing';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
@@ -112,6 +113,17 @@ describe('checkedCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         sources: [typedSource(KEPT_LINK, '2026-11-25')],
       }),
     ).resolves.toMatchObject({ publicDate: { on: '2026-11-25', at: null } });
+
+    // At 09:30 UTC on 25 November, it is still the 24th in the owner's zone.
+    await db
+      .insert(parameterOverrides)
+      .values({ parameterKey: 'display.timeZone', value: 'Pacific/Pago_Pago' });
+    await expect(
+      problemsOf({
+        publicDate: day('2026-11-25'),
+        sources: [typedSource(KEPT_LINK, '2026-11-25')],
+      }),
+    ).resolves.toStrictEqual([{ kind: 'ignored', reason: 'outside_requested_period' }]);
   });
 
   it('[IMP-32] [CL-IMP-31] has no lower bound while the first NBA game is unknown, and then starts at that game', async () => {
@@ -232,11 +244,21 @@ describe('checkedCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     },
   );
 
-  it('[IMP-32] [IMP-11] fails a type that is not validated today, or calendar-derived, as the import ignores it', async () => {
+  it('[IMP-32] [IMP-11] fails a type that is not validated today, absorbed by a merge, or calendar-derived, as the import ignores it', async () => {
     await insertEventType(db, { id: 'trade-rumor', status: 'proposed' });
+    await insertEventType(db, {
+      id: 'public-feud',
+      name: 'Public feud',
+      status: 'withdrawn',
+      withdrawalReasonKind: 'merged_into',
+      mergedIntoTypeId: MEDIA_STORM,
+    });
     await insertCalendarType(db);
 
     await expect(problemsOf({ eventTypeId: 'trade-rumor' })).resolves.toStrictEqual([
+      { kind: 'ignored', reason: 'type_not_validated' },
+    ]);
+    await expect(problemsOf({ eventTypeId: 'public-feud' })).resolves.toStrictEqual([
       { kind: 'ignored', reason: 'type_not_validated' },
     ]);
     await expect(

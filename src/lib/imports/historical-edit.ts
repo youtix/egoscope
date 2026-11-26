@@ -101,9 +101,10 @@ async function recalculate(
 }
 
 /**
- * What follows a saved correction of `before`: its journal entry, the recalculation of
- * its old and new types, which classifies its precedence again before any calculation
- * (CL-IMP-17), and the wake of the link check when its sources changed (CL-IMP-25).
+ * What follows a saved correction of `before`: its journal entry, the wake of the link
+ * check when its sources changed (CL-IMP-25), and the recalculation of its old and new
+ * types, which classifies its precedence again before any calculation (CL-IMP-17). The
+ * recalculation's wake at the same instant then writes nothing: one tick serves both.
  */
 async function followCorrection(
   tx: Transaction,
@@ -114,11 +115,11 @@ async function followCorrection(
     messageKey: 'historical_event_corrected',
     playerEventId: before.playerEventId,
   });
-  const types = new Set([before.eventTypeId, corrected.event.eventTypeId]);
-  await recalculate(tx, before.playerId, [...types]);
   if (corrected.changed.includes('sources') && (await getParam(tx, 'imports.linkCheckEnabled'))) {
     await wakeAt(now(), LINK_CHECK_TASK);
   }
+  const types = new Set([before.eventTypeId, corrected.event.eventTypeId]);
+  await recalculate(tx, before.playerId, [...types]);
 }
 
 /**

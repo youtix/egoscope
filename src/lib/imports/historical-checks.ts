@@ -224,9 +224,12 @@ function taxonomyOf(resolution: TypeResolution): readonly TaxonomyType[] {
 
 /**
  * What the checks of a correction depend on (IMP-32, CL-IMP-31): the type of the event as
- * the only one requested and covered, over the player's NBA career up to the owner's day
- * of the correction, from his first NBA game or with no lower bound while it is unknown;
- * the parameters of the import, and the instant of the correction (CL-IMP-10).
+ * the only one requested, over the player's NBA career up to the owner's day of the
+ * correction, from his first NBA game or with no lower bound while it is unknown; the
+ * parameters of the import, and the instant of the correction (CL-IMP-10). The covered
+ * types and the sheet version only give warnings and a version that a correction does not
+ * keep, `applyCorrection` stamping the version in force (CL-TAX-22): none is declared
+ * covered, and the version is the event's own.
  */
 async function checkContext(
   tx: Transaction,
@@ -234,17 +237,15 @@ async function checkContext(
   of: Readonly<{ eventType: string; params: ParamReader }>,
 ): Promise<EventCheckContext> {
   const { params } = of;
-  const resolution = await resolveTypeId(tx, of.eventType);
-  const taxonomy = taxonomyOf(resolution);
-  const sheetVersion =
-    resolution.kind === 'validated' ? resolution.versionNumber : event.sheetVersionNumber;
+  const taxonomy = taxonomyOf(await resolveTypeId(tx, of.eventType));
+  const sheetVersion = event.sheetVersionNumber;
   const at = now();
   const career = { startOn: NO_LOWER_BOUND, endOn: userDay(at, params.get('display.timeZone')) };
   const first = await firstNbaGame(tx, event.playerId);
   return {
     taxonomy,
     requestedTypes: taxonomy.map(({ id }) => ({ id, period: career, sheetVersion })),
-    coveredTypes: taxonomy.map(({ id }) => id),
+    coveredTypes: [],
     declaredPeriod: career,
     firstNbaGameOn: first?.firstNbaGameOn,
     splitChoices: [],

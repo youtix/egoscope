@@ -314,7 +314,7 @@ describe('historical corrections and deletions', { timeout: DATABASE_TEST_TIMEOU
       await expect(uncheckedSources(db, 10)).resolves.toStrictEqual([
         { sourceId: sources[1]?.id, url: `${KEPT_LINK}?utm_source=feed&id=7` },
       ]);
-      expect(await dueTasks()).toStrictEqual(['link-check', 'purge', 'recalculation']);
+      expect(await dueTasks()).toStrictEqual(['link-check', 'purge']);
     });
 
     it('[IMP-17] wakes no link check while it is off, nor for a change that keeps the sources', async () => {
@@ -344,7 +344,8 @@ describe('historical corrections and deletions', { timeout: DATABASE_TEST_TIMEOU
     it('[IMP-32] [CL-IHM-18] refuses a stale version, a player change, a missing event and a detected one', async () => {
       const stale = await db.transaction(async (tx) =>
         loaded.edit.correctHistorical(tx, historical.id, {
-          description: 'A fresh description of the storm.',
+          // A change that fails the checks too: the stale version is refused first.
+          description: 'He said "never again".',
           expectedVersion: historical.rowVersion + 1,
         }),
       );
