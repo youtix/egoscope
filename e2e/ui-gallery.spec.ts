@@ -467,7 +467,7 @@ test.describe('the component gallery outside development and the hermetic mode',
       const body = await response.text();
 
       expect(response.status()).toBe(404);
-      expect(body).toContain('This page could not be found.');
+      expect(body).toContain('This address leads to no screen');
       expect(body).toContain('<meta name="robots" content="noindex"/>');
       expect(body).not.toContain('Component gallery');
     } finally {
