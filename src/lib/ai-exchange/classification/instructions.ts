@@ -7,7 +7,9 @@
 
 /**
  * The version of the classification instructions, stored with each result of the model
- * (DET-23, DET-53): any change of their wording takes a new version.
+ * (DET-23, DET-53): any change of their wording takes a new version. It names the
+ * wording only, not the values of `InstructionsParameters` that the text states: a change
+ * of one of those parameters keeps the version.
  */
 export const INSTRUCTIONS_VERSION = '1.0';
 
@@ -31,18 +33,18 @@ You classify press articles for Egoscope, a personal app that studies whether NB
 - validated_types: the event types you classify into, each with its whole sheet: definition, inclusion criteria, exclusion criteria, dating rule, whether it is known in advance, and a generic example.
 - do_not_repropose: types already proposed, rejected or withdrawn, each by name and definition; never suggest one of them again as a new type.
 - calendar_types: the types that the app derives from the game schedule itself, each by name and definition.
-- articles: one or more press articles, in English or French, each with its article_id, title, excerpt (null when there is none), outlet, published_at (ISO 8601 with the UTC offset of the outlet's time zone, or +00:00 when that zone is unknown) and published_precision (exact, approximate or none: how far you can trust published_at), then its recognized players, each with his player_id, his names (display name first, then spelling variants and nicknames) and his recent events, each with its player_event_id, event_type, reference_date and description.
+- articles: one or more press articles, in English or French, each with its article_id, title, excerpt (null when there is none), outlet, published_at (ISO 8601 with the UTC offset of the outlet's time zone, or +00:00 when that zone is unknown) and published_precision (exact, approximate or none: how far you can trust published_at), then its recognized players, each with his player_id, his names (display name first, then spelling variants and nicknames) and his events, each with its player_event_id, event_type, reference_date and description.
 
 2. RULES
 2.1 The player. A fact belongs to the recognized player it touches, not merely to a player the article cites. A fact that touches two recognized players is reported for each of them.
 2.2 Teams. A fact that touches a whole team without personally targeting the player is not reported: team events are out of scope.
 2.3 The fact, never the performance. Judge the fact, never the performance that followed it. Ignore every mention of that performance (score, statistics, an answer on the court) when you decide whether there is a fact and which type it gets.
 2.4 One fact, one type. Report each fact once per player, even when the article tells it several times. A fact that seems to belong to two validated types gets only one, the type whose sheet fits it best.
-2.5 Novelty. When the fact is one of the player's recent events, set novelty to known_event and give that event's player_event_id. Otherwise, when the article returns, with no new element, to a fact that became public before the grouping window, that is more than ${GROUPING_WINDOW} before published_at, set novelty to old_fact. Otherwise set it to new_fact: an old fact that the article reveals for the first time is a new fact. Outside known_event, player_event_id is null.
+2.5 Novelty. When the fact is one of the player's events, whatever its age, set novelty to known_event and give that event's player_event_id. Otherwise, when the article returns, with no new element, to a fact that became public before the grouping window, that is more than ${GROUPING_WINDOW} before published_at, set novelty to old_fact. Otherwise set it to new_fact: an old fact that the article reveals for the first time is a new fact. Outside known_event, player_event_id is null.
 2.6 No validated type. A fact that may affect the player's ego but fits no validated type goes in known_entry_facts when it matches an entry of do_not_repropose, with that entry's id, and otherwise in new_type_facts, with a suggested type name, a suggested one-sentence definition and a justification that says why no validated type fits.
 2.7 Calendar types. A fact that matches an entry of calendar_types, such as a game on the player's birthday or against a former team, is handled by the calendar and is not to be reported, neither as a validated-type fact, nor as a known entry, nor as a new type: name its entry in calendar_facts at most.
 2.8 Timing. When the article places the fact before its own publication (an earlier day, or earlier the same day), give in timing_hint the day, YYYY-MM-DD, on which the fact happened or became public, read in the article's own frame; otherwise give null.
-2.9 Context. For the player's next game, say whether the article presents it as his return from an injury absence (injury_return: yes, no or unknown), without ever naming the injury, and whether its outcome directly decides a qualification, an elimination, a title or a final ranking (game_stakes: high, normal or unknown). Answer unknown when the article says nothing about it.
+2.9 Context. For the player's next game, say whether the article presents it as his return, or as one of his first games, after an absence due to an injury (injury_return: yes, no or unknown), without ever naming the injury, and whether its outcome directly decides a qualification, an elimination, a title or a final ranking (game_stakes: high, normal or unknown), every other game being normal, a playoff game that eliminates nobody included. Answer unknown when the article says nothing about it.
 2.10 Confidence. detection_confidence is your own assessment, from 0 to 100, of how clearly the fact meets the criteria of its type; it is not a probability.
 2.11 Identifiers. Use only the identifiers of the request, copied exactly.
 
@@ -51,7 +53,7 @@ You classify press articles for Egoscope, a personal app that studies whether NB
 3.2 Designate every person other than the player by role (an opponent, a teammate, a coach, an executive, a spectator, a loved one), never by name.
 3.3 Summarize what was said: never a quotation between quotation marks, never an insult copied.
 3.4 No value judgment, no interpretation of the player's personality or state of mind, no forecast about a game.
-3.5 No health detail and no intimate detail: no diagnosis, nature of an injury or illness, treatment or mental health; for a bereavement, only that a loved one died, with no name, family relationship, cause or circumstances; for racist remarks, neither the terms used nor the player's origin, skin color, nationality or religion; nothing about family, love life, home, finances, opinions or beliefs.
+3.5 No health detail and no intimate detail: no diagnosis, nature of an injury or illness, treatment or mental health; for a bereavement, only that a loved one died, with no name, family relationship, cause, circumstances or funeral; for racist remarks, neither the terms used nor the player's origin, skin color, nationality or religion; for a legal matter, only that the player is publicly implicated in a case the press reports, without the alleged facts or the identity of the other parties; nothing about family, love life, sexual orientation, home, private travel, finances, opinions or beliefs.
 3.6 These rules also apply to every justification, suggested name and suggested definition. A justification is one sentence that cites the criterion of the sheet that the fact meets.
 
 4. ANSWER
@@ -69,9 +71,10 @@ function hoursText(hours: number): string {
  * never the performance that followed it (DET-19), the old fact older than the grouping
  * window (DET-20), one fact and one best-fit type (DET-27), the known entries and new
  * types (DET-34), the calendar-handled types whose facts are not reported (CL-DET-22),
- * the timing hint (CL-DET-06) and the wording rules of DSN-19 to DSN-23, which every
- * justification, suggested name and suggested definition follows too (DET-21,
- * CL-DET-18). The text is fixed by the version and read by the owner (DET-23).
+ * the timing hint (CL-DET-06), the context indications as SEN-13 and SEN-14 define them
+ * (DET-16), and the wording rules of DSN-12 to DSN-23, which every justification,
+ * suggested name and suggested definition follows too (DET-21, CL-DET-18, DSN-18). The
+ * text is fixed by the version and read by the owner (DET-23).
  */
 export function classificationInstructions(parameters: InstructionsParameters): string {
   const window = hoursText(parameters.groupingWindowHours);
