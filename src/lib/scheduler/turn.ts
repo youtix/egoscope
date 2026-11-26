@@ -1,4 +1,4 @@
-// A task's turn in a pass (TRV-26, TRV-28, TRV-30, CL-TRV-07, CL-TRV-23): the run to work
+// A task's turn in a pass (TRV-26, TRV-28, TRV-30, CL-TRV-07, CL-TRV-08): the run to work
 // on, if any, and the postponement of an occurrence that comes due while a run runs.
 import { and, eq } from 'drizzle-orm';
 
@@ -6,16 +6,9 @@ import { journalEntries } from '@/lib/db';
 import { record } from '@/lib/journal';
 import { toEpochMs } from '@/lib/time';
 
-import { nextOccurrence, sinceOf } from './due';
-import {
-  epochOf,
-  isRunning,
-  isWaiting,
-  markProgress,
-  startRequested,
-  startRun,
-  waitingRunOf,
-} from './runs';
+import { catchUpOf } from './catch-up';
+import { nextOccurrence, scheduledDue, sinceOf } from './due';
+import { epochOf, isRunning, startRequested, startRun } from './runs';
 
 import type { DueContext } from './due';
 import type { RunRow, RunStart, TaskState } from './runs';
@@ -69,27 +62,38 @@ async function journalPostponement(turn: Turn, running: RunRow): Promise<void> {
   await db.transaction(async (tx) => record(tx, { messageKey: 'task_run_postponed', ...entry }));
 }
 
-/** The resumption of an interrupted run from its cursor, in its own pass (TRV-30). */
-function resumptionOf(run: RunRow, pass: Pass, at: EpochMs): RunStart {
+/**
+ * The resumption of an interrupted run from its cursor and its progress, in its own pass,
+ * with its parent run and its competition day (TRV-30, CA-TRV-09, CL-TRV-07). A scheduled
+ * one is the task's catch-up run while one is still to start, and is then due at the
+ * occurrence the catch-up run is due for when later, standing for it (CL-TRV-08).
+ */
+function resumptionOf(turn: Turn, run: RunRow): RunStart {
+  const { pass, task, state, context } = turn;
+  const catchUp = run.trigger === 'scheduled' ? catchUpOf(task, state, context) : null;
+  const dueAt = epochOf(run.dueAt);
   return {
     taskKey: run.taskKey,
     trigger: run.trigger,
-    dueAt: epochOf(run.dueAt),
+    dueAt: catchUp === null ? dueAt : toEpochMs(Math.max(dueAt, catchUp)),
     passId: run.passId ?? pass.id,
     parentRunId: run.parentRunId,
     competitionDayOn: run.competitionDayOn,
     cursor: run.cursor,
-    progressAt: run.progressAt === null ? null : at,
+    progressAt: run.progressAt === null ? null : context.at,
   };
 }
 
-/** The one scheduled run of the turn's task per pass, for its due occurrence, a chained one in its parent's pass (TRV-26). */
+/**
+ * The one scheduled run of the turn's task per pass, for its due occurrence or its catch-up
+ * run (CL-TRV-08), a chained one in its parent's pass (TRV-26).
+ */
 async function startScheduled(turn: Turn): Promise<RunRow | null> {
   const { pass, task, state, context } = turn;
   if (pass.started.has(task.key)) {
     return null;
   }
-  const due = await nextOccurrence(task, sinceOf(state), context);
+  const due = await scheduledDue(task, state, context);
   if (due === null || due.dueAt > context.at) {
     return null;
   }
@@ -105,14 +109,15 @@ async function startScheduled(turn: Turn): Promise<RunRow | null> {
 }
 
 /**
- * Starts the run that the turn's task is due for, if any: the resumption of an
- * interrupted run (TRV-30), the on-demand run that waited (CL-COL-20), or its scheduled run.
+ * Starts the run that the turn's task is due for, if any, the one place where a run starts:
+ * the resumption of an interrupted run (TRV-30), the catch-up run included, the on-demand
+ * run that waited (CL-COL-20), or its scheduled run, its catch-up run included (CL-TRV-08).
  */
 async function startDue(turn: Turn): Promise<RunRow | null> {
   const { pass, state, context } = turn;
   const { latest, requested } = state;
   if (latest?.result === 'interrupted') {
-    return startRun(pass.db, resumptionOf(latest, pass, context.at), context.at);
+    return startRun(pass.db, resumptionOf(turn, latest), context.at);
   }
   if (requested !== null) {
     return startRequested(pass.db, requested, { passId: pass.id, at: context.at });
@@ -121,34 +126,14 @@ async function startDue(turn: Turn): Promise<RunRow | null> {
 }
 
 /**
- * `run` once its ready guard lets it go, at the latest at its cut-off, its progress mark
- * then showing that its work began; a run that does not wait goes on at once (CL-TRV-23).
- */
-async function releasedFromGuard(turn: Turn, run: RunRow): Promise<RunRow | null> {
-  const { pass, task, context } = turn;
-  const guard = task.readyGuard;
-  if (guard === undefined || !isWaiting(task, run)) {
-    return run;
-  }
-  const isCutOff = context.at >= guard.cutoff(epochOf(run.dueAt), pass.params, pass.timeZone);
-  const checked = isCutOff ? null : await guard.check(pass.db, waitingRunOf(run), context.at);
-  if (checked !== null && !checked.ready) {
-    return null;
-  }
-  await markProgress(pass.db, run, context.at);
-  return run;
-}
-
-/**
  * The run of the turn's task to work on now, if any (TRV-28): the one that runs, an
- * occurrence due meanwhile being postponed, or the one it is due for; a run that waits in
- * its ready guard goes on only once the guard lets it go.
+ * occurrence due meanwhile being postponed, or the one it is due for.
  */
 export async function nextRun(turn: Turn): Promise<RunRow | null> {
   const { latest } = turn.state;
   if (isRunning(latest)) {
     await journalPostponement(turn, latest);
+    return latest;
   }
-  const run = isRunning(latest) ? latest : await startDue(turn);
-  return run === null ? null : releasedFromGuard(turn, run);
+  return startDue(turn);
 }

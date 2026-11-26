@@ -457,15 +457,14 @@ describe('a database pass', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         result: 'succeeded',
       },
       { taskKey: 'link-check', trigger: 'scheduled', dueAt: new Date(AT), result: 'succeeded' },
-      { taskKey: 'purge', trigger: 'scheduled', dueAt: new Date(at(-119)), result: null },
     ]);
     clock.advance(5 * MINUTE);
     await execute(db, registry);
     const caughtUp = await runsOf();
-    expect(caughtUp.map(({ result }) => result)).toStrictEqual([
-      'succeeded',
-      'succeeded',
-      'succeeded',
+    expect(
+      caughtUp.slice(2).map(({ dueAt, startedAt, result }) => ({ dueAt, startedAt, result })),
+    ).toStrictEqual([
+      { dueAt: new Date(at(-119)), startedAt: new Date(at(10)), result: 'succeeded' },
     ]);
     const incident = await db.select({ closedAt: incidents.closedAt }).from(incidents);
     expect(incident).toStrictEqual([{ closedAt: new Date(at(10)) }]);

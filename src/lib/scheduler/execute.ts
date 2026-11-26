@@ -11,7 +11,9 @@ import { duringPass, writePlan } from '@/lib/wake-plan';
 
 import { notePlanWritten } from './decide';
 import { TIME_ZONE_KEY } from './due';
+import { thrownFacts } from './faults';
 import { flushCounters } from './flush';
+import { release } from './guard';
 import { releaseLease, takeLease } from './lease';
 import { PASS_BUDGET_MS, STALE_AFTER_MS } from './limits';
 import { computeWakePlan } from './plan';
@@ -24,7 +26,6 @@ import type { RunRow, TaskState } from './runs';
 import type { Pass } from './turn';
 import type { ChunkOutcome, Registry, ScheduledTask, TaskContext } from './types';
 import type { Database } from '@/lib/db';
-import type { LogFields } from '@/lib/log';
 import type { EpochMs } from '@/lib/time';
 import type { TaskKey } from '@/lib/wake-plan';
 
@@ -52,20 +53,6 @@ async function closeStaleRuns(db: Database, registry: Registry, at: EpochMs): Pr
   }
 }
 
-/**
- * What the log says of what a handler threw: the error's name and, for a failed query, the
- * driver's SQL state, never its message, which for a query holds every bound parameter and
- * so the owner's text (module map §2.1 `log`).
- */
-function thrownFacts(thrown: unknown): LogFields {
-  if (!(thrown instanceof Error)) {
-    return { error: typeof thrown };
-  }
-  const { cause } = thrown;
-  const code: unknown = cause instanceof Object && 'code' in cause ? cause.code : null;
-  return typeof code === 'string' ? { error: thrown.name, code } : { error: thrown.name };
-}
-
 /** One chunk of `task`; a handler that throws, a bug or a lost connection, fails its run. */
 async function chunk(task: ScheduledTask, context: TaskContext): Promise<ChunkOutcome> {
   try {
@@ -79,12 +66,20 @@ async function chunk(task: ScheduledTask, context: TaskContext): Promise<ChunkOu
   }
 }
 
+/** How a run's turn ended: done, stopped by the budget, or waiting in its ready guard. */
+type Stop = ChunkOutcome['kind'] | 'waiting';
+
 /**
- * Works `run` chunk by chunk from its cursor, each portion's progress and cursor written,
- * until it ends or the pass's budget is spent, when it stays running and the next pass
- * resumes it from its cursor (TRV-30). Says how it stopped.
+ * Works `run` chunk by chunk from its cursor, once its ready guard lets it go, each
+ * portion's progress and cursor written, until it ends or the pass's budget is spent, when
+ * it stays running and the next pass resumes it from its cursor (TRV-30); a guard whose check
+ * throws ends it as a failed chunk does (CL-TRV-23). Says how it stopped.
  */
-async function work(pass: Pass, task: ScheduledTask, run: RunRow): Promise<ChunkOutcome['kind']> {
+async function work(pass: Pass, task: ScheduledTask, run: RunRow): Promise<Stop> {
+  const released = await release(pass, task, run);
+  if (released !== 'go') {
+    return released === 'waiting' ? 'waiting' : 'done';
+  }
   let { cursor } = run;
   while (now() < pass.endsAt) {
     const outcome = await chunk(task, {
@@ -122,6 +117,9 @@ async function runTask(pass: Pass, task: ScheduledTask, states: States): Promise
       return stateOf;
     }
     const stop = await work(pass, task, run);
+    if (stop === 'waiting') {
+      return stateOf;
+    }
     stateOf = await loadStates(pass.db);
     if (stop === 'more') {
       return stateOf;

@@ -3,7 +3,7 @@
 import { getParams } from '@/lib/params';
 import { lastTicks } from '@/lib/wake-plan';
 
-import { nextOccurrence, sinceOf, TIME_ZONE_KEY } from './due';
+import { scheduledDue, TIME_ZONE_KEY } from './due';
 import { MINUTE_MS } from './limits';
 import { epochOf, isRunning, loadStates } from './runs';
 
@@ -24,7 +24,7 @@ export type TaskLine = Readonly<{
   isRunning: boolean;
   /** When an on-demand run was asked that waits for the running one to end (CL-COL-20). */
   requestedAt: EpochMs | null;
-  /** The next scheduled run, which an on-demand run never moves (TRV-33). */
+  /** The next scheduled run, its catch-up run included, which an on-demand run never moves (TRV-33, CL-TRV-08). */
   nextRunAt: EpochMs | null;
 }>;
 
@@ -46,7 +46,7 @@ export async function taskOverview(
       const state = stateOf(task.key);
       const { latest, requested } = state;
       const startedAt = latest?.startedAt ?? null;
-      const next = await nextOccurrence(task, sinceOf(state), context);
+      const next = await scheduledDue(task, state, context);
       return {
         task: task.key,
         lastRun:

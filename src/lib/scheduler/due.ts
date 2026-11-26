@@ -2,6 +2,7 @@
 // counted from its runs.
 import { toEpochMs } from '@/lib/time';
 
+import { catchUpOf } from './catch-up';
 import { firstOccurrenceAfter, latestOccurrenceAtOrBefore, localTimesOf } from './occurrences';
 import { epochOf } from './runs';
 
@@ -112,4 +113,18 @@ export function sinceOf(state: TaskState): Since {
     lastScheduledDueAt: state.lastScheduledDueAt,
     lastStartedAt: startedAt === null ? null : epochOf(startedAt),
   };
+}
+
+/**
+ * The occurrence that the next scheduled run of `task` is due for, given its runs: its one
+ * catch-up run while one is still to start, due at once (TRV-31, CL-TRV-08), otherwise its
+ * next occurrence; on-demand runs never move it (TRV-33).
+ */
+export async function scheduledDue(
+  task: ScheduledTask,
+  state: TaskState,
+  context: DueContext,
+): Promise<Due | null> {
+  const catchUp = catchUpOf(task, state, context);
+  return catchUp === null ? nextOccurrence(task, sinceOf(state), context) : due(catchUp);
 }

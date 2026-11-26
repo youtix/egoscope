@@ -1,5 +1,5 @@
 // The run check (TRV-31, CL-TRV-08, CL-TRV-23): each missed occurrence journaled once, the
-// "task not run" incident opened, and one catch-up run started at once.
+// "task not run" incident opened, and the task's one catch-up run made due at once.
 import { randomUUID } from 'node:crypto';
 
 import { and, eq, gt, isNotNull, or, sql } from 'drizzle-orm';
@@ -11,14 +11,15 @@ import { getParams } from '@/lib/params';
 import { toEpochMs } from '@/lib/time';
 import { wakeAt } from '@/lib/wake-plan';
 
+import { marginOf, pendingMissOf } from './catch-up';
 import { TIME_ZONE_KEY } from './due';
 import { releaseLease, takeLease } from './lease';
-import { HOUR_MS } from './limits';
-import { latestOccurrenceAtOrBefore, localTimesOf, occurrencesBetween } from './occurrences';
-import { epochOf, startRun } from './runs';
+import { localTimesOf, occurrencesBetween } from './occurrences';
+import { epochOf } from './runs';
 
+import type { CatchUpFacts } from './catch-up';
 import type { LeaseHeld } from './lease';
-import type { Registry, ScheduledTask, TaskRunResult } from './types';
+import type { Registry, ScheduledTask, TaskRunResult, TaskRunTrigger } from './types';
 import type { Database } from '@/lib/db';
 import type { ParamReader } from '@/lib/params';
 import type { EpochMs } from '@/lib/time';
@@ -27,15 +28,16 @@ import type { TaskKey } from '@/lib/wake-plan';
 /** A run that started, as the check reads it: its end and result are null while it runs. */
 type Span = Readonly<{
   task: TaskKey;
+  trigger: TaskRunTrigger;
   start: EpochMs;
   end: EpochMs | null;
   result: TaskRunResult | null;
 }>;
 
-/** When the check runs, and the pass, holding the lease, whose id a catch-up run takes. */
+/** When the check runs, and the pass, holding the lease, whose id the incidents it opens take. */
 type CheckMoment = Readonly<{ at: EpochMs; passId: string }>;
 
-/** What the run check at opening did: the tasks it caught up, or nothing while a pass runs. */
+/** What the run check at opening did: the tasks whose catch-up run it made due, or nothing while a pass runs. */
 export type MissedRunsCheck =
   Readonly<{ ok: true; caughtUp: readonly TaskKey[] }> | Readonly<{ ok: false; error: LeaseHeld }>;
 
@@ -110,14 +112,16 @@ async function spansOf(
   const runs = await db
     .select({
       task: taskRuns.taskKey,
+      trigger: taskRuns.trigger,
       startedAt: sql<Date>`${taskRuns.startedAt}`.mapWith(taskRuns.startedAt),
       finishedAt: taskRuns.finishedAt,
       result: taskRuns.result,
     })
     .from(taskRuns)
     .where(or(...conditions));
-  return runs.map(({ task, startedAt, finishedAt, result }) => ({
+  return runs.map(({ task, trigger, startedAt, finishedAt, result }) => ({
     task,
+    trigger,
     start: epochOf(startedAt),
     end: finishedAt === null ? null : epochOf(finishedAt),
     result,
@@ -157,7 +161,7 @@ async function checkOf(
     passId: moment.passId,
     params,
     timeZone: params.get(TIME_ZONE_KEY),
-    marginMs: params.get('scheduler.missedRunMarginHours') * HOUR_MS,
+    marginMs: marginOf(params),
     floors,
     spans,
     journaled: await journaledMisses(db, oldestFloor),
@@ -223,31 +227,31 @@ async function newMisses(task: ScheduledTask, check: Check): Promise<readonly Ep
   );
 }
 
-/**
- * The occurrence that the catch-up run of `task` is due for: the last missed one `last`,
- * or, when later, the latest occurrence of its timed schedules that has come by the check,
- * still inside its margin, which the catch-up also stands for since it starts after it
- * (CL-TRV-08), so that the pass neither postpones that occurrence nor runs the task again
- * for it (TRV-28, CL-TRV-07).
- */
-function catchUpDueAt(task: ScheduledTask, last: EpochMs, check: Check): EpochMs {
-  const latest = task.schedules.flatMap((schedule) => {
-    if (schedule.kind === 'chained' || schedule.kind === 'computed') {
-      return [];
-    }
-    const local = localTimesOf(schedule, check.params);
-    return latestOccurrenceAtOrBefore(check.at, local, check.timeZone) ?? [];
-  });
-  return toEpochMs(Math.max(last, ...latest));
+/** What the runs of `spans` say about the last missed occurrence `lastMiss` (CL-TRV-08). */
+function factsOf(spans: readonly Span[], lastMiss: CatchUpFacts['lastMiss']): CatchUpFacts {
+  const lastStartOf = (isCounted: (span: Span) => boolean) => {
+    const starts = spans.filter((span) => isCounted(span)).map((span) => span.start);
+    return starts.length === 0 ? null : toEpochMs(Math.max(...starts));
+  };
+  const isScheduled = (span: Span) => span.trigger === 'scheduled';
+  return {
+    lastMiss,
+    lastScheduledStartedAt: lastStartOf(isScheduled),
+    lastSuccessStartedAt: lastStartOf((span) => span.result === 'succeeded'),
+    lastScheduledEndStartedAt: lastStartOf(
+      (span) => isScheduled(span) && span.result !== null && span.result !== 'interrupted',
+    ),
+  };
 }
 
 /**
- * Journals the new missed occurrences of `task`, opens its "task not run" incident, and
- * starts its one catch-up run, recorded as scheduled and due at the latest occurrence that
- * has come, unless a run already stands for them: a success started at or after the last
- * of them, which closes the incident at once, or a run of the task that runs, which the
- * index of running runs keeps alone (CL-TRV-08). Returns the task when it started a
- * catch-up run.
+ * Journals the new missed occurrences of `task` at the check's instant and opens its "task
+ * not run" incident, closed at once when a success started at or after the last of them
+ * stands for them (CL-TRV-08). The check starts no run: the task's one catch-up run, recorded
+ * as scheduled, starts at its next turn, where every run starts, as the resumption of its
+ * interrupted run when it has one (TRV-30, CL-TRV-07), and after the run of the task that
+ * runs, if any (TRV-28). Returns the task when that catch-up run is due now, the wake plan
+ * then pulled to now.
  */
 async function catchUp(
   task: ScheduledTask,
@@ -255,28 +259,22 @@ async function catchUp(
   check: Check,
 ): Promise<TaskKey | null> {
   const last = toEpochMs(Math.max(...missed));
-  const isCaughtUp = check.spans.some(
-    (span) => span.task === task.key && span.result === 'succeeded' && span.start >= last,
-  );
+  const spans = check.spans.filter((span) => span.task === task.key);
+  const isCaughtUp = spans.some((span) => span.result === 'succeeded' && span.start >= last);
   const cause = { kind: 'task_not_run', task: task.key } as const;
-  const start = {
-    taskKey: task.key,
-    trigger: 'scheduled',
-    dueAt: catchUpDueAt(task, last, check),
-    passId: check.passId,
-  } as const;
-  const started = await check.db.transaction(async (tx) => {
+  await check.db.transaction(async (tx) => {
     for (const dueAt of missed) {
-      await record(tx, { messageKey: 'task_run_missed', params: { task: task.key, dueAt } });
+      const params = { task: task.key, dueAt };
+      await record(tx, { messageKey: 'task_run_missed', occurredAt: check.at, params });
     }
     await open(tx, cause, check.passId);
     if (isCaughtUp) {
       await close(tx, cause, check.passId);
-      return null;
     }
-    return startRun(tx, start, check.at);
   });
-  if (started === null) {
+  const facts = factsOf(spans, { dueAt: last, journaledAt: check.at });
+  const isRunning = spans.some((span) => span.end === null);
+  if (isRunning || pendingMissOf(task, facts, check.params) === null) {
     return null;
   }
   await wakeAt(check.at, task.key);
@@ -288,10 +286,10 @@ async function catchUp(
  * at each opening of the app, run by the pass `moment.passId` that holds the lease, so that
  * two checks never journal the same occurrence: each occurrence missed since the task's
  * last scheduled run that succeeded is journaled once, opens the task's "task not run" incident,
- * closed by its next success, and makes the task due at once through one catch-up run,
- * recorded as scheduled, which runs in that pass if its budget allows and otherwise at the
- * next one. A statistics update that waits for the source is running, and a late source is
- * never missed (CL-TRV-23). Returns the tasks whose catch-up run it started.
+ * closed by its next success, and makes the task due at once for one catch-up run, recorded
+ * as scheduled, which starts at the task's next turn, in that pass if its budget allows and
+ * otherwise at the next one. A statistics update that waits for the source is running, and a
+ * late source is never missed (CL-TRV-23). Returns the tasks whose catch-up run is due now.
  */
 export async function runCheck(
   db: Database,
@@ -316,8 +314,8 @@ export async function runCheck(
  * the `scheduler_lease` row that every pass takes, so that it never runs beside a pass or
  * another opening's check and journals each missed occurrence once (TRV-28). While a pass
  * holds the lease it checks nothing, since that pass checks at its end; otherwise it runs
- * the check at `at` and returns the tasks whose catch-up run it started, recorded as
- * scheduled and made due at once in the wake plan.
+ * the check at `at` and returns the tasks whose catch-up run, recorded as scheduled, it made
+ * due at once in the wake plan, which the next pass starts.
  */
 export async function checkMissedRuns(
   db: Database,

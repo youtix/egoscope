@@ -2,8 +2,9 @@
 // database, at the end of each pass.
 import { getParams } from '@/lib/params';
 
-import { nextOccurrence, sinceOf, TIME_ZONE_KEY } from './due';
-import { epochOf, isRunning, isWaiting, loadStates, waitingRunOf } from './runs';
+import { scheduledDue, TIME_ZONE_KEY } from './due';
+import { checkGuard } from './guard';
+import { epochOf, isRunning, isWaiting, loadStates } from './runs';
 
 import type { DueContext } from './due';
 import type { RunRow } from './runs';
@@ -16,12 +17,13 @@ type TaskPlan = Readonly<{ entry: WakeEntry | null; probe: WakeProbe | null }>;
 
 /**
  * What the plan holds for a run that waits in `guard`: due at once once the guard lets it
- * go, otherwise at its cut-off, with the probe that a tick makes meanwhile (CL-TRV-23).
+ * go, or when its check throws, so that the next pass asks it again and fails the run if it
+ * throws then, otherwise at its cut-off, with the probe that a tick makes meanwhile (CL-TRV-23).
  */
 async function waitOf(guard: ReadyGuard, run: RunRow, context: DueContext): Promise<TaskPlan> {
   const task = run.taskKey;
-  const checked = await guard.check(context.db, waitingRunOf(run), context.at);
-  if (checked.ready) {
+  const checked = await checkGuard(context.db, { guard, run }, context.at);
+  if (checked === null || checked.ready) {
     return { entry: { task, dueAt: context.at }, probe: null };
   }
   const cutoff = guard.cutoff(epochOf(run.dueAt), context.params, context.timeZone);
@@ -33,7 +35,7 @@ async function waitOf(guard: ReadyGuard, run: RunRow, context: DueContext): Prom
  * guard lets it go, at the latest at its cut-off, and the plan holds the probe that a tick
  * makes meanwhile (CL-TRV-23); a run to resume, an interrupted one included, and an
  * on-demand run that waits while none runs, are due at once (TRV-30); otherwise the task
- * is due at its next occurrence, if any.
+ * is due at its next scheduled run, if any, its catch-up run due at once (CL-TRV-08).
  */
 async function planOf(task: ScheduledTask, context: DueContext): Promise<TaskPlan> {
   const state = context.stateOf(task.key);
@@ -51,7 +53,7 @@ async function planOf(task: ScheduledTask, context: DueContext): Promise<TaskPla
   if (latest?.result === 'interrupted' || state.requested !== null) {
     return due(at);
   }
-  const next = await nextOccurrence(task, sinceOf(state), context);
+  const next = await scheduledDue(task, state, context);
   return due(next === null ? null : next.dueAt);
 }
 

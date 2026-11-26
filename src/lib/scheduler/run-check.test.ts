@@ -16,7 +16,6 @@ const HOUR = 60 * MINUTE;
 const nov = (day: number, hour: number, minute = 0) =>
   toEpochMs(Date.UTC(2026, 10, day, hour, minute));
 const PASS = '00000000-0000-4000-8000-000000000002';
-const UUID = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u;
 
 /** The scheduler as a deployment loads it, over the process's fake cache. */
 async function load() {
@@ -112,8 +111,8 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     { taskKey: 'purge', dueAt: nov(24, 8), trigger: 'on_demand', result: 'succeeded' },
   ];
 
-  it('[TRV-31] [CL-TRV-08] journals each missed occurrence once, opens "task not run" and starts one scheduled catch-up run in a pass of its own', async () => {
-    const { checkMissedRuns } = await load();
+  it('[TRV-31] [CL-TRV-08] journals each missed occurrence once, opens "task not run" and makes the one catch-up run due at once, in a pass of its own that starts no run', async () => {
+    const { checkMissedRuns, computeWakePlan } = await load();
     await insertRuns(purgeRuns);
     const at = nov(25, 10);
     const caughtUp = [
@@ -133,19 +132,18 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     expect(await incidentsOf()).toStrictEqual([
       { kind: 'task_not_run', causeKey: 'purge', isClosed: false },
     ]);
-    const runs = await db.select().from(taskRuns).orderBy(asc(taskRuns.id));
-    expect(runs.at(-1)).toMatchObject({
-      trigger: 'scheduled',
-      dueAt: new Date(nov(25, 3)),
-      startedAt: new Date(at),
-      result: null,
-    });
-    // The check ran as a pass of its own, whose lease it released.
-    const passId = runs.at(-1)?.passId ?? '';
+    // The check ran as a pass of its own, whose lease it released; it started no run, and
+    // left the catch-up run, due at once, to the next pass.
+    const runs = await db.select().from(taskRuns);
     expect({
-      isOwnPass: UUID.test(passId) && passId !== PASS,
+      runs: runs.length,
       lease: await db.select().from(schedulerLease),
-    }).toStrictEqual({ isOwnPass: true, lease: [{ id: 1, passId: null, expiresAt: null }] });
+      plan: await computeWakePlan(db, [purge], at),
+    }).toStrictEqual({
+      runs: 2,
+      lease: [{ id: 1, passId: null, expiresAt: null }],
+      plan: { computedAt: at, entries: [{ task: 'purge', dueAt: nov(25, 3) }], probes: [] },
+    });
   });
 
   it('[TRV-28] [TRV-31] [CL-TRV-08] journals each missed occurrence once when two checks run at once, and checks nothing while a pass holds the lease', async () => {
@@ -173,7 +171,7 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       error: { kind: 'lease_held' },
     });
     expect(await missesOf()).toStrictEqual([]);
-    expect(await db.select().from(taskRuns)).toHaveLength(2);
+    expect(await db.select().from(taskRuns)).toHaveLength(1);
   });
 
   it('[TRV-31] [CL-TRV-08] closes "task not run" at the success of the catch-up run, which the next pass runs, and journals no occurrence twice', async () => {
@@ -457,7 +455,7 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   });
 
   it('[TRV-31] [CL-TRV-08] makes the catch-up run of a task whose timed schedule has no time due at its last missed occurrence', async () => {
-    const { checkMissedRuns } = await load();
+    const { checkMissedRuns, execute } = await load();
     const linkCheck = task('link-check', [
       { kind: 'computed', nextDueAt: answer(nov(25, 9)) },
       { kind: 'daily', times: () => [] },
@@ -467,13 +465,19 @@ describe('the run check', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       ok: true,
       caughtUp: ['link-check'],
     });
+    const restore = installFakeClock(fixedClock(nov(25, 12, 1)));
+    try {
+      await execute(db, [linkCheck]);
+    } finally {
+      restore();
+    }
     const runs = await db.select().from(taskRuns).orderBy(asc(taskRuns.id));
     expect(runs.at(-1)).toMatchObject({
       taskKey: 'link-check',
       trigger: 'scheduled',
       dueAt: new Date(nov(25, 9)),
-      startedAt: new Date(nov(25, 12)),
-      result: null,
+      startedAt: new Date(nov(25, 12, 1)),
+      result: 'succeeded',
     });
   });
 });

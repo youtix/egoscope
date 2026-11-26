@@ -1,8 +1,8 @@
 // The rows of `task_runs` (TRV-26 to TRV-33, CL-TRV-07, CL-TRV-08): what a pass reads of
 // each task, and every change of a run's state, each journaled in its own transaction.
-import { and, desc, eq, isNotNull, isNull, max, notExists } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, notExists, sql } from 'drizzle-orm';
 
-import { taskRuns } from '@/lib/db';
+import { journalEntries, taskRuns } from '@/lib/db';
 import { close } from '@/lib/incidents';
 import { record } from '@/lib/journal';
 import { toEpochMs } from '@/lib/time';
@@ -12,9 +12,13 @@ import type { Database, Transaction } from '@/lib/db';
 import type { JournalEntryInput } from '@/lib/journal';
 import type { EpochMs } from '@/lib/time';
 import type { TaskKey } from '@/lib/wake-plan';
+import type { SQL } from 'drizzle-orm';
 
 /** One run, as the table holds it. */
 export type RunRow = typeof taskRuns.$inferSelect;
+
+/** The last occurrence of a task journaled as missed, and when the run check journaled it. */
+export type LastMiss = Readonly<{ dueAt: EpochMs; journaledAt: EpochMs }>;
 
 /** What the scheduler knows of a task from its runs. */
 export type TaskState = Readonly<{
@@ -25,6 +29,14 @@ export type TaskState = Readonly<{
   /** The occurrence of the last scheduled run, from which the next one counts (TRV-33). */
   lastScheduledDueAt: EpochMs | null;
   lastSuccess: RunRow | null;
+  /** The start of the last scheduled run, which a catch-up run is once its miss is due (CL-TRV-08). */
+  lastScheduledStartedAt: EpochMs | null;
+  /** The start of the last run that succeeded, whatever its trigger (CL-TRV-08). */
+  lastSuccessStartedAt: EpochMs | null;
+  /** The start of the last scheduled run that ended other than interrupted (CL-TRV-23). */
+  lastScheduledEndStartedAt: EpochMs | null;
+  /** The last occurrence journaled as missed (TRV-31, CL-TRV-08). */
+  lastMiss: LastMiss | null;
 }>;
 
 /** How a run that a handler ended ended. */
@@ -59,7 +71,53 @@ export const waitingRunOf = (run: RunRow): WaitingRun => ({
 const byTask = <T extends Readonly<{ taskKey: TaskKey }>>(rows: readonly T[]) =>
   new Map(rows.map((row) => [row.taskKey, row]));
 
-/** What the runs say of every task, in four reads whatever the number of tasks (TRV-26, TRV-28). */
+/** The latest instant of `column` among a task's runs that `filter` keeps, or null. */
+const latestWhere = (column: typeof taskRuns.dueAt | typeof taskRuns.startedAt, filter: SQL) =>
+  sql<Date | null>`max(${column}) filter (where ${filter})`.mapWith(taskRuns.dueAt);
+
+const scheduledOnly = sql`${taskRuns.trigger} = 'scheduled'`;
+
+/** The instants that each task's runs reach: last scheduled occurrence and start, last success's start. */
+async function marksOf(db: Database) {
+  return db
+    .select({
+      taskKey: taskRuns.taskKey,
+      scheduledDueAt: latestWhere(taskRuns.dueAt, scheduledOnly),
+      scheduledStartedAt: latestWhere(taskRuns.startedAt, scheduledOnly),
+      successStartedAt: latestWhere(taskRuns.startedAt, sql`${taskRuns.result} = 'succeeded'`),
+      scheduledEndStartedAt: latestWhere(
+        taskRuns.startedAt,
+        sql`${scheduledOnly} and ${taskRuns.result} <> 'interrupted'`,
+      ),
+    })
+    .from(taskRuns)
+    .groupBy(taskRuns.taskKey);
+}
+
+/** Each task's last occurrence journaled as missed, and when it was (TRV-31, CL-TRV-08). */
+async function missesOf(db: Database) {
+  const task = sql<TaskKey>`${journalEntries.messageParams}->>'task'`;
+  return db
+    .select({
+      taskKey: task,
+      dueAt:
+        sql<number>`max((${journalEntries.messageParams}->>'dueAt')::double precision)`.mapWith(
+          Number,
+        ),
+      journaledAt: sql<Date>`max(${journalEntries.occurredAt})`.mapWith(journalEntries.occurredAt),
+    })
+    .from(journalEntries)
+    .where(eq(journalEntries.messageKey, 'task_run_missed'))
+    .groupBy(task);
+}
+
+const epochOrNull = (date: Date | null | undefined): EpochMs | null =>
+  date === null || date === undefined ? null : epochOf(date);
+
+/**
+ * What the runs, and the run check's journal entries, say of every task, in six reads
+ * whatever the number of tasks (TRV-26, TRV-28, CL-TRV-08).
+ */
 export async function loadStates(db: Database): Promise<(task: TaskKey) => TaskState> {
   const latest = await db
     .selectDistinctOn([taskRuns.taskKey])
@@ -67,29 +125,28 @@ export async function loadStates(db: Database): Promise<(task: TaskKey) => TaskS
     .where(isNotNull(taskRuns.startedAt))
     .orderBy(taskRuns.taskKey, desc(taskRuns.startedAt), desc(taskRuns.id));
   const requested = await db.select().from(taskRuns).where(isNull(taskRuns.startedAt));
-  const scheduled = await db
-    .select({ taskKey: taskRuns.taskKey, dueAt: max(taskRuns.dueAt) })
-    .from(taskRuns)
-    .where(eq(taskRuns.trigger, 'scheduled'))
-    .groupBy(taskRuns.taskKey);
   const successes = await db
     .selectDistinctOn([taskRuns.taskKey])
     .from(taskRuns)
     .where(eq(taskRuns.result, 'succeeded'))
     .orderBy(taskRuns.taskKey, desc(taskRuns.finishedAt));
-  const [latestOf, requestedOf, scheduledOf, successOf] = [
-    byTask(latest),
-    byTask(requested),
-    byTask(scheduled),
-    byTask(successes),
-  ];
+  const [latestOf, requestedOf, successOf] = [byTask(latest), byTask(requested), byTask(successes)];
+  const [marksByTask, missByTask] = [byTask(await marksOf(db)), byTask(await missesOf(db))];
   return (task) => {
-    const dueAt = scheduledOf.get(task)?.dueAt ?? null;
+    const marks = marksByTask.get(task);
+    const miss = missByTask.get(task);
     return {
       latest: latestOf.get(task) ?? null,
       requested: requestedOf.get(task) ?? null,
-      lastScheduledDueAt: dueAt === null ? null : epochOf(dueAt),
+      lastScheduledDueAt: epochOrNull(marks?.scheduledDueAt),
       lastSuccess: successOf.get(task) ?? null,
+      lastScheduledStartedAt: epochOrNull(marks?.scheduledStartedAt),
+      lastSuccessStartedAt: epochOrNull(marks?.successStartedAt),
+      lastScheduledEndStartedAt: epochOrNull(marks?.scheduledEndStartedAt),
+      lastMiss:
+        miss === undefined
+          ? null
+          : { dueAt: toEpochMs(miss.dueAt), journaledAt: epochOf(miss.journaledAt) },
     };
   };
 }
