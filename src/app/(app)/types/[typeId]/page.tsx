@@ -2,6 +2,8 @@ import { guardScreen, paths } from '@/lib/navigation';
 import { PageHeader } from '@/lib/ui';
 import { sentence } from '@/lib/wording';
 
+import { TrendBlock } from './trend-block';
+
 import type { ReactNode } from 'react';
 
 /**
@@ -24,7 +26,7 @@ export default async function TypeSheetPage({
 
       {/* --- Slot: versions-block.tsx, which the players-taxonomy area adds --- */}
 
-      {/* --- Slot: trend-block.tsx, which the statistics-sensitivity area adds --- */}
+      <TrendBlock typeId={typeId} />
 
       {/* --- Slot: occurrences-block.tsx (Lot 2), which the players-taxonomy area adds --- */}
     </div>

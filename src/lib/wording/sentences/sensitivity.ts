@@ -32,5 +32,31 @@ export const sensitivitySentences = {
   highConfidence: 'High',
   proportionAsCounts: '{k} of {m}',
 
+  // The general-trend block of the type sheet (IHM-31, IHM-56, SEN-19, SEN-28): the label
+  // of the count of distinct players and of the archived mark, the link to the trend screen,
+  // and the empty state of a type with no case, which says why and leaves the action that
+  // fills it to the screen, "Request a backtest"
+  distinctPlayers: 'Players',
+  archived: 'Archived',
+  openGeneralTrend: 'Open the general trend',
+  noCaseForType: 'No case for this type yet',
+  noCaseForTypeReason:
+    "No event of this type has been found yet, so there is no case and no trend. A backtest looks for a player's past events.",
+
+  // The notices and the warning of the general-trend block (IHM-48, SEN-36, CL-SEN-13,
+  // CL-SEN-16): a recalculation or a wait for statistics, with the date of the last complete
+  // values shown beside it; the permanent warning of a criterion switched off for the type,
+  // {criterion} being one of the five labels of the criteria that a type can switch off
+  recalculationInProgress: 'Recalculation in progress',
+  awaitingStatistics: 'Awaiting statistics',
+  lastCompleteValuesOf: 'Last complete values of {date}',
+  criterionSwitchedOff:
+    'Criterion switched off for this type: {criterion}. The effect cannot be separated from it.',
+  playingTimeTooLow: 'Playing time too low',
+  injuryReturn: 'Return from injury',
+  unusualStakes: 'Unusual stakes',
+  opponentStrength: 'Opponent strength',
+  coOccurring: 'Co-occurring',
+
   // An area adds its groups above this line, one commented group per screen or task.
 } as const;
