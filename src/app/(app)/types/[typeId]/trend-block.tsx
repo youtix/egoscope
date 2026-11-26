@@ -103,8 +103,9 @@ function TrendSummary({
           })}
         </p>
       )}
-      {trend.warnings.map((warning) =>
-        warning.kind === 'confounder_not_separable' ? (
+      {trend.warnings
+        .filter((warning) => warning.kind === 'confounder_not_separable')
+        .map((warning) => (
           <Banner
             key={warning.kind}
             tone="warning"
@@ -112,8 +113,7 @@ function TrendSummary({
               criterion: criterionLabel(warning.criterion),
             })}
           />
-        ) : null,
-      )}
+        ))}
       <Verdict
         verdict={values.verdict}
         confidence={values.profileConfidence}
