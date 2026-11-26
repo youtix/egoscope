@@ -90,19 +90,17 @@ describe('FigureSamples', () => {
 
 // The figures of `ui` keep their own copies of the engine's value sets, since `ui`
 // cannot import `stats-engine`. The type check compares each pair both ways, so a
-// value added, removed or renamed on either side fails `bun run typecheck`. At run
-// time an `expectTypeOf` check only returns true: `expect` states it, so that each
-// test asserts something that the test runner sees too.
+// value added, removed or renamed on either side fails `bun run typecheck`.
 describe("the figures' value sets", () => {
   it('[SEN-23] hold the levels of a verdict that the engine gives', () => {
-    expect(expectTypeOf<FigureVerdictLevel>().toEqualTypeOf<VerdictLevel>()).toBe(true);
+    expectTypeOf<FigureVerdictLevel>().toEqualTypeOf<VerdictLevel>();
   });
 
   it('[SEN-24] hold the directions of a verdict that the engine gives', () => {
-    expect(expectTypeOf<FigureVerdictDirection>().toEqualTypeOf<VerdictDirection>()).toBe(true);
+    expectTypeOf<FigureVerdictDirection>().toEqualTypeOf<VerdictDirection>();
   });
 
   it('[SEN-25] hold the profile confidences that the engine gives', () => {
-    expect(expectTypeOf<FigureProfileConfidence>().toEqualTypeOf<ProfileConfidence>()).toBe(true);
+    expectTypeOf<FigureProfileConfidence>().toEqualTypeOf<ProfileConfidence>();
   });
 });

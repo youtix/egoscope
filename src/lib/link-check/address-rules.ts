@@ -108,58 +108,39 @@ const isWithin = (address: bigint, block: Block): boolean =>
 
 const REFUSED_IPV4: readonly RefusedBlock[] = [
   ...ipv4Blocks('this-network', ['0.0.0.0/8']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv4Blocks('private-use', ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv4Blocks('shared', ['100.64.0.0/10']),
   ...ipv4Blocks('loopback', ['127.0.0.0/8']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv4Blocks('link-local', ['169.254.0.0/16']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv4Blocks('protocol-assignments', ['192.0.0.0/24']),
   ...ipv4Blocks('documentation', ['192.0.2.0/24', '198.51.100.0/24', '203.0.113.0/24']),
   // The former 6to4 relay anycast (RFC 7526).
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv4Blocks('deprecated', ['192.88.99.0/24']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv4Blocks('benchmarking', ['198.18.0.0/15']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- the multicast block, which the link check refuses
   ...ipv4Blocks('multicast', ['224.0.0.0/4']),
   // The limited broadcast address, 255.255.255.255, is its last address.
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv4Blocks('reserved', ['240.0.0.0/4']),
 ];
 
 const REFUSED_IPV6: readonly RefusedBlock[] = [
   ...ipv6Blocks('unspecified', ['::/128']),
   ...ipv6Blocks('loopback', ['::1/128']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('local-translation', ['64:ff9b:1::/48']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('discard-only', ['100::/64']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('dummy', ['100:0:0:1::/64']),
   // Teredo, 2001::/32, included.
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('protocol-assignments', ['2001::/23']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('documentation', ['2001:db8::/32', '3fff::/20']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('segment-routing', ['5f00::/16']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('unique-local', ['fc00::/7']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('link-local', ['fe80::/10']),
   // The former site-local block (RFC 3879).
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, which the link check refuses
   ...ipv6Blocks('deprecated', ['fec0::/10']),
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- the multicast block, which the link check refuses
   ...ipv6Blocks('multicast', ['ff00::/8']),
 ];
 
 // The global unicast block (RFC 4291, section 2.5.4): outside it, an IPv6 address that
 // holds no IPv4 address is reserved.
-// eslint-disable-next-line sonarjs/no-hardcoded-ip -- the global unicast block, the only one that the link check accepts
 const GLOBAL_UNICAST: Block = blockOf('2000::/3', IPV6_BITS, ipv6Value);
 
 const lastBits = (address: bigint): bigint => address & IPV4_MASK;
@@ -174,13 +155,10 @@ const EMBEDDINGS: readonly Embedding[] = [
   // IPv4 address it holds; :: and ::1 are refused before as themselves.
   embedding('::/96', lastBits),
   // IPv4-mapped (RFC 4291).
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, judged by the IPv4 address it holds
   embedding('::ffff:0:0/96', lastBits),
   // NAT64, its well-known prefix (RFC 6052).
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, judged by the IPv4 address it holds
   embedding('64:ff9b::/96', lastBits),
   // 6to4 (RFC 3056).
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip -- a block of the special-purpose registry, judged by the IPv4 address it holds
   embedding('2002::/16', (address) => (address >> SIX_TO_FOUR_IPV4_SHIFT) & IPV4_MASK),
 ];
 

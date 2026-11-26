@@ -15,6 +15,8 @@
  * - `module-order` and `lot-boundary`, in eslint-module-order.ts: an import of a module
  *   that comes later in the allowed order of the module map, and an import of Lot 2
  *   from the code below the lot boundary (module map, section 1.2, rules 3 and 9).
+ * - `layer-imports`, in eslint-module-order.ts: an import that the layer table of the
+ *   module map refuses a port or the machinery (section 1.1).
  * - `hermetic-test-routes`, in eslint-hermetic-routes.ts: a route under /api/test/
  *   whose handler does not start as /api/test/ping does, waiting for the request,
  *   then answering only in the hermetic mode.
@@ -24,9 +26,9 @@ import ts from 'typescript';
 
 import { noAdHocFormat } from './eslint-format-rule';
 import { hermeticTestRoutes } from './eslint-hermetic-routes';
-import { lotBoundary, moduleOrder } from './eslint-module-order';
+import { layerImports, lotBoundary, moduleOrder } from './eslint-module-order';
 import { noAmbientTime, noDefaultLocale, noLocalTime } from './eslint-time-rules';
-import { contextPart, vitestNames } from './vitest-names';
+import { contextPart, destructured, vitestNames } from './vitest-names';
 
 import type {
   ParserServicesWithTypeInformation,
@@ -253,8 +255,8 @@ const noToolPragmas = createRule<[{ equivalentMutants: boolean }], 'prettier' | 
 
 /**
  * Says whether `callee` is skip() from the test context (vitest-names.ts): `context.skip`
- * or `context['skip']`, where `context` holds the whole context, or a destructured `skip`,
- * but not `cursor.skip` on a fixture.
+ * or `context['skip']`, where `context` holds the whole context, also under another name
+ * (`const current = context`), or a destructured `skip`, but not `cursor.skip` on a fixture.
  */
 function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope): boolean {
   const isMember =
@@ -266,6 +268,19 @@ function isContextSkip(callee: TSESTree.Expression, scope: TSESLint.Scope.Scope)
     contextPart(holder, scope, CONTEXT_OWNERS) === (isMember ? 'whole' : 'skip')
   );
 }
+
+/**
+ * Says whether `property`, a key of the pattern that destructures `holder`, is skip() from
+ * the test context: `skip` in `const { skip } = context` or `const { skip: pass } = context`.
+ */
+const isContextSkipKey = (
+  property: TSESTree.Property,
+  holder: TSESTree.Node,
+  scope: TSESLint.Scope.Scope,
+): boolean =>
+  ASTUtils.getPropertyName(property, scope) === 'skip' &&
+  holder.type === AST_NODE_TYPES.Identifier &&
+  contextPart(holder, scope, CONTEXT_OWNERS) === 'whole';
 
 /**
  * The skipping options that `call` gives a test or a suite, with their names, in the
@@ -293,19 +308,6 @@ function skippingOptions(
     const name = ASTUtils.getPropertyName(option, scope);
     return name !== null && SKIPPING_OPTIONS.has(name) ? [[option, name] as const] : [];
   });
-}
-
-/** The value that `pattern` destructures: `it` in `const { skip } = it`, if any. */
-function destructured(pattern: TSESTree.Node): TSESTree.Node | undefined {
-  const { parent } = pattern;
-  if (parent?.type === AST_NODE_TYPES.VariableDeclarator && parent.id === pattern) {
-    return parent.init ?? undefined;
-  }
-  return (parent?.type === AST_NODE_TYPES.AssignmentExpression ||
-    parent?.type === AST_NODE_TYPES.AssignmentPattern) &&
-    parent.left === pattern
-    ? parent.right
-    : undefined;
 }
 
 const noSkippedTests = createRule({
@@ -359,12 +361,18 @@ const noSkippedTests = createRule({
           report(node, name);
         }
       },
+      // A skipping member of a Vitest object, at any depth of the pattern, and the `skip`
+      // key of the pattern itself when its value is the whole test context.
       'ObjectPattern > Property'(node: TSESTree.Property): void {
-        const holder = destructured(node.parent);
+        const source = destructured(node);
+        if (source === undefined) {
+          return;
+        }
         // The name bound, without its default value: `pending` in `{ skip: pending = noop }`.
         const bound =
           node.value.type === AST_NODE_TYPES.AssignmentPattern ? node.value.left : node.value;
-        const name = holder === undefined ? undefined : skippingMember(node, holder, bound);
+        const isSkip = source.isKey && isContextSkipKey(node, source.holder, scope);
+        const name = skippingMember(node, source.holder, bound) ?? (isSkip ? 'skip' : undefined);
         if (name !== undefined) {
           report(node, name);
         }
@@ -375,6 +383,7 @@ const noSkippedTests = createRule({
 
 const rules = {
   'hermetic-test-routes': hermeticTestRoutes,
+  'layer-imports': layerImports,
   'lot-boundary': lotBoundary,
   'module-order': moduleOrder,
   'no-ad-hoc-format': noAdHocFormat,

@@ -139,6 +139,48 @@ describe('vitestNames, contextPart and chains in no-skipped-tests', { timeout: 1
         ].join('\n'),
       ),
     ],
+    [
+      'a skip from the context of a fixture of it.extend() in a tuple with its options',
+      inTest(
+        [
+          '  it.extend<{ seed: number }>({',
+          '    seed: [',
+          '      async ({ skip }, use) => {',
+          '        skip();',
+          '        await use(1);',
+          '      },',
+          '      { auto: true },',
+          '    ],',
+          '  });',
+        ].join('\n'),
+      ),
+    ],
+    [
+      'a skip destructured from the test context in the body',
+      inTest("  it('skips', (context) => {\n    const { skip } = context;\n    skip();\n  });"),
+    ],
+    [
+      'a skip destructured under another name from the test context in the body',
+      inTest(
+        "  it('skips', (context) => {\n    const { skip: pass } = context;\n    pass();\n  });",
+      ),
+    ],
+    [
+      'a skip destructured from a member of it',
+      inTest("  const { concurrent: { skip } } = it;\n  skip('runs', () => undefined);"),
+    ],
+    [
+      'a skip from the test context held in a variable',
+      inTest(
+        "  it('skips', (context) => {\n    const current = context;\n    current.skip();\n  });",
+      ),
+    ],
+    [
+      'a skip destructured from the test context held in a variable',
+      inTest(
+        "  it('skips', (context) => {\n    const current = context;\n    const { skip } = current;\n    skip();\n  });",
+      ),
+    ],
   ])('rejects %s', async (_kind, code) => {
     expect(await ruleIds('src/lib/probe/probe.test.ts', code)).toContain(
       'egoscope/no-skipped-tests',
@@ -292,6 +334,56 @@ describe('vitestNames, contextPart and chains in no-skipped-tests', { timeout: 1
     ].join('\n');
 
     expect(await ruleIds('src/lib/probe/probe.test.ts', code)).not.toContain(
+      'egoscope/no-skipped-tests',
+    );
+  });
+
+  // A fixture is the value of a property of the object given to it.extend(), or the first
+  // element of a tuple there: a function nested any deeper is a value of one's own.
+  it.each([
+    [
+      'in the value of a fixture',
+      '{ helpers: { next: (cursor: Reader): number => cursor.skip(1) } }',
+    ],
+    [
+      'in the first element of a tuple',
+      '{ helpers: [[(cursor: Reader): number => cursor.skip(1)]] }',
+    ],
+    [
+      'after the first element of a tuple',
+      '{ helpers: [1, (cursor: Reader): number => cursor.skip(1)] }',
+    ],
+  ])('lets it.extend() take a function of its own %s', async (_place, fixtures) => {
+    const body = `  type Reader = Readonly<{ skip: (count: number) => number }>;\n  it.extend(${fixtures});`;
+
+    expect(await ruleIds('src/lib/probe/probe.test.ts', inTest(body))).not.toContain(
+      'egoscope/no-skipped-tests',
+    );
+  });
+
+  it.each([
+    [
+      'a nested key of the test context',
+      '    const { task: { skip } } = context;\n    expect(skip).toBeUndefined();',
+    ],
+    [
+      'a fixture destructured from the test context',
+      '    const { cursor } = context;\n    expect(cursor.skip(2)).toBe(3);',
+    ],
+    [
+      'a name declared from itself',
+      '    const looped: Reader = looped;\n    expect(looped.skip(1)).toBe(2);',
+    ],
+  ])('lets a test read %s, which is no skip of the test context', async (_kind, statements) => {
+    const body = [
+      '  type Reader = Readonly<{ skip: (count: number) => number }>;',
+      '  const pagedTest = it.extend({ cursor: { skip: (count: number): number => count + 1 } });',
+      "  pagedTest('reads', (context) => {",
+      statements,
+      '  });',
+    ].join('\n');
+
+    expect(await ruleIds('src/lib/probe/probe.test.ts', inTest(body))).not.toContain(
       'egoscope/no-skipped-tests',
     );
   });

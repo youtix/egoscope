@@ -1,17 +1,22 @@
 /**
- * The `module-order` and `lot-boundary` rules of the `egoscope` plugin, registered by
- * eslint-plugin.ts and probed in eslint-module-order.test.ts. eslint.config.ts applies
- * them to src/lib, where a module reaches another only as `@/lib/<module>`:
+ * The `module-order`, `layer-imports` and `lot-boundary` rules of the `egoscope` plugin,
+ * registered by eslint-plugin.ts and probed in eslint-module-order.test.ts.
+ * eslint.config.ts applies them to src/lib, where a module reaches another only as
+ * `@/lib/<module>`:
  *
  * - `module-order` (module map, section 1.2, rule 3): a module imports only the modules
  *   before it in the allowed order of section 1.3. Its tests may also import the shared
  *   test support, `testing`, which the order puts last and no production code imports
  *   (section 1.1).
+ * - `layer-imports` (section 1.1): a port imports only `env`, `log`, `time` and `result`,
+ *   narrower than the order, and the machinery never imports the pure core outside its
+ *   tests, but for `drafts`, which checks the size of a pasted text with `ai-exchange`
+ *   (its row in section 2). `module-order` keeps `testing` to the tests of a port.
  * - `lot-boundary` (section 1.2, rule 9; ADR 0001): the machinery, the pure core, the Lot 1
  *   ports and the Lot 1 domain modules never import a Lot 2 domain module or a Lot 2 port;
  *   the composition modules and the routes may.
  *
- * Both read every module reference of a file: imports, re-exports, `import()` and import
+ * All three read every module reference of a file: imports, re-exports, `import()` and import
  * types, deep ones included, which module rule 4 refuses on its own. A module that the
  * order does not list is left alone; the test of this file checks that every folder of
  * src/lib has its place in the order.
@@ -81,6 +86,16 @@ const BELOW_LOT_BOUNDARY: ReadonlySet<string> = new Set([
   ...MACHINERY,
   ...LOT_1_DOMAIN,
 ]);
+
+// Section 1.1: the ports and what they import, `testing` left to module-order; the machinery
+// and the pure core, which only the tests of the machinery import, and `drafts` for the size
+// of a pasted text (its row in section 2).
+const PORTS: ReadonlySet<string> = new Set([...LOT_1_PORTS, ...LOT_2_PORTS]);
+const PORT_IMPORTS: ReadonlySet<string> = new Set(['env', 'log', 'time', 'result', TEST_SUPPORT]);
+const MACHINERY_MODULES: ReadonlySet<string> = new Set(MACHINERY);
+const PURE_CORE_MODULES: ReadonlySet<string> = new Set(PURE_CORE);
+const PURE_CORE_OF_MACHINERY: ReadonlyMap<string, string> = new Map([['drafts', 'ai-exchange']]);
+const TEST_FILE = /\.test\.[cm]?tsx?$/u;
 
 // A file of a module, at most two folder levels below src/lib, wherever the project lies.
 const MODULE_FILE = /(?:^|\/)src\/lib\/(?<module>[^/]+)\/(?:[^/]+\/)?[^/]+$/u;
@@ -156,6 +171,55 @@ export const moduleOrder = createRule<[{ allowTestSupport: boolean }], 'order' |
         context.report({ node, messageId: 'order', data: { importer, imported } });
       } else if (!allowTestSupport) {
         context.report({ node, messageId: 'testSupport' });
+      }
+    });
+  },
+});
+
+/**
+ * What `imported` breaks of the layer of `importer` (section 1.1), if anything: `port` for a
+ * module that a port does not import, `machinery` for the pure core in a file of the
+ * machinery that is no test.
+ */
+function layerBreach(
+  importer: string,
+  imported: string,
+  isTest: boolean,
+): 'port' | 'machinery' | undefined {
+  if (PORTS.has(importer)) {
+    return PORT_IMPORTS.has(imported) ? undefined : 'port';
+  }
+  return !isTest &&
+    MACHINERY_MODULES.has(importer) &&
+    PURE_CORE_MODULES.has(imported) &&
+    PURE_CORE_OF_MACHINERY.get(importer) !== imported
+    ? 'machinery'
+    : undefined;
+}
+
+/** The rule `layer-imports`. */
+export const layerImports = createRule({
+  name: 'layer-imports',
+  meta: {
+    type: 'problem',
+    docs: {
+      description:
+        'Allow a port and the machinery only the imports that their layer of the module map allows.',
+    },
+    messages: {
+      port: '`{{importer}}` is a port, which imports only `env`, `log`, `time` and `result` (module map, section 1.1), and `{{imported}}` is none of them: pass what the port needs as an argument, or move the code that needs `{{imported}}` into a module that calls the port.',
+      machinery:
+        '`{{importer}}` belongs to the machinery, which imports only earlier machinery and the ports (module map, section 1.1), and `{{imported}}` is the pure core: only the tests of the machinery import it, and `drafts` imports `ai-exchange` for the size of a pasted text (section 2).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const importer = moduleOfFile(context.filename);
+    const isTest = TEST_FILE.test(context.filename);
+    return moduleReferences(importer, (imported, node) => {
+      const messageId = layerBreach(importer, imported, isTest);
+      if (messageId !== undefined) {
+        context.report({ node, messageId, data: { importer, imported } });
       }
     });
   },

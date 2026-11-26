@@ -416,11 +416,16 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
       );
     });
 
-    it('rejects an enum', async () => {
-      const code = "export enum Verdict {\n  Probable = 'probable',\n}\n";
+    it.each(['src/lib/probe/probe.ts', 'src/lib/stats-engine/probe.ts'])(
+      'rejects an enum in %s, naming the forms that lint allows there and in the pure core',
+      async (file) => {
+        const messages = await lint(file, "export enum Verdict {\n  Probable = 'probable',\n}\n");
 
-      expect(await ruleIds('src/lib/probe/probe.ts', code)).toContain('no-restricted-syntax');
-    });
+        expect(messages.map(({ message }) => message)).toContain(
+          'No enums: use a union of literals or an `as const` object, and in the pure core, where lint refuses `as`, a typed object or list (module rule 6).',
+        );
+      },
+    );
   });
 
   describe('type-aware rules', () => {
@@ -456,6 +461,22 @@ describe('eslint.config.ts', { timeout: 120_000 }, () => {
       expect(await ruleIds('src/lib/probe/use-probe.ts', code)).toContain(
         'react-hooks/rules-of-hooks',
       );
+    });
+  });
+
+  describe('preset rules, as tuned', () => {
+    // A test that checks types alone asserts by expectTypeOf; the ES2024 library has no
+    // Iterator#toArray, so unicorn/prefer-iterator-to-array is off and prefer-spread stays.
+    it.each([
+      ['vitest/expect-expect', 'expectTypeOf<1>().toEqualTypeOf<1>();', []],
+      ['vitest/expect-expect', 'void Math.max(1, 2);', ['vitest/expect-expect']],
+      ['unicorn/prefer-', 'void [...MAP.keys()];', []],
+      ['unicorn/prefer-', 'void Array.from(MAP.keys());', ['unicorn/prefer-spread']],
+    ])('report, of the rules %s, on the test body %s: %j', async (prefix, body, rules) => {
+      const code = `import { describe, expect, expectTypeOf, it } from 'vitest';\n\nconst MAP = new Map([[1, 2]]);\n\ndescribe('probe', () => {\n  it('checks', () => {\n    ${body}\n  });\n});\n`;
+      const reported = await ruleIds('src/lib/probe/probe.test.ts', code);
+
+      expect(reported.filter((rule) => rule?.startsWith(prefix) === true)).toStrictEqual(rules);
     });
   });
 

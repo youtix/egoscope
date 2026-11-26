@@ -35,6 +35,7 @@ import testingLibrary from 'eslint-plugin-testing-library';
 import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 
+import { ADDRESS_TABLES } from './scripts/eslint-address-tables';
 import { E2E_SYNTAX, E2E_TEST_IMPORT } from './scripts/eslint-playwright';
 import { egoscopePlugin } from './scripts/eslint-plugin';
 import { testSupportZone } from './scripts/eslint-test-support';
@@ -192,7 +193,8 @@ const otherReferences = (pattern: ImportPattern): SyntaxRestriction[] => [
 const EVERYWHERE_SYNTAX: readonly SyntaxRestriction[] = [
   {
     selector: 'TSEnumDeclaration',
-    message: 'No enums: use an `as const` object or a union of literals (module rule 6).',
+    message:
+      'No enums: use a union of literals or an `as const` object, and in the pure core, where lint refuses `as`, a typed object or list (module rule 6).',
   },
   {
     selector: 'ExportAllDeclaration',
@@ -799,6 +801,11 @@ const composed = defineConfig(
       'unicorn/name-replacements': 'off',
       // React components return null and JSON carries null; banning it fights both.
       'unicorn/no-null': 'off',
+      // It refuses `[...map.keys()]` for Iterator#toArray, which the ES2024 library of
+      // tsconfig.json and tsconfig.pure-core.json lacks, while unicorn/prefer-spread,
+      // which stays, refuses `Array.from(map.keys())`: no code satisfied both. The rule
+      // comes back with a move to the ES2025 library.
+      'unicorn/prefer-iterator-to-array': 'off',
     },
   },
 
@@ -988,12 +995,14 @@ const composed = defineConfig(
   // --- Module order and lot boundary (module map, section 1.2, rules 3 and 9) -----
   {
     // A module imports only the modules before it in the allowed order of section 1.3,
-    // and nothing below the lot boundary imports Lot 2 (ADR 0001); the routes may
-    // import any module (scripts/eslint-module-order.ts).
+    // a port and the machinery only what their layer allows (section 1.1), and nothing
+    // below the lot boundary imports Lot 2 (ADR 0001); the routes may import any module
+    // (scripts/eslint-module-order.ts).
     name: 'egoscope/module-order',
     files: [`src/lib/**/*.${TS}`],
     rules: {
       'egoscope/module-order': 'error',
+      'egoscope/layer-imports': 'error',
       'egoscope/lot-boundary': 'error',
     },
   },
@@ -1041,6 +1050,15 @@ const composed = defineConfig(
       'import-x/no-default-export': 'off',
     },
   },
+  {
+    // The address tables of the link check list the addresses that it judges and never
+    // contacts (scripts/eslint-address-tables.ts); every other file keeps the rule.
+    name: 'egoscope/address-tables',
+    files: [...ADDRESS_TABLES],
+    rules: {
+      'sonarjs/no-hardcoded-ip': 'off',
+    },
+  },
 
   {
     name: 'egoscope/tests',
@@ -1069,6 +1087,14 @@ const composed = defineConfig(
         },
       ],
       'egoscope/no-skipped-tests': 'error',
+      // A test that checks types alone asserts by `expectTypeOf` or `assertType`. The
+      // plugin's `typecheck` setting would count them too, but it also lets
+      // vitest/valid-title pass a title held in a variable, which its pattern then never
+      // reads, and vitest/prefer-comparison-matcher pass a comparison of strings.
+      'vitest/expect-expect': [
+        'error',
+        { assertFunctionNames: ['expect', 'assert', 'expectTypeOf', 'assertType'] },
+      ],
       // Vitest's version understands `expect(mock.method)`.
       '@typescript-eslint/unbound-method': 'off',
       'vitest/unbound-method': 'error',

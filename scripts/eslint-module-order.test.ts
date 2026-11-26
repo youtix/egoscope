@@ -1,7 +1,7 @@
 // Proves where module-order and lot-boundary bite (module map, section 1.2, rules 3 and 9),
-// and that their order is the module map's. The probes are fixture files that this test
-// writes into the probe project of lint-probes.ts, one per importing module, and lints
-// with the full configuration.
+// and layer-imports (section 1.1), and that their order is the module map's. The probes
+// are fixture files that this test writes into the probe project of lint-probes.ts, one
+// per importing module, and lints with the full configuration.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -10,9 +10,22 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { MODULE_ORDER } from './eslint-module-order';
 import { createProbes } from './lint-probes';
 
+import type { Linter } from 'eslint';
+
 const ROOT = path.join(import.meta.dirname, '..');
 const ORDER = 'egoscope/module-order';
 const BOUNDARY = 'egoscope/lot-boundary';
+const LAYERS = 'egoscope/layer-imports';
+// The ports (module map, section 2.3).
+const PORTS = [
+  'stats-source',
+  'link-check',
+  'backup-storage',
+  'runtime-cache',
+  'language-model',
+  'press-feeds',
+  'telegram',
+];
 // The Lot 2 ports and domain modules (module map, sections 2.3 and 2.5).
 const LOT_2 = [
   'language-model',
@@ -30,13 +43,16 @@ const { eslint, project, remove } = createProbes();
 /** The fixture file of a module, which a probe lints as a file of that module. */
 const probe = (module: string): string => `src/lib/${module}/probe.ts`;
 const TEST_PROBE = 'src/lib/events/probe.test.ts';
+const MACHINERY_TEST_PROBE = 'src/lib/db/probe.test.ts';
+const PORT_TEST_PROBE = 'src/lib/link-check/probe.test.ts';
 const ROUTE_PROBE = 'src/app/probe/helper.ts';
 const IMPORTERS = [
   'env',
-  'stats-source',
+  ...PORTS,
   'stats-engine',
   'wake-plan',
   'db',
+  'drafts',
   'events',
   'players',
   'collection',
@@ -45,13 +61,14 @@ const IMPORTERS = [
   'tasks',
 ];
 // Written before the first lint, so that the TypeScript project service sees them.
-for (const file of [...IMPORTERS.map((module) => probe(module)), TEST_PROBE, ROUTE_PROBE]) {
+const TEST_PROBES = [TEST_PROBE, MACHINERY_TEST_PROBE, PORT_TEST_PROBE];
+for (const file of [...IMPORTERS.map((module) => probe(module)), ...TEST_PROBES, ROUTE_PROBE]) {
   mkdirSync(path.dirname(path.join(project, file)), { recursive: true });
   writeFileSync(path.join(project, file), 'export {};\n');
 }
 
-/** The rules that report a problem in `code`, linted as `file`. */
-async function rulesIn(file: string, code: string): Promise<readonly (string | null)[]> {
+/** The problems that `code`, linted as `file`, holds. */
+async function problemsIn(file: string, code: string): Promise<readonly Linter.LintMessage[]> {
   const [result] = await eslint.lintText(code, { filePath: path.join(project, file) });
   const messages = result?.messages ?? [];
   const fatal = messages.find((message) => message.fatal === true);
@@ -59,7 +76,19 @@ async function rulesIn(file: string, code: string): Promise<readonly (string | n
     // A probe that does not parse would make "not reported" assertions pass vacuously.
     throw new Error(`Probe ${file} does not parse: ${fatal.message}`);
   }
+  return messages;
+}
+
+/** The rules that report a problem in `code`, linted as `file`. */
+async function rulesIn(file: string, code: string): Promise<readonly (string | null)[]> {
+  const messages = await problemsIn(file, code);
   return messages.map((message) => message.ruleId);
+}
+
+/** What layer-imports says of `code`, linted as `file`. */
+async function layerMessages(file: string, code: string): Promise<readonly string[]> {
+  const messages = await problemsIn(file, code);
+  return messages.filter(({ ruleId }) => ruleId === LAYERS).map(({ message }) => message);
 }
 
 /** The module names that `line` of the module map writes in backquotes, in order. */
@@ -68,6 +97,14 @@ const modulesOn = (line: string): (string | undefined)[] =>
 
 /** A file that re-exports a name of `module`. */
 const reExportOf = (module: string): string => `export { probe } from '@/lib/${module}';\n`;
+
+/** What layer-imports says to the port `importer` that imports `imported`. */
+const portMessage = (importer: string, imported: string): string =>
+  `\`${importer}\` is a port, which imports only \`env\`, \`log\`, \`time\` and \`result\` (module map, section 1.1), and \`${imported}\` is none of them: pass what the port needs as an argument, or move the code that needs \`${imported}\` into a module that calls the port.`;
+
+/** What layer-imports says to the machinery module `importer` that imports `imported`. */
+const machineryMessage = (importer: string, imported: string): string =>
+  `\`${importer}\` belongs to the machinery, which imports only earlier machinery and the ports (module map, section 1.1), and \`${imported}\` is the pure core: only the tests of the machinery import it, and \`drafts\` imports \`ai-exchange\` for the size of a pasted text (section 2).`;
 
 describe('the module order of the lint', { timeout: 120_000 }, () => {
   afterAll(remove);
@@ -133,6 +170,41 @@ describe('the module order of the lint', { timeout: 120_000 }, () => {
       expect(await rulesIn(probe('events'), reExportOf('testing'))).toContain(ORDER);
       expect(await rulesIn(TEST_PROBE, reExportOf('testing'))).not.toContain(ORDER);
       expect(await rulesIn(TEST_PROBE, reExportOf('games'))).toContain(ORDER);
+    });
+  });
+
+  describe('layer-imports: a port and the machinery import only what their layer allows', () => {
+    it.each(PORTS)(
+      'lets the port %s import env, log, time and result, and nothing else',
+      async (port) => {
+        const code = ['env', 'log', 'time', 'result', 'wording']
+          .map((module) => `export { probe as ${module} } from '@/lib/${module}';\n`)
+          .join('');
+
+        await expect(layerMessages(probe(port), code)).resolves.toStrictEqual([
+          portMessage(port, 'wording'),
+        ]);
+      },
+    );
+
+    it.each([
+      [probe('link-check'), 'stats-source', portMessage('link-check', 'stats-source')],
+      [probe('db'), 'stats-engine', machineryMessage('db', 'stats-engine')],
+      [probe('db'), 'ai-exchange', machineryMessage('db', 'ai-exchange')],
+      [probe('drafts'), 'stats-engine', machineryMessage('drafts', 'stats-engine')],
+    ])('refuses %s importing %s', async (file, imported, message) => {
+      await expect(layerMessages(file, reExportOf(imported))).resolves.toStrictEqual([message]);
+    });
+
+    it.each([
+      [probe('drafts'), 'ai-exchange'],
+      [MACHINERY_TEST_PROBE, 'stats-engine'],
+      [probe('db'), 'time'],
+      [probe('db'), 'stats-source'],
+      [probe('events'), 'stats-engine'],
+      [PORT_TEST_PROBE, 'testing'],
+    ])('lets %s import %s', async (file, imported) => {
+      await expect(layerMessages(file, reExportOf(imported))).resolves.toStrictEqual([]);
     });
   });
 

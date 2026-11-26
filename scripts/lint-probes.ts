@@ -7,6 +7,8 @@
  * - scripts/route-shells.test.ts: the shell rules, beside the list of route shells;
  * - scripts/eslint-playwright.test.ts: the end-to-end specs and their helpers;
  * - scripts/eslint-test-support.test.ts: the test support kept out of production code;
+ * - scripts/eslint-address-tables.test.ts: the address tables of the link check, the only
+ *   files that may hold an IP literal;
  * - scripts/eslint-plugin.test.ts: the comments and directives that switch a check off,
  *   and the rules of the `egoscope` plugin that have no file of their own;
  * - scripts/vitest-names.test.ts, eslint-time-rules.test.ts, eslint-format-rule.test.ts,
@@ -79,6 +81,10 @@ const PROBE_FILES: readonly string[] = [
   'src/lib/ai-exchange/types.ts',
   'src/lib/env/index.ts',
   'src/lib/env/probe.ts',
+  'src/lib/link-check/address-rules.test.ts',
+  'src/lib/link-check/address-rules.ts',
+  'src/lib/link-check/http.test.ts',
+  'src/lib/link-check/http.ts',
   'src/lib/log/console-sink.ts',
   'src/lib/log/probe.ts',
   'src/lib/log/sinks/probe.ts',
