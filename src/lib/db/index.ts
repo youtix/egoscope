@@ -125,6 +125,7 @@ export type { SequenceName } from './sequence';
 export { createTestDatabase } from './test-database';
 export { transaction } from './transaction';
 export type { Transaction } from './transaction';
+export { isUuid } from './uuid';
 export { updateVersioned } from './versioned';
 export type { NoLongerExists, VersionedChange, VersionedTable } from './versioned';
 export type { DatabaseError, DatabaseResult } from './database';

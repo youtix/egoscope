@@ -37,6 +37,8 @@ const OTHER_TYPE = 'trade-rumor';
 const OLD_LINK = 'https://news.example.com/2024/11/20/coverage';
 const KEPT_LINK = 'https://daily.example.org/storm';
 const MAX_LENGTH = 200;
+const NOT_FOLLOWED = { ok: false, error: { kind: 'player_not_followed' } } as const;
+const UNKNOWN_PLAYER = '6f1d2c3b-4a59-4e8f-9b7a-0c1d2e3f4a5b';
 
 /** A source of a correction, published on `on`, its link cleaned as itself. */
 function source(url: string, on: string) {
@@ -410,11 +412,10 @@ describe('applyCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     const { id: deletedId } = await insertPlayer(db, { source: 'p02' });
     await db.delete(followedPlayers).where(eq(followedPlayers.id, deletedId));
 
-    for (const id of ['6f1d2c3b-4a59-4e8f-9b7a-0c1d2e3f4a5b', 'not-a-player', deletedId]) {
-      await expect(correct(detected, { playerId: id, gameStakes: 'high' })).resolves.toStrictEqual({
-        ok: false,
-        error: { kind: 'player_not_followed' },
-      });
+    for (const id of [UNKNOWN_PLAYER, 'not-a-player', deletedId]) {
+      await expect(correct(detected, { playerId: id, gameStakes: 'high' })).resolves.toStrictEqual(
+        NOT_FOLLOWED,
+      );
     }
     await expect(storedEvent(detected.id)).resolves.toStrictEqual(detected);
     expect(await correctionsOf(detected.id)).toStrictEqual([]);
@@ -443,6 +444,16 @@ describe('applyCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       ok: true,
       value: { changed: ['game_stakes'], event: { playerId } },
     });
+  });
+
+  it('[DET-47] [CA-DET-27] answers that the player is not followed before it checks the values of the fields, writing nothing', async () => {
+    const detected = await insertDetectedEvent(db, { playerId });
+
+    await expect(
+      correct(detected, { playerId: UNKNOWN_PLAYER, description: 'a'.repeat(MAX_LENGTH + 1) }),
+    ).resolves.toStrictEqual(NOT_FOLLOWED);
+    await expect(storedEvent(detected.id)).resolves.toStrictEqual(detected);
+    expect(await correctionsOf(detected.id)).toStrictEqual([]);
   });
 
   describe('of a calendar-derived event', () => {
@@ -487,6 +498,15 @@ describe('applyCorrection', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         ['injury_return', 'unknown', 'no'],
         ['game_stakes', 'unknown', 'high'],
       ]);
+    });
+
+    it('[DET-47] [CL-IHM-21] [IMP-32] answers that a derived or a historical event cannot change its player, whatever player it names', async () => {
+      for (const event of [calendar, historical]) {
+        await expect(correct(event, { playerId: UNKNOWN_PLAYER })).resolves.toStrictEqual({
+          ok: false,
+          error: { kind: 'not_correctable', fields: ['player'] },
+        });
+      }
     });
 
     it('[CL-IHM-21] refuses a change of its type, player or date, which are derived', async () => {

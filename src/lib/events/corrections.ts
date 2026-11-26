@@ -2,7 +2,7 @@ import 'server-only';
 
 import { eq } from 'drizzle-orm';
 
-import { eventCorrections, events, followedPlayers, updateVersioned } from '@/lib/db';
+import { eventCorrections, events, followedPlayers, isUuid, updateVersioned } from '@/lib/db';
 import { changedElsewhere, err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
 
@@ -40,12 +40,11 @@ type EventSet = Partial<NewEventRow>;
 
 const NO_LONGER_EXISTS: NoLongerExists = { kind: 'no_longer_exists' };
 const PLAYER_NOT_FOLLOWED: CorrectionRefusal = { kind: 'player_not_followed' };
-// A followed player's id is a random uuid, which Postgres refuses to compare with other text.
-const PLAYER_ID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu;
 
 /** Whether `playerId` names a followed player, in any of his states (DET-47, JOU-15). */
 async function isFollowed(tx: Transaction, playerId: string): Promise<boolean> {
-  if (!PLAYER_ID_PATTERN.test(playerId)) {
+  // A followed player's id is a random uuid, which Postgres refuses to compare with other text.
+  if (!isUuid(playerId)) {
     return false;
   }
   const [player] = await tx

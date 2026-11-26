@@ -342,7 +342,7 @@ describe('createGithubReleasesStorage', () => {
       resetsAt: WINDOW_RESETS_AT,
     },
     {
-      what: 'a body that is no JSON',
+      what: 'an empty body',
       recorded: { ...repository, body: undefined },
       error: UNAVAILABLE,
       resetsAt: WINDOW_RESETS_AT,
@@ -390,6 +390,16 @@ describe('createGithubReleasesStorage', () => {
       recorded: { ...errors.not_accessible, body: undefined },
       error: TOKEN_REJECTED,
     },
+    {
+      what: 'an HTML page, retry-after and requests left',
+      recorded: errors.secondary_rate_limit_html,
+      error: RATE_LIMITED,
+    },
+    {
+      what: 'an HTML page that speaks of too many requests, no retry-after and requests left',
+      recorded: errors.forbidden_html,
+      error: TOKEN_REJECTED,
+    },
   ])(
     '[TRV-47] reads a 403 with $what the same way at a read and at a download',
     async ({ recorded, error }) => {
@@ -403,6 +413,22 @@ describe('createGithubReleasesStorage', () => {
       expect([told(read), told(downloaded)]).toStrictEqual([{ error }, { error }]);
     },
   );
+
+  it('[TRV-47] [CL-TRV-12] counts the bytes of an HTML page that a 403 answers, served as it is, and takes its reset from the headers', async () => {
+    const github = replay();
+    github.script('repository', errors.secondary_rate_limit_html);
+    const health = await adapterOn(github).checkHealth(context());
+
+    expect(health).toMatchObject({
+      ok: false,
+      error: RATE_LIMITED,
+      call: {
+        httpRequests: 1,
+        bytesReceived: new TextEncoder().encode(errors.secondary_rate_limit_html.text).length,
+        rateLimitResetsAt: WINDOW_RESETS_AT,
+      },
+    });
+  });
 
   it('[CL-TRV-12] reports the reset of the hourly window that a successful answer gives', async () => {
     const health = await adapterOn(replay()).checkHealth(context());

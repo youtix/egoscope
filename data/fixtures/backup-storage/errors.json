@@ -122,6 +122,29 @@
       "status": "403"
     }
   },
+  "secondary_rate_limit_html": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "retry-after": "60",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4986",
+      "x-ratelimit-reset": "1794805200",
+      "x-ratelimit-resource": "core"
+    },
+    "text": "<!DOCTYPE html>\n<html lang=\"en\">\n<head><title>Access restricted</title></head>\n<body>\n<h1>Access restricted</h1>\n<p>Your access is temporarily restricted because of too many requests. Please try again in a few minutes.</p>\n</body>\n</html>\n"
+  },
+  "forbidden_html": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4985",
+      "x-ratelimit-reset": "1794805200",
+      "x-ratelimit-resource": "core"
+    },
+    "text": "<!DOCTYPE html>\n<html lang=\"en\">\n<head><title>Access restricted</title></head>\n<body>\n<h1>Access restricted</h1>\n<p>Your access is temporarily restricted because of too many requests. Please try again in a few minutes.</p>\n</body>\n</html>\n"
+  },
   "bad_gateway": {
     "status": 502,
     "headers": { "content-type": "application/json; charset=utf-8" },

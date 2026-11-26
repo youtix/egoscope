@@ -10,11 +10,16 @@ import errors from '@data/fixtures/backup-storage/errors.json';
 import release from '@data/fixtures/backup-storage/release.json';
 import repository from '@data/fixtures/backup-storage/repository.json';
 
-/** A recorded answer: its status, its headers and its body. */
+/**
+ * A recorded answer: its status, its headers and its body, served as its JSON text. An answer
+ * with `text` is served as that string, byte for byte, ahead of `body`: it is how a body that is
+ * no JSON, such as an HTML page, is recorded.
+ */
 type Recorded = Readonly<{
   status: number;
   headers: Readonly<Record<string, string>>;
   body?: unknown;
+  text?: string;
 }>;
 
 /** A resource of the replay, whose next answer a script can replace. */
@@ -60,7 +65,7 @@ function replayed(
   body: unknown = recorded.body,
   headers: Readonly<Record<string, string>> = {},
 ): Response {
-  const text = body === undefined ? null : JSON.stringify(body);
+  const text = recorded.text ?? (body === undefined ? null : JSON.stringify(body));
   return new Response(text, {
     status: recorded.status,
     headers: { ...recorded.headers, ...headers },
