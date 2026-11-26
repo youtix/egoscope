@@ -15,7 +15,9 @@ import type { ReactNode } from 'react';
 export default function AppLayout({ children }: Readonly<{ children: ReactNode }>): ReactNode {
   return (
     <div className="lg:pl-56">
-      <Suspense fallback={<NavigationBar entries={navigationEntries()} todoCount={null} />}>
+      <Suspense
+        fallback={<NavigationBar entries={navigationEntries()} todoCount={{ count: null }} />}
+      >
         <SignedInNavigation />
       </Suspense>
       <main className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6 px-4 pt-6 pb-28 sm:px-6 lg:pb-10">

@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { expect, test } from './fixtures/test';
 
 import type { APIRequestContext, Locator, Page, Request } from '@playwright/test';
@@ -51,12 +53,16 @@ const NOT_FOUND = 404;
 
 // The hermetic control that opens and closes to-do items named by the spec.
 const TO_DO = '/api/test/to-do';
-// The items that the count journey opens. The journey of the other project runs on the same
-// server at the same time and holds one item at most, so with two of its own the count that
-// a journey reads after opening them is above the one it read before, whatever the other does.
+// The items that the count journey opens, named after its project, so that the journey of the
+// other project, which runs on the same server at the same time, never closes them.
 const JOURNEY_ITEMS = [1, 2] as const;
-// The number in the accessible name of the Home entry, "Home 5 to do".
-const HOME_COUNT = /Home (?<count>\d+) to do/u;
+// The answer of the control: the number of items to do on the server once it has changed.
+const CONTROL_ANSWER = z.strictObject({ count: z.number().int().nonnegative() });
+// The two screens between which the count journey moves by the bar.
+const PLAYERS = { name: 'Players', path: '/players' } as const;
+const TYPES = { name: 'Types', path: '/types' } as const;
+// The accessible name of the Home entry while it carries a count, "Home 5 to do".
+const HOME_COUNT = /Home \d+ to do/u;
 
 // The two widths of IHM-01: a phone, and a large screen, from 1024 pixels on.
 const PHONE = { width: 390, height: 844 } as const;
@@ -88,9 +94,13 @@ const isPrefetch = (request: Request): boolean => {
   return PREFETCH_HEADERS.some((name) => names.has(name));
 };
 
+/** The name of the to-do item `item` of the count journey of `project`. */
+const journeyItem = (project: string, item: (typeof JOURNEY_ITEMS)[number]): string =>
+  `Item ${String(item)} of the ${project} count journey`;
+
 /** The names of the to-do items of the count journey of `project`. */
 const journeyItems = (project: string): readonly string[] =>
-  JOURNEY_ITEMS.map((item) => `Item ${String(item)} of the ${project} count journey`);
+  JOURNEY_ITEMS.map((item) => journeyItem(project, item));
 
 /** Opens or closes, with `method`, each to-do item named in `names`. */
 async function changeItems(
@@ -104,10 +114,14 @@ async function changeItems(
   }
 }
 
-/** The number of items to do that `home`, the Home entry of the bar, says to screen readers. */
-async function countOn(home: Locator): Promise<number> {
-  const snapshot = await home.ariaSnapshot();
-  return Number(HOME_COUNT.exec(snapshot)?.groups?.['count']);
+/**
+ * The number of items to do on the server now, which the control answers when it opens
+ * `name`, an item of the journey already open, again: opening it twice changes nothing.
+ */
+async function countOnServer(request: APIRequestContext, name: string): Promise<number> {
+  const response = await request.post(TO_DO, { data: { name } });
+  expect(response.status()).toBe(OK);
+  return CONTROL_ANSWER.parse(await response.json()).count;
 }
 
 test.describe('the navigation shell', () => {
@@ -193,21 +207,33 @@ test.describe('the navigation shell', () => {
       page,
       request,
     }, testInfo) => {
+      const items = journeyItems(testInfo.project.name);
+      const probe = journeyItem(testInfo.project.name, JOURNEY_ITEMS[0]);
       await page.goto('/');
       const navigation = page.getByRole('navigation');
-      const home = navigation.getByRole('link', { name: HOME_COUNT });
-      await expect(home).toBeVisible();
-      const before = await countOn(home);
+      await expect(navigation.getByRole('link', { name: HOME_COUNT })).toBeVisible();
       // A full load would lose it: it stays only while the router moves between screens.
       await page.evaluate(() => Object.assign(globalThis, { notReloaded: true }));
+      await changeItems(request, 'post', items);
 
-      await navigation.getByRole('link', { name: 'Players', exact: true }).click();
-      await expect(page).toHaveURL('/players');
-      await changeItems(request, 'post', journeyItems(testInfo.project.name));
-      await navigation.getByRole('link', { name: 'Types', exact: true }).click();
-      await expect(page).toHaveURL('/types');
+      // The journey of the other project opens and closes items of its own meanwhile, so a
+      // move proves the count only when the server's number is the same just before and just
+      // after it: the Home entry must then show that number, which includes this journey's
+      // items, opened after the first screen loaded. A move that the other journey disturbed
+      // is made again, to the other screen.
+      let next: typeof PLAYERS | typeof TYPES = PLAYERS;
+      await expect(async () => {
+        const screen = next;
+        next = screen === PLAYERS ? TYPES : PLAYERS;
+        const onServer = await countOnServer(request, probe);
+        await navigation.getByRole('link', { name: screen.name, exact: true }).click();
+        await expect(page).toHaveURL(screen.path);
 
-      await expect.poll(async () => countOn(home)).toBeGreaterThan(before);
+        await expect(
+          navigation.getByRole('link', { name: `Home ${String(onServer)} to do`, exact: true }),
+        ).toBeVisible();
+        expect(await countOnServer(request, probe)).toBe(onServer);
+      }).toPass();
       expect(await page.evaluate(() => 'notReloaded' in globalThis)).toBe(true);
     });
   });
