@@ -34,8 +34,9 @@ const PROCESS_FAKE = Symbol.for('egoscope.runtime-cache.process-fake');
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-// The sequences that one run of the suite tries, as many as its timeout allows.
-const SEQUENCES = 12;
+// The sequences that one run of the suite tries: about 13 seconds on a GitHub runner with
+// coverage, well inside the database test timeout.
+const SEQUENCES = 50;
 // The statistics update's cut-off, five hours after its start, as 20:00 is after 15:00.
 const CUTOFF_MS = 5 * HOUR;
 // 22:00 UTC two days before the 23-hour day of 29 March 2026 and the 25-hour day of
