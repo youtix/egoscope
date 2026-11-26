@@ -52,9 +52,13 @@ const HASH = 'sha256';
 const DIGEST_LENGTH = 32;
 
 // The stored templates, in a folder that git ignores and that every test worker of the
-// checkout reads, and where PGlite says which version is installed.
+// checkout reads, and the manifests that say which versions are installed of PGlite, which
+// writes the template's files, and of drizzle-orm, whose migrator writes its records there.
 const TEMPLATE_FOLDER = ['node_modules', '.cache', 'egoscope', 'test-database'];
-const PGLITE_MANIFEST = ['node_modules', '@electric-sql', 'pglite', 'package.json'];
+const MANIFESTS = [
+  ['node_modules', '@electric-sql', 'pglite', 'package.json'],
+  ['node_modules', 'drizzle-orm', 'package.json'],
+];
 const JOURNAL = ['meta', '_journal.json'];
 const STORED = '.tar';
 const PARTIAL = '.partial';
@@ -108,15 +112,21 @@ function digestOf(bytes: Uint8Array): Buffer {
 
 /**
  * The name of the template that the migrations of `migrationConfig()` build on the
- * installed PGlite: a hash of the migration journal, of every migration it lists and of
- * PGlite's manifest, so that it changes whenever the template's content would (TRV-76).
+ * installed PGlite and drizzle-orm: a hash of their manifests, of the migration journal and
+ * of every migration it lists, so that it changes whenever the template's content would
+ * (TRV-76).
  */
 export async function templateKey(): Promise<string> {
   const config = migrationConfig();
-  const journalFile = path.join(config.migrationsFolder, ...JOURNAL);
-  const manifestFile = path.join(process.cwd(), ...PGLITE_MANIFEST);
-  const [journal, manifest] = await Promise.all([readFile(journalFile), readFile(manifestFile)]);
-  const hash = createHash(HASH).update(manifest).update(journal);
+  const files = [
+    ...MANIFESTS.map((manifest) => path.join(process.cwd(), ...manifest)),
+    path.join(config.migrationsFolder, ...JOURNAL),
+  ];
+  const contents = await Promise.all(files.map(async (file) => readFile(file)));
+  const hash = createHash(HASH);
+  for (const content of contents) {
+    hash.update(content);
+  }
   for (const migration of readMigrationFiles(config)) {
     hash.update(migration.hash);
   }
@@ -132,8 +142,12 @@ export async function buildTemplate(): Promise<Blob> {
   return files;
 }
 
+function storedName(key: string): string {
+  return `${key}${STORED}`;
+}
+
 function storedFile(folder: string, key: string): string {
-  return path.join(folder, `${key}${STORED}`);
+  return path.join(folder, storedName(key));
 }
 
 async function readIfPresent(file: string): Promise<Buffer | undefined> {
@@ -154,16 +168,20 @@ async function readStoredTemplate(folder: string, key: string): Promise<Blob | u
   return isWhole ? new Blob([new Uint8Array(files)]) : undefined;
 }
 
-async function removeOtherKeys(folder: string, key: string): Promise<void> {
+// Everything but the template of `key`: the templates of other keys, and the partial files
+// of runs killed while writing. A worker whose partial file goes fails to rename it, and
+// keeps its template in memory.
+async function removeOtherFiles(folder: string, key: string): Promise<void> {
   const names = await readdir(folder);
-  const others = names.filter((name) => !name.startsWith(`${key}.`));
+  const others = names.filter((name) => name !== storedName(key));
   await Promise.all(
     others.map(async (name) => rm(path.join(folder, name), { force: true, recursive: true })),
   );
 }
 
-// Written beside its place, then renamed: a worker never reads half a file, and a run
-// killed while writing leaves only a partial file, which nothing reads.
+// Written beside its place, then renamed: a worker never reads half a file, and one that is
+// reading the file it replaces goes on reading that whole file. A run killed while writing
+// leaves only a partial file, which nothing reads and the next store removes.
 async function storeTemplate(folder: string, key: string, template: Blob): Promise<void> {
   const files = new Uint8Array(await template.arrayBuffer());
   const partial = path.join(folder, `${key}.${randomUUID()}${PARTIAL}`);
@@ -171,7 +189,7 @@ async function storeTemplate(folder: string, key: string, template: Blob): Promi
     await mkdir(folder, { recursive: true });
     await writeFile(partial, Buffer.concat([files, digestOf(files)]));
     await rename(partial, storedFile(folder, key));
-    await removeOtherKeys(folder, key);
+    await removeOtherFiles(folder, key);
   } catch {
     // Storing only saves the next workers a build: this one keeps its template in memory,
     // and removes what it may have begun to write, if it can.

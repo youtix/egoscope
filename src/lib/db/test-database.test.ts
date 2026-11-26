@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { z } from 'zod';
 
+import { startPglite } from './pglite';
 import { followedPlayers, installation, sequenceCounters, teams } from './schema';
 import { nextValue } from './sequence';
 import { buildTemplate, createTestDatabase, templateKey, testDatabases } from './test-database';
@@ -387,6 +388,21 @@ describe('createTestDatabase', { timeout: 60_000 }, () => {
     ).rejects.toThrow('PGlite is closed');
     await expect(next.db.select().from(sequenceCounters)).resolves.toStrictEqual([]);
   });
+
+  it('[TRV-76] refuses a method of the client taken before it closed', async () => {
+    const closed = await createTestDatabase();
+    const query: unknown = Reflect.get(clientOf(closed.db), 'query');
+    assert.ok(typeof query === 'function');
+    await closed.close();
+    const next = await openTestDatabase();
+
+    expect((): unknown =>
+      Reflect.apply(query, undefined, [
+        "insert into sequence_counters (name, last_value) values ('import_sequence', 7)",
+      ]),
+    ).toThrow('PGlite is closed');
+    await expect(next.db.select().from(sequenceCounters)).resolves.toStrictEqual([]);
+  });
 });
 
 /** Calls `work` on the first call only, and gives every call its promise. */
@@ -413,6 +429,40 @@ async function countedStore(
   return { store: { folder, key: keyed(key), build }, builds: () => build.mock.calls.length };
 }
 
+/**
+ * The real template as the build of another worker gives it, from a PGlite of its own: the same
+ * database, in other bytes.
+ */
+async function anotherWorkersTemplate(): Promise<Blob> {
+  const pglite = await startPglite({ loadDataDir: await realTemplate() });
+  try {
+    return await pglite.dump();
+  } finally {
+    await pglite.close();
+  }
+}
+
+/** A build that gives `template` once released, and says when a worker asked for it. */
+function withheldBuild(template: () => Promise<Blob>): Readonly<{
+  build: () => Promise<Blob>;
+  asked: Promise<void>;
+  release: () => void;
+}> {
+  const asked = Promise.withResolvers<undefined>();
+  const released = Promise.withResolvers<undefined>();
+  return {
+    build: async () => {
+      asked.resolve(undefined);
+      await released.promise;
+      return template();
+    },
+    asked: asked.promise,
+    release: () => {
+      released.resolve(undefined);
+    },
+  };
+}
+
 /** A database of a new worker of `store`, checked to be migrated, then closed and stopped. */
 async function workerDatabase(store: TemplateStore): Promise<void> {
   const databases = testDatabases(store);
@@ -436,9 +486,10 @@ describe('the stored template', { timeout: 60_000 }, () => {
     expect(await readdir(store.folder)).toStrictEqual(['first.tar']);
   });
 
-  it('[TRV-76] ignores and removes the template of another key', async () => {
+  it('[TRV-76] ignores and removes the template of another key, and what a killed run left', async () => {
     const { store, builds } = await countedStore('old');
     await workerDatabase(store);
+    await writeFile(path.join(store.folder, 'new.killed-run.partial'), 'a template cut short');
 
     await workerDatabase({ ...store, key: keyed('new') });
 
@@ -478,13 +529,26 @@ describe('the stored template', { timeout: 60_000 }, () => {
     expect(builds()).toBe(2);
   });
 
-  it('[TRV-76] stays one whole file when two workers build it at once', async () => {
+  it('[TRV-76] stays one whole file when two workers build it at once, even for one reading it', async () => {
     const { store, builds } = await countedStore('first');
+    const file = path.join(store.folder, 'first.tar');
+    const late = withheldBuild(anotherWorkersTemplate);
+    const lateWorker = workerDatabase({ ...store, build: late.build });
+    await Promise.race([late.asked, lateWorker]);
 
-    await Promise.all([workerDatabase(store), workerDatabase(store)]);
+    await workerDatabase(store);
+    const stored = await readFile(file);
+    const reader = await open(file);
+    onTestFinished(async () => reader.close());
+    late.release();
+    await lateWorker;
+    const read = await reader.readFile();
+    const replaced = await readFile(file);
     await workerDatabase(store);
 
-    expect(builds()).toBe(2);
+    expect(replaced.equals(stored)).toBe(false);
+    expect(read.equals(stored)).toBe(true);
+    expect(builds()).toBe(1);
     expect(await readdir(store.folder)).toStrictEqual(['first.tar']);
   });
 
@@ -501,14 +565,21 @@ describe('the stored template', { timeout: 60_000 }, () => {
   });
 });
 
-/** A copy of the migrations and of PGlite's manifest, in a folder that becomes the project root. */
+// The manifests of PGlite and drizzle-orm, from the project root.
+const PGLITE_MANIFEST = path.join('node_modules', '@electric-sql', 'pglite', 'package.json');
+const DRIZZLE_MANIFEST = path.join('node_modules', 'drizzle-orm', 'package.json');
+
+/** A copy of the migrations and of the two manifests, in a folder that becomes the project root. */
 async function projectCopy(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), 'egoscope-key-'));
   onTestFinished(async () => rm(root, { recursive: true, force: true }));
-  const manifest = path.join('node_modules', '@electric-sql', 'pglite', 'package.json');
   await cp(path.join(process.cwd(), 'drizzle'), path.join(root, 'drizzle'), { recursive: true });
-  await mkdir(path.dirname(path.join(root, manifest)), { recursive: true });
-  await cp(path.join(process.cwd(), manifest), path.join(root, manifest));
+  await Promise.all(
+    [PGLITE_MANIFEST, DRIZZLE_MANIFEST].map(async (manifest) => {
+      await mkdir(path.dirname(path.join(root, manifest)), { recursive: true });
+      await cp(path.join(process.cwd(), manifest), path.join(root, manifest));
+    }),
+  );
   vi.spyOn(process, 'cwd').mockReturnValue(root);
   return root;
 }
@@ -520,7 +591,7 @@ async function append(root: string, file: string, text: string): Promise<void> {
 }
 
 describe('templateKey', () => {
-  it('[TRV-76] changes with the journal, any migration and the installed PGlite only', async () => {
+  it('[TRV-76] changes with the journal, any migration and the installed PGlite and drizzle-orm only', async () => {
     const root = await projectCopy();
     const files = await readdir(path.join(root, 'drizzle'));
     const migration = files.find((name) => name.endsWith('.sql'));
@@ -531,7 +602,9 @@ describe('templateKey', () => {
     keys.push(await templateKey());
     await append(root, path.join('drizzle', 'meta', '_journal.json'), '\n');
     keys.push(await templateKey());
-    await append(root, path.join('node_modules', '@electric-sql', 'pglite', 'package.json'), '\n');
+    await append(root, PGLITE_MANIFEST, '\n');
+    keys.push(await templateKey());
+    await append(root, DRIZZLE_MANIFEST, '\n');
     keys.push(await templateKey());
 
     expect(keys[0]).toMatch(/^[\da-f]{64}$/u);

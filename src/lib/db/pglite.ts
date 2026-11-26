@@ -38,32 +38,44 @@ function refuseClosed(): never {
 
 /**
  * A promise of the caller's own for `result`, so that a failure that the caller ignores is
- * still reported as unhandled, which the revocation's wait for `result` would otherwise hide.
+ * still reported as unhandled, which the revocation's wait for `result` would otherwise hide;
+ * once `result` settles, it leaves `pending`.
  */
-async function callersOwn(result: Promise<unknown>): Promise<unknown> {
-  return result;
+async function callersOwn(
+  result: Promise<unknown>,
+  pending: Set<Promise<unknown>>,
+): Promise<unknown> {
+  try {
+    return await result;
+  } finally {
+    pending.delete(result);
+  }
 }
 
 /**
- * A client that forwards every call to `pglite` until it is revoked, and keeps the
- * calls that it forwarded, so that the revocation can wait for them.
+ * A client that forwards every call to `pglite` until it is revoked, a call of a method
+ * taken before included, and keeps the calls that it forwarded until each settles, so that
+ * the revocation can wait for them without holding the results of those that ended.
  */
 function lendClient(pglite: PGlite): Readonly<{ client: PGlite; revoke: () => Promise<void> }> {
   let isRevoked = false;
-  const forwarded: unknown[] = [];
+  const pending = new Set<Promise<unknown>>();
   const client = new Proxy(pglite, {
     get(target, property): unknown {
       const value: unknown = Reflect.get(target, property);
       if (typeof value !== 'function') {
         return value;
       }
-      if (isRevoked) {
-        return refuseClosed;
-      }
       return (...parameters: unknown[]): unknown => {
+        if (isRevoked) {
+          refuseClosed();
+        }
         const result: unknown = Reflect.apply(value, target, parameters);
-        forwarded.push(result);
-        return result instanceof Promise ? callersOwn(result) : result;
+        if (!(result instanceof Promise)) {
+          return result;
+        }
+        pending.add(result);
+        return callersOwn(result, pending);
       };
     },
   });
@@ -71,7 +83,7 @@ function lendClient(pglite: PGlite): Readonly<{ client: PGlite; revoke: () => Pr
     client,
     revoke: async () => {
       isRevoked = true;
-      await Promise.allSettled(forwarded);
+      await Promise.allSettled(pending);
     },
   };
 }
