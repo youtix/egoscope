@@ -9,6 +9,7 @@ import {
   enter,
   entered,
   follow,
+  gameOf,
   historyOf,
   keepLinesThrough,
   MOVED,
@@ -139,6 +140,39 @@ describe('the records of the player file', { timeout: DATABASE_TEST_TIMEOUT_MS }
     });
   });
 
+  it('[CL-JOU-25] [CL-STA-27] takes a read that gives the team its previous read gave for no news, even after his first game verified an entered change away from that team', async () => {
+    const [pineValley, redstone] = [await teamOf('2'), await teamOf('3')];
+    const playerId = await follow('p02', '2');
+    await ingest(playerId, '2025-11-02');
+    const stale: PlayerRecord = {
+      ...(await recordOf('p02')),
+      currentTeam: { kind: 'team', team: '2' },
+    };
+    moveTo(noon(11, 3));
+    const firstRead = await read(playerId, stale);
+    moveTo(noon(11, 4));
+    await enter(playerId, '3');
+    await ingest(playerId, '2025-11-06');
+    const traded = await gameOf(playerId, '2025-11-05');
+    moveTo(noon(11, 8));
+
+    const again = await read(playerId, stale);
+
+    expect([firstRead, again]).toStrictEqual([
+      { ok: true, value: { ...UNCHANGED, birthdayChanged: true } },
+      NOTHING,
+    ]);
+    await expect(historyOf(playerId)).resolves.toMatchObject([
+      { origin: 'entered' },
+      entered(noon(11, 4), [pineValley, redstone], traded.id),
+    ]);
+    await expect(playerOf(playerId)).resolves.toMatchObject({
+      teamId: redstone,
+      fileTeamId: pineValley,
+      fileReadAt: noon(11, 8),
+    });
+  });
+
   it('[JOU-13] [CL-JOU-25] [CL-STA-27] [CL-JOU-03] never lets a first player-file read take an entry back when it gives the team of his last game at the entry, a game at its very instant, fetched after it', async () => {
     const [pineValley, redstone] = [await teamOf('2'), await teamOf('3')];
     const granite = await teamOf('5');
@@ -210,6 +244,32 @@ describe('the records of the player file', { timeout: DATABASE_TEST_TIMEOUT_MS }
       ),
     ).toStrictEqual([false, true, false, true, false]);
     expect(sourceGiven).toMatchObject({ month: 7, day: 2, origin: 'stats_source' });
+    await expect(playerOf(playerId)).resolves.toMatchObject({ month: 1, day: 9, origin: 'owner' });
+  });
+
+  it("[CL-JOU-11] [CL-JOU-16] clears a source-given birthday when the first record of a newly confirmed identity gives none, keeps it for another record that gives none, and never clears the owner's", async () => {
+    const playerId = await follow('p02', '3');
+    await read(playerId, await recordOf('p02'));
+    const kept = await read(playerId, { ...(await recordOf('p02')), birthday: null });
+    const keptBirthday = await playerOf(playerId);
+    await confirmNamesake(playerId);
+    const silent: PlayerRecord = { ...(await recordOf('p03')), birthday: null };
+    const cleared = await read(playerId, silent, true);
+    const clearedBirthday = await playerOf(playerId);
+    await db
+      .update(followedPlayers)
+      .set({ birthdayMonth: 1, birthdayDay: 9, birthdayOrigin: 'owner' })
+      .where(eq(followedPlayers.id, playerId));
+
+    const owners = await read(playerId, silent, true);
+
+    expect(
+      [kept, cleared, owners].map((applied) => applied.ok && applied.value.birthdayChanged),
+    ).toStrictEqual([false, true, false]);
+    expect([keptBirthday, clearedBirthday]).toMatchObject([
+      { month: 3, day: 14, origin: 'stats_source' },
+      NO_BIRTHDAY,
+    ]);
     await expect(playerOf(playerId)).resolves.toMatchObject({ month: 1, day: 9, origin: 'owner' });
   });
 

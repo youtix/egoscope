@@ -14,7 +14,14 @@ import {
 } from '@/lib/testing';
 import { now, toEpochMs } from '@/lib/time';
 
-import { handOn, team, teamHistory, teams, updateTeamFromGames } from './teams';
+import {
+  handOn,
+  membershipAtLatestEntry,
+  team,
+  teamHistory,
+  teams,
+  updateTeamFromGames,
+} from './teams';
 import {
   AFTER_SEASON,
   BEFORE_SEASON,
@@ -45,6 +52,8 @@ import type { LeaguePlayer } from '@/lib/testing';
 
 // An identifier under which nobody is followed.
 const UNFOLLOWED = '00000000-0000-4000-8000-000000000001';
+// The season before the one every test stores, which some store after it.
+const PREVIOUS_SEASON = '2024-25';
 
 describe('the current team from his games', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
@@ -133,6 +142,59 @@ describe('the current team from his games', { timeout: DATABASE_TEST_TIMEOUT_MS 
       entered(noon(10, 15, 2026), [null, redstone], first.id),
     ]);
     await expect(playerOf(playerId)).resolves.toMatchObject({ teamId: redstone });
+  });
+
+  it('[STA-25] [JOU-13] takes his games in the order of their scheduled starts, whatever the order in which their seasons were stored', async () => {
+    await insertLeagueSeason(db, PREVIOUS_SEASON);
+    moveTo(noon(10, 15, 2024));
+    const [pineValley, redstone] = [await teamOf('2'), await teamOf('3')];
+    const playerId = await follow('p02', '2');
+    await insertBoxScores(db, { playerId, source: 'p02', season: SEASON });
+
+    const updated = await ingest(playerId, 'p02', {
+      lastDay: AFTER_SEASON,
+      season: PREVIOUS_SEASON,
+    });
+
+    const [first, traded] = [
+      await gameOf(playerId, '2024-10-22'),
+      await gameOf(playerId, '2025-11-05'),
+    ];
+    expect(updated).toStrictEqual(MOVED);
+    await expect(historyOf(playerId)).resolves.toStrictEqual([
+      entered(noon(10, 15, 2024), [null, pineValley], first.id),
+      observed(traded.start, [pineValley, redstone], traded.id),
+    ]);
+  });
+
+  it('[JOU-13] [CL-JOU-03] takes as his membership at his latest entered change the team of his last game played at or before it, none before his first game, whatever his later rows, other players and older seasons stored later say', async () => {
+    await insertLeagueSeason(db, PREVIOUS_SEASON);
+    const redstone = await teamOf('3');
+    const playerId = await follow('p02', '2');
+    /** His membership at his latest entered change, as games hands it to players. */
+    const membership = async () =>
+      db.transaction(async (tx) => membershipAtLatestEntry(tx, playerId));
+
+    const atAddition = await membership();
+    // His games observe his trade after the addition, which no game came before.
+    await ingest(playerId, 'p02', { lastDay: '2025-11-06' });
+    const afterGames = await membership();
+    // Another player is added later, by an entered row of his own.
+    moveTo(noon(11, 4));
+    await follow('p04', '5');
+    const besideAnother = await membership();
+    moveTo(noon(11, 7));
+    await enter(playerId, '5');
+    // The lines of an older season are stored after the entry.
+    await insertBoxScores(db, { playerId, source: 'p02', season: PREVIOUS_SEASON });
+    const afterEntry = await membership();
+
+    expect([atAddition, afterGames, besideAnother, afterEntry]).toStrictEqual([
+      null,
+      null,
+      null,
+      redstone,
+    ]);
   });
 
   it('[STA-25] [CL-STA-11] takes the placeholder of an unavailable sheet for no game played, which changes nothing', async () => {
