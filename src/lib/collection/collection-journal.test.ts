@@ -18,7 +18,7 @@ import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import { run, runs } from './collection-journal';
 
-import type { CollectionCounters, CollectionRun } from './collection-journal';
+import type { CollectionCounters } from './collection-journal';
 import type { Database } from '@/lib/db';
 
 const MINUTE_MS = 60_000;
@@ -57,7 +57,7 @@ type IncidentToWrite = Readonly<{
   kind: typeof incidents.$inferInsert.kind;
   openedAtMs: number;
   closedAtMs: number | null;
-  pressSourceId?: number;
+  pressSourceId: number | null;
 }>;
 
 /** Writes a collection incident, opened and maybe closed, about the source when given. */
@@ -76,7 +76,7 @@ async function insertIncident(
     })
     .returning({ id: incidents.id });
   const id = row?.id ?? 0;
-  if (pressSourceId !== undefined) {
+  if (pressSourceId !== null) {
     await db.insert(pressSourceIncidents).values({ incidentId: id, pressSourceId });
   }
   return id;
@@ -148,6 +148,8 @@ async function journal(db: Database) {
     pressSourceId: atlantic.id,
     overrides: {
       readAt: at(SECOND_START),
+      itemsRead: 5,
+      duplicates: 5,
       uncollectedPeriodStartAt: at(SECOND_START - 3 * DAY_MS),
       uncollectedPeriodEndAt: at(SECOND_START - HOUR_MS),
       interruptionStartedAt: at(FIRST_START),
@@ -183,7 +185,7 @@ async function journal(db: Database) {
 async function entries(db: Database) {
   const world = await journal(db);
   const { bayside, atlantic, first, second, third } = world;
-  const firstEntry: CollectionRun = {
+  const firstEntry = {
     taskRunId: first.id,
     origin: 'scheduled',
     withCatchUp: false,
@@ -220,7 +222,7 @@ async function entries(db: Database) {
     gaps: world.gaps,
     incidents: [],
   };
-  const secondEntry: CollectionRun = {
+  const secondEntry = {
     taskRunId: second.id,
     origin: 'on_demand',
     withCatchUp: true,
@@ -262,7 +264,7 @@ async function entries(db: Database) {
     gaps: [],
     incidents: [],
   };
-  const thirdEntry: CollectionRun = {
+  const thirdEntry = {
     taskRunId: third.id,
     origin: 'scheduled',
     withCatchUp: false,
@@ -338,7 +340,7 @@ describe('the collection journal', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
     const write = async (
       kind: IncidentToWrite['kind'],
       [openedAtMs, closedAtMs]: readonly [number, number | null],
-      pressSourceId?: number,
+      pressSourceId: number | null = null,
     ) => insertIncident(db, { kind, openedAtMs, closedAtMs, pressSourceId });
     const downAtStart = await write('press_source_down', [FIRST_START, null], atlantic.id);
     const tooShortClosedAtEnd = await write('feed_too_short', [FIRST_START - DAY_MS, FIRST_END]);

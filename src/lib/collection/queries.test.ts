@@ -30,7 +30,6 @@ import {
 
 import type { ArticleRow } from './types';
 import type { Database } from '@/lib/db';
-import type { ParameterKey } from '@/lib/params';
 import type { CollectionFactoryOptions } from '@/lib/testing';
 
 const HOUR_MS = 3_600_000;
@@ -56,7 +55,11 @@ const NOT_RELEVANT = {
 } as const;
 
 /** Gives `key` the owner's value `value`, as a saved setting does. */
-async function setOwnerValue(db: Database, key: ParameterKey, value: unknown): Promise<void> {
+async function setOwnerValue(
+  db: Database,
+  key: typeof parameterOverrides.$inferInsert.parameterKey,
+  value: unknown,
+): Promise<void> {
   await db.insert(parameterOverrides).values({ parameterKey: key, value });
 }
 
