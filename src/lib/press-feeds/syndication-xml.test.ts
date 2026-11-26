@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import { parseTimestamp } from '@/lib/time';
 
-import { feedIn, MAX_FEED_ITEMS, webAddress } from './syndication-xml';
+import { MAX_FEED_BYTES } from './syndication';
+import { feedIn, MAX_FEED_DEPTH, MAX_FEED_ITEMS, webAddress } from './syndication-xml';
 
 import type { FeedItem } from './types';
 import type { ParsedTimestamp } from '@/lib/time';
@@ -48,6 +49,14 @@ const rss = (items: string, before = ''): string =>
 /** An RSS 2.0 document after `declaration`, in ISO-8859-1, whose one item has a title with an accent. */
 const latin = (declaration: string): Uint8Array =>
   Buffer.from(`${declaration}${rss('<item><title>Crónica</title></item>')}`, 'latin1');
+
+/** An RSS 2.0 document whose one item's description holds `levels` nested elements around its text. */
+const nested = (levels: number): Uint8Array =>
+  bytesOf(
+    rss(
+      `<item><description>${'<em>'.repeat(levels)}Deep${'</em>'.repeat(levels)}</description></item>`,
+    ),
+  );
 
 /** The title of the first item that `bytes` give, or the error of a body that gives none. */
 function titleOf(bytes: Uint8Array, contentType: string | null): unknown {
@@ -207,12 +216,14 @@ describe('feedIn', () => {
       { length: MAX_FEED_ITEMS + 1 },
       (_, index) => `<item><guid>item-${String(index)}</guid></item>`,
     ).join('');
-    const document = feedIn(bytesOf(rss(items)), XML_TYPE, COURTSIDE);
+    // The channel's other elements, after its items, are still read.
+    const document = feedIn(bytesOf(rss(`${items}<language>fr</language>`)), XML_TYPE, COURTSIDE);
     const identifiers = document.ok ? document.feed.items.map(({ identifier }) => identifier) : [];
 
     expect(MAX_FEED_ITEMS).toBe(500);
     expect(identifiers).toHaveLength(MAX_FEED_ITEMS);
     expect([identifiers.at(0), identifiers.at(-1)]).toStrictEqual(['item-0', 'item-499']);
+    expect(document.ok && document.feed.language).toBe('fr');
   });
 
   it('[TRV-17] [COL-41] answers a document whose root is no feed, or that has none, as not a feed', () => {
@@ -252,6 +263,41 @@ describe('feedIn', () => {
       ok: false,
       error: { kind: 'unreadable' },
     });
+  });
+
+  it('[TRV-17] reads a feed nested down to the depth bound and answers a deeper one as unreadable', () => {
+    // The nested elements sit in rss > channel > item > description.
+    const around = 4;
+
+    expect(MAX_FEED_DEPTH).toBe(64);
+    expect(feedIn(nested(MAX_FEED_DEPTH - around), XML_TYPE, COURTSIDE)).toStrictEqual({
+      ok: true,
+      feed: { language: null, items: [item({ excerpt: 'Deep' })] },
+    });
+    expect(feedIn(nested(MAX_FEED_DEPTH - around + 1), XML_TYPE, COURTSIDE)).toStrictEqual({
+      ok: false,
+      error: { kind: 'unreadable' },
+    });
+  });
+
+  it('[TRV-17] answers an RSS or Atom document nested as deep as the byte bound allows as unreadable, at once', () => {
+    const roots = [
+      ['<rss version="2.0">', '</rss>'],
+      ['<feed xmlns="http://www.w3.org/2005/Atom">', '</feed>'],
+    ] as const;
+    const rootBytes = 64;
+    const levels = Math.min(40_000, Math.floor((MAX_FEED_BYTES - rootBytes) / '<a></a>'.length));
+    const documents = roots.map(([open, close]) =>
+      bytesOf(`${open}${'<a>'.repeat(levels)}${'</a>'.repeat(levels)}${close}`),
+    );
+
+    expect(documents.map(({ byteLength }) => byteLength <= MAX_FEED_BYTES)).toStrictEqual([
+      true,
+      true,
+    ]);
+    expect(documents.map((bytes) => feedIn(bytes, XML_TYPE, COURTSIDE))).toStrictEqual(
+      documents.map(() => ({ ok: false, error: { kind: 'unreadable' } })),
+    );
   });
 
   it('[COL-17] [TRV-17] decodes a feed in the charset its answer names, else its declaration', () => {

@@ -16,6 +16,14 @@ import type { SaxesAttributeNS, SaxesTagNS } from 'saxes';
 /** The most items read of one feed: its first ones, in the feed's order (COL-46). */
 export const MAX_FEED_ITEMS = 500;
 
+/**
+ * The deepest nesting of elements read, the root at depth 1: a feed nests four or five,
+ * the XHTML of an Atom summary a few more, and a deeper document is unreadable (TRV-17).
+ * The parser's cost for each element grows with its depth, so the bound keeps the read
+ * of a body of up to the byte bound short.
+ */
+export const MAX_FEED_DEPTH = 64;
+
 /** What a body holds: a feed, or the failure of a body that holds none. */
 export type FeedDocument =
   Readonly<{ ok: true; feed: Feed }> | Readonly<{ ok: false; error: PressFeedsError }>;

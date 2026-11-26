@@ -81,6 +81,14 @@ const unreachable = (httpRequests: number, bytesReceived = 0): Outcome => ({
   call: { httpRequests, bytesReceived },
 });
 
+/** A body that breaks off before its first byte. */
+const broken = (): ReadableStream<Uint8Array> =>
+  new ReadableStream({
+    start: (controller) => {
+      controller.error(new Error('The connection was reset.'));
+    },
+  });
+
 /** An address of the redirects' world. */
 const moveAt = (name: string): string => `https://moves.example.test/${name}`;
 
@@ -355,6 +363,47 @@ describe('createSyndicationPressFeeds', () => {
       value: { feed: { items: [{ title: 'Invented' }] } },
     });
     expect(requests.map(({ url }) => url)).toStrictEqual([entity, dtd]);
+  });
+
+  it('[TRV-17] answers a body nested past the depth bound as unreadable within its deadline', async () => {
+    const deep = 'https://deep.example.test/rss';
+    const levels = 80_000;
+    const body = `<rss version="2.0">${'<a>'.repeat(levels)}${'</a>'.repeat(levels)}</rss>`;
+    serve({ [deep]: () => new Response(body) });
+    const deadlineMs = 1000;
+    const started = now();
+    const outcome = await createSyndicationPressFeeds().readFeed(context(deadlineMs), {
+      url: deep,
+      knownVersion: null,
+    });
+
+    expect(outcome).toStrictEqual({
+      ok: false,
+      error: { kind: 'unreadable' },
+      call: { httpRequests: 1, bytesReceived: body.length },
+    });
+    expect(now() - started).toBeLessThan(deadlineMs);
+  });
+
+  it('[COL-41] answers a redirect or an error status whose body breaks off by its status, never by a rejection', async () => {
+    const moving = 'https://broken.example.test/moving';
+    const failing = 'https://broken.example.test/failing';
+    serve({
+      [moving]: () => new Response(broken(), { status: 302, headers: { location: COURTSIDE } }),
+      [failing]: () => new Response(broken(), { status: 500 }),
+      [COURTSIDE]: courtsideFeed,
+    });
+    const outcomes = await Promise.all([read(moving), read(failing)]);
+
+    expect(
+      outcomes.map((outcome) => [
+        outcome.ok ? outcome.value.kind : outcome.error,
+        outcome.call.httpRequests,
+      ]),
+    ).toStrictEqual([
+      ['read', 2],
+      [{ kind: 'http_error', status: 500 }, 1],
+    ]);
   });
 
   it('[TRV-17] stops reading a body past the byte bound and answers it as unreadable', async () => {
