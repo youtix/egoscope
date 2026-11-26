@@ -1,10 +1,10 @@
-import { definition, formatCount, sentence } from '@/lib/wording';
+import { formatCount, sentence } from '@/lib/wording';
 
 import { directionWord } from './direction';
 import { GlossaryTerm } from './glossary-term';
 
 import type { FigureVerdictDirection } from './direction';
-import type { DefinedTerm, SentenceKey } from '@/lib/wording';
+import type { SentenceKey } from '@/lib/wording';
 import type { ReactNode } from 'react';
 
 // The stored values of the verdict (SEN-23, SEN-24), those of the profiles that the
@@ -65,11 +65,6 @@ function verdictWords(verdict: VerdictValue): string {
       });
 }
 
-/** The label of `term`: its glossary term, or its words alone when `plain` (CL-IHM-26). */
-function TermLabel({ term, plain }: Readonly<{ term: DefinedTerm; plain: boolean }>): ReactNode {
-  return plain ? <span>{definition(term).label}</span> : <GlossaryTerm term={term} />;
-}
-
 /**
  * A verdict as every screen shows it, always with its profile confidence and its
  * number of valid cases (SEN-38, IHM-45), its direction written in full (IHM-47).
@@ -80,11 +75,11 @@ export function Verdict({ verdict, confidence, validCount, plain }: VerdictProps
   return (
     <div className="flex flex-col gap-1">
       <p className="flex flex-wrap items-baseline gap-x-2">
-        <TermLabel term="verdict" plain={plain === true} />
+        <GlossaryTerm term="verdict" plain={plain} />
         <span className="text-lg font-semibold">{verdictWords(verdict)}</span>
       </p>
       <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-        <TermLabel term="profileConfidence" plain={plain === true} />
+        <GlossaryTerm term="profileConfidence" plain={plain} />
         <span className="font-medium">{sentence(CONFIDENCE_WORDS[confidence])}</span>
       </p>
       <p className="text-sm">

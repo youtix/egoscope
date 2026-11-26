@@ -295,6 +295,37 @@ for (const colorScheme of THEMES) {
       await expect(term).toBeFocused();
     });
 
+    test('[IHM-15] [CL-IHM-26] opens the definition of each first label of the figures, and only the first label is a button', async ({
+      page,
+    }) => {
+      const terms = [
+        {
+          label: 'Verdict',
+          text: 'The conclusion of a profile or a trend: probable, possible or inconclusive.',
+        },
+        {
+          label: 'Profile confidence',
+          text: 'The level, low, medium or high, of a profile or a general trend, which says what its verdict rests on.',
+        },
+        {
+          label: 'Range',
+          text: 'Twice the expected noise on either side of the mean gap, shown with it to show the uncertainty that comes from the number of cases.',
+        },
+      ];
+
+      for (const { label, text } of terms) {
+        const term = page.getByRole('button', { name: label, exact: true });
+        const definition = page.getByText(text, { exact: true });
+        await expect(term).toHaveCount(1);
+        await expect(definition).toBeHidden();
+
+        await term.click();
+        await expect(definition).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(definition).toBeHidden();
+      }
+    });
+
     test('[IHM-47] [CA-IHM-10] writes "increase" and "decrease" beside gaps of +0.60 and −0.60, both alike', async ({
       page,
     }) => {
