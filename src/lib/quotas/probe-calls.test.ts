@@ -1,5 +1,6 @@
-import { asc } from 'drizzle-orm';
+import { asc, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
+import { z } from 'zod';
 
 import { createTestDatabase, quotaUsage } from '@/lib/db';
 import { listOpen } from '@/lib/incidents';
@@ -13,6 +14,21 @@ import type { Database } from '@/lib/db';
 // Tuesday 24 November 2026, 19:00 UTC, the probes of the daily statistics update before it.
 const PASS = toEpochMs(Date.UTC(2026, 10, 24, 19));
 const HOUR = 3_600_000;
+
+// The advisory locks that the transaction holds: all of them, and the one of the guarded
+// calls of the stats source, whose key `pg_locks` gives by its low 32 bits.
+const ADVISORY_LOCKS = sql`
+  select
+    count(*)::int as "all",
+    (count(*) filter (
+      where objsubid = 1
+        and objid::bigint = (hashtext('quotas.stats_source')::bigint & 4294967295)
+    ))::int as "role"
+  from pg_locks
+  where locktype = 'advisory' and pid = pg_backend_pid()`;
+const LOCK_COUNTS = z.object({ all: z.number(), role: z.number() });
+const LOCKS_RESULT = z.object({ rows: z.array(LOCK_COUNTS) });
+const locksOf = (result: unknown) => LOCKS_RESULT.parse(result).rows;
 
 describe('the calls of the database-free probes', { timeout: 60_000 }, () => {
   let db: Database;
@@ -74,5 +90,27 @@ describe('the calls of the database-free probes', { timeout: 60_000 }, () => {
     await db.transaction(async (tx) => recordProbeCalls(tx, []));
 
     expect(await usage()).toStrictEqual([]);
+  });
+
+  it('[TRV-04] holds the lock of the guarded calls of the stats source while it records a probe of it, and no lock without one', async () => {
+    const batches = [
+      [{ service: 'statsSource', at: PASS }],
+      [{ service: 'telegram', at: PASS }],
+      [],
+    ] as const;
+    const held: unknown[] = [];
+
+    for (const probeCalls of batches) {
+      await db.transaction(async (tx) => {
+        await recordProbeCalls(tx, probeCalls);
+        held.push(locksOf(await tx.execute(ADVISORY_LOCKS)));
+      });
+    }
+
+    expect(held).toStrictEqual([
+      [{ all: 1, role: 1 }],
+      [{ all: 0, role: 0 }],
+      [{ all: 0, role: 0 }],
+    ]);
   });
 });

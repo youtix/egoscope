@@ -1,10 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { toEpochMs } from '@/lib/time';
 
 import { createTestDatabase } from '../test-database';
-import { databaseActivityMinutes, databaseSizeSamples, quotaUsage } from './quotas';
+import { databaseActivityMinutes, databaseSizeSamples, quotaHolds, quotaUsage } from './quotas';
 
 import type { Database } from '../types';
 
@@ -66,6 +66,24 @@ describe('the quota tables', { timeout: 60_000 }, () => {
       .values({ limitKey: 'quotas.statsSource.requestsPerDay', periodStartAt: DAY_START });
 
     await expect(again).rejects.toMatchObject(duplicateOf('quota_usage_key'));
+  });
+
+  it('[TRV-04] keeps each hold of an estimate as a row of its own, several on one count, beyond the range of an integer', async () => {
+    const held = { limitKey: 'quotas.statsSource.megabytesPerDay', periodStartAt: DAY_START };
+    await db.insert(quotaHolds).values([
+      { ...held, amount: BEYOND_INTEGER, heldAt: MINUTE },
+      { ...held, amount: 1, heldAt: MINUTE },
+    ]);
+
+    const withoutInstant = db.insert(quotaHolds).values({ ...held, amount: 1, heldAt: sql`null` });
+
+    await expect(db.select().from(quotaHolds)).resolves.toStrictEqual([
+      { id: 1, ...held, amount: BEYOND_INTEGER, heldAt: MINUTE },
+      { id: 2, ...held, amount: 1, heldAt: MINUTE },
+    ]);
+    await expect(withoutInstant).rejects.toMatchObject({
+      cause: { code: '23502', column: 'held_at' },
+    });
   });
 
   it('records at most one active minute per server instance', async () => {

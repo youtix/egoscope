@@ -11,7 +11,7 @@ import { incidents } from './incidents';
 import { journalEntries, journalTechnicalDetails } from './journal';
 import { outboxFacts } from './outbox';
 import { parameterChanges, parameterOverrides, parameterSnapshots, uiState } from './params';
-import { databaseActivityMinutes, databaseSizeSamples, quotaUsage } from './quotas';
+import { databaseActivityMinutes, databaseSizeSamples, quotaHolds, quotaUsage } from './quotas';
 import { schedulerLease, taskRuns } from './scheduler';
 
 // The tables of the db module and of the machinery (operations.md).
@@ -27,6 +27,7 @@ const CORE_TABLES = [
   outboxFacts,
   incidents,
   quotaUsage,
+  quotaHolds,
   databaseActivityMinutes,
   databaseSizeSamples,
   taskRuns,

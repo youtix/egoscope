@@ -1,14 +1,13 @@
 // The quota guard around every outbound call (TRV-04): checked before the call against
 // the service's limits, deferred instead of exceeding one, recorded after it (module
 // map §2.1, quotas).
-import { sql } from 'drizzle-orm';
-
+import { logger } from '@/lib/log';
 import { getParams } from '@/lib/params';
 import { err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
 
 import { check } from './check';
-import { hold, readStates, release } from './ledger';
+import { hold, lockService, readStates, release, sweepHolds } from './ledger';
 import { SERVICES } from './limits';
 import { syncReached } from './quota-incidents';
 import { usageOf } from './readers';
@@ -24,6 +23,12 @@ import type { Result } from '@/lib/result';
 import type { EpochMs } from '@/lib/time';
 
 type Executor = Database | Transaction;
+
+/**
+ * A database that is not a transaction: a transaction has `rollback`, which this type
+ * refuses, so that no guarded call runs inside one (TRV-04; CLAUDE.md, "Database").
+ */
+type OutsideTransaction = Database & Readonly<{ rollback?: never }>;
 
 /** A call to guard: its service, what it expects to use, and whether it is priority work (STA-39, STA-40). */
 export type QuotaRequest<S extends QuotaService> = Readonly<{
@@ -67,18 +72,10 @@ async function verdictOf(
 }
 
 /**
- * Makes the calls of the services of `service`'s role wait for each other's check and
- * record until `tx` ends, since they share the counts, the warning and the incident.
- */
-async function lockService(tx: Transaction, service: QuotaService): Promise<void> {
-  const key = `quotas.${SERVICES[service].role}`;
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
-}
-
-/**
- * Checks `request` at `at` in `tx`, under its service's lock: a call let through holds
- * its estimate on the counts, so that a call checked while it runs sees it; a call
- * deferred by a limit reached opens "quota reached" (TRV-04, TRV-05).
+ * Checks `request` at `at` in `tx`, under its service's lock, once the holds that a
+ * stopped call of its role left are released: a call let through holds its estimate on
+ * the counts, so that a call checked while it runs sees it; a call deferred by a limit
+ * reached opens "quota reached" (TRV-04, TRV-05).
  */
 async function admit(
   tx: Transaction,
@@ -86,6 +83,7 @@ async function admit(
   at: EpochMs,
 ): Promise<Result<Admission, Deferred>> {
   await lockService(tx, request.service);
+  await sweepHolds(tx, request.service, at);
   const { verdict, values, states } = await verdictOf(tx, request, at);
   if (!verdict.allowed) {
     if (verdict.reached) {
@@ -97,31 +95,15 @@ async function admit(
   return ok({ verdict, values, holds: await hold(tx, states, { estimate: request.estimate, at }) });
 }
 
-/**
- * Makes `call` to `request.service` only when no limit would be exceeded (TRV-04): a
- * call that would exceed a limit entered, or that a refusal still holds back, is not
- * made and comes back deferred with the instant it may be, a non-priority call leaving
- * the stats source's reserve to priority ones (STA-39); a deferral by a limit reached
- * opens "quota reached" (TRV-05). Calls made at once never share the last unit: each
- * holds its estimate from its check until its use is recorded, and the call runs
- * outside any transaction, which is why `db` is never one. After the call, records the
- * use its port reported in place of the estimate, a refusal for quota marking the limit
- * reached (TRV-03, TRV-06), and settles the incidents and the warning (CL-TRV-11). A
- * limit not entered is counted, never defers (CL-TRV-12).
- */
-export async function withQuota<S extends QuotaService, O extends OutcomeOf[S]>(
-  db: Database,
+/** Records what `outcome` used in place of the estimate of `admission`, then settles the service. */
+async function record<S extends QuotaService>(
+  db: OutsideTransaction,
   request: QuotaRequest<S>,
-  call: () => Promise<O>,
-): Promise<Result<O, Deferred>> {
-  const admission = await db.transaction(async (tx) => admit(tx, request, now()));
-  if (!admission.ok) {
-    return admission;
-  }
-  const { verdict, values, holds } = admission.value;
-  const outcome = await call();
+  done: Readonly<{ admission: Admission; outcome: OutcomeOf[S] }>,
+): Promise<void> {
+  const { verdict, values, holds } = done.admission;
   const at = now();
-  const usage = usageOf(request.service, outcome, at);
+  const usage = usageOf(request.service, done.outcome, at);
   await db.transaction(async (tx) => {
     await lockService(tx, request.service);
     await release(tx, holds);
@@ -133,7 +115,67 @@ export async function withQuota<S extends QuotaService, O extends OutcomeOf[S]>(
       refused: usage.refusal !== null,
     });
   });
-  return ok(outcome);
+}
+
+/**
+ * Takes the estimate of a call that threw, or whose use could not be recorded, back off
+ * the counts; a release that fails too is logged and left to the next call's sweep, so
+ * that the call's own error goes on (TRV-04).
+ */
+async function releaseAfterFailure(
+  db: OutsideTransaction,
+  service: QuotaService,
+  holds: readonly Hold[],
+): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await lockService(tx, service);
+      await release(tx, holds);
+    });
+  } catch (error) {
+    logger.error('A quota hold could not be released; the next guarded call sweeps it.', {
+      service,
+      role: SERVICES[service].role,
+      error,
+    });
+  }
+}
+
+/**
+ * Makes `call` to `request.service` only when no limit would be exceeded (TRV-04): a
+ * call that would exceed a limit entered, or that a refusal still holds back, is not
+ * made and comes back deferred with the instant it may be, a non-priority call leaving
+ * the stats source's reserve to priority ones (STA-39); a deferral by a limit reached
+ * opens "quota reached" (TRV-05). Calls made at once never share the last unit: each
+ * holds its estimate from its check until its use is recorded, and the call runs
+ * outside any transaction, which is why `db` is never one, as its type says. After the
+ * call, records the use its port reported in place of the estimate, a refusal for quota
+ * marking the limit reached (TRV-03, TRV-06), and settles the incidents and the warning
+ * (CL-TRV-11). A call that throws records nothing and takes its estimate back, and its
+ * error goes on unchanged; a hold that a stopped function left is released by the next
+ * guarded call of its role (CL-TRV-07). A limit not entered is counted, never defers
+ * (CL-TRV-12).
+ */
+export async function withQuota<S extends QuotaService, O extends OutcomeOf[S]>(
+  db: OutsideTransaction,
+  request: QuotaRequest<S>,
+  call: () => Promise<O>,
+): Promise<Result<O, Deferred>> {
+  const admission = await db.transaction(async (tx) => admit(tx, request, now()));
+  if (!admission.ok) {
+    return admission;
+  }
+  let isRecorded = false;
+  try {
+    const outcome = await call();
+    await record(db, request, { admission: admission.value, outcome });
+    isRecorded = true;
+    return ok(outcome);
+  } finally {
+    if (!isRecorded) {
+      await releaseAfterFailure(db, request.service, admission.value.holds);
+    }
+  }
 }
 
 /**

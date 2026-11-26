@@ -215,6 +215,18 @@ the service sheet gives.
 
 Unique: `quota_usage_key (limit_key, period_start_at)`.
 
+`quota_holds` keeps each estimate that a guarded call holds on a `quota_usage` row while it runs
+(TRV-04): `id` (integer identity primary key), `limit_key` (text), `period_start_at`
+(timestamptz), `amount` (bigint) and `held_at` (timestamptz), all not null. A hold names its row
+by `limit_key` and `period_start_at`, with no foreign key, since the purge may delete that row
+meanwhile. The call's check adds the amount to `used` and inserts the hold; its record, or the
+`finally` of a call that threw, deletes the hold and subtracts the amount only when the delete
+found the row, so a hold is taken back once. A function stopped at its time limit runs no
+`finally`: the next guarded call of the same service role, under the role's lock, releases the
+holds of its limits held more than twice the host's maximum duration of one invocation before it
+(`HOLD_STALE_AFTER_MS`, the stale delay of CL-TRV-07). The table is in the archive with the counts
+it holds on, and the sweep releases a restored hold like any other (CL-TRV-05).
+
 ### 1.5 `task_runs` — `TaskRun`
 
 One run of a scheduled task, or an on-demand run requested and not started yet (TRV-26 to TRV-33,

@@ -1,16 +1,19 @@
 // The application's own count, per limit and period instance, in `quota_usage` (TRV-03,
-// TRV-04, CL-TRV-12): the state of each limit at an instant, and the writes that add a
-// call's use, mark a limit reached and note its warning.
-import { and, eq, gt, gte, inArray, or, sql } from 'drizzle-orm';
+// TRV-04, CL-TRV-12): the state of each limit at an instant, the writes that add a
+// call's use, mark a limit reached and note its warning, and the holds of the calls
+// running, one `quota_holds` row each.
+import { and, eq, gt, gte, inArray, lt, or, sql } from 'drizzle-orm';
 
-import { quotaUsage } from '@/lib/db';
+import { quotaHolds, quotaUsage } from '@/lib/db';
 import { toEpochMs } from '@/lib/time';
 
+import { HOLD_STALE_AFTER_MS, SERVICES, servicesOf } from './limits';
 import { bucketOf, fixedPeriodAt, leavesAt, rollingSince } from './periods';
 
-import type { CountedLimit, LimitKey, Measure, Window } from './limits';
+import type { CountedLimit, LimitKey, Measure, QuotaService, Window } from './limits';
 import type { Period } from './periods';
 import type { Database, Transaction } from '@/lib/db';
+import type { ServiceRole } from '@/lib/incidents';
 import type { EpochMs } from '@/lib/time';
 import type { SQL } from 'drizzle-orm';
 
@@ -29,7 +32,10 @@ export type UsageRow = Readonly<{
 /** A limit at an instant: its current period, the use it counts there and its rows. */
 export type LimitState = Readonly<{
   limit: CountedLimit;
-  /** The current period; for a rolling window, its current bucket and when its oldest leaves. */
+  /**
+   * The current period; for a rolling window, its current bucket and when its oldest bucket
+   * that counts some use leaves it, or the current bucket's when none does (CL-TRV-12).
+   */
   period: Period;
   /** The use counted in the current period, every bucket of a rolling window summed. */
   used: number;
@@ -71,8 +77,12 @@ function current(window: Window, rows: readonly UsageRow[], at: EpochMs) {
     return { period: fixedPeriodAt(window.unit, at), rows: live };
   }
   if (window.kind === 'rolling') {
+    // A bucket that counts nothing, such as a taken-back hold's, holds no operation (CL-TRV-12).
+    const oldestCounted = live.find((row) => row.used > 0);
     const end =
-      live[0] === undefined ? leavesAt(bucketOf(at), window.lengthMs) : rowEnd(window, live[0]);
+      oldestCounted === undefined
+        ? leavesAt(bucketOf(at), window.lengthMs)
+        : rowEnd(window, oldestCounted);
     return { period: { start: bucketOf(at), end }, rows: live };
   }
   const latest = live.at(-1);
@@ -208,13 +218,31 @@ export async function writeRow(
     });
 }
 
-/** A call's estimate counted on one row of a limit until the call's own use replaces it (TRV-04). */
-export type Hold = Readonly<{ key: LimitKey; start: EpochMs; amount: number }>;
+/** The counted limits of every service that shares `role`, whose warning is one (TRV-05). */
+export function limitsOfRole(role: ServiceRole): readonly CountedLimit[] {
+  return servicesOf(role).flatMap((service) => SERVICES[service].limits);
+}
+
+/**
+ * Makes the calls of the services of `service`'s role wait for each other's check and
+ * record until `tx` ends, since they share the counts, the warning and the incident
+ * (TRV-04, TRV-05).
+ */
+export async function lockService(tx: Transaction, service: QuotaService): Promise<void> {
+  const key = `quotas.${SERVICES[service].role}`;
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
+}
+
+/**
+ * A call's estimate counted on one row of a limit until the call's own use replaces it,
+ * stored as the `quota_holds` row `id` (TRV-04).
+ */
+export type Hold = Readonly<{ id: number; key: LimitKey; start: EpochMs; amount: number }>;
 
 /**
  * Counts the `estimate` of a call checked at `at` on the current rows of `states`, in
- * the caller's transaction `tx`, so that a call checked while this one runs sees it
- * (TRV-04).
+ * the caller's transaction `tx`, so that a call checked while this one runs sees it,
+ * each hold stored with its instant (TRV-04).
  */
 export async function hold(
   tx: Transaction,
@@ -228,18 +256,68 @@ export async function hold(
       continue;
     }
     await writeRow(tx, state, { at: call.at, used: amount });
-    holds.push({ key: state.limit.key, start: rowStart(state, call.at), amount });
+    const key = state.limit.key;
+    const start = rowStart(state, call.at);
+    const stored = await tx
+      .insert(quotaHolds)
+      .values({ limitKey: key, periodStartAt: new Date(start), amount, heldAt: new Date(call.at) })
+      .returning({ id: quotaHolds.id });
+    holds.push(...stored.map(({ id }) => ({ id, key, start, amount })));
   }
   return holds;
 }
 
-/** Takes the estimates of `holds` back off their rows, in the caller's transaction `tx` (TRV-04). */
+/** Takes `amount` back off the row of `key` that starts at `start`, if the purge left it. */
+async function subtract(
+  tx: Transaction,
+  taken: Readonly<{ key: string; start: EpochMs; amount: number }>,
+): Promise<void> {
+  const row = and(
+    eq(quotaUsage.limitKey, taken.key),
+    eq(quotaUsage.periodStartAt, new Date(taken.start)),
+  );
+  await tx
+    .update(quotaUsage)
+    .set({ used: sql`${quotaUsage.used} - ${taken.amount}` })
+    .where(row);
+}
+
+/**
+ * Takes the estimates of `holds` back off their rows, in the caller's transaction `tx`:
+ * each once, a hold that the sweep or another release already took being left alone
+ * (TRV-04).
+ */
 export async function release(tx: Transaction, holds: readonly Hold[]): Promise<void> {
-  for (const { key, start, amount } of holds) {
-    const row = and(eq(quotaUsage.limitKey, key), eq(quotaUsage.periodStartAt, new Date(start)));
-    await tx
-      .update(quotaUsage)
-      .set({ used: sql`${quotaUsage.used} - ${amount}` })
-      .where(row);
+  for (const held of holds) {
+    const deleted = await tx
+      .delete(quotaHolds)
+      .where(eq(quotaHolds.id, held.id))
+      .returning({ id: quotaHolds.id });
+    if (deleted.length > 0) {
+      await subtract(tx, held);
+    }
+  }
+}
+
+/**
+ * Releases, in the caller's transaction `tx`, the holds on the limits of `service`'s
+ * role older than `HOLD_STALE_AFTER_MS` at `at`: holds that a function stopped at its
+ * time limit, or a release that failed, left behind (TRV-04, CL-TRV-07).
+ */
+export async function sweepHolds(
+  tx: Transaction,
+  service: QuotaService,
+  at: EpochMs,
+): Promise<void> {
+  const keys = limitsOfRole(SERVICES[service].role).map((limit) => limit.key);
+  const staleBefore = new Date(at - HOLD_STALE_AFTER_MS);
+  const staleHolds = and(inArray(quotaHolds.limitKey, keys), lt(quotaHolds.heldAt, staleBefore));
+  const stale = await tx.delete(quotaHolds).where(staleHolds).returning();
+  for (const row of stale) {
+    await subtract(tx, {
+      key: row.limitKey,
+      start: toEpochMs(row.periodStartAt.getTime()),
+      amount: row.amount,
+    });
   }
 }

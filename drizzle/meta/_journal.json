@@ -50,6 +50,13 @@
       "when": 1795635088049,
       "tag": "0006_calendar_requests_follow_owner_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795687934492,
+      "tag": "0007_quota_holds",
+      "breakpoints": true
     }
   ]
 }

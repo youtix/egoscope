@@ -24,11 +24,14 @@ type Executor = Database | Transaction;
 export type QuotaStatus = 'normal' | 'warning' | 'reached';
 
 /**
- * One line of the report: a limit's use with its status, a limit not entered yet, which
- * fails the installation check (CL-TRV-12), or a reference value.
+ * One line of the report: a quota limit's use with its status; a rate's use, which has
+ * no status, since the guard keeps a rate by spacing its calls and it never warns nor
+ * reaches (TRV-05); a limit not entered yet, which fails the installation check
+ * (CL-TRV-12); or a reference value.
  */
 export type UsageLine =
   | Readonly<{ kind: 'usage'; key: LimitKey; status: QuotaStatus; text: string }>
+  | Readonly<{ kind: 'rate'; key: LimitKey; text: string }>
   | Readonly<{ kind: 'not_entered' | 'reference'; key: LimitKey; text: string }>;
 
 const DAY_MS = 86_400_000;
@@ -87,7 +90,7 @@ function usageText(window: Window, parts: UsageParts, zone: string): string {
   }
 }
 
-/** The status of a limit: reached by its count or a refusal that holds, at its warning share, or normal. */
+/** The status of a quota limit: reached by its count or a refusal that holds, at its warning share, or normal. */
 function statusOf(state: LimitState, values: ParamReader): QuotaStatus {
   const allowance = allowanceOf(state, values) ?? Infinity;
   if (state.blockedUntil !== null || state.used >= allowance) {
@@ -138,7 +141,9 @@ function usageLine(key: LimitKey, written: string, data: ReportData): UsageLine[
     resetsAt: state.blockedUntil ?? state.period.end,
   };
   const text = usageText(state.limit.window, parts, data.zone);
-  return [{ kind: 'usage', key, status: statusOf(state, data.values), text }];
+  return state.limit.rate
+    ? [{ kind: 'rate', key, text }]
+    : [{ kind: 'usage', key, status: statusOf(state, data.values), text }];
 }
 
 /** The line of the registry row of the limit `key`: not entered, a reference, or its use. */
@@ -168,7 +173,8 @@ function isLimitKey(key: ParameterKey): key is LimitKey {
 /**
  * The quota use in plain words for the status screen, in the order of the parameter
  * registry, for the parameters of the lots up to `display.lot`: "Workers AI: 4,120 of
- * 10,000 neurons today, resets at 01:00", the reset in `display.timeZone`; the month's
+ * 10,000 neurons today, resets at 01:00", the reset in `display.timeZone`, with its
+ * status, a rate's without one (TRV-05); the month's
  * compute estimate; each limit not entered yet, which the installation check reports;
  * and each reference value, which the app does not enforce (TRV-03, TRV-04, TRV-46,
  * CL-TRV-12).

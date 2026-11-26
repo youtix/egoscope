@@ -17,7 +17,7 @@ export {
   parameterSnapshots,
   uiState,
 } from './params';
-export { databaseActivityMinutes, databaseSizeSamples, quotaUsage } from './quotas';
+export { databaseActivityMinutes, databaseSizeSamples, quotaHolds, quotaUsage } from './quotas';
 export { schedulerLease, taskRuns } from './scheduler';
 
 // The players, games and event-type tables (players.md, games-and-statistics.md,

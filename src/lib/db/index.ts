@@ -53,6 +53,7 @@ export {
   playerStatusChanges,
   playerTeamChanges,
   profileValueVersions,
+  quotaHolds,
   quotaUsage,
   recalculationJobs,
   restoreReportEvents,
