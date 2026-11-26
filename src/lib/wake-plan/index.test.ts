@@ -219,7 +219,7 @@ async function simulateMonth(month: Month): Promise<Units> {
 // and follow another, day 4 is one of the days without. The month is day 1, the other
 // days with Telegram probes, and the days without.
 async function deriveMonth(month: Month): Promise<Units> {
-  const [day1, day2, day3, day4] = await simulateDays(
+  const [day1 = NO_UNITS, day2 = NO_UNITS, day3 = NO_UNITS, day4 = NO_UNITS] = await simulateDays(
     month,
     DERIVATION_DAYS,
     DERIVATION_TELEGRAM_DAYS,
