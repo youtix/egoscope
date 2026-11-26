@@ -1,0 +1,71 @@
+  <?xml version="1.0" encoding="UTF-8"?>
+<!-- An RSS 2.0 feed of an invented outlet, written by hand for the tests: every name,
+     title and excerpt is invented. The whitespace before the declaration is on purpose. -->
+<rss version="2.0"
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Courtside Daily</title>
+    <link>https://courtside.example.test/</link>
+    <description>Invented basketball news for the tests.</description>
+    <language>en-us</language>
+    <atom:link href="https://courtside.example.test/feed.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title>Teodor Vrask leaves practice with a sprained ankle</title>
+      <link>https://courtside.example.test/2026/11/20/vrask-ankle</link>
+      <guid isPermaLink="false">  courtside-1042 </guid>
+      <pubDate>Fri, 20 Nov 2026 18:30:00 -0500</pubDate>
+      <description><![CDATA[<p>The forward <b>limped off</b> during the morning session.</p>]]></description>
+    </item>
+    <item>
+      <title>Mika Lindqvar is cleared to return</title>
+      <link>/2026/11/20/lindqvar-return</link>
+      <guid>courtside-1041</guid>
+      <dc:date>2026-11-20</dc:date>
+      <description>&lt;p&gt;Back on the floor before the road trip &amp; ready.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Ozzie Brannoch asks for a trade</title>
+      <link>https://courtside.example.test/2026/11/20/brannoch-trade</link>
+      <guid>courtside-1040</guid>
+      <pubDate>Fri, 20 Nov 2026 09:15:00</pubDate>
+      <content:encoded><![CDATA[<p>The guard's agent met the front office.</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>The injury report, updated</title>
+      <link>https://courtside.example.test/2026/11/19/injury-report</link>
+      <guid>courtside-1039</guid>
+      <atom:updated>2026-11-19T22:00:00Z</atom:updated>
+    </item>
+    <item>
+      <title>A headline without a link</title>
+      <guid>courtside-1038</guid>
+      <pubDate>Thu, 19 Nov 2026 20:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title></title>
+      <link>https://courtside.example.test/2026/11/19/untitled</link>
+      <guid>courtside-1037</guid>
+      <pubDate>Thu, 19 Nov 2026 19:00:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>Crónica del partido de anoche</title>
+      <link>https://courtside.example.test/2026/11/19/cronica</link>
+      <guid>courtside-1036</guid>
+      <dc:language>es</dc:language>
+      <pubDate>Thu, 19 Nov 2026 12:00:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>Ilan Corvato extends his contract</title>
+      <link>https://dunkdigest.example.test/2026/11/20/corvato-extension</link>
+      <guid>courtside-1035</guid>
+      <pubDate>Fri, 20 Nov 2026 08:00:00 +0100</pubDate>
+      <source url="https://dunkdigest.example.test/rss">Dunk Digest</source>
+    </item>
+    <item>
+      <description>An item with neither a title, a link, an identifier nor a date.</description>
+      <pubDate>not a date</pubDate>
+    </item>
+  </channel>
+</rss>

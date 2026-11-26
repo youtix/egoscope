@@ -1,8 +1,9 @@
 import 'server-only';
 
-import { adapterFor } from '@/lib/env';
+import { adapterFor, readServerEnv } from '@/lib/env';
 
 import { createFakePressFeeds } from './fake';
+import { createSyndicationPressFeeds } from './syndication';
 
 import type { FakePressFeeds } from './fake';
 import type { PressFeeds } from './types';
@@ -39,11 +40,12 @@ export function fakePressFeeds(): FakePressFeeds {
 
 /**
  * The press feeds that `env.adapterFor` names (module map §5): the process's one fake
- * under EGOSCOPE_FAKES; otherwise the syndication adapter, which this build does not
- * hold yet, and in its place "not configured", which reads nothing (COL-02).
+ * under EGOSCOPE_FAKES, else the syndication adapter of RSS and Atom feeds, and "not
+ * configured", which reads nothing, while the configuration is invalid (COL-02, TRV-17).
  */
 export function pressFeeds(): PressFeedsAccess {
-  return adapterFor('press-feeds') === 'fake'
-    ? { ok: true, feeds: fakePressFeeds() }
-    : NOT_CONFIGURED;
+  if (adapterFor('press-feeds') === 'fake') {
+    return { ok: true, feeds: fakePressFeeds() };
+  }
+  return readServerEnv().ok ? { ok: true, feeds: createSyndicationPressFeeds() } : NOT_CONFIGURED;
 }
