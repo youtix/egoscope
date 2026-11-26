@@ -21,7 +21,12 @@ vi.mock(import('@/lib/db'), async (importOriginal) => ({
 vi.mock(import('next/headers'), () => ({
   cookies: async () => {
     const server = await import('next/server');
-    return new server.NextRequest('https://egoscope.test/').cookies;
+    const incoming = new server.NextRequest('https://egoscope.test/').cookies;
+    const outgoing = new server.NextResponse().cookies;
+    return Object.assign(incoming, {
+      set: outgoing.set.bind(outgoing),
+      delete: outgoing.delete.bind(outgoing),
+    });
   },
 }));
 

@@ -28,8 +28,11 @@ const harness = vi.hoisted(() => ({
 
 /** What `redirect()` throws in these tests: the address it sends the device to. */
 class Redirected extends Error {
-  constructor(readonly to: string) {
+  readonly to: string;
+
+  constructor(to: string) {
     super(`Redirected to ${to}`);
+    this.to = to;
   }
 }
 

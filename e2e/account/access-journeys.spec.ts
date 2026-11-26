@@ -71,7 +71,10 @@ test.describe('the account journeys', () => {
     baseURL,
     accessibility,
   }) => {
-    const phoneContext = await browser.newContext({ ...PHONE, baseURL });
+    const phoneContext = await browser.newContext({
+      ...PHONE,
+      ...(baseURL !== undefined && { baseURL }),
+    });
     const phone = await phoneContext.newPage();
     await accessibility.watch(phone);
     const asked = [addressesOf(page), addressesOf(phone)];
