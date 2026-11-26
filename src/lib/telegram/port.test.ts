@@ -21,7 +21,7 @@ describe('telegram', () => {
     vi.stubGlobal(SHARED_FAKE, undefined);
   });
 
-  it('[TEL-28] answers "not configured" while no real adapter serves', async () => {
+  it('answers "not configured" while no real adapter serves', async () => {
     const { telegram } = await portWith({});
 
     expect(telegram()).toStrictEqual({ ok: false, error: { kind: 'not_configured' } });

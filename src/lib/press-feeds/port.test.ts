@@ -22,7 +22,7 @@ describe('pressFeeds', () => {
     vi.stubGlobal(SHARED_FAKE, undefined);
   });
 
-  it('[COL-02] answers "not configured" while no real adapter serves', async () => {
+  it('answers "not configured" while no real adapter serves', async () => {
     const { pressFeeds } = await portWith({});
 
     expect(pressFeeds()).toStrictEqual({ ok: false, error: { kind: 'not_configured' } });

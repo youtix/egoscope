@@ -74,7 +74,8 @@ type Operation<Request, T> = (ctx: CallContext, request: Request) => Promise<Tel
 
 /**
  * The Telegram Bot API (module map §5, telegram sheet). `sendMessage` sends in HTML mode
- * with link previews off; `deleteMessage` deletes one sent message, one call per message
+ * with link previews off a text of 1 to MESSAGE_MAX_LENGTH characters, never an empty
+ * one, which Telegram refuses and which no error kind and no fake model; `deleteMessage` deletes one sent message, one call per message
  * whatever its age (TEL-38, CL-TEL-09); `getMe` gives the bot's username, for the deep
  * link; `setWebhook` registers with WEBHOOK_SETTINGS and a secret token, and
  * `getWebhookInfo` reports the last delivery error; `getUpdates` reads the updates of

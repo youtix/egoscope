@@ -33,14 +33,15 @@ export type FakeTelegramOperation = Exclude<keyof Telegram, 'parseUpdate' | 'ver
 export type FakeTelegram = Telegram &
   Readonly<{
     /**
-     * A person writes `text` to the bot from `chat`, which can then receive messages:
-     * Telegram keeps the update for polling while no webhook is set, and the fake gives
-     * the body it would post to one (TEL-29, TEL-31).
+     * A person writes `text` to the bot from `chat`, which can then receive messages, even
+     * after blocking the bot, since Telegram has a person unblock the bot to write to it
+     * again: Telegram keeps the update for polling while no webhook is set, and the fake
+     * gives the body it would post to one (TEL-29, TEL-31, TEL-37).
      */
     deliver: (chat: Chat, text: string) => UpdateBody;
     /** Telegram delivers `body` again, which polling then reads a second time. */
     deliverAgain: (body: unknown) => void;
-    /** The person of `chat` blocks the bot: Telegram reports it in an update, and refuses later sends (TEL-37). */
+    /** The person of `chat` blocks the bot: Telegram reports it in an update, and refuses later sends until the person writes again (TEL-37). */
     block: (chat: Chat) => UpdateBody;
     /** The messages that `chat` holds, oldest first, without the deleted ones. */
     inbox: (chat: number) => readonly ReceivedMessage[];
@@ -161,8 +162,10 @@ class Fake implements FakeTelegram {
       return answered(this.#pending.slice(0, UPDATES_PER_CALL));
     });
 
-  readonly deliver = (chat: Chat, text: string): UpdateBody =>
-    this.#receive(chat, 'message', { [MESSAGE_ID]: this.#takeId(), text });
+  readonly deliver = (chat: Chat, text: string): UpdateBody => {
+    this.#blocked.delete(chat.id);
+    return this.#receive(chat, 'message', { [MESSAGE_ID]: this.#takeId(), text });
+  };
 
   readonly deliverAgain = (body: unknown): void => {
     const parsed = parseUpdate(body);

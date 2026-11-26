@@ -6,7 +6,7 @@
 import { now, toEpochMs } from '@/lib/time';
 
 import { MY_CHAT_MEMBER, UPDATE_ID } from './inbound';
-import { MESSAGE_MAX_LENGTH, WEBHOOK_SETTINGS } from './types';
+import { MESSAGE_MAX_LENGTH } from './types';
 
 import type { CallContext, Telegram, TelegramOutcome } from './types';
 
@@ -35,6 +35,10 @@ const DEADLINE_MS = 10_000;
 const BOT_USERNAME = /^\w{2,29}bot$/iu;
 const WEBHOOK_URL = 'https://egoscope.example.test/api/telegram/webhook';
 const SECRET = 'contract-secret_0123456789';
+// The webhook settings of the telegram sheet that Telegram reports back, written out
+// apart from WEBHOOK_SETTINGS so that a wrong setting fails the contract (TEL-29).
+const SHEET_MAX_CONNECTIONS = 1;
+const SHEET_ALLOWED_UPDATES = ['message', 'my_chat_member'];
 const LINK_CODE = 'Zm9yLXRoZS1jb250cmFjdA';
 const PRIVATE_CHAT_ID = 4242;
 const GROUP_CHAT_ID = -1_004_242;
@@ -141,7 +145,7 @@ async function registersWebhook({ bot }: TelegramHarness): Promise<Problems> {
     },
     {
       registered: { kind: 'registered' },
-      info: [WEBHOOK_URL, WEBHOOK_SETTINGS.maxConnections, WEBHOOK_SETTINGS.allowedUpdates],
+      info: [WEBHOOK_URL, SHEET_MAX_CONNECTIONS, SHEET_ALLOWED_UPDATES],
       polled: 'webhook_conflict',
       checks: [false, true, false],
       after: null,

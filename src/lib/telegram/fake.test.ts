@@ -152,6 +152,23 @@ describe('createFakeTelegram', () => {
     });
   });
 
+  it('[TEL-37] [TEL-29] sends to a chat that blocked the bot again once its person writes to the bot to relink it', async () => {
+    const fake = createFakeTelegram();
+    fake.deliver(OWNER, '/start');
+    fake.block(OWNER);
+    const whileBlocked = await fake.sendMessage(open(), { chat: OWNER.id, text: 'Hello' });
+    const relink = fake.deliver(OWNER, `/start ${CODE}`);
+    const confirmed = await fake.sendMessage(open(), { chat: OWNER.id, text: 'Linked' });
+
+    expect(kindOf(whileBlocked)).toBe('blocked');
+    expect(fake.parseUpdate(relink)).toMatchObject({
+      ok: true,
+      update: { kind: 'start', chat: OWNER, linkCode: CODE },
+    });
+    expect(confirmed).toMatchObject({ ok: true, call: { httpRequests: 1, messages: 1 } });
+    expect(fake.inbox(OWNER.id).map(({ text }) => text)).toStrictEqual(['Linked']);
+  });
+
   it('[CL-TEL-14] counts the characters of a text once its tags and entities are read', async () => {
     const fake = createFakeTelegram();
     fake.deliver(OWNER, '/start');
