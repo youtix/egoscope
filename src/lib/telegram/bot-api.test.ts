@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { z } from 'zod';
 
 import { parseServerEnv } from '@/lib/env';
-import { now, toEpochMs } from '@/lib/time';
+import { installFakeClock, now, toEpochMs } from '@/lib/time';
 import answers from '@data/fixtures/telegram/answers.json';
 import errors from '@data/fixtures/telegram/errors.json';
 import updates from '@data/fixtures/telegram/updates.json';
@@ -100,32 +100,27 @@ class Replay {
   };
 
   #route(method: string, params: Readonly<Record<string, unknown>>): Recorded {
-    switch (method) {
-      case 'getMe': {
-        return answers.getMe;
-      }
-      case 'sendMessage': {
-        return this.#send(params);
-      }
-      case 'deleteMessage': {
-        return this.#delete(params);
-      }
-      case 'setWebhook': {
-        this.#webhook = params;
-        this.#pending = [];
-        return answers.webhookSet;
-      }
-      case 'getWebhookInfo': {
-        return this.#info();
-      }
-      case 'deleteWebhook': {
-        this.#webhook = null;
-        return answers.webhookDeleted;
-      }
-      default: {
-        return this.#poll(params);
-      }
-    }
+    const routes: Readonly<Record<string, () => Recorded>> = {
+      getMe: () => answers.getMe,
+      sendMessage: () => this.#send(params),
+      deleteMessage: () => this.#delete(params),
+      setWebhook: () => this.#register(params),
+      getWebhookInfo: () => this.#info(),
+      deleteWebhook: () => this.#unregister(),
+    };
+    // `getUpdates`, the one method left.
+    return routes[method]?.() ?? this.#poll(params);
+  }
+
+  #register(params: Readonly<Record<string, unknown>>): Recorded {
+    this.#webhook = params;
+    this.#pending = [];
+    return answers.webhookSet;
+  }
+
+  #unregister(): Recorded {
+    this.#webhook = null;
+    return answers.webhookDeleted;
   }
 
   #send(params: Readonly<Record<string, unknown>>): Recorded {
@@ -586,5 +581,15 @@ describe('createBotApiTelegram', () => {
     ]);
     expect(replay.seen).toStrictEqual([]);
     expect(JSON.stringify(outcomes) + logged()).not.toContain(TOKEN);
+  });
+
+  it('[TEL-35] answers timeout, and throws nothing, when its deadline passes as the call starts', async () => {
+    // The clock's first read is 1 ms before the deadline, and every later read 1 ms past it.
+    const start = now();
+    const first = [toEpochMs(start + 2)];
+    onTestFinished(installFakeClock({ now: () => first.shift() ?? toEpochMs(start + 4) }));
+    const ctx = { deadline: toEpochMs(start + 3), signal: new AbortController().signal };
+
+    await expect(create(stalled).getMe(ctx)).resolves.toStrictEqual(TIMED_OUT);
   });
 });
