@@ -39,7 +39,11 @@ const SERVICE_ROLES = [
 // IncidentStatus (TRV-45).
 const INCIDENT_STATUSES = ['open', 'closed'] as const;
 // QuotaIncidentCause: the causes that a quota_reached incident names (CL-TRV-11).
-const QUOTA_INCIDENT_CAUSES = ['limit_reached', 'refused_before_limit', 'not_answering'] as const;
+export const QUOTA_INCIDENT_CAUSES = [
+  'limit_reached',
+  'refused_before_limit',
+  'not_answering',
+] as const;
 
 /**
  * Incidents, and the warnings and reminders handled like them: opened once per

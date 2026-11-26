@@ -239,6 +239,16 @@ describe('the cases table', { timeout: 60_000 }, () => {
       'reference_instant_origin',
     ],
     [
+      'whose baseline season is not a season label',
+      { ...MEASURED, baselineSeason: '2024-2025' },
+      'baseline_season',
+    ],
+    [
+      'whose baseline season does not end the year after it starts',
+      { ...MEASURED, baselineSeason: '2024-26' },
+      'baseline_season',
+    ],
+    [
       'of a baseline phase the glossary does not list',
       { ...MEASURED, baselinePhase: OUTSIDE },
       'baseline_phase',

@@ -386,6 +386,11 @@ describe('the events table', { timeout: 60_000 }, () => {
       'dismissed',
     ],
     [
+      'not dismissed with a dismissal reason but no instant',
+      { ...DETECTED, dismissalReason: 'old_fact' },
+      'dismissed',
+    ],
+    [
       'dismissed for another reason without a comment',
       {
         ...DETECTED,

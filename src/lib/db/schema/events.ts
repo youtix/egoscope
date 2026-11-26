@@ -33,8 +33,8 @@ const EVENT_ORIGINS = ['detected', 'historical', 'calendar'] as const;
 // EventTypeLinkMark (TAX-25, TAX-29).
 const TYPE_LINK_MARKS = ['to_requalify', 'to_distribute'] as const;
 // InjuryReturn and GameStakes (DSN-07, SEN-13, SEN-14, H-09).
-const INJURY_RETURNS = ['yes', 'no', 'unknown'] as const;
-const GAME_STAKES = ['high', 'normal', 'unknown'] as const;
+export const INJURY_RETURNS = ['yes', 'no', 'unknown'] as const;
+export const GAME_STAKES = ['high', 'normal', 'unknown'] as const;
 // ContextIndicationOrigin without `calculation`, the condition of a case's criterion
 // (SEN-18, H-09).
 const CONTEXT_ORIGINS = ['research', 'classification', 'user'] as const;
@@ -57,7 +57,7 @@ export const DISMISSAL_REASONS = [
 // DET-31, CL-DET-27).
 const REFERENCE_DATE_RULES = ['earliest_source', 'coverage_threshold'] as const;
 // ClassificationOrigin (DET-13, DET-49).
-const CLASSIFICATION_ORIGINS = ['model', 'user'] as const;
+export const CLASSIFICATION_ORIGINS = ['model', 'user'] as const;
 
 // The columns of events that its row checks read.
 type EventColumns = Readonly<
@@ -165,9 +165,11 @@ function originChecks(table: EventColumns): CheckBuilder[] {
       'events_calendar_check',
       sql`${table.origin} <> 'calendar' OR (${allSet([table.derivedGameId, table.referenceDateOn])} AND ${noneSet([table.referenceAt, table.referenceOffsetMinutes, table.referenceDatePrecision, table.typeLinkMark, ...historicalOnly, ...detectedOnly])})`,
     ),
+    // A dismissed event has its reason and its instant; any other detected event has no
+    // reason, even without the instant. A historical event is left to its own check.
     check(
       'events_dismissed_check',
-      sql`(${table.detectedStatus} = 'dismissed') = (${table.dismissalReason} IS NOT NULL AND ${table.dismissedAt} IS NOT NULL)`,
+      sql`(${table.detectedStatus} = 'dismissed') = (${table.dismissalReason} IS NOT NULL AND ${table.dismissedAt} IS NOT NULL) AND (${table.detectedStatus} = 'dismissed' OR ${table.dismissalReason} IS NULL)`,
     ),
     check(
       'events_dismissal_comment_check',

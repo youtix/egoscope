@@ -90,3 +90,40 @@ export {
 export { generalTrends, recalculationJobs, sensitivityProfiles } from './sensitivity-profiles';
 export { profileValueVersions, verdictHistoryEntries } from './sensitivity-history';
 export { calendarDerivationRequests } from './calendar-events';
+
+// The Lot 2 tables (collection.md, detection.md, alert-sheets.md,
+// tracking-and-validation.md, notifications.md).
+export {
+  collectionGaps,
+  collectionSourceReads,
+  pressSourceDailyCounts,
+  pressSourceDeactivations,
+  pressSourceIncidents,
+  pressSources,
+} from './collection';
+export { articles, articleSightings, dedupTraces } from './collection-articles';
+export { articleParts, classificationResults } from './detection';
+export { articleAttachments, classificationFacts } from './detection-facts';
+export { classificationIncidentDetails, detectionRuns, exposureCounts } from './detection-runs';
+export {
+  alertSheetEvents,
+  alertSheetOutcomes,
+  alertSheets,
+  alertSheetSections,
+  alertSheetSnapshots,
+} from './alerts';
+export { alertSheetCaveats, alertSheetExpectedGames, alertSheetUpdates } from './alerts-history';
+export {
+  caseCategoryChanges,
+  forecastVersions,
+  regroupingExits,
+  trackedCaseDecisions,
+  trackedCases,
+  trackedGameResults,
+} from './tracking';
+export { notificationDailyCounts, telegramLinkCodes, telegramLinks } from './notifications';
+export {
+  notificationMessageEvents,
+  notificationMessageFacts,
+  notificationMessages,
+} from './notifications-messages';

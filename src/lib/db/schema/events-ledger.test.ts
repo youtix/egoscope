@@ -159,6 +159,21 @@ describe('the tally exits and the withdrawal ledger', { timeout: 60_000 }, () =>
     ['deleted without its date', { ...DELETED, exitedAt: null }, 'deleted'],
     ['merged with a date', { ...EXIT, exitReason: 'merged', exitedAt: DELETED.exitedAt }, 'dated'],
     [
+      'merged with a deletion reason',
+      { ...EXIT, exitReason: 'merged', deletionReason: 'duplicate' },
+      'deleted',
+    ],
+    [
+      'merged with a public date',
+      { ...EXIT, exitReason: 'merged', publicDateOn: '2024-12-02' },
+      'deleted',
+    ],
+    [
+      'merged with the reason and the public date of a deletion, but not its date',
+      { ...EXIT, exitReason: 'merged', deletionReason: 'duplicate', publicDateOn: '2024-12-02' },
+      'deleted',
+    ],
+    [
       'deleted for another reason without its detail',
       { ...DELETED, deletionReason: 'other' },
       'deletion_detail',
