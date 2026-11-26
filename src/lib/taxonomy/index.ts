@@ -74,7 +74,6 @@ export type {
   SheetContent,
   SheetPurpose,
   StatusGroup,
-  SwitchableCriterion,
   TypeRef,
   TypeRejectionReason,
   TypeResolution,

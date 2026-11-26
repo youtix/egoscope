@@ -8,7 +8,7 @@ import { eventTypes } from '@/lib/db';
 import { toEpochMs } from '@/lib/time';
 import { formatCount, sentence } from '@/lib/wording';
 
-import type { CoverageThreshold } from './proposals';
+import type { CoverageThreshold, SwitchedOffCriterion } from './proposals';
 import type { EventTypeRow } from './types';
 import type { Database, Transaction } from '@/lib/db';
 import type { EpochMs } from '@/lib/time';
@@ -24,12 +24,6 @@ export type EventTypeOrigin = EventTypeRow['origin'];
 
 /** The mark of the two calendar-derived types: `'birthday' | 'former_team'` (ADR 0015). */
 export type CalendarDerivation = NonNullable<EventTypeRow['calendarDerivation']>;
-
-/**
- * The doubtful-case criterion a type may switch off: `'playing_time_too_low' |
- * 'injury_return' | 'unusual_stakes' | 'opponent_strength' | 'co_occurring'` (ADR 0016).
- */
-export type SwitchableCriterion = NonNullable<EventTypeRow['switchedOffCriterion']>;
 
 /**
  * The closed-list reason of a rejection: `'not_clean' | 'not_datable' |
@@ -139,7 +133,7 @@ export type ValidatedSheet = TypeRef &
     genericExample: string;
     calendarDerivation: CalendarDerivation | null;
     coverageThreshold: CoverageThreshold | null;
-    switchedOffCriterion: SwitchableCriterion | null;
+    switchedOffCriterion: SwitchedOffCriterion | null;
   }>;
 
 // The purposes that receive the research types only, the calendar-derived ones left out.
