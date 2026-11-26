@@ -2,8 +2,8 @@
 // server per lot with its lot set explicitly, on a port that the system picks when the
 // server starts, and two projects, a desktop and a phone, that run the Lot 1 specs
 // against the Lot 1 server; beside them, a second start of that build for the journeys
-// that change the account, in a project of their own; with the slot of the Lot 2 server
-// and projects kept.
+// that change the account, in a project of their own; then the Lot 2 server, from a
+// build of its own, and two projects that run the specs of e2e/lot2/ alone against it.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -23,8 +23,12 @@ const SHAPE_START = 'const serverEnvShape = {\n';
 const SHAPE_END = '\n};\n';
 // A variable of the schema, at the indent of its shape: "  LOG_LEVEL: z.enum(…)".
 const DECLARED = /^ {2}(?<name>[A-Z][A-Z\d_]*):/gmu;
-// The one variable that the servers set beside those of the schema.
-const TELEMETRY = 'NEXT_TELEMETRY_DISABLED';
+// The two variables that the servers set beside those of the schema: Next.js's own, and
+// the harness's, which gives the Lot 2 build its folder.
+const BESIDE_THE_SCHEMA: ReadonlySet<string> = new Set([
+  'NEXT_TELEMETRY_DISABLED',
+  'EGOSCOPE_E2E_LOT2_BUILD',
+]);
 
 /** The variables that the schema of src/lib/env/server-env.ts declares, in its order. */
 function schemaVariables(): readonly string[] {
@@ -39,10 +43,13 @@ const HERMETIC_ENV = {
   ...Object.fromEntries(schemaVariables().map((name) => [name, ''])),
   EGOSCOPE_FAKES: 'all',
   EGOSCOPE_LOT: '1',
+  EGOSCOPE_E2E_LOT2_BUILD: 'false',
   INITIAL_PASSWORD: TEST_ACCOUNT_INITIAL,
   NODE_ENV: 'production',
   NEXT_TELEMETRY_DISABLED: '1',
 };
+// The same for the Lot 2 server, whose build goes to a folder of its own.
+const LOT_2_ENV = { ...HERMETIC_ENV, EGOSCOPE_LOT: '2', EGOSCOPE_E2E_LOT2_BUILD: 'true' };
 
 /** The configuration, as Playwright loads it in a process whose environment is stubbed. */
 async function loadConfig(): Promise<PlaywrightTestConfig<SessionOptions>> {
@@ -56,9 +63,10 @@ describe('playwright.config.ts', () => {
     vi.stubEnv('CI', '');
     vi.stubEnv('EGOSCOPE_E2E_LOT1_PORT', '');
     vi.stubEnv('EGOSCOPE_E2E_ACCOUNT_PORT', '');
+    vi.stubEnv('EGOSCOPE_E2E_LOT2_PORT', '');
   });
 
-  it('builds and starts the hermetic server of Lot 1, with EGOSCOPE_LOT=1 set explicitly and no credential, then starts that build again for the account journeys', async () => {
+  it('builds and starts the hermetic server of Lot 1, with EGOSCOPE_LOT=1 set explicitly and no credential, then starts that build again for the account journeys, then builds and starts the one of Lot 2, with EGOSCOPE_LOT=2, into a folder of its own', async () => {
     const { webServer } = await loadConfig();
     const servers = Array.isArray(webServer) ? webServer : [];
 
@@ -85,6 +93,13 @@ describe('playwright.config.ts', () => {
         stdout: 'pipe',
         timeout: 60_000,
       },
+      {
+        name: 'lot 2',
+        command: 'next build && next start --hostname 127.0.0.1 --port 0',
+        env: LOT_2_ENV,
+        stdout: 'pipe',
+        timeout: 300_000,
+      },
     ]);
   });
 
@@ -92,10 +107,10 @@ describe('playwright.config.ts', () => {
     const { webServer } = await loadConfig();
     const servers = Array.isArray(webServer) ? webServer : [];
     const pinned = servers.map(({ env = {} }) =>
-      Object.keys(env).filter((name) => name !== TELEMETRY),
+      Object.keys(env).filter((name) => !BESIDE_THE_SCHEMA.has(name)),
     );
 
-    expect(pinned).toStrictEqual([schemaVariables(), schemaVariables()]);
+    expect(pinned).toStrictEqual([schemaVariables(), schemaVariables(), schemaVariables()]);
   });
 
   it('reads the port that the system picked for each server from what Next.js prints, into the variable that the projects read', async () => {
@@ -108,12 +123,14 @@ describe('playwright.config.ts', () => {
     ).toStrictEqual([
       [['egoscope_e2e_lot1_port', '43123']],
       [['egoscope_e2e_account_port', '43123']],
+      [['egoscope_e2e_lot2_port', '43123']],
     ]);
   });
 
-  it('runs every spec but those of Lot 2 and of the account journeys on a desktop and on a phone, in Chromium, against the Lot 1 server, signed in', async () => {
+  it('runs every spec but those of Lot 2 and of the account journeys on a desktop and on a phone, in Chromium, against the Lot 1 server, signed in, and those of Lot 2 alone on both against the Lot 2 server', async () => {
     vi.stubEnv('EGOSCOPE_E2E_LOT1_PORT', '43123');
     vi.stubEnv('EGOSCOPE_E2E_ACCOUNT_PORT', '43124');
+    vi.stubEnv('EGOSCOPE_E2E_LOT2_PORT', '43125');
     const { projects = [] } = await loadConfig();
 
     expect(
@@ -162,14 +179,39 @@ describe('playwright.config.ts', () => {
         hasTouch: false,
         colorScheme: 'light',
       },
+      {
+        name: 'desktop-lot2',
+        testMatch: 'lot2/**/*.spec.ts',
+        testIgnore: undefined,
+        signedIn: undefined,
+        baseURL: 'http://127.0.0.1:43125',
+        browser: 'chromium',
+        isMobile: false,
+        hasTouch: false,
+        colorScheme: 'light',
+      },
+      {
+        name: 'phone-lot2',
+        testMatch: 'lot2/**/*.spec.ts',
+        testIgnore: undefined,
+        signedIn: undefined,
+        baseURL: 'http://127.0.0.1:43125',
+        browser: 'chromium',
+        isMobile: true,
+        hasTouch: true,
+        colorScheme: 'dark',
+      },
     ]);
   });
 
-  it('gives the phone project a phone-sized viewport', async () => {
+  it('gives the phone projects of both lots a phone-sized viewport', async () => {
     const { projects = [] } = await loadConfig();
-    const phone = projects.find(({ name }) => name === 'phone');
+    const phones = projects.filter(({ name }) => name === 'phone' || name === 'phone-lot2');
 
-    expect(phone?.use?.viewport).toStrictEqual({ width: 412, height: 839 });
+    expect(phones.map(({ use }) => use?.viewport)).toStrictEqual([
+      { width: 412, height: 839 },
+      { width: 412, height: 839 },
+    ]);
   });
 
   it('runs the production build of the specs of e2e/ only, never a focused test, and retries none', async () => {
@@ -190,17 +232,5 @@ describe('playwright.config.ts', () => {
       outputDir: 'reports/e2e/results',
       reporter: [['list'], ['html', { open: 'never', outputFolder: 'reports/e2e/report' }]],
     });
-  });
-
-  it('keeps the commented slot of the Lot 2 server and of the projects that run e2e/lot2/ on it', () => {
-    const source = readFileSync(path.join(import.meta.dirname, 'playwright.config.ts'), 'utf8');
-
-    expect(source).toContain('    // hermeticServer(2),\n');
-    expect(source).toContain(
-      "    // { name: 'desktop-lot2', testMatch: `${LOT_2_SPECS}/*.spec.ts`, use: { ...DESKTOP, baseURL: serverUrl(2) } },\n",
-    );
-    expect(source).toContain(
-      "    // { name: 'phone-lot2', testMatch: `${LOT_2_SPECS}/*.spec.ts`, use: { ...PHONE, baseURL: serverUrl(2) } },\n",
-    );
   });
 });

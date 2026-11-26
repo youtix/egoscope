@@ -1,0 +1,18 @@
+{
+  // The Lot 2 build of the end-to-end tests (next.config.ts), which Next.js type-checks
+  // against the route types of its own folder alone: with those of .next/, the Lot 1
+  // build's, every route type would be declared twice.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "node_modules/.cache/typescript/lot2.tsbuildinfo"
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.mts",
+    "**/*.cts",
+    ".next/lot2/types/**/*.ts",
+    ".next/lot2/dev/types/**/*.ts"
+  ]
+}

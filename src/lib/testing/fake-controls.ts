@@ -7,10 +7,11 @@ import { processFakeRuntimeCache } from '@/lib/runtime-cache';
 import { fakeStatsSource } from '@/lib/stats-source';
 import { PLAN_KEY } from '@/lib/wake-plan';
 
-import { invalidCommand } from './commands';
+import { control, invalidCommand, plain } from './commands';
+import { lot2FakeControls, LOT_2_CONTROLS } from './fake-controls-lot2';
 import { isoInstant } from './fixed-clock';
 
-import type { InvalidCommand } from './commands';
+import type { Control, InvalidCommand } from './commands';
 import type { Result } from '@/lib/result';
 
 /**
@@ -18,7 +19,8 @@ import type { Result } from '@/lib/result';
  * control `/api/test/fakes` script (TRV-15, TRV-47): the runtime cache's, which evict
  * the wake plan, lose everything the cache held, or make the cache unavailable or
  * available again; and the fakes of the statistics source, the link check and the
- * backup storage, each with its own controls.
+ * backup storage, then those of Lot 2, the press feeds, the language model and Telegram
+ * (TRV-16, TRV-17, TRV-18), each with its own controls.
  */
 export const fakeControls = {
   runtimeCache: {
@@ -36,6 +38,7 @@ export const fakeControls = {
   linkCheck: fakeLinkCheck,
   backupStorage: fakeBackupStorage,
   // --- Lot 2 (F-test-support-lot2): the controls of the press feeds, the language model and Telegram.
+  ...lot2FakeControls,
 } as const;
 
 const count = z.int().nonnegative();
@@ -68,25 +71,6 @@ const storageOperation = z.enum([
   'delete',
   'download',
 ]);
-// A control of a fake: it reads its arguments from the command, then runs, or says
-// what is wrong in them.
-type Control = (command: unknown) => Result<null, z.ZodError>;
-
-/** The control that reads its arguments from a command with `args`, and runs `run` with them. */
-function control<S extends z.ZodType>(args: S, run: (parsed: z.output<S>) => void): Control {
-  return (command) => {
-    const parsed = args.safeParse(command);
-    if (!parsed.success) {
-      return err(parsed.error);
-    }
-    run(parsed.data);
-    return ok(null);
-  };
-}
-
-/** A control that takes no argument. */
-const plain = (run: () => void): Control => control(z.object({}), run);
-
 // The arguments of the controls that take some.
 const availability = z.object({ available: z.boolean() });
 const injection = z.object({ fault });
@@ -170,6 +154,8 @@ const CONTROL_LIST: readonly (readonly [string, Control])[] = [
       fakeBackupStorage().keepNextDeletion();
     }),
   ],
+  // Lot 2 (F-test-support-lot2): the controls of the press feeds, the language model and Telegram.
+  ...LOT_2_CONTROLS,
 ];
 const CONTROLS = new Map(CONTROL_LIST);
 const CONTROL_NAMES = CONTROL_LIST.map(([name]) => name).join(', ');
@@ -189,18 +175,25 @@ const namedControl = z.object({
   }),
 });
 
+/** The control that `/api/test/fakes` ran, by its name, with what the fake answered when it answers. */
+export type ScriptedFake = Readonly<{ ran: string; answer?: unknown }>;
+
 /**
  * Scripts a fake of the process as a command of `/api/test/fakes` says (TRV-15):
  * `{ "control": "<fake>.<control>", ...arguments }`, instants in ISO 8601 with their
- * offset. Gives the name of the control run, or why the command is invalid, running
- * nothing.
+ * offset. Gives the name of the control run, with what the fake answered when it
+ * answers, such as the messages of a Telegram chat, or why the command is invalid,
+ * running nothing.
  */
-export function scriptFake(command: unknown): Result<string, InvalidCommand> {
+export function scriptFake(command: unknown): Result<ScriptedFake, InvalidCommand> {
   const named = namedControl.safeParse(command);
   if (!named.success) {
     return err(invalidCommand(named.error));
   }
   const { name, run } = named.data.control;
   const ran = run(command);
-  return ran.ok ? ok(name) : err(invalidCommand(ran.error));
+  if (!ran.ok) {
+    return err(invalidCommand(ran.error));
+  }
+  return ok(ran.value === undefined ? { ran: name } : { ran: name, answer: ran.value });
 }

@@ -73,6 +73,10 @@ export function hermeticEnvironment(lot: Lot): Readonly<Record<string, string>> 
     EGOSCOPE_FAKES: 'all',
     // Set explicitly, so that a change of the default lot changes nothing here.
     EGOSCOPE_LOT: String(lot),
+    // A build serves the screens of its own lot only: the Lot 2 one goes to a folder
+    // of its own, which next.config.ts gives `next build` and `next start` alike, so
+    // that both servers run side by side.
+    EGOSCOPE_E2E_LOT2_BUILD: String(lot === 2),
     // The account starts from it, as a deployment's does from its own (TRV-57).
     INITIAL_PASSWORD: TEST_ACCOUNT_INITIAL,
     NODE_ENV: 'production',
