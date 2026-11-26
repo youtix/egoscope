@@ -378,6 +378,7 @@ describe('checkAnswer', () => {
     [fault('wrong_type', at('description')), withFact({ description: null })],
     [fault('wrong_type', at('novelty')), withFact({ novelty: 3 })],
     [fault('wrong_type', at('player_event_id')), knownEvent(501)],
+    [fault('wrong_type', at('player_event_id')), withFact({ playerEventId: 501 })],
     [fault('wrong_type', at('timing_hint')), withFact({ timingHint: 20_261_122 })],
     [fault('wrong_type', at('context')), withFact({ context: 'unknown' })],
     [fault('wrong_type', at()), withLists({ validatedTypeFacts: ['A coach doubts him.'] })],
