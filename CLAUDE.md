@@ -384,8 +384,10 @@ touches it and its prefix, its letters before the first hyphen, is that of an ID
   lock: commit, push your branch, then run `bun run test:remote <path>…`, adding
   `--coverage.include='src/lib/<module>/**'` for the coverage of one module. It tests the commit
   you pushed, prints the output of the tests and exits with 0 when they pass, 1 when they fail and
-  2 when it has no result. Use it rather than wait when the lock is busy. A task whose brief holds
-  back its first push keeps to the lock until that push.
+  2 when it has no result. It waits up to forty-five minutes while runs queue on GitHub, and once a
+  pull request is open its CI already runs the whole suite on every push, so a remote run of the
+  same commit adds nothing: use it rather than wait when the lock is busy, before the pull request
+  is open. A task whose brief holds back its first push keeps to the lock until that push.
 - The coverage of one module, without the per-file thresholds of other files failing the run:
   `bun run test src/lib/<module> --coverage --coverage.include='src/lib/<module>/**'`.
 - The full gate is CI's job on every push. Run `bun run gate` locally only after changing tooling,

@@ -25,6 +25,13 @@ export const STATUS_QUESTION = 'run view 4242 --json status';
 export const answer = (stdout = ''): Output => ({ status: 0, stdout, stderr: '' });
 export const error = (stderr: string, status = 1): Output => ({ status, stdout: '', stderr });
 export const GATEWAY = error('HTTP 502: Bad Gateway\n');
+// GitHub's refusals for its primary and its secondary rate limit, as gh writes them.
+export const RATE_LIMITED = error(
+  'HTTP 403: API rate limit exceeded for user ID 1. If you reach out to GitHub Support, please include the request ID\n',
+);
+export const SECONDARY_LIMIT = error(
+  'HTTP 403: You have exceeded a secondary rate limit. Please wait a few minutes before you try again.\n',
+);
 const json = (value: unknown): Output => answer(JSON.stringify(value));
 export const listed = (...runs: readonly (readonly [number, string])[]): Output =>
   json(runs.map(([id, status]) => ({ databaseId: id, status, url: `${RUNS}/${String(id)}` })));
@@ -67,15 +74,22 @@ const LOG = [
 ].join('\n');
 export const TEST_OUTPUT =
   ' ✓ |node| src/lib/orbit/moon.test.ts (3 tests)\n Test Files  1 passed (1)';
+export const JOB_LOG = answer(LOG);
+
+// One answer, or a sequence of answers that repeats its last one once spent.
+type Answers = Output | readonly Output[];
 
 type Script = Readonly<{
   // The listing of the runs of the commit before the dispatch, which holds none by default.
   earlier?: Output;
   dispatch?: Output;
   lists?: readonly Output[];
-  statuses?: readonly string[];
-  finished?: Output;
-  log?: Output;
+  // The status of the run, or a refusal, at each question.
+  statuses?: readonly (string | Output)[];
+  finished?: Answers;
+  log?: Answers;
+  // The answer to `gh run cancel`, a success by default.
+  cancel?: Output;
 }>;
 
 const DISPATCHED = answer(
@@ -84,17 +98,22 @@ const DISPATCHED = answer(
 export const NO_URL = answer('✓ Created workflow_dispatch event for remote-test.yml\n');
 export const LISTING = `run list --workflow remote-test.yml --branch ${BRANCH} --commit ${HEAD} --event workflow_dispatch --json databaseId,status,url`;
 
+const sequence = (answers: Answers): readonly Output[] =>
+  'status' in answers ? [answers] : answers;
+
 /**
  * A fake gh that answers as `script` says, each sequence repeating its last answer once spent:
  * a listing before the dispatch answers `earlier`, and those after it answer `lists`.
  */
 function fakeGh(script: Script): LocalIo['gh'] {
-  const asked = { list: 0, status: 0 };
+  const asked = { list: 0, status: 0, finished: 0, log: 0 };
   const next = (answers: readonly Output[], kind: keyof typeof asked): Output => {
     asked[kind] += 1;
     return answers[Math.min(asked[kind], answers.length) - 1] ?? GATEWAY;
   };
-  const statuses = (script.statuses ?? ['completed']).map((status) => json({ status }));
+  const statuses = (script.statuses ?? ['completed']).map((status) =>
+    typeof status === 'string' ? json({ status }) : status,
+  );
   let hasDispatched = false;
   const listing = (): Output =>
     hasDispatched
@@ -108,12 +127,15 @@ function fakeGh(script: Script): LocalIo['gh'] {
     if (args[1] === 'list') {
       return listing();
     }
+    if (args[1] === 'cancel') {
+      return script.cancel ?? answer();
+    }
     if (args.at(-1) === 'status') {
       return next(statuses, 'status');
     }
     return args.at(-1) === '--log'
-      ? (script.log ?? answer(LOG))
-      : (script.finished ?? finishedRun());
+      ? next(sequence(script.log ?? JOB_LOG), 'log')
+      : next(sequence(script.finished ?? finishedRun()), 'finished');
   };
 }
 
@@ -121,6 +143,8 @@ function fakeGh(script: Script): LocalIo['gh'] {
 type Harness = Readonly<{
   io: LocalIo;
   out: readonly string[];
+  // The clock time at which each line of `out` was printed.
+  printedAt: readonly number[];
   err: readonly string[];
   sleeps: readonly number[];
   asked: readonly string[];
@@ -129,12 +153,13 @@ type Harness = Readonly<{
 
 /**
  * The io of the local side, with the fake gh of `script` and a fake git, on a fake clock that
- * only the waits move. It records what is printed, every wait, and every question to GitHub with
+ * only the waits move. It records what is printed and when, every wait, and every question to GitHub with
  * the time it was asked.
  */
 export function harness(script: Script = {}, git = fakeGit()): Harness {
   let now = 0;
   const out: string[] = [];
+  const printedAt: number[] = [];
   const err: string[] = [];
   const sleeps: number[] = [];
   const asked: string[] = [];
@@ -155,6 +180,7 @@ export function harness(script: Script = {}, git = fakeGit()): Harness {
     clock: () => now,
     print: (line) => {
       out.push(line);
+      printedAt.push(now);
     },
     printError: (line) => {
       err.push(line);
@@ -162,5 +188,5 @@ export function harness(script: Script = {}, git = fakeGit()): Harness {
   };
   const timesOf = (question: string): readonly number[] =>
     times.filter((_, index) => asked[index] === question);
-  return { io, out, err, sleeps, asked, timesOf };
+  return { io, out, printedAt, err, sleeps, asked, timesOf };
 }

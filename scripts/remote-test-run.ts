@@ -1,8 +1,9 @@
 /**
  * The run of a remote test on GitHub, for scripts/remote-test.ts: finds the run that a dispatch
- * started, waits for it while asking GitHub at most once every ten seconds (every agent shares
- * one allowance of requests), and judges it: the tests passed, they failed, or the run gave no
- * result. Everything it asks goes through the `gh` that its caller gives it.
+ * started, waits for it while asking GitHub at most once every thirty seconds (every agent shares
+ * one allowance of requests), cancels it when the wait reaches its deadline, and judges it: the
+ * tests passed, they failed, or the run gave no result. Everything it asks goes through the `gh`
+ * that its caller gives it.
  */
 import { z } from 'zod';
 
@@ -15,7 +16,15 @@ export const WORKFLOW = 'remote-test.yml';
 const JOB = 'remote-test';
 const TEST_STEP = 'Run the tests';
 
-const POLL_INTERVAL_MS = 10_000;
+// Every agent of the build shares one allowance of requests to GitHub, and a queued run cannot
+// complete sooner than this: a shorter interval would spend requests and buy nothing.
+const POLL_INTERVAL_MS = 30_000;
+// While the run is queued or running, a line says how long the wait has lasted this often.
+const PROGRESS_INTERVAL_MS = 300_000;
+const MINUTE_MS = 60_000;
+// GitHub's refusal for its rate limit, primary ("API rate limit exceeded"), secondary ("a
+// secondary rate limit") or for a client that asks too fast; gh gives no other sign of it.
+const RATE_LIMITED = /rate limit|HTTP 429/iu;
 const SHORT_SHA_LENGTH = 7;
 // A line of `gh run view --log` is the job's name, the step's name and the text, which starts
 // with the time it was written (and, on the step's first line, a byte order mark).
@@ -50,6 +59,9 @@ type Verdict = Readonly<{ code: number; sentence: string }>;
 export const refusal = (error: string): Refusal => ({ ok: false, error });
 export const short = (sha: string): string => sha.slice(0, SHORT_SHA_LENGTH);
 const noResult = (sentence: string): Verdict => ({ code: NO_RESULT, sentence });
+const STILL_WAITING: Result<undefined> = { ok: true, value: undefined };
+const isRateLimited = <T>(result: Result<T>): boolean =>
+  !result.ok && RATE_LIMITED.test(result.error);
 
 /**
  * The lines that the test step wrote, from the output of `gh run view --log`: without the job's
@@ -130,7 +142,7 @@ function listedRun(session: Session, earlier: ReadonlySet<string>): Result<Run |
   return { ok: true, value: run && { id: String(run.databaseId), url: run.url } };
 }
 
-/** Asks `ask` after each wait of ten seconds until it answers, fails, or the deadline passes. */
+/** Asks `ask` after each wait of thirty seconds until it answers, fails, or the deadline passes. */
 async function waitFor<T>(
   session: Session,
   ask: () => Result<T | undefined>,
@@ -156,21 +168,85 @@ export async function findRun(
   return waitFor(session, () => listedRun(session, earlier));
 }
 
-/** Asks whether `run` has completed, and says once when it has started. */
+/**
+ * Asks `read` again one interval later while GitHub refuses it for its rate limit, and gives its
+ * answer, or undefined when GitHub still refuses it at the deadline.
+ */
+async function readPatiently<T>(
+  session: Session,
+  read: () => Result<T>,
+): Promise<Result<T> | undefined> {
+  let answer = read();
+  while (isRateLimited(answer)) {
+    if (session.io.clock() >= session.deadline) {
+      return undefined;
+    }
+    await session.io.sleep(POLL_INTERVAL_MS);
+    answer = read();
+  }
+  return answer;
+}
+
+/** What the last question found of a run that has not completed. */
+const PROGRESS = {
+  queued: 'the run is queued and waits for a GitHub runner.',
+  started: 'the run is in progress on a GitHub runner.',
+  refused:
+    'GitHub refused the last question for its rate limit, so the state of the run is not known.',
+} as const;
+
+/**
+ * Says, once the wait that starts now has lasted five minutes and after each further five
+ * minutes, how long it has lasted and what the last question found.
+ */
+function progressReport(io: LocalIo): (found: keyof typeof PROGRESS) => void {
+  const start = io.clock();
+  let reported = 0;
+  return (found) => {
+    const periods = Math.floor((io.clock() - start) / PROGRESS_INTERVAL_MS);
+    if (periods <= reported) {
+      return;
+    }
+    reported = periods;
+    const minutes = (periods * PROGRESS_INTERVAL_MS) / MINUTE_MS;
+    io.print(`Waited ${String(minutes)} minutes: ${PROGRESS[found]}`);
+  };
+}
+
+/**
+ * Asks whether `run` has completed, says once when it has started and every five minutes how
+ * long it has waited; a question that GitHub refuses for its rate limit waits one more interval.
+ */
 function completion(io: LocalIo, run: Run): () => Result<true | undefined> {
+  const report = progressReport(io);
   let hasStarted = false;
   return () => {
     const answer = readJson(RUN_STATUS, io.gh(['run', 'view', run.id, '--json', 'status']));
+    if (isRateLimited(answer)) {
+      report('refused');
+      return STILL_WAITING;
+    }
     if (!answer.ok) {
       return answer;
     }
-    if (!hasStarted && answer.value.status === 'in_progress') {
+    const { status } = answer.value;
+    if (status === 'completed') {
+      return { ok: true, value: true };
+    }
+    if (!hasStarted && status === 'in_progress') {
       hasStarted = true;
       io.print('The run has started on a GitHub runner.');
     }
-    return { ok: true, value: answer.value.status === 'completed' ? true : undefined };
+    report(status === 'in_progress' ? 'started' : 'queued');
+    return STILL_WAITING;
   };
 }
+
+/** The verdict on a completed run whose reads GitHub still refuses at the deadline. */
+const unread = (run: Run): Verdict =>
+  noResult(
+    `The run completed, but GitHub refused to give its result for its rate limit; read it later with gh run view ${run.id} --log`,
+  );
 
 /** The verdict on a cancelled run, which names the newer dispatch that replaced it, if any. */
 function cancelled(session: Session, run: Run): Verdict {
@@ -185,20 +261,29 @@ function cancelled(session: Session, run: Run): Verdict {
   );
 }
 
-function printTestOutput(io: LocalIo, jobId: number): void {
+function readLog(io: LocalIo, jobId: number): Result<string> {
   const log = io.gh(['run', 'view', '--job', String(jobId), '--log']);
-  if (log.status !== 0) {
-    io.printError(log.stderr.trimEnd());
+  return log.status === 0 ? { ok: true, value: log.stdout } : refusal(log.stderr.trimEnd());
+}
+
+/** Prints the output of the tests from the log of the job, or the error of gh reading it. */
+function printTestOutput(io: LocalIo, log: Result<string>): void {
+  if (!log.ok) {
+    io.printError(log.error);
     return;
   }
-  const lines = testOutput(log.stdout);
+  const lines = testOutput(log.value);
   if (lines.length > 0) {
     io.print(lines.join('\n'));
   }
 }
 
 /** The verdict of the test step of `job`, after printing its output when it ran to its end. */
-function testVerdict(io: LocalIo, job: z.infer<typeof JOB_STEPS> | undefined): Verdict {
+async function testVerdict(
+  session: Session,
+  run: Run,
+  job: z.infer<typeof JOB_STEPS> | undefined,
+): Promise<Verdict> {
   const steps = job?.steps ?? [];
   const outcome = steps.find((step) => step.name === TEST_STEP)?.conclusion;
   if (job === undefined || (outcome !== 'success' && outcome !== 'failure')) {
@@ -208,17 +293,26 @@ function testVerdict(io: LocalIo, job: z.infer<typeof JOB_STEPS> | undefined): V
         : 'The tests did not finish, so the run gave no result',
     );
   }
-  printTestOutput(io, job.databaseId);
+  const { io } = session;
+  const log = await readPatiently(session, () => readLog(io, job.databaseId));
+  if (log === undefined) {
+    return unread(run);
+  }
+  printTestOutput(io, log);
   return outcome === 'success'
     ? { code: PASSED, sentence: 'The tests passed' }
     : { code: FAILED, sentence: 'The tests failed' };
 }
 
 /** Reads the completed run and judges it: another commit, cancelled, or the tests' outcome. */
-function judge(session: Session, run: Run): Verdict {
+async function judge(session: Session, run: Run): Promise<Verdict> {
   const { io, commit } = session;
-  const view = io.gh(['run', 'view', run.id, '--json', 'conclusion,headSha,jobs']);
-  const finished = readJson(FINISHED_RUN, view);
+  const finished = await readPatiently(session, () =>
+    readJson(FINISHED_RUN, io.gh(['run', 'view', run.id, '--json', 'conclusion,headSha,jobs'])),
+  );
+  if (finished === undefined) {
+    return unread(run);
+  }
   if (!finished.ok) {
     io.printError(finished.error);
     return noResult('Could not read the run, so it gave no result');
@@ -230,10 +324,24 @@ function judge(session: Session, run: Run): Verdict {
     );
   }
   const job = jobs.find((candidate) => candidate.name === JOB);
-  return conclusion === 'cancelled' ? cancelled(session, run) : testVerdict(io, job);
+  return conclusion === 'cancelled' ? cancelled(session, run) : testVerdict(session, run, job);
 }
 
-/** Waits for `run` until it completes, then prints the verdict on it as the last line. */
+/** The verdict when the wait for `run` reaches its deadline: it cancels the run, if it can. */
+function giveUp(io: LocalIo, run: Run): Verdict {
+  const cancel = io.gh(['run', 'cancel', run.id]);
+  if (cancel.status === 0) {
+    return noResult(
+      'Gave up waiting after forty-five minutes; the run was cancelled so that it takes no runner',
+    );
+  }
+  io.printError(cancel.stderr.trimEnd());
+  return noResult(
+    'Gave up waiting after forty-five minutes; the run could not be cancelled and goes on',
+  );
+}
+
+/** Waits for `run` until it completes or the deadline passes, and gives the verdict on it. */
 async function verdictOf(session: Session, run: Run): Promise<Verdict> {
   const { io } = session;
   const completed = await waitFor(session, completion(io, run));
@@ -241,14 +349,12 @@ async function verdictOf(session: Session, run: Run): Promise<Verdict> {
     io.printError(completed.error);
     return noResult('Could not follow the run, so it gave no result');
   }
-  return completed.value === undefined
-    ? noResult('Gave up waiting after twenty minutes; the run goes on')
-    : judge(session, run);
+  return completed.value === undefined ? giveUp(io, run) : judge(session, run);
 }
 
 /**
- * Follows `run` to its end: prints its address, a line when it starts, the output of the tests
- * and the verdict with the address again, and returns the exit code: 0 when the tests passed, 1
+ * Follows `run` to its end: prints its address, a line when it starts and every five minutes of
+ * the wait, the output of the tests and the verdict with the address again, and returns the exit code: 0 when the tests passed, 1
  * when they failed, 2 when the run gave no result.
  */
 export async function follow(session: Session, run: Run): Promise<number> {

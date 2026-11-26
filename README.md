@@ -70,6 +70,10 @@ bun x playwright install chromium   # once, before `bun run e2e`: the browser it
 | `bun run gate:ci`            | The same steps, each taking the lock on its own.                                        |
 | `bun run lint:workflows`     | actionlint on the workflows, when actionlint is installed.                              |
 
+`test:remote` waits up to 45 minutes while runs queue on GitHub, asking every 30 seconds, and a pull
+request's own CI already runs the whole suite on every push, so a remote run of the same commit
+adds nothing once the pull request is open.
+
 `check:changed` runs Prettier, ESLint, markdownlint and the structure check on the files that
 differ from `origin/main` (committed, staged, unstaged or untracked; deletions and renames count),
 runs `bun run trace` when a specification, a ruling, a test, the waiver register, the criteria
