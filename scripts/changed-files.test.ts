@@ -219,17 +219,25 @@ describe('planCheck', () => {
 });
 
 describe('stepsFor', () => {
-  const TYPE_CHECKS = [
-    'Structure check',
-    'Route types',
-    'Type check, whole project',
-    'Type check, pure core',
-  ];
+  const TYPE_CHECKS = ['Structure check', 'Type check, whole project', 'Type check, pure core'];
+
+  it.each([
+    ['only deleted files', removed('src/lib/log/console-sink.ts')],
+    ['a page', present('src/app/page.tsx')],
+    ['a document alone', present('docs/engineering/glossary.md')],
+    ['a test', present('src/lib/env/server-env.test.ts')],
+  ])('generates the route types before any other step, for %s', (_change, changes) => {
+    const steps = stepsFor(planCheck(changes));
+
+    expect(steps[0]).toStrictEqual({ name: 'Route types', command: ['next', 'typegen'] });
+    expect(steps.filter((step) => step.name === 'Route types')).toHaveLength(1);
+  });
 
   it('type-checks the whole project even when files were only deleted', () => {
     const steps = stepsFor(planCheck(removed('src/lib/log/console-sink.ts')));
 
     expect(steps.map((step) => step.name)).toStrictEqual([
+      'Route types',
       ...TYPE_CHECKS,
       'All unit tests, because of src/lib/log/console-sink.ts',
     ]);
@@ -239,6 +247,7 @@ describe('stepsFor', () => {
     const steps = stepsFor(planCheck(present('src/lib/env/server-env.ts', 'README.md')));
 
     expect(steps.map((step) => step.name)).toStrictEqual([
+      'Route types',
       'Prettier',
       'ESLint',
       'markdownlint',
@@ -302,11 +311,11 @@ describe('stepsFor', () => {
     const steps = stepsFor(planCheck(present('src/lib/env/server-env.test.ts')));
 
     expect(steps.map((step) => step.name)).toStrictEqual([
+      'Route types',
       'Prettier',
       'ESLint',
       'Structure check',
       'Requirement traceability',
-      'Route types',
       'Type check, whole project',
       'Type check, pure core',
       'Related unit tests',
