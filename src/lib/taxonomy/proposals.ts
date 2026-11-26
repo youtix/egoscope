@@ -8,7 +8,7 @@ import { getParam } from '@/lib/params';
 import { err, ok } from '@/lib/result';
 import { now } from '@/lib/time';
 
-import type { EventTypeRow } from './types';
+import type { EventTypeRow, NewEventTypeRow } from './types';
 import type { NoLongerExists, Transaction } from '@/lib/db';
 import type { ChangedElsewhere, Result } from '@/lib/result';
 
@@ -179,8 +179,8 @@ async function isNotOffered(
   );
 }
 
-/** What is wrong with `sheet`, field by field, if anything. */
-async function fieldErrors(
+/** What is wrong with `sheet`, field by field, if anything: a modification checks it too (TAX-21). */
+export async function fieldErrors(
   tx: Transaction,
   sheet: ProposalSheet,
   held: SwitchedOffCriterion | null,
@@ -197,8 +197,31 @@ async function fieldErrors(
   return Object.keys(fields).length === 0 ? undefined : fields;
 }
 
-/** The sheet columns of `sheet`; a calendar-derived type keeps its "known in advance" mark (CL-TAX-20). */
-function sheetColumns(sheet: ProposalSheet, isCalendarDerived: boolean) {
+/** The columns of `event_types` that a sheet fills. */
+type SheetColumns = Required<
+  Pick<
+    NewEventTypeRow,
+    | 'name'
+    | 'definition'
+    | 'inclusionCriteria'
+    | 'exclusionCriteria'
+    | 'datingRule'
+    | 'knownInAdvance'
+    | 'genericExample'
+    | 'cautionNotes'
+    | 'documentationDifficulty'
+    | 'isIntimateSubject'
+    | 'coverageThresholdOutlets'
+    | 'coverageThresholdDays'
+    | 'switchedOffCriterion'
+  >
+>;
+
+/**
+ * The sheet columns of `sheet`, as a proposal or a modification writes them (TAX-01, TAX-21);
+ * a calendar-derived type keeps its "known in advance" mark (CL-TAX-20).
+ */
+export function sheetColumns(sheet: ProposalSheet, isCalendarDerived: boolean): SheetColumns {
   return {
     name: sheet.name.trim(),
     definition: textOrNull(sheet.definition),

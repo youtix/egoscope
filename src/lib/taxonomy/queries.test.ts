@@ -391,6 +391,40 @@ describe('the taxonomy read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
       });
     });
 
+    it('[TAX-28] throws, as a bug, on a chain of merges that leads back to one of its types', async () => {
+      await withdraw(db, MEDIA_STORM, {
+        withdrawalReasonKind: 'merged_into',
+        mergedIntoTypeId: 'public-feud',
+      });
+
+      await expect(resolveTypeId(db, 'public-feud')).rejects.toThrow(
+        'The merge and split links of the event types lead back to public-feud.',
+      );
+    });
+
+    it('[TAX-30] throws, as a bug, on splits that lead back to a type already split on the way', async () => {
+      await withdraw(db, 'coach-fired', { withdrawalReasonKind: 'split_into' });
+      await db
+        .update(eventTypes)
+        .set({ splitFromTypeId: 'coach-fired' })
+        .where(eq(eventTypes.id, 'coaching-change'));
+
+      await expect(resolveTypeId(db, 'coaching-change')).rejects.toThrow(
+        'The merge and split links of the event types lead back to coaching-change.',
+      );
+    });
+
+    it('[TAX-28] [TAX-30] throws, as a bug, on a type born of a split merged back into the split type', async () => {
+      await withdraw(db, 'coach-hired', {
+        withdrawalReasonKind: 'merged_into',
+        mergedIntoTypeId: 'coaching-change',
+      });
+
+      await expect(resolveTypeIds(db, ['coaching-change'])).rejects.toThrow(
+        'The merge and split links of the event types lead back to coaching-change.',
+      );
+    });
+
     it('[TAX-28] [TAX-30] [CL-IMP-22] resolves several identifiers at once, each answer in the order of the identifiers', async () => {
       expect(
         await resolveTypeIds(db, [' Media-Storm', 'public-feud', 'courtside-proposal']),
