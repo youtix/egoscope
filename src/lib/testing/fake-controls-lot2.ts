@@ -10,7 +10,9 @@ import { parseTimestamp } from '@/lib/time';
 import { control } from './commands';
 
 import type { Control } from './commands';
-import type { FakeTelegramOperation } from '@/lib/telegram';
+import type { LanguageModelError } from '@/lib/language-model';
+import type { PressFeedsErrorKind } from '@/lib/press-feeds';
+import type { FakeTelegramOperation, TelegramErrorKind } from '@/lib/telegram';
 
 /**
  * The process's own Lot 2 fakes, those that the ports serve under EGOSCOPE_FAKES, each
@@ -21,6 +23,18 @@ export const lot2FakeControls = {
   languageModel: fakeLanguageModel,
   telegram: fakeTelegram,
 } as const;
+
+/**
+ * `list`, which the type check accepts only when it holds every member of `T` and nothing
+ * else: a kind or an operation that a port adds, and that a control would then be unable to
+ * script, fails the build.
+ */
+const everyOf =
+  <T extends string>() =>
+  <const L extends readonly T[]>(
+    list: L & ([Exclude<T, L[number]>] extends [never] ? unknown : never),
+  ): L =>
+    list;
 
 const count = z.int().nonnegative();
 const address = z.url();
@@ -45,10 +59,14 @@ const feed = z.object({
   keeps: z.int().positive().exactOptional(),
   items: z.array(item),
 });
+const BARE_FEED_ERRORS = everyOf<Exclude<PressFeedsErrorKind, 'http_error'>>()([
+  'unreachable',
+  'requires_identification',
+  'not_a_feed',
+  'unreadable',
+]);
 const feedError = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.enum(['unreachable', 'requires_identification', 'not_a_feed', 'unreadable']),
-  }),
+  z.object({ kind: z.enum(BARE_FEED_ERRORS) }),
   z.object({ kind: z.literal('http_error'), status: z.int() }),
 ]);
 
@@ -73,16 +91,21 @@ const part = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('missing_field'), fact, field: fact.keyof() }),
   z.object({ kind: z.literal('schema_breaking') }),
 ]);
+const BARE_MODEL_ERRORS = everyOf<Exclude<LanguageModelError['kind'], 'rate_limited'>>()([
+  'quota_refused',
+  'schema_not_met',
+  'unavailable',
+  'timeout',
+  'malformed',
+]);
 const modelError = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.enum(['quota_refused', 'schema_not_met', 'unavailable', 'timeout', 'malformed']),
-  }),
+  z.object({ kind: z.enum(BARE_MODEL_ERRORS) }),
   z.object({ kind: z.literal('rate_limited'), retryAfterMs: count.nullable() }),
 ]);
 
 // A Telegram chat, the operations of the bot that call out, and their failures.
 const chat = z.object({ id: z.int(), type: z.enum(CHAT_TYPES) });
-const TELEGRAM_OPERATIONS = [
+const TELEGRAM_OPERATIONS = everyOf<FakeTelegramOperation>()([
   'checkHealth',
   'getMe',
   'sendMessage',
@@ -91,21 +114,20 @@ const TELEGRAM_OPERATIONS = [
   'getWebhookInfo',
   'deleteWebhook',
   'getUpdates',
-] as const satisfies readonly FakeTelegramOperation[];
+]);
+const BARE_TELEGRAM_ERRORS = everyOf<Exclude<TelegramErrorKind, 'rate_limited'>>()([
+  'unreachable',
+  'timeout',
+  'blocked',
+  'chat_not_found',
+  'bot_deactivated',
+  'unauthorized',
+  'too_long',
+  'delete_refused',
+  'webhook_conflict',
+]);
 const telegramError = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.enum([
-      'unreachable',
-      'timeout',
-      'blocked',
-      'chat_not_found',
-      'bot_deactivated',
-      'unauthorized',
-      'too_long',
-      'delete_refused',
-      'webhook_conflict',
-    ]),
-  }),
+  z.object({ kind: z.enum(BARE_TELEGRAM_ERRORS) }),
   z.object({ kind: z.literal('rate_limited'), retryAfterMs: count }),
 ]);
 
