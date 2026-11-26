@@ -8,6 +8,8 @@ export type {
   ScriptedFact,
   ScriptedPart,
 } from './fake';
+export { groqProviders } from './groq';
+export type { GroqConfig } from './groq';
 export { fakeLanguageModel, languageModel } from './port';
 export type { LanguageModelAccess } from './port';
 export { messagesOf } from './types';
