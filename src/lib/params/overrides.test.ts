@@ -219,7 +219,7 @@ describe('the overrides of the parameters', { timeout: 60_000 }, () => {
 
   it('[CL-TRV-16] takes the lock before every read of a save, the bound check included', async () => {
     const statements: string[] = [];
-    await db.transaction(async (tx) =>
+    const saved = await db.transaction(async (tx) =>
       setParam(recordingStatements(tx, statements), {
         key: 'players.maxActive',
         value: 25,
@@ -227,6 +227,7 @@ describe('the overrides of the parameters', { timeout: 60_000 }, () => {
       }),
     );
 
+    expect(saved).toStrictEqual({ ok: true, value: { changed: true, version: 1 } });
     expect(statements[0]).toBe(LOCK_STATEMENT);
     expect(statements.slice(1)).toContain('select');
   });
@@ -234,13 +235,14 @@ describe('the overrides of the parameters', { timeout: 60_000 }, () => {
   it('[CL-TRV-16] takes the lock before every read of a reset, the version check and the bound check included', async () => {
     await save('players.maxActive', 25, 0);
     const statements: string[] = [];
-    await db.transaction(async (tx) =>
+    const reset = await db.transaction(async (tx) =>
       resetParam(recordingStatements(tx, statements), {
         key: 'players.maxActive',
         expectedVersion: 1,
       }),
     );
 
+    expect(reset).toStrictEqual({ ok: true, value: { changed: true, version: 2 } });
     expect(statements[0]).toBe(LOCK_STATEMENT);
     expect(statements.slice(1)).toContain('select');
   });

@@ -97,7 +97,8 @@ async function rebuild(tx: Transaction, caseId: CaseId, earliest: EarliestEvent)
 /**
  * The sensitivity step of an event's erasure (sensitive-data.md section 2.1, step 9), in
  * the caller's transaction `tx`, once `events.eraseEvent` has deleted the event and given
- * its case `caseId`, null when it had none: the case, when no event is left in it, is
+ * its case `caseId`, null when it had none. It locks the case row first, and does nothing
+ * more when the case is already gone; otherwise the case, when no event is left in it, is
  * deleted with its criteria, flags, decisions and history (DSN-27, JOU-24); otherwise,
  * unless `cause` is a player-data deletion, it is rebuilt from its remaining events
  * (CL-SUI-17). No sensitivity row names an event, so none designates it afterwards
@@ -109,6 +110,23 @@ export async function eraseEventData(
   cause: ErasureCause,
 ): Promise<void> {
   if (caseId === null) {
+    return;
+  }
+  // The transaction has locked its event row by deleting it (`events.eraseEvent`, step 8 of
+  // sensitive-data.md section 2.1) and locks the case row now (step 9). Two transactions that
+  // each erase one event take the two in that order, so neither waits for the other: a second
+  // erasure in the case waits here for the first to commit, then reads the events left, so
+  // the last one deletes it. A transaction that erases several events (a player-data deletion,
+  // section 2.2 step 1, a requalification or split, a restore's re-application) must lock all
+  // its event rows, in ascending id, before its first case lock: erasing them one by one would
+  // hold a case row while it waits for an event row that a one-event erasure in the same case
+  // holds, and the one-event erasure then waits for that case row, a deadlock.
+  const [locked] = await tx
+    .select({ id: cases.id })
+    .from(cases)
+    .where(eq(cases.id, caseId))
+    .for('update');
+  if (locked === undefined) {
     return;
   }
   const earliest = await earliestEventOf(tx, caseId);

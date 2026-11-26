@@ -32,6 +32,7 @@ const UNKNOWN = '9999999';
 const WITHOUT_TEAM: PlayerRecord['currentTeam'] = { kind: 'without_team' };
 const SCHEDULE = 'espn_nba_schedules/nba_schedule_2025.csv';
 const BOX_SCORES = 'espn_nba_player_boxscores/player_box_2025.csv';
+const EARLIER = 'espn_nba_player_core/player_core_2026.csv';
 
 /** The instant that `text` writes with its offset. */
 function instant(text: string): EpochMs {
@@ -51,10 +52,14 @@ async function dataOf<T>(answer: Promise<StatsSourceOutcome<ConditionalRead<T>>>
   return outcome.value.data;
 }
 
+type Replay = Awaited<ReturnType<typeof startReplay>>;
+
+/** How many times `replay` answered a request of the 2024-25 box-score file. */
+const boxScoreFileRequests = (replay: Replay): number =>
+  replay.requests.filter(({ path }) => path.endsWith('player_box_2025.csv')).length;
+
 /** The adapter on a local replay of the recorded release, closed when the test ends. */
-async function recordedSource(): Promise<
-  Readonly<{ source: StatsSource; replay: Awaited<ReturnType<typeof startReplay>> }>
-> {
+async function recordedSource(): Promise<Readonly<{ source: StatsSource; replay: Replay }>> {
   const replay = await startReplay();
   onTestFinished(async () => replay.close());
   return { source: createSportsDataverseSource(replay.baseUrl), replay };
@@ -75,8 +80,7 @@ async function recordedHarness(): Promise<StatsSourceHarness> {
     players: PLAYERS,
     formerPlayer: FORMER,
     releasedPlayer: RELEASED,
-    // He played for team 15 in the NBA Cup final alone; team 15 is at home in this game.
-    playerWithoutLine: { player: '9000355', game: '401705483', isHome: true },
+    playerWithoutLine: { player: '9000355', game: '401705483' },
     unknownPlayer: UNKNOWN,
     inject: (fault) => {
       replay.inject(SCHEDULE, replayFaultOf(fault));
@@ -105,14 +109,13 @@ async function gamesOf(source: StatsSource, season: string): Promise<SeasonGames
   return dataOf(source.getSeasonGames(open(), { season, knownVersion: null }));
 }
 
-const byId = (games: readonly SourceGame[]): ReadonlyMap<string, SourceGame> =>
+type GamesById = ReadonlyMap<string, SourceGame>;
+
+const byId = (games: readonly SourceGame[]): GamesById =>
   new Map(games.map((game) => [game.game, game]));
 
 /** The games of `season`, by id. */
-async function gamesById(
-  source: StatsSource,
-  season: string,
-): Promise<ReadonlyMap<string, SourceGame>> {
+async function gamesById(source: StatsSource, season: string): Promise<GamesById> {
   const { games } = await gamesOf(source, season);
   return byId(games);
 }
@@ -351,12 +354,19 @@ describe('[TRV-15] [STA-02] the SportsDataverse adapter on the recorded release'
     ]);
   });
 
-  it('[STA-02] [STA-26] [CL-STA-27] [CL-STA-31] [CL-JOU-16] reads the records of the current player file, a free agent released whatever team id he keeps, and of an earlier one for a player it does not list', async () => {
-    const { source } = await recordedSource();
-    await expect(recordsOf(source, CURRENT, ['9000121', RELEASED, FORMER])).resolves.toStrictEqual([
+  it('[STA-02] [STA-26] [CL-STA-27] [CL-STA-31] [CL-JOU-16] reads the records of the current player file, a free agent released whatever team id he keeps, and of an earlier one for players it does not list, active there or free agents with a team id or none', async () => {
+    const { source, replay } = await recordedSource();
+    // The earlier file lists 9000247 and 9000160 as free agents of teams 26 and 10; the
+    // republished one gives 9000160 no team id.
+    replay.publish(EARLIER, replay.text(EARLIER).replace(',,10,,19,9,', ',,,,19,9,'));
+    expect(replay.text(EARLIER)).not.toContain(',,10,,19,9,');
+    const players = ['9000121', RELEASED, FORMER, '9000247', '9000160'];
+    await expect(recordsOf(source, CURRENT, players)).resolves.toStrictEqual([
       record(['9000121', 'Aras Bragen'], { month: 5, day: 27 }, { kind: 'team', team: '13' }),
       record([RELEASED, 'Ivas Morgel'], { month: 9, day: 2 }, WITHOUT_TEAM),
       record([FORMER, 'Coras Drogek'], { month: 9, day: 25 }, { kind: 'not_listed' }),
+      record(['9000247', 'Galel Krasir'], { month: 12, day: 3 }, { kind: 'not_listed' }),
+      record(['9000160', 'Daven Falmor'], { month: 8, day: 17 }, { kind: 'not_listed' }),
     ]);
   });
 
@@ -481,9 +491,7 @@ describe('[TRV-15] [STA-02] the SportsDataverse adapter on the recorded release'
     ]);
     expect(directory).toMatchObject({ ok: true, value: { kind: 'read' } });
     await source.getSeasonPlayers(open(), request);
-    expect(replay.requests.filter(({ path }) => path.endsWith('player_box_2025.csv'))).toHaveLength(
-      4,
-    );
+    expect(boxScoreFileRequests(replay)).toBe(4);
   });
 
   it('[STA-03] [STA-08] keeps in a call context only the box-score file of the season it asked for last', async () => {
@@ -499,9 +507,7 @@ describe('[TRV-15] [STA-02] the SportsDataverse adapter on the recorded release'
       await read(CURRENT),
       await read(SEASON),
     ]).toStrictEqual([1, 0, 1, 1]);
-    expect(replay.requests.filter(({ path }) => path.endsWith('player_box_2025.csv'))).toHaveLength(
-      4,
-    );
+    expect(boxScoreFileRequests(replay)).toBe(4);
   });
 
   it('[STA-26] [STA-42] [CL-STA-27] [CL-STA-30] reads the current player file once, conditionally, and earlier ones for unlisted players only', async () => {

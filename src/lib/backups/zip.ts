@@ -75,7 +75,7 @@ function bytes(fields: readonly Field[], tail: Uint8Array = new Uint8Array()): U
   for (const [kind, value] of fields) {
     if (value > MAXIMUMS[kind]) {
       throw new Error(
-        `A ZIP field of ${String(WIDTHS[kind])} bytes holds at most ${String(MAXIMUMS[kind])}, not ${String(value)}: the archive has no ZIP64 records, so it stays under 4 GiB and 65535 entries.`,
+        `A ZIP field of ${String(WIDTHS[kind])} bytes holds at most ${String(MAXIMUMS[kind])}, not ${String(value)}: the archive has no ZIP64 records, so its sizes and offsets stay below 4 GiB, and its counts and name lengths below 65535.`,
       );
     }
     if (kind === SHORT) {

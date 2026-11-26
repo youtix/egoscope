@@ -54,7 +54,7 @@ function fakeHarness(): StatsSourceHarness {
     players: ['p01', 'p02'],
     formerPlayer: 'p06',
     releasedPlayer: RELEASED,
-    playerWithoutLine: { player: 'p02', game: '2025-26:r01:h3', isHome: true },
+    playerWithoutLine: { player: 'p02', game: '2025-26:r01:h3' },
     unknownPlayer: 'p99',
     inject: (fault) => {
       fake.clearFaults();
@@ -247,6 +247,15 @@ const flagsAskedSidesOnly: WrongSource = (source) => ({
     })),
 });
 
+// Flags the home side alone of each game that holds lines.
+const flagsHomeSidesOnly: WrongSource = (source) => ({
+  getSeasonBoxScores: async (ctx, request) =>
+    changedRead(await source.getSeasonBoxScores(ctx, request), (read) => ({
+      ...read,
+      sidesWithLines: read.sidesWithLines.map(({ game }) => ({ game, home: true, away: false })),
+    })),
+});
+
 // Flags both sides of every game of the season, played or not.
 const flagsEverySide: WrongSource = (source) => ({
   getSeasonBoxScores: async (ctx, request) => {
@@ -289,7 +298,14 @@ describe('the stats-source contract against adapters that break it', () => {
 
   it('[STA-08] [CL-STA-04] finds by the side of a player without a line an adapter that flags the sides by the lines asked only', async () => {
     await expect(contractProblems(flagsAskedSidesOnly)).resolves.toStrictEqual([
-      'sides holding lines of players not asked that are not flagged: [{"game":"2025-26:r01:h3","home":false,"away":false}]',
+      'home sides holding lines of players not asked that are not flagged: [{"game":"2025-26:r01:h3","home":false,"away":false}]',
+      'away sides holding lines of players not asked that are not flagged: [{"game":"2025-26:r01:h3","home":false,"away":false}]',
+    ]);
+  });
+
+  it('[STA-08] [CL-STA-04] finds by the other side of the game an adapter that flags the home sides only', async () => {
+    await expect(contractProblems(flagsHomeSidesOnly)).resolves.toStrictEqual([
+      'away sides holding lines of players not asked that are not flagged: [{"game":"2025-26:r01:h3","home":true,"away":false}]',
     ]);
   });
 

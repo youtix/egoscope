@@ -27,6 +27,20 @@ const DAY = 86_400_000;
 const PLAYER = leaguePlayerId('p01');
 const OTHER_PLAYER = leaguePlayerId('p02');
 
+/**
+ * Notes in `statements`, in order, the text and parameters of every statement that `db`
+ * sends from now on, as the query logger of its session receives them.
+ */
+function recordStatements(db: Database, statements: string[]): void {
+  Object.assign(db._.session, {
+    logger: {
+      logQuery: (query: string, params: readonly unknown[]) => {
+        statements.push(`${query} ${JSON.stringify(params)}`);
+      },
+    },
+  });
+}
+
 /** An outcome row of an import, without the import it belongs to. */
 type Outcome = Omit<NewImportEventOutcomeRow, 'importId'>;
 
@@ -345,6 +359,20 @@ describe('the import traces read API', { timeout: DATABASE_TEST_TIMEOUT_MS }, ()
 
       await expect(remainingRefusalSum(db, PLAYER)).resolves.toBe(3);
       await expect(remainingRefusalSum(db, OTHER_PLAYER)).resolves.toBe(1);
+    });
+
+    it('[IMP-24] [CL-IMP-24] selects the refused rows with a rank, the condition of the partial index on ranks', async () => {
+      const into = await request();
+      const statements: string[] = [];
+      recordStatements(db, statements);
+
+      await remainingRefusals(db, into.id);
+      await remainingRefusalSum(db, PLAYER);
+
+      expect(statements).toStrictEqual([
+        `select "position", "event_type_as_read", "date_as_read", "reason" from "import_event_outcomes" where ("import_event_outcomes"."import_id" in (select "id" from "imports" where "imports"."backtest_request_id" = $1 order by "imports"."imported_at" desc, "imports"."sequence_number" desc limit $2) and "import_event_outcomes"."outcome" = $3 and "import_event_outcomes"."position" is not null) order by "import_event_outcomes"."position" asc [${String(into.id)},1,"refused"]`,
+        `select count(*) from "import_event_outcomes" where ("import_event_outcomes"."import_id" in (select distinct on ("imports"."backtest_request_id") "id" from "imports" where "imports"."player_id" = $1 order by "imports"."backtest_request_id", "imports"."imported_at" desc, "imports"."sequence_number" desc) and "import_event_outcomes"."outcome" = $2 and "import_event_outcomes"."position" is not null) ["${PLAYER}","refused"]`,
+      ]);
     });
   });
 

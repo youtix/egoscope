@@ -23,9 +23,7 @@ describe('FilterSummary', () => {
   it('[IHM-61] passes the WCAG 2.2 AA rules', async () => {
     for (const count of [3, 1]) {
       const { container, unmount } = render(
-        <p>
-          <FilterSummary filter="probable" count={count} total={41} />
-        </p>,
+        <FilterSummary filter="probable" count={count} total={41} />,
       );
 
       const results = await axe.run(container, WCAG_22_AA);

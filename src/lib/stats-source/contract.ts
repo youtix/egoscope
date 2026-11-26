@@ -157,12 +157,14 @@ async function keepsReleasedApart(harness: StatsSourceHarness): Promise<Problems
   );
 }
 
-/** A side holding lines of other players than those asked is flagged as holding lines (CL-STA-04). */
+/**
+ * Both sides of a game that holds lines on both are flagged as holding lines, whichever
+ * players were asked: here a player who has none in it (CL-STA-04).
+ */
 async function flagsSidesOfOthers(harness: StatsSourceHarness): Promise<Problems> {
-  const { player, game, isHome } = harness.playerWithoutLine;
+  const { player, game } = harness.playerWithoutLine;
   const read = await boxScoresReadOf(harness, harness.season, [player]);
   const sides = sidesOf(read?.sidesWithLines ?? [], game);
-  const isFlagged = isHome ? sides.home : sides.away;
   return [
     ...problem('box scores not read', read === undefined ? [harness.season] : []),
     ...problem(
@@ -170,8 +172,12 @@ async function flagsSidesOfOthers(harness: StatsSourceHarness): Promise<Problems
       (read?.data ?? []).filter((line) => line.game === game),
     ),
     ...problem(
-      'sides holding lines of players not asked that are not flagged',
-      isFlagged ? [] : [sides],
+      'home sides holding lines of players not asked that are not flagged',
+      sides.home ? [] : [sides],
+    ),
+    ...problem(
+      'away sides holding lines of players not asked that are not flagged',
+      sides.away ? [] : [sides],
     ),
   ];
 }

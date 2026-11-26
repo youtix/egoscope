@@ -31,9 +31,12 @@ export type SaveDraftError =
 
 /**
  * A copy the server accepted: the counter at that instant (CL-DSN-22), whether it wrote it,
- * `false` when the server holds a later change, which it keeps, and the instant it stored
- * as the copy's last change, never later than the server's clock, which the device keeps
- * for its sent copy so that both copies compare on the server's instants (CL-DSN-17).
+ * `false` when the server holds a later change, which it keeps, and an instant. When the
+ * copy was written, `updatedAt` is the instant the server stored as the copy's last change,
+ * never later than the server's clock, which the device keeps for its sent copy so that both
+ * copies compare on the server's instants (CL-DSN-17). When it was not, the server stored
+ * nothing: `updatedAt` is the upload's own instant clamped to the server's clock, which the
+ * device ignores.
  */
 export type SavedCopy = Readonly<{
   withdrawnEventCount: number;
