@@ -16,6 +16,8 @@ import { insertEventType } from './taxonomy';
 import type { Database } from '@/lib/db';
 
 const AT = toEpochMs(Date.UTC(2026, 10, 2, 9));
+// An instant of the import other than now.
+const EARLIER = toEpochMs(Date.UTC(2026, 9, 30, 21, 45));
 const BEREAVEMENT_PERIOD = {
   eventTypeId: 'bereavement',
   startOn: '2024-10-22',
@@ -118,5 +120,38 @@ describe('the backtest factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
     await expect(
       db.select({ type: backtestCoveragePeriods.eventTypeId }).from(backtestCoveragePeriods),
     ).resolves.toStrictEqual([{ type: 'media-storm' }, { type: 'media-storm' }]);
+  });
+
+  it('writes the mode, the truncation-recovered flag and the instant of the import that it is given, the request and the coverage at that instant', async () => {
+    const request = await insertRequest(db, { playerId });
+
+    const imported = await insertImport(db, {
+      request,
+      mode: 'addition',
+      truncationRecovered: true,
+      importedAt: new Date(EARLIER),
+    });
+
+    expect(imported).toMatchObject({
+      mode: 'addition',
+      truncationRecovered: true,
+      importedAt: new Date(EARLIER),
+    });
+    await expect(
+      db.select({ importedAt: backtestRequests.importedAt }).from(backtestRequests),
+    ).resolves.toStrictEqual([{ importedAt: new Date(EARLIER) }]);
+    await expect(
+      db.select({ recordedAt: backtestCoveragePeriods.recordedAt }).from(backtestCoveragePeriods),
+    ).resolves.toStrictEqual([{ recordedAt: new Date(EARLIER) }]);
+  });
+
+  it('writes a first import, which recovered no truncation, made now, unless told otherwise', async () => {
+    const imported = await insertImport(db, { request: await insertRequest(db, { playerId }) });
+
+    expect(imported).toMatchObject({
+      mode: 'first_import',
+      truncationRecovered: false,
+      importedAt: new Date(AT),
+    });
   });
 });

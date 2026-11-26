@@ -1,16 +1,38 @@
-import { asc, ne } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { asc, eq, ne } from 'drizzle-orm';
+import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 
-import { createTestDatabase, eventTypes, typeSheetVersions } from '@/lib/db';
+import {
+  createTestDatabase,
+  drafts,
+  eventTypes,
+  journalEntries,
+  typeSheetVersions,
+} from '@/lib/db';
 import { seedCandidateTypes } from '@/lib/taxonomy';
-import { toEpochMs } from '@/lib/time';
+import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
+import { firstRow } from '../rows';
+import { applyScenarios } from '../scenarios';
 import { DATABASE_TEST_TIMEOUT_MS } from '../timeouts';
 import { insertCalendarType, insertEventType } from './taxonomy';
 
 import type { Database } from '@/lib/db';
 
 const STARTED_AT = toEpochMs(Date.UTC(2026, 10, 20, 8, 15));
+
+/** Writes a journal entry that refers to the media storm, as the owner's edit of its sheet would. */
+async function journalOfMediaStorm(db: Database) {
+  const written = await db
+    .insert(journalEntries)
+    .values({
+      category: 'user_action',
+      level: 'info',
+      messageKey: 'taxonomy.edited',
+      eventTypeId: 'media-storm',
+    })
+    .returning();
+  return firstRow(written, 'the journal entry');
+}
 
 describe('the taxonomy factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
@@ -102,6 +124,145 @@ describe('the taxonomy factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => 
       status: 'validated',
       calendarDerivation: 'birthday',
       currentVersionNumber: 1,
+    });
+  });
+
+  it('[TAX-15] writes the type that a scenario asks for over a seeded proposal that a journal entry refers to, and keeps the entry', async () => {
+    onTestFinished(installFakeClock(fixedClock(STARTED_AT)));
+    await seedCandidateTypes(db, STARTED_AT);
+    const entry = await journalOfMediaStorm(db);
+
+    await expect(applyScenarios(db, ['request-to-do'])).resolves.toStrictEqual({
+      ok: true,
+      value: ['request-to-do'],
+    });
+
+    await expect(db.select().from(journalEntries)).resolves.toStrictEqual([entry]);
+    await expect(
+      db
+        .select({ status: eventTypes.status })
+        .from(eventTypes)
+        .where(eq(eventTypes.id, 'media-storm')),
+    ).resolves.toStrictEqual([{ status: 'validated' }]);
+  });
+
+  it('[TAX-15] keeps the draft that explores a seeded proposal when it writes the type asked for over it', async () => {
+    await seedCandidateTypes(db, STARTED_AT);
+    const draft = await db
+      .insert(drafts)
+      .values({
+        kind: 'exploration_response',
+        explorationEventTypeId: 'media-storm',
+        text: 'An answer pasted on the phone.',
+        originDevice: 'phone',
+      })
+      .returning();
+
+    await insertEventType(db);
+
+    await expect(db.select().from(drafts)).resolves.toStrictEqual(draft);
+  });
+
+  it("[TAX-15] writes every column asked for over an edited seeded proposal, the others at their defaults and none of the proposal's left over", async () => {
+    await seedCandidateTypes(db, STARTED_AT);
+    await db
+      .update(eventTypes)
+      .set({ cautionNotes: 'A note of the owner.', isIntimateSubject: true, rowVersion: 3 })
+      .where(eq(eventTypes.id, 'media-storm'));
+    await journalOfMediaStorm(db);
+
+    const { createdAt, ...written } = await insertEventType(db, {
+      exclusionCriteria: 'A single article.',
+    });
+
+    expect(createdAt).toBeInstanceOf(Date);
+    expect(written).toStrictEqual({
+      id: 'media-storm',
+      status: 'validated',
+      origin: 'scoping',
+      name: 'Media storm',
+      definition: 'Wide coverage of one player by the press in a short time.',
+      inclusionCriteria: 'Three outlets or more write about the player within two days.',
+      exclusionCriteria: 'A single article.',
+      datingRule: 'The day of the first article.',
+      knownInAdvance: false,
+      calendarDerivation: null,
+      genericExample: 'A player leads every sports page for two days.',
+      documentationDifficulty: 'medium',
+      cautionNotes: null,
+      isIntimateSubject: false,
+      coverageThresholdOutlets: null,
+      coverageThresholdDays: null,
+      switchedOffCriterion: null,
+      currentVersionNumber: 1,
+      rejectionReason: null,
+      rejectionComment: null,
+      withdrawalReasonKind: null,
+      withdrawalReason: null,
+      mergedIntoTypeId: null,
+      splitFromTypeId: null,
+      noFitReason: null,
+      rowVersion: 1,
+    });
+    await expect(db.select().from(typeSheetVersions)).resolves.toMatchObject([
+      { eventTypeId: 'media-storm', versionNumber: 1, kind: 'validation' },
+    ]);
+  });
+
+  it("[TAX-15] takes an override given as undefined for one left out over an edited seeded proposal, none of the proposal's left over", async () => {
+    await seedCandidateTypes(db, STARTED_AT);
+    await db
+      .update(eventTypes)
+      .set({ cautionNotes: 'A note of the owner.', isIntimateSubject: true })
+      .where(eq(eventTypes.id, 'media-storm'));
+
+    await expect(
+      insertEventType(db, {
+        status: undefined,
+        cautionNotes: undefined,
+        isIntimateSubject: undefined,
+      }),
+    ).resolves.toMatchObject({
+      id: 'media-storm',
+      status: 'validated',
+      name: 'Media storm',
+      cautionNotes: null,
+      isIntimateSubject: false,
+      currentVersionNumber: 1,
+    });
+    await expect(db.select().from(typeSheetVersions)).resolves.toMatchObject([
+      { eventTypeId: 'media-storm', versionNumber: 1, kind: 'validation' },
+    ]);
+  });
+
+  it('[TAX-01] [TAX-20] takes an override given as undefined for one left out when it inserts a type', async () => {
+    await expect(
+      insertEventType(db, {
+        status: undefined,
+        definition: undefined,
+        documentationDifficulty: undefined,
+      }),
+    ).resolves.toMatchObject({
+      id: 'media-storm',
+      status: 'validated',
+      definition: 'Wide coverage of one player by the press in a short time.',
+      documentationDifficulty: 'medium',
+      currentVersionNumber: 1,
+    });
+  });
+
+  it("[TAX-10] keeps the birthday's own columns that an override gives as undefined", async () => {
+    await expect(
+      insertCalendarType(db, {
+        datingRule: undefined,
+        knownInAdvance: undefined,
+        calendarDerivation: undefined,
+      }),
+    ).resolves.toMatchObject({
+      id: 'birthday',
+      datingRule: 'The day of the birthday.',
+      knownInAdvance: true,
+      calendarDerivation: 'birthday',
     });
   });
 

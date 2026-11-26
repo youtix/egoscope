@@ -1,7 +1,13 @@
-import { and, eq, ne } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDatabase, eventTypes, followedPlayers, sensitivityProfiles } from '@/lib/db';
+import {
+  createTestDatabase,
+  eventTypes,
+  followedPlayers,
+  parameterChanges,
+  sensitivityProfiles,
+} from '@/lib/db';
 import { setParam } from '@/lib/params';
 import {
   BIRTHDAY,
@@ -48,6 +54,9 @@ const LEAGUE_PLAYERS: readonly LeaguePlayer[] = [
 const OTHER_TYPES = ['type-a', 'type-b', 'type-c', 'type-d'];
 // The counts of a profile of seven valid cases, each with one event.
 const SEVEN_VALID_CASES = { eventCount: 7, caseCount: 7, validCount: 7, historicalValidCount: 7 };
+// The world's one change of a calculation parameter: the league's minimum baseline, which
+// the league factory saves through the parameter registry, as the owner would, at `AT`.
+const LEAGUE_BASELINE_KEY = 'games.minBaselineGames';
 
 type World = Readonly<{
   db: Database;
@@ -72,6 +81,16 @@ async function openWorld(): Promise<World> {
       await database.close();
     },
   };
+}
+
+/** The journal entry of the last change of the parameter `key` (TRV-35). */
+async function lastChangeEntry(db: Database, key: string): Promise<number | null | undefined> {
+  const [last] = await db
+    .select({ journalEntryId: parameterChanges.journalEntryId })
+    .from(parameterChanges)
+    .where(eq(parameterChanges.parameterKey, key))
+    .orderBy(desc(parameterChanges.id));
+  return last?.journalEntryId;
 }
 
 /** The verdict history entry of the world's change: a parameter change turned a possible increase inconclusive, of low confidence before and after. */
@@ -130,7 +149,10 @@ describe(
         tally: { validCount: 7 },
       });
       expect(listing.expectedFalseSignals.evaluatedPairCount).toBe(1);
-      expect(listing.lastCalculationChange).toBeNull();
+      expect(listing.lastCalculationChange).toStrictEqual({
+        changedAt: AT,
+        journalEntryId: await lastChangeEntry(db, LEAGUE_BASELINE_KEY),
+      });
     });
 
     it('[IHM-49] keeps the profiles that the filter names, and still gives the total', async () => {
@@ -287,9 +309,10 @@ describe('the evaluated pairs of the profile list', { timeout: DATABASE_TEST_TIM
     expect(archived.expectedFalseSignals.evaluatedPairCount).toBe(1);
     expect(atThreshold.expectedFalseSignals.evaluatedPairCount).toBe(1);
     expect(raised.expectedFalseSignals.evaluatedPairCount).toBe(0);
+    // The last change, not the league's earlier one at the same instant.
     expect(raised.lastCalculationChange).toStrictEqual({
       changedAt: AT,
-      journalEntryId: ANY_NUMBER,
+      journalEntryId: await lastChangeEntry(db, 'sensitivity.minValidCases'),
     });
   });
 

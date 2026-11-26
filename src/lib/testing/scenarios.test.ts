@@ -451,7 +451,7 @@ describe('the scenarios', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     await expect(db.select({ id: eventTypes.id }).from(eventTypes)).resolves.toHaveLength(9);
   });
 
-  it('[TAX-15] leaves the types that a scenario validated, and a proposal the owner edited, as they are when it seeds again', async () => {
+  it('[TAX-15] leaves the types that a scenario validated, and an edited proposal that no scenario asks for, as they are when it seeds again', async () => {
     await applyScenarios(db, ['validated-type-with-calendar-sibling']);
     await db
       .update(eventTypes)

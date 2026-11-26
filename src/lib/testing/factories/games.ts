@@ -11,9 +11,9 @@ import {
 } from '@/lib/db';
 import { createFakeStatsSource } from '@/lib/stats-source';
 import { now, toEpochMs } from '@/lib/time';
-import engineParams from '@data/fixtures/stats-engine/engine-params.json';
 
 import { firstRow, readData } from '../rows';
+import { engineParamsOf, setOwnerParam } from './params';
 
 import type { LeaguePlayer } from './players';
 import type { Database } from '@/lib/db';
@@ -31,11 +31,10 @@ const STATS_SOURCE = 'sportsdataverse_espn';
 // Time enough for the fake, which answers at once, to answer.
 const CALL_WINDOW_MS = 60_000;
 const DAY_MS = 86_400_000;
-// The correction window after a game, games.correctionWindowDays at its default (STA-33).
-const CORRECTION_WINDOW_MS = engineParams.games.correctionWindowDays * DAY_MS;
 // The most games a baseline of the invented league holds: a team's ten games of a
 // season, the measured game excluded (STA-17, STA-19).
 const LEAGUE_BASELINE_GAMES = 9;
+const MIN_BASELINE_KEY = 'games.minBaselineGames';
 
 /** A fresh fake of the statistics source, which serves the invented league without fault, and the context of a call to it. */
 function league(): Readonly<{ source: FakeStatsSource; ctx: CallContext }> {
@@ -85,14 +84,14 @@ async function writeTeams(db: Database, data: SeasonGames, season: string): Prom
 /**
  * The row of a regular-season game as the fake serves it, its lines published when the
  * season's box scores hold them, and consolidated when it is final and its correction
- * window was over before now (STA-33).
+ * window, `correctionWindowMs` long, was over before now (STA-33).
  */
-function gameRow(game: SourceGame, data: SeasonGames) {
+function gameRow(game: SourceGame, data: SeasonGames, correctionWindowMs: number) {
   const at = now();
   const fetchedAt = new Date(at);
   const hasLines =
     game.status === 'final' && !data.coverage.gamesWithoutBoxScores.includes(game.game);
-  const isConsolidated = game.status === 'final' && game.tipOff + CORRECTION_WINDOW_MS <= at;
+  const isConsolidated = game.status === 'final' && game.tipOff + correctionWindowMs <= at;
   return {
     statsSource: STATS_SOURCE,
     sourceGameRef: game.game,
@@ -116,23 +115,39 @@ function gameRow(game: SourceGame, data: SeasonGames) {
 }
 
 /**
+ * Sets the minimum baseline size, `games.minBaselineGames`, to the league's nine games
+ * through the registry, as the owner would (STA-19, TRV-35), unless the database already
+ * overrides it.
+ */
+async function setLeagueBaseline(db: Database): Promise<void> {
+  const owned = await db
+    .select({ key: parameterOverrides.parameterKey })
+    .from(parameterOverrides)
+    .where(eq(parameterOverrides.parameterKey, MIN_BASELINE_KEY));
+  if (owned.length === 0) {
+    await setOwnerParam(db, MIN_BASELINE_KEY, LEAGUE_BASELINE_GAMES);
+  }
+}
+
+/**
  * Writes `season` of the invented league as the statistics-source fake serves it
  * (TRV-15): the season and its coverage, its teams under their source identifiers, and
  * every game of its regular season, unless they are written already, so that the fake
  * and the database agree and scenarios combine. A team of the league plays ten games a
  * season, so a baseline holds nine at most, under the default minimum of ten: unless the
  * database already overrides it, the minimum baseline size, `games.minBaselineGames`, is
- * set to 9, a value of its range (STA-19), so that a case of the league can be measured.
- * Gives the identifier of each game of the season by the source's game identifier.
+ * set to 9, a value of its range (STA-19), so that a case of the league can be measured:
+ * saved through the registry, so that its history and the journal record the change
+ * (TRV-35). A game is consolidated by the correction window in force (STA-33). Gives
+ * the identifier of each game of the season by the source's game identifier.
  */
 export async function insertLeagueSeason(
   db: Database,
   season: string,
 ): Promise<ReadonlyMap<SourceGameId, number>> {
-  await db
-    .insert(parameterOverrides)
-    .values({ parameterKey: 'games.minBaselineGames', value: LEAGUE_BASELINE_GAMES })
-    .onConflictDoNothing();
+  await setLeagueBaseline(db);
+  const params = await engineParamsOf(db);
+  const correctionWindowMs = params.games.correctionWindowDays * DAY_MS;
   const { source, ctx } = league();
   const data = readData(
     await source.getSeasonGames(ctx, { season, knownVersion: null }),
@@ -154,7 +169,7 @@ export async function insertLeagueSeason(
   );
   await db
     .insert(games)
-    .values(regularSeason.map((game) => gameRow(game, data)))
+    .values(regularSeason.map((game) => gameRow(game, data, correctionWindowMs)))
     .onConflictDoNothing();
   const written = await db
     .select({ id: games.id, ref: games.sourceGameRef })

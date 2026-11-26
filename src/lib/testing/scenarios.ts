@@ -29,7 +29,13 @@ import type { EventTypeRow } from './factories/taxonomy';
 import type { Database } from '@/lib/db';
 import type { Result } from '@/lib/result';
 
-/** A named situation of the specs, which writes its rows into a database that may already hold others. */
+/**
+ * A named situation of the specs, which writes its rows into a database that may already
+ * hold others. It writes only through the database it is given, which is the seed's
+ * transaction, opened with `pg_advisory_xact_lock(hashtext('egoscope.testing.seed'))`:
+ * production code that opened its own `getDb()` inside a scenario would wait behind that
+ * open transaction on the hermetic PGlite.
+ */
 export type Scenario = (db: Database) => Promise<unknown>;
 
 /** The scenarios of one area and lot, by name. */
@@ -244,7 +250,9 @@ const SEED_LOCK = 'egoscope.testing.seed';
  * already applied, leaves its rows as they are. The seed runs in one transaction that
  * takes the seed lock first, so that two seeds sent at once, by the desktop and the phone
  * projects say, run one after the other, and a scenario that throws leaves no row of the
- * seed behind. Writes nothing when a name is unknown, and names those. `registry` holds
+ * seed behind. Each scenario writes only through that transaction, never through a
+ * connection of its own, which would wait behind the seed's open transaction. Writes
+ * nothing when a name is unknown, and names those. `registry` holds
  * the scenarios by name, those of every world unless a test gives its own.
  */
 export async function applyScenarios(

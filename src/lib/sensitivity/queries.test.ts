@@ -42,6 +42,11 @@ const WORKED_EXAMPLE_GAPS = [1.16, -0.43, 0.95, 0.55, 1.81, -0.2, 1.13, 1.43];
 const WORKED_EXAMPLE_C7 = 4;
 
 const ANY_ID: unknown = expect.any(Number);
+// The world's one change of a calculation parameter: the league's minimum baseline, which
+// the league factory saves through the parameter registry, as the owner would, at `AT`.
+const LEAGUE_CHANGE = { changedAt: AT, journalEntryId: ANY_ID };
+// An hour after the world was built, when the owner changes a parameter of his own.
+const LATER = toEpochMs(AT + 3_600_000);
 // The world's default profile with its seven valid cases excluded too: of its ten cases, none
 // is valid and eight are excluded, beside the one not measurable and the one awaiting.
 const EVERY_CASE_EXCLUDED = {
@@ -169,7 +174,7 @@ describe('the reads of a profile and a trend', { timeout: DATABASE_TEST_TIMEOUT_
       casesWithoutWhichVerdictChanges: [],
       notices: [],
       warnings: [],
-      lastCalculationChange: null,
+      lastCalculationChange: LEAGUE_CHANGE,
     });
     expect(profile?.values).toMatchObject({
       view: 'all_cases',
@@ -294,7 +299,7 @@ describe('the reads of a profile and a trend', { timeout: DATABASE_TEST_TIMEOUT_
       notices: [],
       warnings: [],
       casesWithoutWhichVerdictChanges: [],
-      lastCalculationChange: null,
+      lastCalculationChange: LEAGUE_CHANGE,
       values: {
         view: 'all_cases',
         tally: { validCount: 7, excludedCount: 1 },
@@ -533,15 +538,17 @@ describe(
 
     it('[SEN-37] [CL-IHM-12] gives the last change of a calculation parameter with its journal entry', async () => {
       const { db } = world;
+      const restoreClock = installFakeClock(fixedClock(LATER));
       await db.transaction(async (tx) =>
         setParam(tx, { key: 'sensitivity.minValidCases', value: 6, expectedVersion: 0 }),
       );
+      restoreClock();
 
       await expect(getProfile(db, key)).resolves.toMatchObject({
-        lastCalculationChange: { changedAt: AT, journalEntryId: ANY_ID },
+        lastCalculationChange: { changedAt: LATER, journalEntryId: ANY_ID },
       });
       await expect(getTrend(db, { eventTypeId: MEDIA_STORM })).resolves.toMatchObject({
-        lastCalculationChange: { changedAt: AT },
+        lastCalculationChange: { changedAt: LATER },
       });
     });
 

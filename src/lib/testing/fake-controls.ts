@@ -5,15 +5,13 @@ import { fakeLinkCheck } from '@/lib/link-check';
 import { err, ok } from '@/lib/result';
 import { processFakeRuntimeCache } from '@/lib/runtime-cache';
 import { fakeStatsSource } from '@/lib/stats-source';
+import { PLAN_KEY } from '@/lib/wake-plan';
 
 import { invalidCommand } from './commands';
 import { isoInstant } from './fixed-clock';
 
 import type { InvalidCommand } from './commands';
 import type { Result } from '@/lib/result';
-
-// The key under which the wake plan sits in the runtime cache (wake-plan, plan.ts).
-const WAKE_PLAN_KEY = 'wake:plan';
 
 /**
  * The controls of the process's fakes, which the tests and the hermetic end-to-end
@@ -25,7 +23,7 @@ const WAKE_PLAN_KEY = 'wake:plan';
 export const fakeControls = {
   runtimeCache: {
     evictWakePlan: () => {
-      processFakeRuntimeCache().evict(WAKE_PLAN_KEY);
+      processFakeRuntimeCache().evict(PLAN_KEY);
     },
     loseWakePlan: () => {
       processFakeRuntimeCache().loseAll();

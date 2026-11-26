@@ -1,10 +1,11 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, isNotNull } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   boxScores,
   createTestDatabase,
   games,
+  parameterChanges,
   parameterOverrides,
   seasons,
   teams,
@@ -17,6 +18,7 @@ import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 import { firstRow, readData } from '../rows';
 import { DATABASE_TEST_TIMEOUT_MS } from '../timeouts';
 import { insertBoxScores, insertLeagueSeason } from './games';
+import { setOwnerParam } from './params';
 import { insertPlayer } from './players';
 
 import type { Database } from '@/lib/db';
@@ -59,6 +61,15 @@ function firstTimedLine(lines: readonly SourceBoxScore[]) {
     }
   }
   throw new Error('Expected a line timed to the second, found none.');
+}
+
+/** The changes of the minimum baseline size that its history holds, in their order. */
+async function baselineChanges(db: Database) {
+  return db
+    .select({ oldValue: parameterChanges.oldValue, newValue: parameterChanges.newValue })
+    .from(parameterChanges)
+    .where(eq(parameterChanges.parameterKey, 'games.minBaselineGames'))
+    .orderBy(asc(parameterChanges.id));
 }
 
 describe('the league factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
@@ -137,7 +148,7 @@ describe('the league factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
     ]);
   });
 
-  it('[STA-19] sets the minimum baseline size to the nine games that a baseline of the league holds, once', async () => {
+  it('[STA-19] [TRV-35] sets the minimum baseline size to the nine games that a baseline of the league holds, once, through the registry', async () => {
     await insertLeagueSeason(db, '2024-25');
     await insertLeagueSeason(db, '2025-26');
 
@@ -146,18 +157,18 @@ describe('the league factories', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
         .select({ key: parameterOverrides.parameterKey, value: parameterOverrides.value })
         .from(parameterOverrides),
     ).resolves.toStrictEqual([{ key: 'games.minBaselineGames', value: 9 }]);
+    await expect(baselineChanges(db)).resolves.toStrictEqual([{ oldValue: 10, newValue: 9 }]);
   });
 
-  it('[STA-19] keeps the minimum baseline size that the database already overrides', async () => {
-    await db
-      .insert(parameterOverrides)
-      .values({ parameterKey: 'games.minBaselineGames', value: 12 });
+  it('[STA-19] [TRV-35] keeps the minimum baseline size that the owner set, and adds no change to its history', async () => {
+    await setOwnerParam(db, 'games.minBaselineGames', 12);
 
     await insertLeagueSeason(db, '2024-25');
 
     await expect(
       db.select({ value: parameterOverrides.value }).from(parameterOverrides),
     ).resolves.toStrictEqual([{ value: 12 }]);
+    await expect(baselineChanges(db)).resolves.toStrictEqual([{ oldValue: 10, newValue: 12 }]);
   });
 
   it('leaves the lines of a game that is not played yet unpublished', async () => {
@@ -294,5 +305,14 @@ describe('the consolidation of the games', { timeout: DATABASE_TEST_TIMEOUT_MS }
         'scheduled, in its window, not consolidated',
       ]),
     );
+  });
+
+  it('[STA-33] consolidates by the correction window that the owner set, 28 days, within which every game played lies', async () => {
+    await setOwnerParam(db, 'games.correctionWindowDays', 28);
+
+    await insertLeagueSeason(db, '2026-27');
+
+    await expect(db.$count(games, isNotNull(games.consolidatedAt))).resolves.toBe(0);
+    await expect(db.$count(games, eq(games.status, 'final'))).resolves.toBeGreaterThan(1);
   });
 });
