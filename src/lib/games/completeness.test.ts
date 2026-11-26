@@ -30,6 +30,8 @@ const P01 = leaguePlayerId('p01');
 const P03 = leaguePlayerId('p03');
 const P04 = leaguePlayerId('p04');
 const byNumber = (left: number, right: number): number => left - right;
+// The checks that a line of each status failed: a suspect line keeps at least one (STA-09).
+const FAILED_CHECKS_OF = { incomplete: [], suspect: ['points_mismatch'] } as const;
 
 /** Noon UTC, the same day in Paris, on a day counted from 1 November 2025: day 35 is 5 December. */
 const noonOf = (day: number): EpochMs => toEpochMs(Date.UTC(2025, 10, day, 12));
@@ -94,10 +96,11 @@ describe('the derivations after each ingestion', { timeout: DATABASE_TEST_TIMEOU
       .orderBy(asc(games.scheduledStartAt), asc(boxScores.id));
   }
 
+  /** Makes a line incomplete, or suspect of a points mismatch (STA-09). */
   async function setStatus(lineId: number | undefined, status: 'incomplete' | 'suspect') {
     await db
       .update(boxScores)
-      .set({ status })
+      .set({ status, failedChecks: [...FAILED_CHECKS_OF[status]] })
       .where(eq(boxScores.id, lineId ?? NaN));
   }
 
