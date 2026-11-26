@@ -33,6 +33,8 @@ const PHI_REFERENCE = [
 ] as const;
 // toBeCloseTo(value, 6) accepts a difference below 5 × 10⁻⁷, within the brief's 10⁻⁶.
 const PHI_DIGITS = 6;
+// A count of a few cases carries a few times that error: toBeCloseTo(value, 5) accepts 5 × 10⁻⁶.
+const COUNT_DIGITS = 5;
 // The gaps that the forecast direction only turns around are equal to the last bit.
 const EXACT_DIGITS = 12;
 // The registry's range of tracking.categoryThreshold.
@@ -118,9 +120,10 @@ describe('chanceExpectedCounts', () => {
   });
 
   it('[CL-SUI-15] gives each count unrounded for a small set of cases', () => {
+    // Seven cases multiply the error of Φ by seven: 2.809055720, 2.809055720 and 1.381888560.
     const counts = chanceExpectedCounts(7, DEFAULTS);
-    expect(counts.confirmed).toBeCloseTo(7 * (1 - 0.5987063256829237), PHI_DIGITS);
-    expect(counts.neutral).toBeCloseTo(7 * (2 * 0.5987063256829237 - 1), PHI_DIGITS);
+    expect(counts.confirmed).toBeCloseTo(7 * (1 - 0.5987063256829237), COUNT_DIGITS);
+    expect(counts.neutral).toBeCloseTo(7 * (2 * 0.5987063256829237 - 1), COUNT_DIGITS);
     expect(chanceExpectedCounts(0, DEFAULTS)).toStrictEqual({
       confirmed: 0,
       refuted: 0,
