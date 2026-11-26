@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { boxScores, cases, events, teamSeasons } from '@/lib/db';
+import { boxScores, cases, events, playerTeamChanges, teamSeasons } from '@/lib/db';
 import {
   DATABASE_TEST_TIMEOUT_MS,
   insertBoxScores,
@@ -12,9 +12,9 @@ import {
   insertRequest,
   insertValidCase,
 } from '@/lib/testing';
-import { now } from '@/lib/time';
+import { now, toEpochMs } from '@/lib/time';
 
-import { team, teamHistory, teams, updateTeamFromGames } from './teams';
+import { handOn, team, teamHistory, teams, updateTeamFromGames } from './teams';
 import {
   AFTER_SEASON,
   BEFORE_SEASON,
@@ -42,6 +42,9 @@ import {
 
 import type { Database } from '@/lib/db';
 import type { LeaguePlayer } from '@/lib/testing';
+
+// An identifier under which nobody is followed.
+const UNFOLLOWED = '00000000-0000-4000-8000-000000000001';
 
 describe('the current team from his games', { timeout: DATABASE_TEST_TIMEOUT_MS }, () => {
   let db: Database;
@@ -256,6 +259,16 @@ describe('the current team from his games', { timeout: DATABASE_TEST_TIMEOUT_MS 
       observed(noon(11, 4), [granite, redstone], null),
     ]);
     await expect(playerOf(playerId)).resolves.toMatchObject({ teamId: redstone });
+  });
+
+  it('[STA-25] gives "player not found" for evidence handed on for a player whom nobody follows, and records nothing', async () => {
+    const redstone = await teamOf('3');
+    const evidence = { teamId: redstone, at: toEpochMs(now()), membershipAtEntry: null };
+
+    const handed = await db.transaction(async (tx) => handOn(tx, UNFOLLOWED, evidence));
+
+    expect(handed).toStrictEqual({ ok: false, error: { kind: 'player_not_found' } });
+    await expect(db.select().from(playerTeamChanges)).resolves.toStrictEqual([]);
   });
 
   it('[JOU-08] keeps a relocated team under its id: its names of each season, its current name among the choices, which go by location then name, and his one stint with it (CL-JOU-18)', async () => {
