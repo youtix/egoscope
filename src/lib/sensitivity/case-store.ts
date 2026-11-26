@@ -5,24 +5,18 @@
 // section 1.10). Internal to the module: the recalculation passes it the engine's output.
 import 'server-only';
 
-import { isDeepStrictEqual } from 'node:util';
-
 import { and, asc, eq, inArray, notExists, sql, TransactionRollbackError } from 'drizzle-orm';
 
-import {
-  caseHistoryEntries,
-  caseReviewFlags,
-  cases,
-  caseTriggeredCriteria,
-  events,
-  games,
-} from '@/lib/db';
+import { caseReviewFlags, cases, caseTriggeredCriteria, events, games } from '@/lib/db';
 import { recordCaseLinks } from '@/lib/events';
 import { ok } from '@/lib/result';
 import { now } from '@/lib/time';
 
+import { isHeldBy, valuesOf, writeCaseRows } from './case-rows';
+
+import type { CaseValues } from './case-rows';
 import type { RecalculationCause } from './recalculate';
-import type { CaseRow, NewCaseRow, RegroupingReactions } from './types';
+import type { CaseRow, RegroupingReactions } from './types';
 import type { Transaction } from '@/lib/db';
 import type { CaseLink } from '@/lib/events';
 import type { Err, Result } from '@/lib/result';
@@ -45,12 +39,6 @@ type Target = Readonly<{ evaluated: EvaluatedCase; earliest: StoredEvent; kept: 
 
 /** A written case: what it was written from, and its id. */
 type Written = Readonly<{ target: Target; caseId: CaseId }>;
-
-/** The columns of a case that its recalculation computes (CL-SEN-05). */
-type CaseValues = Omit<
-  NewCaseRow,
-  'id' | 'playerId' | 'eventTypeId' | 'origin' | 'createdAt' | 'computedAt' | 'rowVersion'
->;
 
 /**
  * Reads what the write compares and regroups: the player's cases with their criteria and
@@ -138,53 +126,6 @@ function targetsOf(results: PlayerCaseResults, state: StoredState): readonly Tar
   return targets;
 }
 
-/** The baseline columns of a case, all null without a baseline (STA-16 to STA-22). */
-function baselineValuesOf(baseline: EvaluatedCase['baseline']) {
-  return {
-    baselineSeason: baseline === null ? null : baseline.season,
-    baselinePhase: baseline === null ? null : baseline.phase,
-    baselineGameCount: baseline === null ? null : baseline.gameCount,
-    baselineMean: baseline === null ? null : baseline.mean,
-    baselineStandardDeviation: baseline === null ? null : baseline.standardDeviation,
-    baselineStatus: baseline === null ? null : baseline.status,
-    baselineIsPartial: baseline === null ? null : baseline.isPartial,
-  };
-}
-
-/** The columns of the case `evaluated`, as its row holds them (SEN-07 to SEN-17). */
-function valuesOf(evaluated: EvaluatedCase): CaseValues {
-  const { referenceInstantAt } = evaluated;
-  return {
-    status: evaluated.status,
-    statusReason: evaluated.statusReason,
-    referenceInstantAt: referenceInstantAt === null ? null : new Date(referenceInstantAt),
-    referenceInstantOrigin: evaluated.referenceInstantOrigin,
-    measuredGameId: evaluated.measuredGameId,
-    teamGamesMissedBefore: evaluated.teamGamesMissedBefore,
-    playingTimeThresholdMinutes: evaluated.playingTimeThresholdMinutes,
-    measuredMinutes: evaluated.measuredMinutes,
-    hasRoundedMinutes: evaluated.hasRoundedMinutes,
-    measuredGameScore: evaluated.measuredGameScore,
-    performanceIndex: evaluated.performanceIndex,
-    ...baselineValuesOf(evaluated.baseline),
-    normalizedGap: evaluated.normalizedGap,
-    gapStatus: evaluated.gapStatus,
-    opponentStrengthNotEvaluable: evaluated.opponentStrengthNotEvaluable,
-    stakesNotEvaluable: evaluated.stakesNotEvaluable,
-  };
-}
-
-// The columns whose change a history entry records, named in it as in the case (events-and-cases.md section 1.11).
-const HISTORY_COLUMNS = ['status', 'statusReason', 'measuredGameId', 'normalizedGap', 'gapStatus'];
-
-/** Whether `row` already holds `values` in each of `columns`, an instant compared by its time. */
-function isHeldBy(row: CaseRow, values: CaseValues, columns: readonly string[]): boolean {
-  const stored = new Map<string, unknown>(Object.entries(row));
-  return Object.entries(values).every(
-    ([column, value]) => !columns.includes(column) || isDeepStrictEqual(stored.get(column), value),
-  );
-}
-
 /**
  * Writes the row of `target` and gives its id: a new case takes the origin and the
  * creation instant of its earliest-recorded event (CL-VUE-03, CL-VUE-13, SUI-04); a kept
@@ -207,7 +148,7 @@ async function writeRow(tx: Transaction, target: Target, values: CaseValues): Pr
       .returning({ id: cases.id });
     return present(inserted, 'inserted case').id;
   }
-  if (!isHeldBy(kept, values, Object.keys(values))) {
+  if (!isHeldBy(kept, values)) {
     await tx
       .update(cases)
       .set({ ...values, computedAt })
@@ -217,74 +158,18 @@ async function writeRow(tx: Transaction, target: Target, values: CaseValues): Pr
 }
 
 /**
- * Rewrites the criteria of the case whole with their values, in their order, when they
- * change (SEN-11 to SEN-17); jsonb keeps no key order, which the comparison ignores.
- */
-async function writeCriteria(tx: Transaction, { target, caseId }: Written, state: StoredState) {
-  const stored = state.criteria
-    .filter((row) => row.caseId === caseId)
-    .map(({ criterion, condition, triggeringValues }) => ({
-      criterion,
-      condition,
-      triggeringValues,
-    }));
-  const { triggeredCriteria } = target.evaluated;
-  if (isDeepStrictEqual(stored, triggeredCriteria)) {
-    return;
-  }
-  await tx.delete(caseTriggeredCriteria).where(eq(caseTriggeredCriteria.caseId, caseId));
-  if (triggeredCriteria.length > 0) {
-    await tx
-      .insert(caseTriggeredCriteria)
-      .values(triggeredCriteria.map((criterion) => ({ ...criterion, caseId })));
-  }
-}
-
-/**
- * Writes the review flags of the case, each bound to its measured game (SEN-16, CL-SEN-11,
- * CL-SEN-12): a flag raised again on the same game stays as it is, its acknowledgment
- * with it; a flag about another game, or no longer raised, goes; a new one is raised now.
- */
-async function writeFlags(tx: Transaction, { target, caseId }: Written, state: StoredState) {
-  const gameId = target.evaluated.measuredGameId;
-  const raised = gameId === null ? [] : target.evaluated.reviewFlags;
-  const stored = state.flags.filter((row) => row.caseId === caseId);
-  const kept = stored.filter((row) => raised.includes(row.flag) && row.measuredGameId === gameId);
-  const gone = stored.filter((row) => !kept.includes(row)).map(({ id }) => id);
-  if (gone.length > 0) {
-    await tx.delete(caseReviewFlags).where(inArray(caseReviewFlags.id, gone));
-  }
-  const fresh = raised.filter((flag) => kept.every((row) => row.flag !== flag));
-  if (gameId === null || fresh.length === 0) {
-    return;
-  }
-  const raisedAt = new Date(now());
-  await tx
-    .insert(caseReviewFlags)
-    .values(fresh.map((flag) => ({ caseId, flag, measuredGameId: gameId, raisedAt })));
-}
-
-/**
- * Writes one case of the evaluation with its criteria and flags, and a history entry with
- * the job's cause when it is new or its status, reason, measured game or gap changes
- * (SEN-07, SEN-08, SEN-37, CL-SEN-17). Gives its id.
+ * Writes one case of the evaluation with its criteria, review flags and history (SEN-07 to
+ * SEN-17, CL-SEN-17), and gives its id.
  */
 async function writeCase(
   tx: Transaction,
   target: Target,
-  context: Readonly<{ state: StoredState; cause: RecalculationCause }>,
+  { state, cause }: Readonly<{ state: StoredState; cause: RecalculationCause }>,
 ): Promise<CaseId> {
   const values = valuesOf(target.evaluated);
   const caseId = await writeRow(tx, target, values);
-  if (target.kept === null || !isHeldBy(target.kept, values, HISTORY_COLUMNS)) {
-    // The insert takes, of the case's values, the columns of the history table.
-    const recordedAt = new Date(now());
-    await tx
-      .insert(caseHistoryEntries)
-      .values({ ...values, caseId, recordedAt, cause: context.cause });
-  }
-  await writeCriteria(tx, { target, caseId }, context.state);
-  await writeFlags(tx, { target, caseId }, context.state);
+  const written = { caseId, evaluated: target.evaluated, values, before: target.kept };
+  await writeCaseRows(tx, written, { criteria: state.criteria, flags: state.flags, cause });
   return caseId;
 }
 

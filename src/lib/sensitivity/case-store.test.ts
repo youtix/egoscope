@@ -178,16 +178,26 @@ describe('the writer of a player’s evaluated cases', { timeout: DATABASE_TEST_
     return row;
   }
 
-  /** The earliest game that no case of the profiled player has. */
-  async function freeGame(): Promise<Readonly<{ id: number; tipOff: number }>> {
+  /** The game that no case of the profiled player has, the earliest after `rank` others. */
+  async function freeGame(rank = 0): Promise<Readonly<{ id: number; tipOff: number }>> {
     const taken = world.cases.flatMap(({ measuredGameId }) => measuredGameId ?? []);
     const [game] = await db
       .select()
       .from(games)
       .where(notInArray(games.id, taken))
-      .orderBy(asc(games.scheduledStartAt))
-      .limit(1);
+      .orderBy(asc(games.scheduledStartAt), asc(games.id))
+      .limit(1)
+      .offset(rank);
     return { id: game?.id ?? 0, tipOff: game?.scheduledStartAt.getTime() ?? 0 };
+  }
+
+  /**
+   * The instant `minutes` after the profiled player's last event was recorded: the
+   * database's clock records his events, so the tests date theirs from them.
+   */
+  function recordedAt(minutes: number): Date {
+    const last = Math.max(...world.events.map(({ createdAt }) => createdAt.getTime()));
+    return new Date(last + minutes * MINUTE_MS);
   }
 
   /** How many history rows, flags, decisions and criteria the case `caseId` has. */
@@ -255,7 +265,7 @@ describe('the writer of a player’s evaluated cases', { timeout: DATABASE_TEST_
     const later = await insertHistoricalEvent(db, {
       playerId: world.player.id,
       originImportId: world.imported.id,
-      overrides: { caseId: split.row.id, createdAt: new Date(START + MINUTE_MS) },
+      overrides: { caseId: split.row.id, createdAt: recordedAt(1) },
     });
     const game = await freeGame();
 
@@ -270,11 +280,58 @@ describe('the writer of a player’s evaluated cases', { timeout: DATABASE_TEST_
     expect(await caseOf(moved.row.id)).toMatchObject({ measuredGameId: game.id });
     expect(await caseOf(created)).toMatchObject({
       origin: 'historical',
-      createdAt: new Date(START + MINUTE_MS),
+      createdAt: recordedAt(1),
       status: 'awaiting_game',
       measuredGameId: null,
     });
     expect(await eventOf(later.id)).toMatchObject({ caseId: created });
+  });
+
+  it('[CL-VUE-03] [SUI-04] gives a group whose game has no case the case of its earliest-recorded event, to the group that recorded it first, else a new case with that event’s origin and creation instant', async () => {
+    const joined = profiled(2);
+    const earliest = profiled(3);
+    const split = profiled(4);
+    // The event of the fourth profiled case, recorded after the third's, is dated before it.
+    const earliestAt = new Date(joined.event.createdAt.getTime() - MINUTE_MS);
+    await db.update(events).set({ createdAt: earliestAt }).where(eq(events.id, earliest.event.id));
+    const options = { playerId: world.player.id, originImportId: world.imported.id };
+    const splitOff = await insertHistoricalEvent(db, {
+      ...options,
+      overrides: { caseId: split.row.id, createdAt: recordedAt(1) },
+    });
+    const historical = await insertHistoricalEvent(db, {
+      ...options,
+      overrides: { createdAt: recordedAt(2) },
+    });
+    const detected = await insertDetectedEvent(db, {
+      playerId: world.player.id,
+      overrides: { createdAt: recordedAt(3) },
+    });
+    const [first, second, third] = [await freeGame(), await freeGame(1), await freeGame(2)];
+
+    const written = await write([
+      measured(first.id, [joined.event.id, earliest.event.id]),
+      measured(second.id, [splitOff.id]),
+      measured(third.id, [split.event.id]),
+      awaiting([detected.id, historical.id]),
+    ]);
+
+    const [, splitCase, , mixedCase] = idsOf(written);
+    expect(idsOf(written)).toStrictEqual([earliest.row.id, splitCase, split.row.id, mixedCase]);
+    expect(await caseOf(joined.row.id)).toBeUndefined();
+    expect([await eventOf(joined.event.id), await eventOf(earliest.event.id)]).toMatchObject([
+      { caseId: earliest.row.id },
+      { caseId: earliest.row.id },
+    ]);
+    const rows = [earliest.row.id, splitCase, split.row.id, mixedCase].map(async (id) =>
+      caseOf(id),
+    );
+    expect(await Promise.all(rows)).toMatchObject([
+      { measuredGameId: first.id, createdAt: earliest.row.createdAt },
+      { origin: 'historical', createdAt: recordedAt(1), measuredGameId: second.id },
+      { measuredGameId: third.id },
+      { origin: 'historical', createdAt: recordedAt(2), measuredGameId: null },
+    ]);
   });
 
   it.each([
@@ -323,23 +380,23 @@ describe('the writer of a player’s evaluated cases', { timeout: DATABASE_TEST_
     },
   );
 
-  it('[CL-SUI-17] leaves the rebuild of a written case free to set its origin and creation instant again', async () => {
+  it('[SUI-04] [CL-SUI-17] keeps the origin and creation instant of a historical case that an earlier-recorded detected event joins, and leaves its rebuild free to set them again', async () => {
     const { row, gameId, event } = profiled(0);
+    const detectedAt = new Date(event.createdAt.getTime() - MINUTE_MS);
     const detected = await insertDetectedEvent(db, {
       playerId: world.player.id,
-      overrides: { createdAt: new Date(START + MINUTE_MS) },
+      overrides: { createdAt: detectedAt },
     });
-    await write([measured(gameId, [event.id, detected.id])]);
+    await write([measured(gameId, [event.id, detected.id], { origin: 'tracked' })]);
+    const joined = await caseOf(row.id);
 
     await db.transaction(async (tx) => {
       await tx.delete(events).where(eq(events.id, event.id));
       await eraseEventData(tx, row.id, 'withdrawal');
     });
 
-    expect(await caseOf(row.id)).toMatchObject({
-      origin: 'tracked',
-      createdAt: new Date(START + MINUTE_MS),
-    });
+    expect(joined).toMatchObject({ origin: 'historical', createdAt: row.createdAt });
+    expect(await caseOf(row.id)).toMatchObject({ origin: 'tracked', createdAt: detectedAt });
   });
 
   it('[CL-SUI-16] [CL-VUE-03] runs the regrouping reactions in order once the event has joined, while the emptied case is as it was, then deletes it, and deletes a case it finds with no event without a reaction', async () => {
@@ -401,114 +458,6 @@ describe('the writer of a player’s evaluated cases', { timeout: DATABASE_TEST_
     ]);
     expect(await eventOf(emptied.event.id)).toStrictEqual(emptied.event);
     expect(await childCounts(kept.row.id)).toStrictEqual([0, 0, 0, 0]);
-  });
-
-  it('[SEN-11] [SEN-13] [SEN-15] [SEN-17] rewrites the criteria of a case whole, with their values', async () => {
-    const { row, gameId, event } = profiled(0);
-    const criteriaOf = async () =>
-      db
-        .select()
-        .from(caseTriggeredCriteria)
-        .where(eq(caseTriggeredCriteria.caseId, row.id))
-        .orderBy(asc(caseTriggeredCriteria.id));
-    const injuryReturn = [
-      {
-        criterion: 'injury_return',
-        condition: 'flagged',
-        triggeringValues: { injuryReturn: 'yes' },
-      },
-      {
-        criterion: 'injury_return',
-        condition: 'calculated',
-        triggeringValues: { runLength: 5, gamesWithoutBoxScore: 1 },
-      },
-    ] as const;
-    const opponent = {
-      criterion: 'opponent_strength',
-      condition: null,
-      triggeringValues: { wins: 52, losses: 18, isPreviousSeason: false },
-    } as const;
-    const excluded = (triggeredCriteria: EvaluatedCase['triggeredCriteria']) =>
-      measured(gameId, [event.id], { status: 'excluded', triggeredCriteria });
-
-    await write([excluded(injuryReturn)]);
-    const first = await criteriaOf();
-    await write([excluded(injuryReturn)]);
-    const again = await criteriaOf();
-    await write([excluded([opponent])]);
-    const second = await criteriaOf();
-    await write([measured(gameId, [event.id])]);
-
-    expect(first).toMatchObject(
-      injuryReturn.map((criterion) => ({ ...criterion, caseId: row.id })),
-    );
-    expect(again).toStrictEqual(first);
-    expect(second).toMatchObject([{ ...opponent, caseId: row.id }]);
-    expect(await criteriaOf()).toStrictEqual([]);
-  });
-
-  it('[SEN-16] [CL-SEN-12] keeps a review flag and its acknowledgment while its game is unchanged, and drops it for another game', async () => {
-    const { row, gameId, event } = profiled(0);
-    const flagsOf = async () =>
-      db.select().from(caseReviewFlags).where(eq(caseReviewFlags.caseId, row.id));
-    const flagged = { reviewFlags: ['ejection'] } as const;
-    await write([measured(gameId, [event.id], flagged)]);
-    const acknowledgedAt = new Date(START + MINUTE_MS);
-    await db
-      .update(caseReviewFlags)
-      .set({ acknowledgedAt })
-      .where(eq(caseReviewFlags.caseId, row.id));
-    const [raised] = await flagsOf();
-
-    await write([measured(gameId, [event.id], flagged)]);
-    const kept = await flagsOf();
-    const other = await freeGame();
-    await write([measured(other.id, [event.id], flagged)]);
-    const moved = await flagsOf();
-    await write([awaiting([event.id], flagged)]);
-
-    expect(raised).toMatchObject({
-      flag: 'ejection',
-      measuredGameId: gameId,
-      raisedAt: new Date(START),
-    });
-    expect(kept).toStrictEqual([{ ...raised, acknowledgedAt }]);
-    expect(moved).toMatchObject([
-      { flag: 'ejection', measuredGameId: other.id, acknowledgedAt: null },
-    ]);
-    expect(await flagsOf()).toStrictEqual([]);
-  });
-
-  it('[SEN-07] [SEN-08] [SEN-37] [CL-SEN-17] writes a history entry with the job’s cause only when the state, reason, game or gap changes', async () => {
-    const detected = await insertDetectedEvent(db, { playerId: world.player.id });
-    const { id: gameId } = await freeGame();
-    const caseId = idsOf(await write([awaiting([detected.id])], { cause: 'new_cases' }))[0];
-
-    await write([awaiting([detected.id])], { cause: 'recalculation' });
-    await write([measured(gameId, [detected.id])], { cause: 'baseline_updated' });
-    await write([measured(gameId, [detected.id], { measuredMinutes: 30 })]);
-    const corrected = { normalizedGap: -0.5, gapStatus: 'provisional' } as const;
-    await write([measured(gameId, [detected.id], corrected)], { cause: 'stats_correction' });
-
-    const history = await db
-      .select()
-      .from(caseHistoryEntries)
-      .where(eq(caseHistoryEntries.caseId, caseId ?? 0))
-      .orderBy(asc(caseHistoryEntries.id));
-    const game = { status: 'measured', statusReason: null, measuredGameId: gameId } as const;
-    expect(history).toMatchObject([
-      {
-        status: 'awaiting_game',
-        statusReason: 'game_not_played_yet',
-        measuredGameId: null,
-        normalizedGap: null,
-        gapStatus: null,
-        cause: 'new_cases',
-        recordedAt: new Date(START),
-      },
-      { ...game, normalizedGap: 1.25, gapStatus: 'final', cause: 'baseline_updated' },
-      { ...game, ...corrected, cause: 'stats_correction' },
-    ]);
   });
 
   it('[IMP-18] [CA-IMP-10] [CL-IMP-17] writes each historical event’s precedence with its case, to verify, then classified', async () => {
