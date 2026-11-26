@@ -108,6 +108,15 @@ export const MACHINERY_MESSAGES = [
     whatToDo: 'nothing.',
   },
   {
+    key: 'calculation_parameter_reset',
+    category: 'parameter_change',
+    params: { parameter: 'parameter', oldValue: 'value', newValue: 'value' },
+    happened: '{parameter} went back to its default value, {newValue}; it was {oldValue}.',
+    consequence:
+      'The default value applies from now on. Every profile is recalculated with it, and the date of the last parameter change moves.',
+    whatToDo: 'nothing.',
+  },
+  {
     key: 'criterion_switch_changed',
     category: 'parameter_change',
     subject: 'eventType',

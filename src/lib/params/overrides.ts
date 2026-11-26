@@ -71,6 +71,14 @@ const stale = <K extends OverridableKey>(
 ): Result<never, SaveRefusal<K>> =>
   err(changedElsewhere({ value: current.value, version: current.version }));
 
+/** The journal message of a save or a reset of a parameter, which states its recalculation when it has one (TRV-42). */
+function messageKeyOf(entry: Readonly<{ affectsCalculations: boolean }>, isReset: boolean) {
+  if (isReset) {
+    return entry.affectsCalculations ? 'calculation_parameter_reset' : 'parameter_reset';
+  }
+  return entry.affectsCalculations ? 'calculation_parameter_changed' : 'parameter_changed';
+}
+
 /**
  * Journals the change of `key` from `oldValue` to `newValue` and keeps it in its
  * history, in the save's transaction (TRV-35, TRV-41, CL-IHM-12); the journal names the
@@ -87,11 +95,8 @@ async function trace<K extends OverridableKey>(
     oldValue: writeValue(key, change.oldValue),
     newValue: writeValue(key, change.newValue),
   };
-  const calculation = entry.affectsCalculations
-    ? 'calculation_parameter_changed'
-    : 'parameter_changed';
   const journalEntryId = await record(tx, {
-    messageKey: change.reset ? 'parameter_reset' : calculation,
+    messageKey: messageKeyOf(entry, change.reset),
     params,
   });
   await tx.insert(parameterChanges).values({
@@ -160,7 +165,11 @@ async function checkedValue<K extends OverridableKey>(
     : err({ kind: 'out_of_bounds', explanation: refusalOf(key, broken) });
 }
 
-// The name of the transaction lock that every save and reset of a parameter takes.
+// The name of the transaction lock that every save and reset of a parameter takes. It must be
+// taken before every read that a decision of the save or the reset rests on (the state of the
+// key, the bound check, the stale-version check): a read made before it can see a value that a
+// save running at the same time is about to change. Moving it later reopens the race of
+// CL-TRV-16, and the tests of the order of the statements fail then.
 const SAVES_LOCK = 'egoscope.parameter-saves';
 
 /**
