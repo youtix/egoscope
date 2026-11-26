@@ -1,4 +1,6 @@
-import { createTestDatabase } from '@/lib/db';
+import { asc } from 'drizzle-orm';
+
+import { createTestDatabase, incidents, journalEntries, loginFailures, sessions } from '@/lib/db';
 import { fixedClock, installFakeClock, toEpochMs } from '@/lib/time';
 
 import type * as Requests from './requests';
@@ -56,6 +58,15 @@ type RequestHarness = Readonly<{
   lastSent: () => SentCookie;
   /** A browser named `name`, which starts with `cookie`. */
   device: (name?: string, cookie?: string) => Device;
+}>;
+
+/** The rows and the lockout that a login refused before its password is examined leaves as they were. */
+type AccountState = Readonly<{
+  sessions: readonly unknown[];
+  journal: readonly unknown[];
+  failures: readonly unknown[];
+  incidents: readonly unknown[];
+  lockout: Awaited<ReturnType<Auth['lockoutStatus']>>;
 }>;
 
 /** A fresh database and a clock fixed at `START`, for one test. */
@@ -142,6 +153,23 @@ export async function openServer(): Promise<TestServer> {
     clock,
     restoreClock: installFakeClock(clock),
     close: database.close,
+  };
+}
+
+/**
+ * What a login refused before its password is examined leaves as it was (IHM-08, TRV-61):
+ * the sessions, the journal, the failures counted, the incidents and the lockout.
+ */
+export async function accountState(db: Database, auth: Auth): Promise<AccountState> {
+  return {
+    sessions: await db.select({ id: sessions.id }).from(sessions).orderBy(asc(sessions.id)),
+    journal: await db
+      .select({ key: journalEntries.messageKey })
+      .from(journalEntries)
+      .orderBy(asc(journalEntries.id)),
+    failures: await db.select().from(loginFailures).orderBy(asc(loginFailures.id)),
+    incidents: await db.select({ status: incidents.status }).from(incidents),
+    lockout: await auth.lockoutStatus(),
   };
 }
 

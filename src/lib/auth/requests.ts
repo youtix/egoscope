@@ -63,12 +63,44 @@ type Replacement = Readonly<{
   refusal: Check;
 }>;
 
-const NO_SESSION = { kind: 'no-session' } as const satisfies PasswordRefusal;
+/**
+ * Why a login is refused before anything else is examined: the device's cookie names a
+ * session that the owner ended, whose data the device erases first (IHM-08, CL-IHM-10,
+ * CL-TRV-05).
+ */
+type SessionEnded = Readonly<{ kind: 'session-ended' }>;
 
-/** Checks the password at `at`, in `tx`; on success, opens the device's session. */
-async function attempt(tx: Transaction, login: LoginAttempt) {
+const NO_SESSION = { kind: 'no-session' } as const satisfies PasswordRefusal;
+const SESSION_ENDED = { kind: 'session-ended' } as const satisfies SessionEnded;
+
+/**
+ * Whether the cookie `value`, if the device sent one, names a session that the owner
+ * ended, in `tx`: by a logout, a password change, a reset or a restore, never by expiry,
+ * after which the device keeps its data (IHM-08, IHM-11, CL-IHM-10). An open session that
+ * it names is kept open, as any use keeps it.
+ */
+async function wasEndedByOwner(tx: Transaction, value: string | undefined): Promise<boolean> {
+  if (value === undefined) {
+    return false;
+  }
+  const state = await sessionState(tx, value);
+  return state.state === 'ended' && state.reason !== 'expired';
+}
+
+/**
+ * Logs in the device that sent the cookie `value`, at `at`, in `tx`, which holds the lock
+ * of the account's row first, the order of every ending of the sessions: a device whose
+ * session the owner ended is refused before the lockout and the password are examined, so
+ * that nothing is counted or journaled and it erases its data before a session opens
+ * (IHM-08, CL-IHM-10, CL-TRV-05); otherwise the password is checked and, on success, the
+ * device's session opens (TRV-61, TRV-62).
+ */
+async function attempt(tx: Transaction, login: LoginAttempt, value: string | undefined) {
   const at = now();
   const account = await lockedAccount(tx);
+  if (await wasEndedByOwner(tx, value)) {
+    return err(SESSION_ENDED);
+  }
   const lockedUntil = lockEnd(account.loginLockedUntil, at);
   if (lockedUntil !== null) {
     return err(await refuseWhileLocked(tx, lockedUntil, 'login'));
@@ -84,20 +116,26 @@ async function attempt(tx: Transaction, login: LoginAttempt) {
 }
 
 /**
- * Logs the device in with `login.password` (TRV-61, TRV-62, IHM-07): while logins are
- * locked, refused without examining the password; a wrong password is journaled and
- * counted toward the lockout; the right one opens a session, sets its cookie (HttpOnly,
- * Secure, SameSite=Lax) and closes the "Logins refused" incident. Returns the account's
- * password status, since an account on its initial password must replace it first.
+ * Logs the device in with `login.password` (TRV-61, TRV-62, IHM-07, IHM-08): a device
+ * whose cookie names a session that the owner ended is refused first, `session-ended`,
+ * without examining the password or counting anything, so that it erases its data before
+ * any session opens (CL-IHM-10, CL-TRV-05); while logins are locked, refused without
+ * examining the password; a wrong password is journaled and counted toward the lockout;
+ * the right one opens a session, sets its cookie (HttpOnly, Secure, SameSite=Lax) and
+ * closes the "Logins refused" incident. Returns the account's password status, since an
+ * account on its initial password must replace it first.
  */
 export async function logIn(
   login: LoginAttempt,
-): Promise<Result<Readonly<{ passwordStatus: PasswordStatus }>, LoginRefusal | ReadyError>> {
+): Promise<
+  Result<Readonly<{ passwordStatus: PasswordStatus }>, LoginRefusal | SessionEnded | ReadyError>
+> {
+  const value = await readSessionCookie();
   const ready = await readyDatabase();
   if (!ready.ok) {
     return ready;
   }
-  const outcome = await ready.value.transaction(async (tx) => attempt(tx, login));
+  const outcome = await ready.value.transaction(async (tx) => attempt(tx, login, value));
   if (!outcome.ok) {
     return outcome;
   }
