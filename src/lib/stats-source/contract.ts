@@ -16,12 +16,15 @@ import {
 } from './contract-games';
 import {
   answerOf,
+  boxScoresReadOf,
   context,
   DEADLINE_MS,
   open,
   problem,
   readOf,
+  scheduleOf,
   seasonReads,
+  sidesOf,
   versionOf,
 } from './contract-support';
 
@@ -139,6 +142,62 @@ async function keepsUnlistedApart(harness: StatsSourceHarness): Promise<Problems
   );
 }
 
+/** A player whom the current file lists without a team is released: neither on a team nor unlisted (STA-26, CL-STA-31). */
+async function keepsReleasedApart(harness: StatsSourceHarness): Promise<Problems> {
+  const { source, currentSeason, releasedPlayer } = harness;
+  const outcome = await source.getPlayerRecords(open(), {
+    season: currentSeason,
+    players: [releasedPlayer],
+    knownVersion: null,
+  });
+  const teams = (readOf(outcome) ?? []).map(({ currentTeam }) => currentTeam);
+  return problem(
+    'released players not answered without_team',
+    teams.length === 1 && teams[0]?.kind === 'without_team' ? [] : [{ releasedPlayer, teams }],
+  );
+}
+
+/** A side holding lines of other players than those asked is flagged as holding lines (CL-STA-04). */
+async function flagsSidesOfOthers(harness: StatsSourceHarness): Promise<Problems> {
+  const { player, game, isHome } = harness.playerWithoutLine;
+  const read = await boxScoresReadOf(harness, harness.season, [player]);
+  const sides = sidesOf(read?.sidesWithLines ?? [], game);
+  const isFlagged = isHome ? sides.home : sides.away;
+  return [
+    ...problem('box scores not read', read === undefined ? [harness.season] : []),
+    ...problem(
+      'lines of a player in the game where he has none',
+      (read?.data ?? []).filter((line) => line.game === game),
+    ),
+    ...problem(
+      'sides holding lines of players not asked that are not flagged',
+      isFlagged ? [] : [sides],
+    ),
+  ];
+}
+
+/** No side of a game not played yet holds lines (CL-STA-04). */
+async function flagsNoSideOfUnplayed(harness: StatsSourceHarness): Promise<Problems> {
+  const { currentSeason, players } = harness;
+  const schedule = await scheduleOf(harness, currentSeason);
+  const read = await boxScoresReadOf(harness, currentSeason, players);
+  const unplayed = schedule.games.filter((game) => game.status === 'scheduled');
+  const flagged = unplayed
+    .map(({ game }) => sidesOf(read?.sidesWithLines ?? [], game))
+    .filter(({ home, away }) => home || away);
+  return [
+    ...problem('box scores not read', read === undefined ? [currentSeason] : []),
+    ...problem('no game not played yet', unplayed.length === 0 ? [currentSeason] : []),
+    ...problem('games not played yet with a side that holds lines', flagged),
+  ];
+}
+
+/** Says which sides of each game hold lines, whatever players were asked (CL-STA-04). */
+async function tellsSidesWithLines(harness: StatsSourceHarness): Promise<Problems> {
+  const problems = await Promise.all([flagsSidesOfOthers(harness), flagsNoSideOfUnplayed(harness)]);
+  return problems.flat();
+}
+
 async function namesUnknownPlayers(harness: StatsSourceHarness): Promise<Problems> {
   const { source, currentSeason, players, unknownPlayer } = harness;
   const outcome = await source.getPlayerRecords(open(), {
@@ -227,12 +286,21 @@ export const STATS_SOURCE_CONTRACT: readonly ContractCase[] = [
   },
   {
     title:
+      'flags the sides of each game that hold lines whatever players were asked, and no side of a game not played yet',
+    check: tellsSidesWithLines,
+  },
+  {
+    title:
       'lists in each directory every player of the box scores, each team from his first to his last game day with it',
     check: listsDirectory,
   },
   {
     title: 'gives one record per player, and keeps an unlisted one apart',
     check: keepsUnlistedApart,
+  },
+  {
+    title: 'answers without_team for a player listed without a team, neither a team nor not_listed',
+    check: keepsReleasedApart,
   },
   { title: 'names in not_found the players that no file lists', check: namesUnknownPlayers },
   {

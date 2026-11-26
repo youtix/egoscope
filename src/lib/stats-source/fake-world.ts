@@ -16,6 +16,7 @@ import type {
   PlayerRecord,
   Season,
   SeasonCoverage,
+  SidesWithLines,
   SourceBoxScore,
   SourceGame,
   SourceTeam,
@@ -30,6 +31,8 @@ export type WorldSeason = Readonly<{
   coverage: SeasonCoverage;
   heldBack: readonly HeldBackRow[];
   boxScores: readonly SourceBoxScore[] | null;
+  /** Each game of `boxScores`, with the sides that hold its lines (CL-STA-04). */
+  sidesWithLines: readonly SidesWithLines[];
   directory: readonly DirectoryEntry[] | null;
   /** The season's player file: each player it lists, with his team on its last day. */
   playerFile: readonly PlayerRecord[] | null;
@@ -117,6 +120,16 @@ function boxScoresOf(games: readonly SourceGame[], schedule: Schedule): readonly
   );
 }
 
+/** Each game of `lines`, with the sides that hold one of them, a did-not-play line included (CL-STA-04). */
+function sidesWithLinesOf(lines: readonly DatedLine[]): readonly SidesWithLines[] {
+  const byGame = Map.groupBy(lines, ({ line }) => line.game);
+  return Array.from(byGame, ([game, held]) => ({
+    game,
+    home: held.some(({ line }) => line.isHome),
+    away: held.some(({ line }) => !line.isHome),
+  }));
+}
+
 /**
  * Every player with a box score in `lines`, each team of his lines with the earliest
  * and the latest day of his lines with it (STA-03, JOU-13): his lines taken by day,
@@ -168,6 +181,7 @@ function seasonOf(schedule: Schedule): WorldSeason {
     season: schedule.season,
     ...seasonGames,
     boxScores: lines?.map(({ line }) => line) ?? null,
+    sidesWithLines: sidesWithLinesOf(lines ?? []),
     directory: lines === null ? null : directoryOf(lines),
     playerFile: schedule.hasBoxScores ? playerFileOf(schedule, seasonGames.games) : null,
   };

@@ -4,18 +4,29 @@ import { now, toEpochMs, toIsoDate } from '@/lib/time';
 
 import { STATS_SOURCE_CONTRACT } from './contract';
 import { listsDirectory } from './contract-games';
+import { readOf } from './contract-support';
 import { createFakeStatsSource } from './fake';
 
 import type { ContractFault, StatsSourceHarness } from './contract-support';
 import type { FakeFault } from './fake';
-import type { StatsSourceOutcome } from './port';
-import type { CallContext, ConditionalRead, DirectoryEntry, SeasonGames } from './types';
+import type { StatsSource, StatsSourceOutcome } from './port';
+import type {
+  CallContext,
+  ConditionalRead,
+  DirectoryEntry,
+  SeasonBoxScoresRead,
+  SeasonGames,
+} from './types';
 
 const SEASON = '2025-26';
 // A season that the broken adapter below refuses, which it names as its first covered one.
 const NEVER_HELD = '1990-91';
 const NEVER_PLAYED = toIsoDate('2000-01-01');
 const DEADLINE_MS = 5000;
+const RELEASED = 'p08';
+
+type BoxScoresOutcome = Awaited<ReturnType<StatsSource['getSeasonBoxScores']>>;
+type LinesRead = Extract<SeasonBoxScoresRead, { kind: 'read' }>;
 
 /** The fault of the fake that meets the contract's `fault` at the next read of the season's games. */
 function fakeFaultOf(fault: ContractFault): FakeFault {
@@ -42,6 +53,8 @@ function fakeHarness(): StatsSourceHarness {
     missingSeason: '2022-23',
     players: ['p01', 'p02'],
     formerPlayer: 'p06',
+    releasedPlayer: RELEASED,
+    playerWithoutLine: { player: 'p02', game: '2025-26:r01:h3', isHome: true },
     unknownPlayer: 'p99',
     inject: (fault) => {
       fake.clearFaults();
@@ -63,6 +76,16 @@ function changed<T>(
 ): StatsSourceOutcome<ConditionalRead<T>> {
   return outcome.ok && outcome.value.kind === 'read'
     ? { ...outcome, value: { ...outcome.value, data: change(outcome.value.data) } }
+    : outcome;
+}
+
+/** `outcome` with its box-score read changed by `change`. */
+function changedRead(
+  outcome: BoxScoresOutcome,
+  change: (read: LinesRead) => LinesRead,
+): BoxScoresOutcome {
+  return outcome.ok && outcome.value.kind === 'read'
+    ? { ...outcome, value: change(outcome.value) }
     : outcome;
 }
 
@@ -134,13 +157,17 @@ function brokenHarness(): StatsSourceHarness {
               brokenSchedule,
             ),
       getSeasonBoxScores: async () =>
-        changed(
+        changedRead(
           await source.getSeasonBoxScores(anyContext(), {
             season,
             players: allPlayers,
             knownVersion: null,
           }),
-          (lines) => lines.map((line) => ({ ...line, isHome: !line.isHome })),
+          (read) => ({
+            ...read,
+            data: read.data.map((line) => ({ ...line, isHome: !line.isHome })),
+            sidesWithLines: [],
+          }),
         ),
       getSeasonPlayers: async () =>
         changed(
@@ -155,7 +182,7 @@ function brokenHarness(): StatsSourceHarness {
             knownVersion: null,
           }),
           (records) =>
-            records.map((record) => ({ ...record, currentTeam: { kind: 'without_team' } })),
+            records.map((record) => ({ ...record, currentTeam: { kind: 'not_listed' } })),
         ),
       firstCoveredSeason: () => NEVER_HELD,
     },
@@ -181,7 +208,59 @@ function brokenDirectoryHarness(): StatsSourceHarness {
   };
 }
 
-describe('[STA-05] [STA-08] [STA-29] [STA-31] [STA-42] [CL-TRV-03] [CL-STA-27] the fake against the stats-source contract', () => {
+/** The operations that a wrong adapter answers instead of the fake's. */
+type WrongSource = (source: StatsSource) => Partial<StatsSource>;
+
+/** Every problem that the cases of the contract find, each in a fresh fake with the operations of `wrong`. */
+async function contractProblems(wrong: WrongSource): Promise<readonly string[]> {
+  const problems = await Promise.all(
+    STATS_SOURCE_CONTRACT.map(async ({ check }) => {
+      const harness = fakeHarness();
+      return check({ ...harness, source: { ...harness.source, ...wrong(harness.source) } });
+    }),
+  );
+  return problems.flat();
+}
+
+// Gives the released player his old team.
+const givesReleasedHisOldTeam: WrongSource = (source) => ({
+  getPlayerRecords: async (ctx, request) =>
+    changed(await source.getPlayerRecords(ctx, request), (records) =>
+      records.map((record) =>
+        record.player === RELEASED
+          ? { ...record, currentTeam: { kind: 'team', team: '4' } }
+          : record,
+      ),
+    ),
+});
+
+// Flags the sides of each game by the lines asked alone.
+const flagsAskedSidesOnly: WrongSource = (source) => ({
+  getSeasonBoxScores: async (ctx, request) =>
+    changedRead(await source.getSeasonBoxScores(ctx, request), (read) => ({
+      ...read,
+      sidesWithLines: read.data.map(({ game, isHome }) => ({
+        game,
+        home: isHome,
+        away: !isHome,
+      })),
+    })),
+});
+
+// Flags both sides of every game of the season, played or not.
+const flagsEverySide: WrongSource = (source) => ({
+  getSeasonBoxScores: async (ctx, request) => {
+    const { games } = readOf(
+      await source.getSeasonGames(ctx, { season: request.season, knownVersion: null }),
+    ) ?? { games: [] };
+    return changedRead(await source.getSeasonBoxScores(ctx, request), (read) => ({
+      ...read,
+      sidesWithLines: games.map(({ game }) => ({ game, home: true, away: true })),
+    }));
+  },
+});
+
+describe('[STA-05] [STA-08] [STA-26] [STA-29] [STA-31] [STA-42] [CL-TRV-03] [CL-STA-04] [CL-STA-27] [CL-STA-31] the fake against the stats-source contract', () => {
   it.each(STATS_SOURCE_CONTRACT)('$title', async ({ check }) => {
     await expect(check(fakeHarness())).resolves.toStrictEqual([]);
   });
@@ -201,6 +280,26 @@ describe('the stats-source contract against adapters that break it', () => {
       await expect(check(failingHarness())).resolves.not.toHaveLength(0);
     },
   );
+
+  it('[STA-26] [CL-STA-27] [CL-STA-31] finds by the released player alone an adapter that gives him his old team', async () => {
+    await expect(contractProblems(givesReleasedHisOldTeam)).resolves.toStrictEqual([
+      'released players not answered without_team: [{"releasedPlayer":"p08","teams":[{"kind":"team","team":"4"}]}]',
+    ]);
+  });
+
+  it('[STA-08] [CL-STA-04] finds by the side of a player without a line an adapter that flags the sides by the lines asked only', async () => {
+    await expect(contractProblems(flagsAskedSidesOnly)).resolves.toStrictEqual([
+      'sides holding lines of players not asked that are not flagged: [{"game":"2025-26:r01:h3","home":false,"away":false}]',
+    ]);
+  });
+
+  it('[STA-08] [CL-STA-04] finds by its games not played yet an adapter that flags both sides of every game', async () => {
+    const problems = await contractProblems(flagsEverySide);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(
+      /^games not played yet with a side that holds lines: \[\{"game":"2026-27:/u,
+    );
+  });
 
   it('[STA-03] [JOU-13] finds by its first and last game days alone a directory whose teams start on a day of none of their box scores', async () => {
     const problems = await listsDirectory(brokenDirectoryHarness());

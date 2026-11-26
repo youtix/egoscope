@@ -9,21 +9,28 @@ import type {
   Birthday,
   BoxScoreCount,
   BoxScoreCounts,
+  CurrentTeam,
   DirectoryEntry,
   DirectoryTeam,
   PlayerMapping,
   PlayerRecord,
+  SidesWithLines,
   SourceBoxScore,
+  SourceGameId,
   SourcePlayerId,
   SourceTeamId,
 } from './types';
 import type { IsoDate } from '@/lib/time';
 
-/** The lines of a season's box-score file and the directory they give (STA-03, STA-08). */
+/** The lines of a season's box-score file, the sides of its games that hold lines, and the directory they give (STA-03, STA-08, CL-STA-04). */
 export type BoxScoreFile = Readonly<{
   lines: readonly SourceBoxScore[];
+  sidesWithLines: readonly SidesWithLines[];
   directory: readonly DirectoryEntry[];
 }>;
+
+/** The sides of a game that hold lines, as the file's rows mark them. */
+type SideFlags = { home: boolean; away: boolean };
 
 /** The thirteen counts as a row reads them, each nothing while unreadable. */
 type ReadCounts = Readonly<Record<BoxScoreCount, number | null | undefined>>;
@@ -50,6 +57,8 @@ const SIDES: ReadonlyMap<string, boolean> = new Map([
 const BIRTH_DATE = /^\d{4}-(?<month>\d{2})-(?<day>\d{2})T/u;
 const UNMATCHED = 'unmatched';
 const WITHOUT_TEAM = { kind: 'without_team' } as const;
+// The status of a player file's row that reports a release, whatever team id it keeps (CL-STA-31).
+const FREE_AGENT = 'free-agent';
 
 /** The column of each of the thirteen counts (evaluation, section 12). */
 const COUNT_COLUMNS: Readonly<Record<BoxScoreCount, string>> = {
@@ -195,15 +204,24 @@ function entryOf({ player, names, teams }: EntryInProgress): DirectoryEntry {
   };
 }
 
+/** Marks the side of `line` as holding lines in its game (CL-STA-04). */
+function markSide(sides: Map<SourceGameId, SideFlags>, { game, isHome }: SourceBoxScore): void {
+  const flags = sides.get(game) ?? { home: false, away: false };
+  flags[isHome ? 'home' : 'away'] = true;
+  sides.set(game, flags);
+}
+
 /**
  * Reads a box-score file for `isOfSeason` days: each line between two franchises,
  * once per game and player (All-Star lines skipped, CL-STA-16; repeated seasons of
- * the 1999-2000 file left to their own season, T4), and the directory of their
- * players with each team's first and last game day (STA-03, JOU-13).
+ * the 1999-2000 file left to their own season, T4), the sides of each game that hold
+ * them (CL-STA-04), and the directory of their players with each team's first and
+ * last game day (STA-03, JOU-13).
  */
 export function boxScoreSink(isOfSeason: (day: IsoDate) => boolean): RowSink<BoxScoreFile> {
   const lines = new Map<string, SourceBoxScore>();
   const entries = new Map<SourcePlayerId, EntryInProgress>();
+  const sides = new Map<SourceGameId, SideFlags>();
   return {
     columns: BOX_SCORE_COLUMNS,
     add: (row) => {
@@ -220,11 +238,13 @@ export function boxScoreSink(isOfSeason: (day: IsoDate) => boolean): RowSink<Box
         return false;
       }
       lines.set(key, line);
+      markSide(sides, line);
       addDay(entryFor(entries, line.player, row), line.team, day.on);
       return true;
     },
     finish: () => ({
       lines: Array.from(lines, ([, line]) => line),
+      sidesWithLines: Array.from(sides, ([game, flags]) => ({ game, ...flags })),
       directory: Array.from(entries, ([, entry]) => entryOf(entry)),
     }),
   };
@@ -241,16 +261,23 @@ function birthdayOf(value: string): Birthday | null | undefined {
     : { month: Number(groups['month']), day: Number(groups['day']) };
 }
 
+/** The team that a player file's row gives: none for a free-agent status or an empty team id, which report a release (STA-26, CL-STA-31). */
+function currentTeamOf(row: RowReader): CurrentTeam {
+  const team = row('current_team_id');
+  return team === '' || row('status_type') === FREE_AGENT ? WITHOUT_TEAM : { kind: 'team', team };
+}
+
 /**
  * Reads the requested players' rows of a player file: name, birthday and the team
- * the file gives, an empty one being a release (STA-26, CL-STA-27).
+ * the file gives, a row with a free-agent status or an empty team id being a release
+ * whatever team id it keeps (STA-26, CL-STA-27, CL-STA-31).
  */
 export function playerFileSink(
   players: ReadonlySet<SourcePlayerId>,
 ): RowSink<ReadonlyMap<SourcePlayerId, PlayerRecord>> {
   const records = new Map<SourcePlayerId, PlayerRecord>();
   return {
-    columns: ['athlete_id', 'display_name', 'date_of_birth', 'current_team_id'],
+    columns: ['athlete_id', 'display_name', 'date_of_birth', 'current_team_id', 'status_type'],
     add: (row) => {
       const player = row('athlete_id');
       if (records.has(player) || !players.has(player)) {
@@ -260,12 +287,11 @@ export function playerFileSink(
       if (birthday === undefined) {
         return false;
       }
-      const team = row('current_team_id');
       records.set(player, {
         player,
         displayName: row('display_name'),
         birthday,
-        currentTeam: team === '' ? WITHOUT_TEAM : { kind: 'team', team },
+        currentTeam: currentTeamOf(row),
       });
       return true;
     },
