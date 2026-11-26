@@ -12,8 +12,9 @@ export type CallMetadata = Readonly<{ httpRequests: number; bytesReceived: numbe
  * empty, so that an item without a link or a title shows it (COL-17–COL-27):
  * its identifier (RSS `guid`, Atom `id`) trimmed (CL-COL-01); its publication and update
  * dates as written, with or without a time or a zone (COL-19, COL-20); the language it
- * declares (COL-17); the origin outlet an aggregator names (COL-06); its excerpt with the
- * feed's markup, which the collection strips and shortens (COL-27).
+ * declares (COL-17); the origin outlet an aggregator names (COL-06); its title and its
+ * excerpt with the feed's markup, which an RSS title or an Atom `type="html"` one may
+ * carry too: the collection strips both and shortens the excerpt (COL-27).
  */
 export type FeedItem = Readonly<{
   identifier: string | null;

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An Atom feed of an invented outlet, written by hand for the tests: every name,
+     title and excerpt is invented. -->
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="fr" xml:base="https://baseline.example.test/">
+  <title>Baseline Hebdo</title>
+  <id>tag:baseline.example.test,2026:feed</id>
+  <updated>2026-11-21T09:10:00+01:00</updated>
+  <link rel="self" href="https://baseline.example.test/atom.xml"/>
+  <entry>
+    <title type="html">Ilan Corvato prolonge &lt;em&gt;trois ans&lt;/em&gt;</title>
+    <id> tag:baseline.example.test,2026:entry-311 </id>
+    <link rel="enclosure" href="https://baseline.example.test/media/photo.jpg"/>
+    <link rel="alternate" type="text/html" href="articles/corvato-prolonge"/>
+    <published>2026-11-21T07:45:00+01:00</published>
+    <updated>2026-11-21T09:10:00+01:00</updated>
+    <summary type="html">&lt;p&gt;Le pivot reste au club.&lt;/p&gt;</summary>
+    <content type="html">&lt;p&gt;Le pivot reste au club, annonce le club.&lt;/p&gt;</content>
+  </entry>
+  <entry xml:lang="en" xml:base="/english/">
+    <title>Ozzie Brannoch trade talks stall</title>
+    <id>tag:baseline.example.test,2026:entry-310</id>
+    <link href="brannoch-talks"/>
+    <updated>2026-11-20T23:30:00Z</updated>
+    <content type="xhtml">
+      <div xmlns="http://www.w3.org/1999/xhtml"><p>Talks <strong>stalled</strong> overnight.</p></div>
+    </content>
+  </entry>
+  <entry>
+    <title>Mika Lindqvar reprend l'entraînement</title>
+    <id>tag:baseline.example.test,2026:entry-309</id>
+    <link href="https://courtside.example.test/2026/11/20/lindqvar-return"/>
+    <published>2026-11-20T18:00:00Z</published>
+    <updated>2026-11-20T18:00:00Z</updated>
+    <source>
+      <id>tag:courtside.example.test,2026:feed</id>
+      <title>Courtside Daily</title>
+      <updated>2026-11-20T18:00:00Z</updated>
+    </source>
+    <summary>Le meneur a repris l'entraînement.</summary>
+  </entry>
+  <entry>
+    <id>tag:baseline.example.test,2026:entry-308</id>
+    <title/>
+    <link href="mailto:desk@baseline.example.test"/>
+    <updated>2026-11-19T10:00:00Z</updated>
+  </entry>
+</feed>
