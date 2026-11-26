@@ -16,6 +16,7 @@ import {
 import { REGISTER_PATH } from './waiver-register';
 
 const ROOT = path.join(import.meta.dirname, '..');
+const SCRIPT = path.join(import.meta.dirname, 'requirement-status.ts');
 const MANIFEST = z.object({ scripts: z.record(z.string(), z.string()) });
 const SPEC_PATH = 'docs/01-joueurs-suivis.md';
 const TEST_PATH = 'src/lib/players/add.test.ts';
@@ -397,7 +398,7 @@ describe('runRequirementStatus', () => {
     '[TRV-79] exits with code 2 from the command line on an unknown argument',
     { timeout: 30_000 },
     () => {
-      const result = spawnSync('bun', ['scripts/requirement-status.ts', '--commited'], {
+      const result = spawnSync('bun', [SCRIPT, '--commited'], {
         cwd: ROOT,
         encoding: 'utf8',
       });
