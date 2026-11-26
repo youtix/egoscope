@@ -4,6 +4,8 @@
 // profile-store.ts reads and writes the database.
 import { toEpochMs } from '@/lib/time';
 
+import { verdictOf as verdictOfLevel } from './calculation-values';
+
 import type { SensitivityProfileRow, VerdictHistoryEntryRow } from './types';
 import type { generalTrends, sensitivityProfiles } from '@/lib/db';
 import type {
@@ -13,7 +15,6 @@ import type {
   PlayerId,
   ProfileView,
   ProfileViewValues,
-  Verdict,
   VerdictAndConfidence,
 } from '@/lib/stats-engine';
 import type { EpochMs } from '@/lib/time';
@@ -85,7 +86,6 @@ const NO_QUANTITIES = {
   rangeLow: null,
   rangeHigh: null,
 } as const;
-const INCONCLUSIVE: Verdict = { level: 'inconclusive', direction: null };
 
 /**
  * The item of `items` in `view` (CL-SEN-16, CL-SEN-19): a profile or a trend is written
@@ -180,10 +180,7 @@ export function hasSameValues(stored: object, written: object): boolean {
 export function verdictOf(
   row: Readonly<Pick<StoredRow, 'verdictLevel' | 'verdictDirection' | 'profileConfidence'>>,
 ): VerdictAndConfidence {
-  const verdict: Verdict =
-    row.verdictLevel === 'inconclusive' || row.verdictDirection === null
-      ? INCONCLUSIVE
-      : { level: row.verdictLevel, direction: row.verdictDirection };
+  const verdict = verdictOfLevel(row.verdictLevel, row.verdictDirection);
   return { verdict, profileConfidence: row.profileConfidence };
 }
 

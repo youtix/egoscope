@@ -477,6 +477,26 @@ describe('the writer of a player’s evaluated cases', { timeout: DATABASE_TEST_
     expect(calls).toMatchObject([{ regrouping }]);
   });
 
+  it('[SEN-36] [CL-SUI-16] runs the reactions over the cases that one write empties in ascending id, whatever the order of their rows', async () => {
+    const [kept, lower, higher] = [profiled(0), profiled(1), profiled(2)];
+    expect([kept.row.id < lower.row.id, lower.row.id < higher.row.id]).toStrictEqual([true, true]);
+    // A later baseline season puts the lower id's row after the other, in the index of the
+    // player's seasons and, as a new row version, in the table: either scan meets it last.
+    await db.update(cases).set({ baselineSeason: '2030-31' }).where(eq(cases.id, lower.row.id));
+    const calls: unknown[] = [];
+
+    await write([measured(kept.gameId, [kept.event.id, lower.event.id, higher.event.id])], {
+      reactions: [recording(calls, 'notifications')],
+    });
+
+    const regroupings = [lower, higher].map(({ row }) => ({
+      regrouping: { emptiedCaseId: row.id, survivingCaseId: kept.row.id },
+    }));
+    expect(calls).toMatchObject(regroupings);
+    const remaining = [lower, higher].map(async ({ row }) => caseOf(row.id));
+    expect(await Promise.all(remaining)).toStrictEqual([undefined, undefined]);
+  });
+
   it('[CL-SUI-16] stops at a failed reaction and rolls every write back, the earlier reactions’ included', async () => {
     const kept = profiled(0);
     const emptied = profiled(1);

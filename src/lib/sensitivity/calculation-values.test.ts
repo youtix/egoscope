@@ -93,6 +93,11 @@ describe('the values of a calculation', () => {
     expect(verdictOf('inconclusive', 'increase')).toStrictEqual(INCONCLUSIVE);
   });
 
+  it('[SEN-24] gives the inconclusive verdict to a possible or probable level stored without a direction', () => {
+    expect(verdictOf('possible', null)).toStrictEqual(INCONCLUSIVE);
+    expect(verdictOf('probable', null)).toStrictEqual(INCONCLUSIVE);
+  });
+
   it('[SEN-19] [CA-SEN-13] notes a profile below the threshold its calculation applied: 4 valid cases of 5', () => {
     expect(
       noticesOf(valuesOf({ caseCount: 4, validCount: 4 }), {
